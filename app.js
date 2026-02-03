@@ -29,6 +29,15 @@ const elModalUnits = document.getElementById("modalUnits");
 const elModalSubtotal = document.getElementById("modalSubtotal");
 const elModalMessage = document.getElementById("modalMessage");
 
+// Ubicación (opciones)
+const mapsBlock = document.getElementById("mapsBlock");
+const waLocBlock = document.getElementById("waLocBlock");
+
+// Alerta central (errores / avisos)
+const alertOverlay = document.getElementById("alertOverlay");
+const alertText = document.getElementById("alertText");
+const btnAlertOk = document.getElementById("btnAlertOk");
+
 // Estado modal
 let pending = null; // { orderId, data, message }
 
@@ -50,7 +59,6 @@ function generateClientOrderId() {
 function isValidMapsLink(link) {
   const s = String(link || "").trim();
   if (!s) return false;
-  // Aceptamos formatos comunes
   return (
     s.includes("google.com/maps") ||
     s.includes("goo.gl/maps") ||
@@ -60,10 +68,39 @@ function isValidMapsLink(link) {
 }
 
 function openGoogleMaps() {
-  // Abre Google Maps para que el usuario copie “Compartir enlace”
   window.open("https://www.google.com/maps", "_blank", "noopener,noreferrer");
 }
 
+function getSelectedLocationMethod() {
+  const el = document.querySelector('input[name="locMethod"]:checked');
+  return el ? el.value : "maps"; // default
+}
+
+function syncLocationUI() {
+  const method = getSelectedLocationMethod();
+  const showMaps = method === "maps";
+  if (mapsBlock) mapsBlock.style.display = showMaps ? "" : "none";
+  if (waLocBlock) waLocBlock.style.display = showMaps ? "none" : "";
+}
+
+// ===== Alert helpers =====
+function showAlert(message) {
+  if (!alertOverlay) {
+    alert(message);
+    return;
+  }
+  alertText.textContent = String(message || "Ocurrió un error.");
+  alertOverlay.classList.remove("hidden");
+  alertOverlay.setAttribute("aria-hidden", "false");
+}
+
+function hideAlert() {
+  if (!alertOverlay) return;
+  alertOverlay.classList.add("hidden");
+  alertOverlay.setAttribute("aria-hidden", "true");
+}
+
+// ===== UI render =====
 function renderProducts() {
   elProducts.innerHTML = "";
 
@@ -133,11 +170,13 @@ function getFormData() {
   const maps_link = document.getElementById("maps").value.trim();
   const notes = document.getElementById("notes").value.trim();
 
+  const location_method = getSelectedLocationMethod(); // "maps" | "whatsapp"
+
   const items = buildCartItems();
   const total_units = items.reduce((a, b) => a + b.qty, 0);
   const subtotal = items.reduce((a, b) => a + b.qty * b.price, 0);
 
-  return { customer_name, phone, address_text, maps_link, notes, items, total_units, subtotal };
+  return { customer_name, phone, address_text, maps_link, notes, location_method, items, total_units, subtotal };
 }
 
 function validate(data) {
@@ -145,7 +184,13 @@ function validate(data) {
   if (!data.customer_name) return "Escribe tu nombre.";
   if (!data.phone) return "Escribe tu número.";
   if (!data.address_text) return "Escribe tu dirección.";
-  if (!isValidMapsLink(data.maps_link)) return "Pega un link válido de Google Maps (Compartir → Copiar enlace).";
+
+  // Ubicación: o link (maps) o ubicación por WhatsApp
+  if (data.location_method === "maps") {
+    if (!data.maps_link) return "Pega el link de Google Maps o selecciona “Enviar ubicación desde WhatsApp”.";
+    if (!isValidMapsLink(data.maps_link)) return "El link de Google Maps no parece válido. Usa Compartir → Copiar enlace, o selecciona “Enviar ubicación desde WhatsApp”.";
+  }
+
   return null;
 }
 
@@ -157,21 +202,31 @@ function buildWhatsAppMessage(data, orderId) {
   for (const it of data.items) {
     lines.push(`- ${it.name}: ${it.qty}`);
   }
+
   lines.push("");
   lines.push(`Subtotal: $${money(data.subtotal)}`);
-  lines.push(`Domicilio: lo cubre el cliente (se confirma por WhatsApp).`);
+  lines.push(`Domicilio: lo cubre el cliente. (Se debe confirmar mediante WhatsApp)`);
   lines.push("");
   lines.push(`Dirección: ${data.address_text}`);
-  lines.push(`Ubicación (Maps): ${data.maps_link}`);
+
+  if (data.location_method === "maps") {
+    lines.push(`Ubicación (Google Maps): ${data.maps_link}`);
+  } else {
+    lines.push(`Ubicación: Te la envío por WhatsApp (ubicación/punto).`);
+  }
+
   if (data.notes) lines.push(`Nota: ${data.notes}`);
+
+  lines.push("");
+  lines.push("✅ Ya registré el pedido desde la web.");
+  lines.push("Para iniciar la elaboración, queda pendiente confirmar el pago por este chat.");
   lines.push("");
   lines.push("Muchas gracias.");
   return lines.join("\n");
 }
 
-function openWhatsApp(text) {
-  const url = `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(text)}`;
-  window.open(url, "_blank", "noopener,noreferrer");
+function getWhatsAppUrl(text) {
+  return `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(text)}`;
 }
 
 async function saveOrder(data) {
@@ -233,7 +288,6 @@ async function copyToClipboard(text) {
     await navigator.clipboard.writeText(text);
     return true;
   } catch {
-    // Fallback
     elModalMessage.focus();
     elModalMessage.select();
     try {
@@ -246,8 +300,15 @@ async function copyToClipboard(text) {
 }
 
 // ===== Events =====
-btnOpenMaps.addEventListener("click", () => {
-  openGoogleMaps();
+btnOpenMaps?.addEventListener("click", () => openGoogleMaps());
+
+document.querySelectorAll('input[name="locMethod"]').forEach(r => {
+  r.addEventListener("change", syncLocationUI);
+});
+
+btnAlertOk?.addEventListener("click", hideAlert);
+alertOverlay?.addEventListener("click", (e) => {
+  if (e.target === alertOverlay) hideAlert();
 });
 
 btnCloseModal.addEventListener("click", () => hideModal());
@@ -258,7 +319,9 @@ modal.addEventListener("click", (e) => {
 btnCopyMessage.addEventListener("click", async () => {
   if (!pending) return;
   const ok = await copyToClipboard(pending.message);
-  elStatus.textContent = ok ? "✅ Mensaje copiado. Si WhatsApp no abre, pégalo manualmente." : "❌ No se pudo copiar. Selecciona el texto y cópialo manualmente.";
+  elStatus.textContent = ok
+    ? "✅ Mensaje copiado. Si WhatsApp no abre, pégalo manualmente."
+    : "❌ No se pudo copiar. Selecciona el texto y cópialo manualmente.";
 });
 
 btnSendWhatsApp.addEventListener("click", async () => {
@@ -268,18 +331,34 @@ btnSendWhatsApp.addEventListener("click", async () => {
   btnCopyMessage.disabled = true;
   btnCloseModal.disabled = true;
 
-  try {
-    // 1) Abrir WhatsApp
-    openWhatsApp(pending.message);
+  // Para evitar bloqueos de popups: abrimos ventana “vacía” en el click,
+  // luego tras guardar, la redirigimos a WhatsApp.
+  const waWindow = window.open("about:blank", "_blank", "noopener,noreferrer");
 
-    // 2) Guardar en Sheets
+  try {
     elStatus.textContent = "Registrando pedido...";
+
+    // 1) Guardar primero
     await saveOrder(pending.data);
 
-    elStatus.textContent = `Listo ✅ Pedido creado (código: ${pending.orderId}).`;
+    elStatus.textContent = `✅ Pedido registrado (código: ${pending.orderId}). Abriendo WhatsApp...`;
+
+    // 2) Luego WhatsApp
+    const waUrl = getWhatsAppUrl(pending.message);
+    if (waWindow && !waWindow.closed) {
+      waWindow.location.href = waUrl;
+    } else {
+      showAlert("Tu pedido ya quedó registrado ✅\n\nAhora abre WhatsApp con el botón o copia el mensaje del modal.");
+    }
+
     hideModal();
+    showAlert(
+      "Pedido registrado ✅\n\nAhora falta confirmar el pago por WhatsApp para poder iniciar la elaboración."
+    );
   } catch (e) {
-    elStatus.textContent = `Error: ${e.message}`;
+    if (waWindow && !waWindow.closed) waWindow.close();
+    elStatus.textContent = "";
+    showAlert(`Error: ${e.message}`);
   } finally {
     btnSendWhatsApp.disabled = false;
     btnCopyMessage.disabled = false;
@@ -300,15 +379,15 @@ btnWhatsApp.addEventListener("click", () => {
 
     const message = buildWhatsAppMessage(data, orderId);
 
-    // Guardar como pendiente y mostrar modal
     pending = { orderId, data, message };
     fillModal(data, orderId, message);
     showModal();
   } catch (e) {
-    elStatus.textContent = `Error: ${e.message}`;
+    showAlert(e.message);
   }
 });
 
 // Init
 renderProducts();
 updateSummary();
+syncLocationUI();
