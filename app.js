@@ -27,7 +27,7 @@ const PRODUCTS = [
     price: 8000,
     img: "assets/arroz.webp",
     alt: "Arroz con leche"
-  },*/
+  }, Desactivado Temporalmente.*/
 ];
 
 const cart = new Map(PRODUCTS.map(p => [p.id, 0]));
