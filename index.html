@@ -4,82 +4,99 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>AMARED Postres</title>
+
+  <!-- Opcional: favicon -->
+  <!-- <link rel="icon" href="assets/favicon-32.png" sizes="32x32"> -->
+  <!-- <link rel="apple-touch-icon" href="assets/apple-touch-icon.png"> -->
+
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
-  <div class="container">
-    <header class="header">
-      <div class="brand">
-        <div class="logoBox">AM</div>
-        <div>
-          <h1 class="title">AMARED Postres</h1>
-          <p class="subtitle">Elige tus postres, confirma por WhatsApp y listo ✨</p>
+  <div class="page">
+    <header class="topbar">
+      <div class="topbarInner">
+        <div class="brand">
+          <img class="brandLogo" src="assets/logo-horizontal.png" alt="AMARED" />
         </div>
+
+        <nav class="nav">
+          <a class="navLink active" href="#inicio">Inicio</a>
+          <a class="navLink" href="#postres">Postres</a>
+          <a class="navLink" href="#pedido">Pedido</a>
+        </nav>
       </div>
     </header>
 
-    <main class="grid">
-      <!-- Productos -->
-      <section class="card">
-        <h2 class="cardTitle">Postres</h2>
-        <div id="products" class="products"></div>
+    <main class="container" id="inicio">
+      <section class="hero">
+        <h1 class="heroTitle">Nuestros Deliciosos Postres</h1>
+        <p class="heroSubtitle">Arma tu pedido en segundos y confírmalo por WhatsApp ✨</p>
       </section>
 
-      <!-- Formulario + resumen -->
-      <section class="card">
-        <h2 class="cardTitle">Tu pedido</h2>
+      <section class="layout">
+        <!-- Productos -->
+        <section class="card" id="postres">
+          <h2 class="cardTitle">Postres</h2>
+          <div id="products" class="products"></div>
+        </section>
 
-        <div class="summaryRow">
-          <div>
-            <div class="summaryLabel">Unidades</div>
-            <div id="totalUnits" class="summaryValue">0</div>
+        <!-- Pedido -->
+        <section class="card" id="pedido">
+          <h2 class="cardTitle">Tu pedido</h2>
+
+          <div class="summaryRow">
+            <div class="summaryBox">
+              <div class="summaryLabel">Unidades</div>
+              <div id="totalUnits" class="summaryValue">0</div>
+            </div>
+
+            <div class="subtotalBox">
+              <div class="summaryLabel">Subtotal</div>
+              <div class="subtotalBig">$<span id="subtotal">0</span></div>
+              <div class="muted small">Domicilio se confirma por WhatsApp (lo cubre el cliente).</div>
+            </div>
           </div>
 
-          <div class="subtotalBox">
-            <div class="summaryLabel">Subtotal</div>
-            <div class="subtotalBig">$<span id="subtotal">0</span></div>
-            <div class="muted small">Domicilio se confirma por WhatsApp (lo cubre el cliente).</div>
-          </div>
-        </div>
-
-        <div class="miniCard">
-          <div class="miniTitle">Resumen</div>
-          <div id="cartSummary" class="cartSummary muted">Aún no has seleccionado postres.</div>
-        </div>
-
-        <div class="form">
-          <label class="label">Nombre</label>
-          <input id="name" class="input" type="text" placeholder="Ej: Cristian" />
-
-          <label class="label">Número de teléfono</label>
-          <input id="phone" class="input" type="tel" placeholder="Ej: 3001234567" />
-
-          <label class="label">Dirección</label>
-          <input id="address" class="input" type="text" placeholder="Ej: Calle 10 # 5-20, Apto 301" />
-
-          <label class="label">Ubicación (link de Google Maps)</label>
-          <div class="mapsRow">
-            <input id="maps" class="input" type="url" placeholder="Pega aquí el link de tu ubicación" />
-            <button id="btnOpenMaps" class="btn secondary" type="button">Abrir Maps</button>
-          </div>
-          <div class="muted small">
-            Tip: abre Maps, toca “Compartir” y pega el enlace aquí (así el domicilio queda exacto).
+          <div class="miniCard">
+            <div class="miniTitle">
+              <img class="miniIcon" src="assets/logo-icono.png" alt="AMARED icono" />
+              Resumen
+            </div>
+            <div id="cartSummary" class="cartSummary muted">Aún no has seleccionado postres.</div>
           </div>
 
-          <label class="label">Notas (opcional)</label>
-          <textarea id="notes" class="textarea" rows="3" placeholder="Ej: Portería / Torre 2 / Sin canela"></textarea>
+          <div class="form">
+            <label class="label">Nombre</label>
+            <input id="name" class="input" type="text" placeholder="Ej: Cristian" />
 
-          <button id="btnWhatsApp" class="btn primary" type="button">
-            Confirmar pedido
-          </button>
+            <label class="label">Número de teléfono</label>
+            <input id="phone" class="input" type="tel" placeholder="Ej: 3001234567" />
 
-          <div id="status" class="status"></div>
-        </div>
+            <label class="label">Dirección</label>
+            <input id="address" class="input" type="text" placeholder="Ej: Calle 10 # 5-20, Apto 301" />
+
+            <label class="label">Ubicación (link de Google Maps)</label>
+            <div class="mapsRow">
+              <input id="maps" class="input" type="url" placeholder="Pega aquí el link de tu ubicación" />
+              <button id="btnOpenMaps" class="btn secondary" type="button">Abrir Maps</button>
+            </div>
+            <div class="muted small">Abre Maps → Compartir → Copiar enlace → pégalo aquí.</div>
+
+            <label class="label">Notas (opcional)</label>
+            <textarea id="notes" class="textarea" rows="3" placeholder="Ej: Portería / Torre 2 / Sin canela"></textarea>
+
+            <button id="btnWhatsApp" class="btn primary" type="button">
+              Confirmar pedido
+            </button>
+
+            <div id="status" class="status"></div>
+          </div>
+        </section>
       </section>
     </main>
   </div>
 
-  <!-- MODAL CONFIRMACIÓN -->
+  <!-- MODAL CONFIRMACIÓN (se deja igual) -->
   <div id="confirmModal" class="modalOverlay hidden" aria-hidden="true">
     <div class="modal">
       <div class="modalHeader">
@@ -99,17 +116,13 @@
             <span class="muted">Subtotal</span>
             <strong class="modalSubtotal">$<span id="modalSubtotal">0</span></strong>
           </div>
-          <div class="muted small">
-            El domicilio se confirma por WhatsApp (lo cubre el cliente).
-          </div>
+          <div class="muted small">El domicilio se confirma por WhatsApp (lo cubre el cliente).</div>
         </div>
 
         <div class="miniCard">
           <div class="miniTitle">Mensaje listo para WhatsApp</div>
           <textarea id="modalMessage" class="textarea" rows="7" readonly></textarea>
-          <div class="muted small">
-            Si WhatsApp no abre, copia el mensaje y pégalo manualmente.
-          </div>
+          <div class="muted small">Si WhatsApp no abre, copia el mensaje y pégalo manualmente.</div>
         </div>
       </div>
 
