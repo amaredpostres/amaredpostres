@@ -340,3 +340,24 @@ body{
 @media (max-width:520px){
   .modalFooter{ flex-direction: column; }
 }
+
+
+/* === LOGOS SVG === */
+.brandLogo {
+  height: 42px;
+  width: auto;
+  display: block;
+}
+
+.miniIcon {
+  width: 22px;
+  height: 22px;
+  object-fit: contain;
+}
+
+/* Responsive logo */
+@media (max-width: 768px) {
+  .brandLogo {
+    height: 36px;
+  }
+}
