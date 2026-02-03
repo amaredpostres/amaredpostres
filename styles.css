@@ -20,8 +20,11 @@ body{
     radial-gradient(900px 420px at 20% 5%, rgba(242,91,143,.14), transparent 60%),
     radial-gradient(900px 420px at 80% 8%, rgba(246,186,96,.16), transparent 60%),
     var(--cream);
+  background-repeat: no-repeat;    /* ✅ evita que “reinicie” */
+  background-attachment: fixed;    /* ✅ opcional: se ve más pro al hacer scroll */
   color: var(--choco);
 }
+
 
 /* Topbar */
 .topbar{
@@ -346,6 +349,7 @@ body{
   display: grid;
   place-items: center;
   padding: 14px;
+  z-index: 40; /* ✅ para que quede sobre la topbar */
 }
 
 .hidden{ display:none !important; }
