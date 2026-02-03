@@ -4,11 +4,6 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>AMARED Postres</title>
-
-  <!-- Opcional: favicon -->
-  <!-- <link rel="icon" href="assets/favicon-32.png" sizes="32x32"> -->
-  <!-- <link rel="apple-touch-icon" href="assets/apple-touch-icon.png"> -->
-
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
@@ -16,11 +11,7 @@
     <header class="topbar">
       <div class="topbarInner">
         <div class="brand">
-          <img
-            class="brandLogo"
-            src="assets/Logo-Amared.svg"
-            alt="AMARED Postres"
-          />
+          <img class="brandLogo" src="assets/Logo-Amared.svg" alt="AMARED Postres" />
         </div>
       </div>
     </header>
@@ -56,11 +47,7 @@
           </div>
 
           <div class="miniCard">
-            <img
-              class="miniIcon"
-              src="assets/Logo-Isotipo-Amared.svg"
-              alt="AMARED icono"
-            />
+            <img class="miniIcon" src="assets/Logo-Isotipo-Amared.svg" alt="AMARED icono" />
             <div id="cartSummary" class="cartSummary muted">Aún no has seleccionado postres.</div>
           </div>
 
@@ -107,22 +94,19 @@
               </div>
             </div>
 
-            <label class="label">Notas (opcional)</label>
-            <textarea id="notes" class="textarea" rows="3" placeholder="Ej: Portería / Torre 2 / Sin canela"></textarea>
             <label class="label">Correo electrónico (opcional)</label>
             <input id="email" class="input" type="email" placeholder="Ej: correo@dominio.com" />
-            <div class="muted small">
-              Podrías recibir notificaciones del pedido o información relacionada con AMARED.
-            </div>
-            
+            <div class="muted small">Podrías recibir notificaciones del pedido o información relacionada con AMARED.</div>
+
             <label class="checkRow">
               <input id="waOptIn" type="checkbox" />
               <span>Quiero recibir información de AMARED por WhatsApp.</span>
             </label>
 
-            <button id="btnWhatsApp" class="btn primary" type="button">
-              Confirmar pedido
-            </button>
+            <label class="label">Notas (opcional)</label>
+            <textarea id="notes" class="textarea" rows="3" placeholder="Ej: Portería / Torre 2 / Sin canela"></textarea>
+
+            <button id="btnWhatsApp" class="btn primary" type="button">Confirmar pedido</button>
 
             <div id="status" class="status"></div>
           </div>
@@ -168,7 +152,7 @@
     </div>
   </div>
 
-  <!-- ALERTA CENTRAL (errores / avisos) -->
+  <!-- ALERTA CENTRAL -->
   <div id="alertOverlay" class="alertOverlay hidden" aria-hidden="true">
     <div class="alertBox" role="alertdialog" aria-modal="true" aria-labelledby="alertTitle">
       <div id="alertTitle" class="alertTitle">Aviso</div>
