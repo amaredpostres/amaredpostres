@@ -20,11 +20,10 @@ body{
     radial-gradient(900px 420px at 20% 5%, rgba(242,91,143,.14), transparent 60%),
     radial-gradient(900px 420px at 80% 8%, rgba(246,186,96,.16), transparent 60%),
     var(--cream);
-  background-repeat: no-repeat;    /* ✅ evita que “reinicie” */
-  background-attachment: fixed;    /* ✅ opcional: se ve más pro al hacer scroll */
+  background-repeat: no-repeat; /* evita “cortes” */
+  /* background-attachment: fixed; */ /* opcional */
   color: var(--choco);
 }
-
 
 /* Topbar */
 .topbar{
@@ -42,7 +41,7 @@ body{
   padding: 14px 18px;
   display:flex;
   align-items:center;
-  justify-content:center; /* logo centrado (desktop y móvil) */
+  justify-content:center;
   gap: 14px;
 }
 
@@ -52,7 +51,6 @@ body{
   min-height: 64px;
 }
 
-/* Logo con “límite inteligente” */
 .brandLogo{
   height: clamp(38px, 4vw, 56px);
   width: auto;
@@ -93,8 +91,6 @@ body{
 @media (max-width: 920px){
   .layout{ grid-template-columns:1fr; }
   .heroTitle{ font-size: 26px; }
-
-  /* más “aire” arriba en móvil */
   .container{ padding-top: 12px; }
   .hero{ padding-top: 6px; }
 }
@@ -112,27 +108,70 @@ body{
   font-size: 16px;
 }
 
-/* Products */
-.products{ display:grid; gap: 12px; }
-
-.product{
-  border: 1px solid var(--border);
-  border-radius: 18px;
-  padding: 12px;
-  display:flex;
-  justify-content:space-between;
-  align-items:center;
-  gap: 10px;
-  background: linear-gradient(180deg, rgba(247,206,145,.10), rgba(255,255,255,0));
+/* Products (cards con imagen) */
+.products{
+  display:grid;
+  gap: 12px;
 }
 
-.name{ font-weight: 900; }
+.productCard{
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  overflow: hidden;
+  background: linear-gradient(180deg, rgba(247,206,145,.10), rgba(255,255,255,0));
+  box-shadow: 0 14px 40px rgba(64,17,2,.08);
+  display: grid;
+  grid-template-columns: 160px 1fr;
+  gap: 12px;
+  padding: 12px;
+}
 
-.price{
+.productImg{
+  width: 160px;
+  height: 120px;
+  border-radius: 16px;
+  object-fit: cover;
+  display: block;
+  border: 1px solid rgba(64,17,2,.10);
+  background: rgba(255,255,255,.7);
+}
+
+.productInfo{
+  display:flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 8px;
+  min-width: 0;
+}
+
+.productTop .name{
+  font-weight: 950;
+  line-height: 1.15;
+}
+
+.productTop .price{
   margin-top: 4px;
   font-size: 13px;
   color: rgba(64,17,2,.65);
+  font-weight: 800;
+}
+
+.productDesc{
+  font-size: 12px;
+  color: rgba(64,17,2,.62);
   font-weight: 700;
+  line-height: 1.3;
+}
+
+.productBottom{
+  display:flex;
+  justify-content: flex-end;
+}
+
+@media (max-width: 520px){
+  .productCard{ grid-template-columns: 1fr; }
+  .productImg{ width:100%; height: 170px; }
+  .productBottom{ justify-content: flex-start; }
 }
 
 /* Stepper */
@@ -269,24 +308,6 @@ body{
   outline: none;
 }
 
-/* Checkbox: recibir info por WhatsApp */
-.checkRow{
-  display:flex;
-  align-items:flex-start;
-  gap: 10px;
-  font-weight: 800;
-  color: rgba(64,17,2,.78);
-  padding: 10px 12px;
-  border: 1px dashed rgba(64,17,2,.18);
-  background: rgba(254,246,239,.60);
-  border-radius: 14px;
-}
-
-.checkRow input{
-  margin-top: 2px;
-}
-
-
 .textarea{ resize: vertical; }
 
 .mapsRow{ display:flex; gap: 8px; align-items:center; }
@@ -310,10 +331,21 @@ body{
 .radioRow input{ transform: translateY(1px); }
 
 .mapsBlock{ padding-left: 28px; }
-.waLocBlock{
-  padding-left: 28px;
-  padding-top: 2px;
+.waLocBlock{ padding-left: 28px; padding-top: 2px; }
+
+/* Checkbox opt-in */
+.checkRow{
+  display:flex;
+  align-items:flex-start;
+  gap: 10px;
+  font-weight: 800;
+  color: rgba(64,17,2,.78);
+  padding: 10px 12px;
+  border: 1px dashed rgba(64,17,2,.18);
+  background: rgba(254,246,239,.60);
+  border-radius: 14px;
 }
+.checkRow input{ margin-top: 2px; }
 
 /* Buttons */
 .btn{
@@ -349,7 +381,7 @@ body{
   display: grid;
   place-items: center;
   padding: 14px;
-  z-index: 40; /* ✅ para que quede sobre la topbar */
+  z-index: 40; /* ✅ sobre topbar */
 }
 
 .hidden{ display:none !important; }
@@ -432,7 +464,7 @@ body{
   .summaryBox{ min-width: unset; }
 }
 
-/* Alert (cuadro central de errores / avisos) */
+/* Alert */
 .alertOverlay{
   position: fixed;
   inset: 0;
