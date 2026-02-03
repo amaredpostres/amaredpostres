@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Pedido de Postres</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="wrap">
+    <header class="header">
+      <div class="brand">
+        <div class="logoBox">AMARED</div>
+        <div>
+          <h1>Pedidos de Postres</h1>
+          <p>Arma tu pedido y confírmalo por WhatsApp</p>
+        </div>
+      </div>
+    </header>
+
+    <main class="grid">
+      <section class="card">
+        <h2>1) Elige tus postres</h2>
+        <div id="products" class="products"></div>
+        <div class="summary">
+          <div><strong>Total unidades:</strong> <span id="totalUnits">0</span></div>
+          <div><strong>Subtotal:</strong> $<span id="subtotal">0</span></div>
+        </div>
+      </section>
+
+      <section class="card">
+        <h2>2) Tus datos</h2>
+
+        <label>Nombre</label>
+        <input id="name" type="text" placeholder="Ej: Ana" />
+
+        <label>Teléfono</label>
+        <input id="phone" type="tel" placeholder="Ej: 3001234567" />
+
+        <label>Dirección</label>
+        <input id="address" type="text" placeholder="Ej: Cra 1 #2-3, Barrio..." />
+
+        <label>Link de Google Maps (ubicación exacta)</label>
+        <input id="maps" type="url" placeholder="Pega el link de tu ubicación" />
+
+        <details class="help">
+          <summary>¿Cómo obtengo el enlace de mi ubicación?</summary>
+          <ol>
+            <li>Abre Google Maps en tu celular.</li>
+            <li>Mantén presionado el punto exacto donde quieres recibir tu pedido.</li>
+            <li>Toca “Compartir” → “Copiar vínculo”.</li>
+            <li>Pega el enlace aquí.</li>
+          </ol>
+        </details>
+
+        <label>Nota (opcional)</label>
+        <textarea id="notes" rows="3" placeholder="Ej: Portería torre 2 / sin topping..."></textarea>
+
+        <button id="btnWhatsApp" class="btn">
+          Confirmar por WhatsApp
+        </button>
+
+        <p class="small" id="status"></p>
+      </section>
+    </main>
+
+    <footer class="footer">
+      <p>Al confirmar se abrirá WhatsApp con tu pedido listo. El costo del domicilio se confirmará por WhatsApp.</p>
+    </footer>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
