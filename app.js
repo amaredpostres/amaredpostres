@@ -1,7 +1,7 @@
 // =================== CONFIG ===================
 const WHATSAPP_NUMBER = "573028473086";
 
-// 🔐 URL DEL CLOUDFARE WORKER (NO Apps Script)
+// ✅ URL DEL CLOUDFLARE WORKER (NO Apps Script)
 const ORDER_API_URL = "https://amared-orders.amaredpostres.workers.dev/";
 
 // Productos y precios
@@ -40,6 +40,11 @@ function generateClientOrderId() {
 
 // Render productos
 function renderProducts() {
+  if (!elProducts) {
+    console.error("No existe el contenedor #products en el HTML.");
+    return;
+  }
+
   elProducts.innerHTML = "";
 
   for (const p of PRODUCTS) {
@@ -61,7 +66,8 @@ function renderProducts() {
     elProducts.appendChild(div);
   }
 
-  elProducts.addEventListener("click", (e) => {
+  // Evita duplicar listeners si renderizas de nuevo
+  elProducts.onclick = (e) => {
     const btn = e.target.closest("button");
     if (!btn) return;
 
@@ -71,9 +77,10 @@ function renderProducts() {
     const next = action === "inc" ? current + 1 : Math.max(0, current - 1);
 
     cart.set(id, next);
-    document.getElementById(`qty_${id}`).textContent = next;
+    const qtyEl = document.getElementById(`qty_${id}`);
+    if (qtyEl) qtyEl.textContent = String(next);
     updateSummary();
-  }, { once: true });
+  };
 }
 
 // Resumen
@@ -87,17 +94,17 @@ function updateSummary() {
     subtotal += qty * p.price;
   }
 
-  elTotalUnits.textContent = totalUnits;
-  elSubtotal.textContent = money(subtotal);
+  if (elTotalUnits) elTotalUnits.textContent = String(totalUnits);
+  if (elSubtotal) elSubtotal.textContent = money(subtotal);
 }
 
 // Obtener datos del formulario
 function getFormData() {
-  const customer_name = document.getElementById("name").value.trim();
-  const phone = document.getElementById("phone").value.trim();
-  const address_text = document.getElementById("address").value.trim();
-  const maps_link = document.getElementById("maps").value.trim();
-  const notes = document.getElementById("notes").value.trim();
+  const customer_name = document.getElementById("name")?.value.trim() || "";
+  const phone = document.getElementById("phone")?.value.trim() || "";
+  const address_text = document.getElementById("address")?.value.trim() || "";
+  const maps_link = document.getElementById("maps")?.value.trim() || "";
+  const notes = document.getElementById("notes")?.value.trim() || "";
 
   const items = PRODUCTS
     .map(p => ({
@@ -129,8 +136,7 @@ function validate(data) {
   if (!data.customer_name) return "Escribe tu nombre.";
   if (!data.phone) return "Escribe tu número.";
   if (!data.address_text) return "Escribe tu dirección.";
-  if (!data.maps_link || !data.maps_link.includes("http"))
-    return "Pega el link de Google Maps.";
+  if (!data.maps_link || !data.maps_link.includes("http")) return "Pega el link de Google Maps.";
   return null;
 }
 
@@ -159,7 +165,7 @@ function openWhatsApp(text) {
   window.open(url, "_blank", "noopener,noreferrer");
 }
 
-// Guardar pedido vía Worker
+// Guardar pedido vía Worker (con DEBUG)
 async function saveOrder(data) {
   const res = await fetch(ORDER_API_URL, {
     method: "POST",
@@ -167,44 +173,60 @@ async function saveOrder(data) {
     body: JSON.stringify(data),
   });
 
-const out = await res.json();
-if (!out.ok) {
-  const extra = out.raw_snippet ? `\n\nDetalle:\n${out.raw_snippet}` : "";
-  const dbg = out.debug ? `\n\nDebug: ${JSON.stringify(out.debug)}` : "";
-  throw new Error((out.error || "No se pudo guardar el pedido.") + dbg + extra);
+  let out;
+  try {
+    out = await res.json();
+  } catch (e) {
+    // Si el Worker respondió algo no JSON
+    const t = await res.text().catch(() => "");
+    throw new Error(`Worker non-JSON response. HTTP ${res.status}\n${t.slice(0, 300)}`);
+  }
+
+  if (!out.ok) {
+    const extra = out.raw_snippet ? `\n\nDetalle:\n${out.raw_snippet}` : "";
+    const dbg = out.debug ? `\n\nDebug: ${JSON.stringify(out.debug)}` : "";
+    throw new Error((out.error || "No se pudo guardar el pedido.") + dbg + extra);
+  }
+
+  return out.order_id || null;
 }
 
 // Botón principal
-btnWhatsApp.addEventListener("click", async () => {
-  elStatus.textContent = "";
-  btnWhatsApp.disabled = true;
+if (btnWhatsApp) {
+  btnWhatsApp.addEventListener("click", async () => {
+    if (elStatus) elStatus.textContent = "";
+    btnWhatsApp.disabled = true;
 
-  try {
-    if (ORDER_API_URL.includes("PEGA_AQUI")) {
-      throw new Error("ORDER_API_URL no está configurada.");
+    try {
+      if (ORDER_API_URL.includes("PEGA_AQUI")) {
+        throw new Error("ORDER_API_URL no está configurada.");
+      }
+
+      const data = getFormData();
+      const err = validate(data);
+      if (err) throw new Error(err);
+
+      const orderId = generateClientOrderId();
+      data.order_id = orderId;
+
+      // 1️⃣ WhatsApp
+      openWhatsApp(buildWhatsAppMessage(data, orderId));
+
+      // 2️⃣ Guardar en Sheets
+      if (elStatus) elStatus.textContent = "Registrando pedido...";
+      await saveOrder(data);
+
+      if (elStatus) elStatus.textContent = `Listo ✅ Pedido creado (código: ${orderId}).`;
+    } catch (e) {
+      if (elStatus) elStatus.textContent = `Error: ${e.message}`;
+    } finally {
+      btnWhatsApp.disabled = false;
     }
+  });
+} else {
+  console.error("No existe el botón #btnWhatsApp en el HTML.");
+}
 
-    const data = getFormData();
-    const err = validate(data);
-    if (err) throw new Error(err);
-
-    const orderId = generateClientOrderId();
-    data.order_id = orderId;
-
-    // 1️⃣ WhatsApp
-    openWhatsApp(buildWhatsAppMessage(data, orderId));
-
-    // 2️⃣ Guardar en Sheets
-    elStatus.textContent = "Registrando pedido...";
-    await saveOrder(data);
-
-    elStatus.textContent = `Listo ✅ Pedido creado (código: ${orderId}).`;
-  } catch (e) {
-    elStatus.textContent = `Error: ${e.message}`;
-  } finally {
-    btnWhatsApp.disabled = false;
-  }
-});
-
+// Inicializar
 renderProducts();
 updateSummary();
