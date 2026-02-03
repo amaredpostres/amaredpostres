@@ -1,7 +1,7 @@
 // =================== CONFIG ===================
 // Cambia APPS_SCRIPT_WEBAPP_URL por la URL del Web App de Apps Script desplegado.
 const WHATSAPP_NUMBER = "573028473086";
-const APPS_SCRIPT_WEBAPP_URL = "PASTE_YOUR_WEBAPP_URL_HERE";
+const APPS_SCRIPT_WEBAPP_URL = "https://script.google.com/macros/s/AKfycbxHo6WJSbnZQ4UdpToPzvPC2SIumm-sdMRKIrHa7vPbjwb0uPsmod_nVFyAlek7oYvq4w/exec";
 
 // Definición de los productos con sus precios actuales. Estos valores se
 // pueden ajustar sin tocar el resto del código.
