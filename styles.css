@@ -330,7 +330,7 @@ body{
   padding: 14px;
 }
 
-.hidden{ display:none; }
+.hidden{ display:none !important; }
 
 .modal{
   width: min(720px, 96vw);
