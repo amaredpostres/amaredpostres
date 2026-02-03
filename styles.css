@@ -36,39 +36,24 @@ body{
 .topbarInner{
   max-width:1100px;
   margin: 0 auto;
-  padding: 14px 18px;            /* ✅ ajuste #2 (padding) */
+  padding: 14px 18px;
   display:flex;
-  align-items:center;            /* ✅ ajuste #2 (alineación) */
-  justify-content:space-between;
+  align-items:center;
+  justify-content:center; /* logo centrado (desktop y móvil) */
   gap: 14px;
 }
 
 .brand{
   display:flex;
   align-items:center;
-  min-height: 64px;              /* ✅ ajuste #2 (altura consistente) */
+  min-height: 64px;
 }
 
-/* ✅ ajuste #1: logo con "límite inteligente" */
+/* Logo con “límite inteligente” */
 .brandLogo{
-  height: clamp(38px, 4vw, 56px); /* móvil -> desktop */
+  height: clamp(38px, 4vw, 56px);
   width: auto;
   display: block;
-}
-
-.nav{ display:flex; gap: 12px; }
-.navLink{
-  text-decoration:none;
-  color: rgba(64,17,2,.72);
-  font-weight: 800;
-  font-size: 13px;
-  padding: 8px 10px;
-  border-radius: 999px;
-}
-.navLink:hover{ background: rgba(242,91,143,.10); }
-.navLink.active{
-  background: rgba(242,91,143,.14);
-  color: var(--choco);
 }
 
 /* Page */
@@ -88,6 +73,7 @@ body{
   font-size: 30px;
   letter-spacing: .2px;
 }
+
 .heroSubtitle{
   margin:0;
   color: rgba(64,17,2,.65);
@@ -104,9 +90,8 @@ body{
 @media (max-width: 920px){
   .layout{ grid-template-columns:1fr; }
   .heroTitle{ font-size: 26px; }
-  .nav{ display:none; }
 
-  /* ✅ ajuste #3: más “aire” arriba en móvil */
+  /* más “aire” arriba en móvil */
   .container{ padding-top: 12px; }
   .hero{ padding-top: 6px; }
 }
@@ -251,7 +236,25 @@ body{
 
 /* Form */
 .form{ display:grid; gap: 8px; }
-.label{ font-size: 12px; color: rgba(64,17,2,.62); font-weight: 800; }
+
+.label{
+  font-size: 12px;
+  color: rgba(64,17,2,.62);
+  font-weight: 800;
+}
+
+.req{ color: var(--pink); font-weight: 950; }
+
+.hint{
+  font-size: 12px;
+  color: rgba(64,17,2,.62);
+  font-weight: 700;
+  border: 1px dashed rgba(64,17,2,.18);
+  background: rgba(254,246,239,.60);
+  border-radius: 14px;
+  padding: 10px 12px;
+  margin-bottom: 6px;
+}
 
 .input, .textarea{
   width: 100%;
@@ -262,10 +265,34 @@ body{
   padding: 11px 12px;
   outline: none;
 }
+
 .textarea{ resize: vertical; }
 
 .mapsRow{ display:flex; gap: 8px; align-items:center; }
 .mapsRow .input{ flex: 1; }
+
+/* Location options */
+.locationOptions{
+  display:grid;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.radioRow{
+  display:flex;
+  align-items:center;
+  gap: 10px;
+  font-weight: 800;
+  color: rgba(64,17,2,.78);
+}
+
+.radioRow input{ transform: translateY(1px); }
+
+.mapsBlock{ padding-left: 28px; }
+.waLocBlock{
+  padding-left: 28px;
+  padding-top: 2px;
+}
 
 /* Buttons */
 .btn{
@@ -337,7 +364,6 @@ body{
 }
 
 .modalBody{ padding: 14px; display:grid; gap: 12px; }
-
 .modalItems{ display:grid; gap: 8px; }
 
 .itemLine{
@@ -380,4 +406,49 @@ body{
 
 @media (max-width:520px){
   .modalFooter{ flex-direction: column; }
+  .summaryRow{ flex-direction: column; }
+  .summaryBox{ min-width: unset; }
+}
+
+/* Alert (cuadro central de errores / avisos) */
+.alertOverlay{
+  position: fixed;
+  inset: 0;
+  background: rgba(64,17,2,.35);
+  display: grid;
+  place-items: center;
+  padding: 14px;
+  z-index: 50;
+}
+
+.alertBox{
+  width: min(520px, 96vw);
+  background: var(--paper);
+  border: 1px solid var(--border);
+  border-radius: 22px;
+  box-shadow: 0 30px 80px rgba(64,17,2,.25);
+  overflow: hidden;
+}
+
+.alertTitle{
+  padding: 12px 14px;
+  font-weight: 950;
+  background: rgba(242,91,143,.10);
+  border-bottom: 1px solid var(--border);
+}
+
+.alertText{
+  padding: 12px 14px;
+  color: rgba(64,17,2,.78);
+  font-weight: 700;
+  line-height: 1.35;
+  white-space: pre-wrap;
+}
+
+.alertFooter{
+  padding: 12px 14px;
+  border-top: 1px solid var(--border);
+  display:flex;
+  justify-content: flex-end;
+  background: rgba(254,246,239,.80);
 }
