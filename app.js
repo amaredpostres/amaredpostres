@@ -20,14 +20,14 @@ const PRODUCTS = [
     img: "assets/cheesecake.webp",
     alt: "Cheesecake de café con panela"
   },
-  {
+  /*{
     id: "arroz_con_leche",
     name: "Arroz con Leche",
     desc: "Tradicional, cremosito y casero. Un clásico que siempre antoja.",
     price: 8000,
     img: "assets/arroz.webp",
     alt: "Arroz con leche"
-  },
+  },*/
 ];
 
 const cart = new Map(PRODUCTS.map(p => [p.id, 0]));
