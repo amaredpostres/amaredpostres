@@ -1,6 +1,6 @@
 // =================== CONFIG ===================
 const WHATSAPP_NUMBER = "573028473086";
-const ORDER_API_URL = "https://amared-orders.amaredpostres.workers.dev/"; // ✅ tu Worker
+const ORDER_API_URL = "https://amared-orders.amaredpostres.workers.dev/"; // tu Worker
 
 const PRODUCTS = [
   { id: "mousse_maracuya", name: "Mousse de Maracuyá", price: 10000 },
@@ -10,20 +10,22 @@ const PRODUCTS = [
 
 const cart = new Map(PRODUCTS.map(p => [p.id, 0]));
 
-// DOM
+// =================== DOM ===================
 const elProducts = document.getElementById("products");
 const elTotalUnits = document.getElementById("totalUnits");
 const elSubtotal = document.getElementById("subtotal");
 const elCartSummary = document.getElementById("cartSummary");
 const elStatus = document.getElementById("status");
-const btnWhatsApp = document.getElementById("btnWhatsApp");
 
+const btnWhatsApp = document.getElementById("btnWhatsApp");
 const btnOpenMaps = document.getElementById("btnOpenMaps");
 
+// Modal confirmación
 const modal = document.getElementById("confirmModal");
 const btnCloseModal = document.getElementById("btnCloseModal");
 const btnCopyMessage = document.getElementById("btnCopyMessage");
 const btnSendWhatsApp = document.getElementById("btnSendWhatsApp");
+
 const elModalItems = document.getElementById("modalItems");
 const elModalUnits = document.getElementById("modalUnits");
 const elModalSubtotal = document.getElementById("modalSubtotal");
@@ -33,16 +35,19 @@ const elModalMessage = document.getElementById("modalMessage");
 const mapsBlock = document.getElementById("mapsBlock");
 const waLocBlock = document.getElementById("waLocBlock");
 
-// Alerta central (errores / avisos)
+// Alerta central
 const alertOverlay = document.getElementById("alertOverlay");
 const alertText = document.getElementById("alertText");
 const btnAlertOk = document.getElementById("btnAlertOk");
 
-// Estado modal
+// =================== STATE ===================
 let pending = null; // { orderId, data, message }
+let shouldResetAfterAlert = false;
 
-// Utils
-function money(n) { return Math.round(n).toLocaleString("es-CO"); }
+// =================== UTILS ===================
+function money(n) {
+  return Math.round(n).toLocaleString("es-CO");
+}
 
 function generateClientOrderId() {
   const now = new Date();
@@ -54,6 +59,12 @@ function generateClientOrderId() {
   const ss = String(now.getSeconds()).padStart(2, "0");
   const rnd = String(Math.floor(Math.random() * 9000) + 1000);
   return `AMR-${y}${m}${d}-${hh}${mm}${ss}-${rnd}`;
+}
+
+function isValidEmail(email) {
+  if (!email) return true; // opcional
+  // Validación simple (suficiente para formulario)
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 }
 
 function isValidMapsLink(link) {
@@ -73,7 +84,7 @@ function openGoogleMaps() {
 
 function getSelectedLocationMethod() {
   const el = document.querySelector('input[name="locMethod"]:checked');
-  return el ? el.value : "maps"; // default
+  return el ? el.value : "maps";
 }
 
 function syncLocationUI() {
@@ -83,9 +94,13 @@ function syncLocationUI() {
   if (waLocBlock) waLocBlock.style.display = showMaps ? "none" : "";
 }
 
-// ===== Alert helpers =====
+function getWhatsAppUrl(text) {
+  return `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(text)}`;
+}
+
+// =================== ALERT HELPERS ===================
 function showAlert(message) {
-  if (!alertOverlay) {
+  if (!alertOverlay || !alertText) {
     alert(message);
     return;
   }
@@ -100,7 +115,7 @@ function hideAlert() {
   alertOverlay.setAttribute("aria-hidden", "true");
 }
 
-// ===== UI render =====
+// =================== UI RENDER ===================
 function renderProducts() {
   elProducts.innerHTML = "";
 
@@ -163,6 +178,7 @@ function updateSummary() {
   }
 }
 
+// =================== FORM DATA + VALIDATION ===================
 function getFormData() {
   const customer_name = document.getElementById("name").value.trim();
   const phone = document.getElementById("phone").value.trim();
@@ -170,13 +186,31 @@ function getFormData() {
   const maps_link = document.getElementById("maps").value.trim();
   const notes = document.getElementById("notes").value.trim();
 
+  // ✅ nuevos campos
+  const emailEl = document.getElementById("email");
+  const email = emailEl ? emailEl.value.trim() : "";
+  const waOptEl = document.getElementById("waOptIn");
+  const wa_opt_in = waOptEl ? waOptEl.checked : false;
+
   const location_method = getSelectedLocationMethod(); // "maps" | "whatsapp"
 
   const items = buildCartItems();
   const total_units = items.reduce((a, b) => a + b.qty, 0);
   const subtotal = items.reduce((a, b) => a + b.qty * b.price, 0);
 
-  return { customer_name, phone, address_text, maps_link, notes, location_method, items, total_units, subtotal };
+  return {
+    customer_name,
+    phone,
+    address_text,
+    maps_link,
+    notes,
+    location_method,
+    items,
+    total_units,
+    subtotal,
+    email,
+    wa_opt_in,
+  };
 }
 
 function validate(data) {
@@ -185,7 +219,9 @@ function validate(data) {
   if (!data.phone) return "Escribe tu número.";
   if (!data.address_text) return "Escribe tu dirección.";
 
-  // Ubicación: o link (maps) o ubicación por WhatsApp
+  if (!isValidEmail(data.email)) return "El correo no parece válido. Revisa el formato (ej: correo@dominio.com).";
+
+  // Ubicación: o link maps (si eligió maps) o enviar ubicación por WhatsApp (si eligió whatsapp)
   if (data.location_method === "maps") {
     if (!data.maps_link) return "Pega el link de Google Maps o selecciona “Enviar ubicación desde WhatsApp”.";
     if (!isValidMapsLink(data.maps_link)) return "El link de Google Maps no parece válido. Usa Compartir → Copiar enlace, o selecciona “Enviar ubicación desde WhatsApp”.";
@@ -194,11 +230,14 @@ function validate(data) {
   return null;
 }
 
+// =================== WHATSAPP MESSAGE ===================
 function buildWhatsAppMessage(data, orderId) {
   const lines = [];
+
   lines.push(`Hola, mi nombre es ${data.customer_name} y mi número es ${data.phone}.`);
   lines.push("");
   lines.push(`Quiero hacer un pedido (Código: ${orderId}):`);
+
   for (const it of data.items) {
     lines.push(`- ${it.name}: ${it.qty}`);
   }
@@ -217,18 +256,17 @@ function buildWhatsAppMessage(data, orderId) {
 
   if (data.notes) lines.push(`Nota: ${data.notes}`);
 
+  // ✅ mensaje que pediste
   lines.push("");
   lines.push("✅ Ya registré el pedido desde la web.");
   lines.push("Para iniciar la elaboración, queda pendiente confirmar el pago por este chat.");
   lines.push("");
   lines.push("Muchas gracias.");
+
   return lines.join("\n");
 }
 
-function getWhatsAppUrl(text) {
-  return `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(text)}`;
-}
-
+// =================== SAVE ORDER ===================
 async function saveOrder(data) {
   const res = await fetch(ORDER_API_URL, {
     method: "POST",
@@ -241,19 +279,17 @@ async function saveOrder(data) {
     out = await res.json();
   } catch {
     const t = await res.text().catch(() => "");
-    throw new Error(`Worker non-JSON response. HTTP ${res.status}\n${t.slice(0, 300)}`);
+    throw new Error(`Respuesta inválida del servidor. HTTP ${res.status}\n${t.slice(0, 250)}`);
   }
 
   if (!out.ok) {
-    const extra = out.raw_snippet ? `\n\nDetalle:\n${out.raw_snippet}` : "";
-    const dbg = out.debug ? `\n\nDebug: ${JSON.stringify(out.debug)}` : "";
-    throw new Error((out.error || "No se pudo guardar el pedido.") + dbg + extra);
+    throw new Error(out.error || "No se pudo guardar el pedido.");
   }
 
   return out.order_id || null;
 }
 
-// ===== Modal helpers =====
+// =================== MODAL HELPERS ===================
 function showModal() {
   modal.classList.remove("hidden");
   modal.setAttribute("aria-hidden", "false");
@@ -269,11 +305,11 @@ function fillModal(data, orderId, message) {
     const lineTotal = it.qty * it.price;
     return `
       <div class="itemLine">
-        <div class="itemLeft">
+        <div>
           <div class="itemName">${it.name} x${it.qty}</div>
           <div class="itemMeta">$${money(it.price)} c/u</div>
         </div>
-        <div class="itemRight"><strong>$${money(lineTotal)}</strong></div>
+        <div><strong>$${money(lineTotal)}</strong></div>
       </div>
     `;
   }).join("");
@@ -288,35 +324,74 @@ async function copyToClipboard(text) {
     await navigator.clipboard.writeText(text);
     return true;
   } catch {
+    // fallback
     elModalMessage.focus();
     elModalMessage.select();
     try {
-      const ok = document.execCommand("copy");
-      return ok;
+      return document.execCommand("copy");
     } catch {
       return false;
     }
   }
 }
 
-// ===== Events =====
+// =================== RESET AFTER ORDER ===================
+function resetAll() {
+  // Vaciar carrito
+  for (const p of PRODUCTS) cart.set(p.id, 0);
+
+  // Reset inputs
+  document.getElementById("name").value = "";
+  document.getElementById("phone").value = "";
+  document.getElementById("address").value = "";
+  document.getElementById("maps").value = "";
+  document.getElementById("notes").value = "";
+
+  const emailEl = document.getElementById("email");
+  if (emailEl) emailEl.value = "";
+
+  const waOpt = document.getElementById("waOptIn");
+  if (waOpt) waOpt.checked = false;
+
+  // Reset ubicación a maps
+  const rMaps = document.querySelector('input[name="locMethod"][value="maps"]');
+  if (rMaps) rMaps.checked = true;
+  syncLocationUI();
+
+  pending = null;
+  elStatus.textContent = "";
+
+  renderProducts();
+  updateSummary();
+
+  window.scrollTo({ top: 0, behavior: "smooth" });
+}
+
+// =================== EVENTS ===================
 btnOpenMaps?.addEventListener("click", () => openGoogleMaps());
 
 document.querySelectorAll('input[name="locMethod"]').forEach(r => {
   r.addEventListener("change", syncLocationUI);
 });
 
-btnAlertOk?.addEventListener("click", hideAlert);
+btnAlertOk?.addEventListener("click", () => {
+  hideAlert();
+  if (shouldResetAfterAlert) {
+    shouldResetAfterAlert = false;
+    resetAll();
+  }
+});
+
 alertOverlay?.addEventListener("click", (e) => {
   if (e.target === alertOverlay) hideAlert();
 });
 
-btnCloseModal.addEventListener("click", () => hideModal());
-modal.addEventListener("click", (e) => {
+btnCloseModal?.addEventListener("click", hideModal);
+modal?.addEventListener("click", (e) => {
   if (e.target === modal) hideModal();
 });
 
-btnCopyMessage.addEventListener("click", async () => {
+btnCopyMessage?.addEventListener("click", async () => {
   if (!pending) return;
   const ok = await copyToClipboard(pending.message);
   elStatus.textContent = ok
@@ -324,16 +399,13 @@ btnCopyMessage.addEventListener("click", async () => {
     : "❌ No se pudo copiar. Selecciona el texto y cópialo manualmente.";
 });
 
-btnSendWhatsApp.addEventListener("click", async () => {
+// ✅ CLAVE: Guardar primero y luego redirigir a WhatsApp (en la misma pestaña)
+btnSendWhatsApp?.addEventListener("click", async () => {
   if (!pending) return;
 
   btnSendWhatsApp.disabled = true;
   btnCopyMessage.disabled = true;
   btnCloseModal.disabled = true;
-
-  // Para evitar bloqueos de popups: abrimos ventana “vacía” en el click,
-  // luego tras guardar, la redirigimos a WhatsApp.
-  const waWindow = window.open("about:blank", "_blank", "noopener,noreferrer");
 
   try {
     elStatus.textContent = "Registrando pedido...";
@@ -341,22 +413,20 @@ btnSendWhatsApp.addEventListener("click", async () => {
     // 1) Guardar primero
     await saveOrder(pending.data);
 
-    elStatus.textContent = `✅ Pedido registrado (código: ${pending.orderId}). Abriendo WhatsApp...`;
-
-    // 2) Luego WhatsApp
-    const waUrl = getWhatsAppUrl(pending.message);
-    if (waWindow && !waWindow.closed) {
-      waWindow.location.href = waUrl;
-    } else {
-      showAlert("Tu pedido ya quedó registrado ✅\n\nAhora abre WhatsApp con el botón o copia el mensaje del modal.");
-    }
-
+    // 2) Cerrar modal
     hideModal();
+
+    // 3) Mostrar aviso y preparar limpieza
+    shouldResetAfterAlert = true;
     showAlert(
       "Pedido registrado ✅\n\nAhora falta confirmar el pago por WhatsApp para poder iniciar la elaboración."
     );
+
+    // 4) Abrir WhatsApp (más compatible)
+    const waUrl = getWhatsAppUrl(pending.message);
+    window.location.assign(waUrl);
+
   } catch (e) {
-    if (waWindow && !waWindow.closed) waWindow.close();
     elStatus.textContent = "";
     showAlert(`Error: ${e.message}`);
   } finally {
@@ -366,7 +436,8 @@ btnSendWhatsApp.addEventListener("click", async () => {
   }
 });
 
-btnWhatsApp.addEventListener("click", () => {
+// Botón principal: valida y abre el modal
+btnWhatsApp?.addEventListener("click", () => {
   elStatus.textContent = "";
 
   try {
@@ -387,7 +458,7 @@ btnWhatsApp.addEventListener("click", () => {
   }
 });
 
-// Init
+// =================== INIT ===================
 renderProducts();
 updateSummary();
 syncLocationUI();
