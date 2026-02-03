@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Pedido de Postres</title>
+  <title>AMARED | Pedido de Postres</title>
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
@@ -12,7 +12,7 @@
       <div class="brand">
         <div class="logoBox">AMARED</div>
         <div>
-          <h1>Pedidos de Postres</h1>
+          <h1>AMARED</h1>
           <p>Arma tu pedido y confírmalo por WhatsApp</p>
         </div>
       </div>
@@ -22,34 +22,39 @@
       <section class="card">
         <h2>1) Elige tus postres</h2>
         <div id="products" class="products"></div>
+
         <div class="summary">
           <div><strong>Total unidades:</strong> <span id="totalUnits">0</span></div>
           <div><strong>Subtotal:</strong> $<span id="subtotal">0</span></div>
         </div>
+
+        <p class="small note">
+          * El costo del domicilio lo cubre el cliente y se confirma por WhatsApp.
+        </p>
       </section>
 
       <section class="card">
         <h2>2) Tus datos</h2>
 
         <label>Nombre</label>
-        <input id="name" type="text" placeholder="Ej: Ana" />
+        <input id="name" type="text" placeholder="Ej: Cristian" autocomplete="name" />
 
         <label>Teléfono</label>
-        <input id="phone" type="tel" placeholder="Ej: 3001234567" />
+        <input id="phone" type="tel" placeholder="Ej: 3028473086" autocomplete="tel" />
 
         <label>Dirección</label>
-        <input id="address" type="text" placeholder="Ej: Cra 1 #2-3, Barrio..." />
+        <input id="address" type="text" placeholder="Ej: Cra 1 #2-3, Barrio..." autocomplete="street-address" />
 
         <label>Link de Google Maps (ubicación exacta)</label>
         <input id="maps" type="url" placeholder="Pega el link de tu ubicación" />
 
         <details class="help">
-          <summary>¿Cómo obtengo el enlace de mi ubicación?</summary>
+          <summary>¿Cómo saco el link de mi ubicación en Google Maps?</summary>
           <ol>
             <li>Abre Google Maps en tu celular.</li>
-            <li>Mantén presionado el punto exacto donde quieres recibir tu pedido.</li>
+            <li>Mantén presionado el punto de tu casa (pin).</li>
             <li>Toca “Compartir” → “Copiar vínculo”.</li>
-            <li>Pega el enlace aquí.</li>
+            <li>Pega el link aquí.</li>
           </ol>
         </details>
 
@@ -65,7 +70,7 @@
     </main>
 
     <footer class="footer">
-      <p>Al confirmar se abrirá WhatsApp con tu pedido listo. El costo del domicilio se confirmará por WhatsApp.</p>
+      <p>Al confirmar, se abrirá WhatsApp con el mensaje listo y tu pedido quedará registrado.</p>
     </footer>
   </div>
 
