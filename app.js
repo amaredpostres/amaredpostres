@@ -1,11 +1,33 @@
 // =================== CONFIG ===================
 const WHATSAPP_NUMBER = "573028473086";
-const ORDER_API_URL = "https://amared-orders.amaredpostres.workers.dev/"; // tu Worker
+const ORDER_API_URL = "https://amared-orders.amaredpostres.workers.dev/";
 
+// 👇 Asegúrate que estos nombres coincidan con tus archivos en /assets/
 const PRODUCTS = [
-  { id: "mousse_maracuya", name: "Mousse de Maracuyá", price: 10000 },
-  { id: "cheesecake_cafe_panela", name: "Cheesecake de café con panela", price: 12500 },
-  { id: "arroz_con_leche", name: "Arroz con Leche", price: 8000 },
+  {
+    id: "mousse_maracuya",
+    name: "Mousse de Maracuyá",
+    desc: "Cremoso, cítrico y refrescante. Perfecto para después del almuerzo.",
+    price: 10000,
+    img: "assets/mousse.webp",
+    alt: "Mousse de maracuyá"
+  },
+  {
+    id: "cheesecake_cafe_panela",
+    name: "Cheesecake de café con panela",
+    desc: "Sabor intenso a café, dulce balanceado y textura suave.",
+    price: 12500,
+    img: "assets/cheesecake.webp",
+    alt: "Cheesecake de café con panela"
+  },
+  {
+    id: "arroz_con_leche",
+    name: "Arroz con Leche",
+    desc: "Tradicional, cremosito y casero. Un clásico que siempre antoja.",
+    price: 8000,
+    img: "assets/arroz.webp",
+    alt: "Arroz con leche"
+  },
 ];
 
 const cart = new Map(PRODUCTS.map(p => [p.id, 0]));
@@ -31,7 +53,7 @@ const elModalUnits = document.getElementById("modalUnits");
 const elModalSubtotal = document.getElementById("modalSubtotal");
 const elModalMessage = document.getElementById("modalMessage");
 
-// Ubicación (opciones)
+// Ubicación
 const mapsBlock = document.getElementById("mapsBlock");
 const waLocBlock = document.getElementById("waLocBlock");
 
@@ -62,8 +84,7 @@ function generateClientOrderId() {
 }
 
 function isValidEmail(email) {
-  if (!email) return true; // opcional
-  // Validación simple (suficiente para formulario)
+  if (!email) return true;
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 }
 
@@ -121,19 +142,31 @@ function renderProducts() {
 
   for (const p of PRODUCTS) {
     const qty = cart.get(p.id) || 0;
+
     const div = document.createElement("div");
-    div.className = "product";
+    div.className = "productCard";
+
     div.innerHTML = `
-      <div>
-        <div class="name">${p.name}</div>
-        <div class="price">$${money(p.price)} c/u</div>
-      </div>
-      <div class="stepper">
-        <button type="button" data-action="dec" data-id="${p.id}">−</button>
-        <div class="qty" id="qty_${p.id}">${qty}</div>
-        <button type="button" data-action="inc" data-id="${p.id}">+</button>
+      <img class="productImg" src="${p.img}" alt="${p.alt || p.name}" loading="lazy" />
+
+      <div class="productInfo">
+        <div class="productTop">
+          <div class="name">${p.name}</div>
+          <div class="price">$${money(p.price)} c/u</div>
+        </div>
+
+        <div class="productDesc">${p.desc || ""}</div>
+
+        <div class="productBottom">
+          <div class="stepper">
+            <button type="button" data-action="dec" data-id="${p.id}">−</button>
+            <div class="qty" id="qty_${p.id}">${qty}</div>
+            <button type="button" data-action="inc" data-id="${p.id}">+</button>
+          </div>
+        </div>
       </div>
     `;
+
     elProducts.appendChild(div);
   }
 
@@ -148,6 +181,7 @@ function renderProducts() {
     const next = action === "inc" ? current + 1 : Math.max(0, current - 1);
 
     cart.set(id, next);
+
     const qtyEl = document.getElementById(`qty_${id}`);
     if (qtyEl) qtyEl.textContent = String(next);
 
@@ -186,9 +220,9 @@ function getFormData() {
   const maps_link = document.getElementById("maps").value.trim();
   const notes = document.getElementById("notes").value.trim();
 
-  // ✅ nuevos campos
   const emailEl = document.getElementById("email");
   const email = emailEl ? emailEl.value.trim() : "";
+
   const waOptEl = document.getElementById("waOptIn");
   const wa_opt_in = waOptEl ? waOptEl.checked : false;
 
@@ -218,10 +252,8 @@ function validate(data) {
   if (!data.customer_name) return "Escribe tu nombre.";
   if (!data.phone) return "Escribe tu número.";
   if (!data.address_text) return "Escribe tu dirección.";
-
   if (!isValidEmail(data.email)) return "El correo no parece válido. Revisa el formato (ej: correo@dominio.com).";
 
-  // Ubicación: o link maps (si eligió maps) o enviar ubicación por WhatsApp (si eligió whatsapp)
   if (data.location_method === "maps") {
     if (!data.maps_link) return "Pega el link de Google Maps o selecciona “Enviar ubicación desde WhatsApp”.";
     if (!isValidMapsLink(data.maps_link)) return "El link de Google Maps no parece válido. Usa Compartir → Copiar enlace, o selecciona “Enviar ubicación desde WhatsApp”.";
@@ -256,7 +288,6 @@ function buildWhatsAppMessage(data, orderId) {
 
   if (data.notes) lines.push(`Nota: ${data.notes}`);
 
-  // ✅ mensaje que pediste
   lines.push("");
   lines.push("✅ Ya registré el pedido desde la web.");
   lines.push("Para iniciar la elaboración, queda pendiente confirmar el pago por este chat.");
@@ -282,9 +313,7 @@ async function saveOrder(data) {
     throw new Error(`Respuesta inválida del servidor. HTTP ${res.status}\n${t.slice(0, 250)}`);
   }
 
-  if (!out.ok) {
-    throw new Error(out.error || "No se pudo guardar el pedido.");
-  }
+  if (!out.ok) throw new Error(out.error || "No se pudo guardar el pedido.");
 
   return out.order_id || null;
 }
@@ -324,23 +353,16 @@ async function copyToClipboard(text) {
     await navigator.clipboard.writeText(text);
     return true;
   } catch {
-    // fallback
     elModalMessage.focus();
     elModalMessage.select();
-    try {
-      return document.execCommand("copy");
-    } catch {
-      return false;
-    }
+    try { return document.execCommand("copy"); } catch { return false; }
   }
 }
 
-// =================== RESET AFTER ORDER ===================
+// =================== RESET ===================
 function resetAll() {
-  // Vaciar carrito
   for (const p of PRODUCTS) cart.set(p.id, 0);
 
-  // Reset inputs
   document.getElementById("name").value = "";
   document.getElementById("phone").value = "";
   document.getElementById("address").value = "";
@@ -353,7 +375,6 @@ function resetAll() {
   const waOpt = document.getElementById("waOptIn");
   if (waOpt) waOpt.checked = false;
 
-  // Reset ubicación a maps
   const rMaps = document.querySelector('input[name="locMethod"][value="maps"]');
   if (rMaps) rMaps.checked = true;
   syncLocationUI();
@@ -368,7 +389,7 @@ function resetAll() {
 }
 
 // =================== EVENTS ===================
-btnOpenMaps?.addEventListener("click", () => openGoogleMaps());
+btnOpenMaps?.addEventListener("click", openGoogleMaps);
 
 document.querySelectorAll('input[name="locMethod"]').forEach(r => {
   r.addEventListener("change", syncLocationUI);
@@ -387,6 +408,7 @@ alertOverlay?.addEventListener("click", (e) => {
 });
 
 btnCloseModal?.addEventListener("click", hideModal);
+
 modal?.addEventListener("click", (e) => {
   if (e.target === modal) hideModal();
 });
@@ -399,7 +421,6 @@ btnCopyMessage?.addEventListener("click", async () => {
     : "❌ No se pudo copiar. Selecciona el texto y cópialo manualmente.";
 });
 
-// ✅ CLAVE: Guardar primero y luego redirigir a WhatsApp (en la misma pestaña)
 btnSendWhatsApp?.addEventListener("click", async () => {
   if (!pending) return;
 
@@ -418,14 +439,10 @@ btnSendWhatsApp?.addEventListener("click", async () => {
 
     // 3) Mostrar aviso y preparar limpieza
     shouldResetAfterAlert = true;
-    showAlert(
-      "Pedido registrado ✅\n\nAhora falta confirmar el pago por WhatsApp para poder iniciar la elaboración."
-    );
+    showAlert("Pedido registrado ✅\n\nAhora falta confirmar el pago por WhatsApp para poder iniciar la elaboración.");
 
     // 4) Abrir WhatsApp (más compatible)
-    const waUrl = getWhatsAppUrl(pending.message);
-    window.location.assign(waUrl);
-
+    window.location.assign(getWhatsAppUrl(pending.message));
   } catch (e) {
     elStatus.textContent = "";
     showAlert(`Error: ${e.message}`);
@@ -436,7 +453,6 @@ btnSendWhatsApp?.addEventListener("click", async () => {
   }
 });
 
-// Botón principal: valida y abre el modal
 btnWhatsApp?.addEventListener("click", () => {
   elStatus.textContent = "";
 
