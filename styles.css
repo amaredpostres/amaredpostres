@@ -266,6 +266,24 @@ body{
   outline: none;
 }
 
+/* Checkbox: recibir info por WhatsApp */
+.checkRow{
+  display:flex;
+  align-items:flex-start;
+  gap: 10px;
+  font-weight: 800;
+  color: rgba(64,17,2,.78);
+  padding: 10px 12px;
+  border: 1px dashed rgba(64,17,2,.18);
+  background: rgba(254,246,239,.60);
+  border-radius: 14px;
+}
+
+.checkRow input{
+  margin-top: 2px;
+}
+
+
 .textarea{ resize: vertical; }
 
 .mapsRow{ display:flex; gap: 8px; align-items:center; }
