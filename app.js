@@ -167,8 +167,11 @@ async function saveOrder(data) {
     body: JSON.stringify(data),
   });
 
-  const out = await res.json();
-  if (!out.ok) throw new Error(out.error || "No se pudo guardar el pedido.");
+const out = await res.json();
+if (!out.ok) {
+  const extra = out.raw_snippet ? `\n\nDetalle:\n${out.raw_snippet}` : "";
+  const dbg = out.debug ? `\n\nDebug: ${JSON.stringify(out.debug)}` : "";
+  throw new Error((out.error || "No se pudo guardar el pedido.") + dbg + extra);
 }
 
 // Botón principal
