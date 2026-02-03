@@ -2,7 +2,8 @@
 const WHATSAPP_NUMBER = "573028473086";
 
 // Pega aquí tu URL de Apps Script (termina en /exec)
-const APPS_SCRIPT_WEBAPP_URL = "PASTE_YOUR_WEBAPP_URL_HERE";
+const ORDER_API_URL = "https://amared-orders.amaredpostres.workers.dev/";
+
 
 // Productos y precios actuales (los puedes cambiar cuando quieras)
 const PRODUCTS = [
