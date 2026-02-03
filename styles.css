@@ -42,7 +42,7 @@ body{
 }
 .brand{ display:flex; align-items:center; }
 .brandLogo{
-  height: 42px;
+  height: 56px;
   width: auto;
   display:block;
 }
@@ -358,6 +358,6 @@ body{
 /* Responsive logo */
 @media (max-width: 768px) {
   .brandLogo {
-    height: 36px;
+    height: 48px;
   }
 }
