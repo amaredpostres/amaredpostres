@@ -12,6 +12,7 @@
 
 *{ box-sizing:border-box; }
 html,body{ height:100%; }
+
 body{
   margin:0;
   font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
@@ -31,20 +32,28 @@ body{
   background: rgba(254,246,239,.72);
   border-bottom: 1px solid var(--border);
 }
+
 .topbarInner{
   max-width:1100px;
   margin: 0 auto;
-  padding: 12px 18px;
+  padding: 14px 18px;            /* ✅ ajuste #2 (padding) */
   display:flex;
-  align-items:center;
+  align-items:center;            /* ✅ ajuste #2 (alineación) */
   justify-content:space-between;
   gap: 14px;
 }
-.brand{ display:flex; align-items:center; }
+
+.brand{
+  display:flex;
+  align-items:center;
+  min-height: 64px;              /* ✅ ajuste #2 (altura consistente) */
+}
+
+/* ✅ ajuste #1: logo con "límite inteligente" */
 .brandLogo{
-  height: 56px;
+  height: clamp(38px, 4vw, 56px); /* móvil -> desktop */
   width: auto;
-  display:block;
+  display: block;
 }
 
 .nav{ display:flex; gap: 12px; }
@@ -68,10 +77,12 @@ body{
   margin:0 auto;
   padding: 18px;
 }
+
 .hero{
   text-align:center;
   padding: 10px 0 18px;
 }
+
 .heroTitle{
   margin: 10px 0 6px;
   font-size: 30px;
@@ -89,11 +100,15 @@ body{
   grid-template-columns: 1.05fr .95fr;
   gap: 14px;
 }
+
 @media (max-width: 920px){
   .layout{ grid-template-columns:1fr; }
-  .brandLogo{ height: 38px; }
   .heroTitle{ font-size: 26px; }
   .nav{ display:none; }
+
+  /* ✅ ajuste #3: más “aire” arriba en móvil */
+  .container{ padding-top: 12px; }
+  .hero{ padding-top: 6px; }
 }
 
 .card{
@@ -103,6 +118,7 @@ body{
   padding: 16px;
   box-shadow: var(--shadow);
 }
+
 .cardTitle{
   margin: 0 0 12px;
   font-size: 16px;
@@ -110,6 +126,7 @@ body{
 
 /* Products */
 .products{ display:grid; gap: 12px; }
+
 .product{
   border: 1px solid var(--border);
   border-radius: 18px;
@@ -120,7 +137,9 @@ body{
   gap: 10px;
   background: linear-gradient(180deg, rgba(247,206,145,.10), rgba(255,255,255,0));
 }
+
 .name{ font-weight: 900; }
+
 .price{
   margin-top: 4px;
   font-size: 13px;
@@ -138,6 +157,7 @@ body{
   padding: 6px;
   background: rgba(254,246,239,.65);
 }
+
 .stepper button{
   width: 36px;
   height: 36px;
@@ -150,6 +170,7 @@ body{
   cursor:pointer;
   box-shadow: 0 8px 18px rgba(64,17,2,.08);
 }
+
 .qty{
   min-width: 26px;
   text-align:center;
@@ -163,6 +184,7 @@ body{
   align-items:stretch;
   margin-bottom: 12px;
 }
+
 .summaryBox{
   min-width: 120px;
   border: 1px solid var(--border);
@@ -170,11 +192,13 @@ body{
   padding: 10px 12px;
   background: rgba(242,91,143,.06);
 }
+
 .summaryLabel{
   font-size: 12px;
   color: rgba(64,17,2,.60);
   font-weight: 800;
 }
+
 .summaryValue{
   margin-top: 4px;
   font-size: 26px;
@@ -188,6 +212,7 @@ body{
   padding: 10px 12px;
   background: rgba(246,186,96,.10);
 }
+
 .subtotalBig{
   font-size: 34px;
   font-weight: 950;
@@ -206,6 +231,7 @@ body{
   background: rgba(254,246,239,.75);
   margin-bottom: 12px;
 }
+
 .miniTitle{
   font-weight: 950;
   margin-bottom: 6px;
@@ -213,12 +239,14 @@ body{
   align-items:center;
   gap: 8px;
 }
+
 .miniIcon{
   width: 22px;
   height: 22px;
   object-fit: contain;
   display:block;
 }
+
 .cartSummary{ line-height:1.45; }
 
 /* Form */
@@ -248,16 +276,19 @@ body{
   font-weight: 950;
   box-shadow: 0 10px 24px rgba(64,17,2,.10);
 }
+
 .btn.primary{
   background: linear-gradient(180deg, rgba(242,91,143,.95), rgba(242,91,143,.85));
   color: white;
   border-color: rgba(242,91,143,.35);
 }
+
 .btn.secondary{
   background: linear-gradient(180deg, rgba(246,186,96,.85), rgba(246,186,96,.72));
   color: var(--choco);
   border-color: rgba(246,186,96,.40);
 }
+
 .btn:disabled{ opacity:.6; cursor:not-allowed; }
 
 .status{ margin-top: 6px; font-size: 13px; min-height: 18px; }
@@ -271,6 +302,7 @@ body{
   place-items: center;
   padding: 14px;
 }
+
 .hidden{ display:none; }
 
 .modal{
@@ -281,6 +313,7 @@ body{
   box-shadow: 0 30px 80px rgba(64,17,2,.25);
   overflow: hidden;
 }
+
 .modalHeader{
   display:flex;
   align-items:center;
@@ -289,7 +322,9 @@ body{
   border-bottom: 1px solid var(--border);
   background: rgba(246,186,96,.12);
 }
+
 .modalTitle{ margin:0; font-size: 16px; }
+
 .iconBtn{
   width: 36px;
   height: 36px;
@@ -300,9 +335,11 @@ body{
   cursor: pointer;
   font-weight: 900;
 }
+
 .modalBody{ padding: 14px; display:grid; gap: 12px; }
 
 .modalItems{ display:grid; gap: 8px; }
+
 .itemLine{
   display:flex;
   justify-content: space-between;
@@ -312,6 +349,7 @@ body{
   padding: 10px 12px;
   background: rgba(254,246,239,.70);
 }
+
 .itemName{ font-weight: 950; }
 .itemMeta{ font-size: 12px; color: rgba(64,17,2,.62); font-weight: 700; }
 
@@ -321,12 +359,14 @@ body{
   padding: 10px 12px;
   background: rgba(242,91,143,.08);
 }
+
 .modalTotalLine{
   display:flex;
   justify-content: space-between;
   align-items:center;
   margin-bottom: 6px;
 }
+
 .modalSubtotal{ color: var(--pink); font-size: 18px; }
 
 .modalFooter{
@@ -337,27 +377,7 @@ body{
   justify-content: flex-end;
   background: rgba(254,246,239,.80);
 }
+
 @media (max-width:520px){
   .modalFooter{ flex-direction: column; }
-}
-
-
-/* === LOGOS SVG === */
-.brandLogo {
-  height: 42px;
-  width: auto;
-  display: block;
-}
-
-.miniIcon {
-  width: 22px;
-  height: 22px;
-  object-fit: contain;
-}
-
-/* Responsive logo */
-@media (max-width: 768px) {
-  .brandLogo {
-    height: 48px;
-  }
 }
