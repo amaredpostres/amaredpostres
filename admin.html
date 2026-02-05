@@ -5,44 +5,101 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>AMARED | Pagos</title>
   <link rel="stylesheet" href="styles.css" />
+
   <style>
-    .tabs{ display:flex; gap:10px; flex-wrap:wrap; justify-content:center; margin: 10px 0 14px; }
-    .tabBtn{ border:1px solid var(--border); background: rgba(255,255,255,.75); border-radius: 14px; padding:10px 12px; font-weight:900; cursor:pointer; }
-    .tabBtn.active{ background: rgba(242,91,143,.14); }
-    .adminBar{ display:grid; grid-template-columns: 1fr 1fr; gap:10px; margin-bottom:12px; }
-    @media (max-width:720px){ .adminBar{ grid-template-columns:1fr; } }
+    .hidden { display: none !important; }
 
-    .list{ display:grid; gap:10px; }
-    .orderItem{ border:1px solid var(--border); background: var(--paper); border-radius: 18px; box-shadow: 0 12px 30px rgba(64,17,2,.08); overflow:hidden; }
-    .orderHead{ display:flex; align-items:center; justify-content:space-between; gap:10px; padding: 12px 14px; cursor:pointer; }
-    .orderMain{ display:flex; flex-direction:column; gap:2px; min-width:0; }
-    .orderId{ font-weight:950; }
-    .orderMeta{ color: rgba(64,17,2,.62); font-weight:800; font-size: 13px; }
-    .chev{ font-size: 18px; font-weight: 950; opacity:.7; }
-    .orderBody{ padding: 12px 14px; border-top:1px solid var(--border); display:none; }
-    .orderItem.open .orderBody{ display:block; }
-    .grid2{ display:grid; grid-template-columns: 1fr 1fr; gap:10px; }
-    @media (max-width:720px){ .grid2{ grid-template-columns:1fr; } }
-    .field{ display:grid; gap:6px; }
-    .field label{ font-size: 13px; font-weight: 900; opacity:.8; }
-    .input, .textarea, select{ width:100%; }
+    /* LOGIN */
+    .loginBox {
+      max-width: 420px;
+      margin: 60px auto;
+      padding: 20px;
+      border-radius: 18px;
+      background: var(--paper);
+      border: 1px solid var(--border);
+      box-shadow: var(--shadow);
+    }
 
-    .btnRow{ display:flex; gap:10px; justify-content:flex-end; flex-wrap:wrap; margin-top:12px; }
-    .btnDanger{ background: rgba(64,17,2,.08); border:1px solid rgba(64,17,2,.18); }
-    .badge{ font-size:12px; font-weight:950; padding:6px 10px; border-radius:999px; border:1px solid var(--border); background: rgba(246,186,96,.10); }
+    .loginBox h2 {
+      text-align: center;
+      margin-bottom: 6px;
+    }
 
-    /* Modal confirmación con timer */
-    .confirmOverlay{ position:fixed; inset:0; background: rgba(0,0,0,.25); display:none; align-items:center; justify-content:center; padding:16px; }
-    .confirmOverlay.show{ display:flex; }
-    .confirmBox{ width:min(520px, 100%); background: var(--paper); border:1px solid var(--border); border-radius: 18px; box-shadow: var(--shadow); padding: 14px; }
-    .confirmTitle{ font-weight:950; margin:0 0 6px; }
-    .confirmText{ color: rgba(64,17,2,.70); font-weight:800; margin:0 0 12px; }
-    .confirmFooter{ display:flex; gap:10px; justify-content:flex-end; flex-wrap:wrap; }
-    .mutedSmall{ color: rgba(64,17,2,.62); font-weight:800; font-size: 13px; }
+    .loginBox p {
+      text-align: center;
+      font-size: 14px;
+      opacity: .7;
+      margin-bottom: 16px;
+    }
+
+    .loginBox .field {
+      display: grid;
+      gap: 6px;
+      margin-bottom: 12px;
+    }
+
+    /* PANEL */
+    .tabs {
+      display: flex;
+      gap: 10px;
+      justify-content: center;
+      margin: 10px 0 14px;
+    }
+
+    .tabBtn {
+      border: 1px solid var(--border);
+      background: rgba(255,255,255,.75);
+      border-radius: 14px;
+      padding: 10px 12px;
+      font-weight: 900;
+      cursor: pointer;
+    }
+
+    .tabBtn.active {
+      background: rgba(242,91,143,.14);
+    }
+
+    .list { display: grid; gap: 10px; }
+
+    .orderItem {
+      border: 1px solid var(--border);
+      background: var(--paper);
+      border-radius: 18px;
+      box-shadow: 0 12px 30px rgba(64,17,2,.08);
+      overflow: hidden;
+    }
+
+    .orderHead {
+      display: flex;
+      justify-content: space-between;
+      padding: 12px 14px;
+      cursor: pointer;
+    }
+
+    .orderId { font-weight: 950; }
+    .orderMeta { font-size: 13px; opacity: .7; }
+
+    .orderBody {
+      display: none;
+      padding: 12px 14px;
+      border-top: 1px solid var(--border);
+    }
+
+    .orderItem.open .orderBody { display: block; }
+
+    .logoutBar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 10px;
+      font-size: 14px;
+    }
   </style>
 </head>
 
 <body>
+
+  <!-- TOPBAR -->
   <div class="topbar">
     <div class="topbarInner">
       <div class="brand">
@@ -52,45 +109,52 @@
   </div>
 
   <div class="container">
-    <div class="hero">
-      <h1 class="heroTitle">Panel de Pagos</h1>
-      <p class="heroSubtitle">Editar y confirmar pedidos <strong>solo</strong> mientras estén pendientes.</p>
+
+    <!-- LOGIN -->
+    <div id="loginView" class="loginBox">
+      <h2>Panel de Pagos</h2>
+      <p>Acceso restringido</p>
+
+      <div class="field">
+        <label>Nombre del operador</label>
+        <input id="loginOperator" class="input" placeholder="Ej: Caja1" />
+      </div>
+
+      <div class="field">
+        <label>PIN</label>
+        <input id="loginPin" type="password" class="input" placeholder="••••••" />
+      </div>
+
+      <button id="btnLogin" class="btn primary" style="width:100%;">
+        Ingresar
+      </button>
+
+      <p id="loginError" class="mutedSmall" style="color:#b00020; text-align:center; margin-top:10px;"></p>
     </div>
 
-    <div class="card">
-      <div class="adminBar">
-        <div class="field">
-          <label>Operador (paid_by / canceled_by)</label>
-          <input id="operator" class="input" placeholder="Ej: Caja1" />
+    <!-- PANEL -->
+    <div id="panelView" class="hidden">
+      <div class="card">
+
+        <div class="logoutBar">
+          <div>
+            Operador: <strong id="operatorName"></strong>
+          </div>
+          <button id="btnLogout" class="btn secondary">Cerrar sesión</button>
         </div>
-        <div class="field">
-          <label>PIN Admin</label>
-          <input id="pin" class="input" type="password" placeholder="PIN" />
+
+        <div class="tabs">
+          <button class="tabBtn active" data-tab="Pendiente">Pendientes</button>
+          <button class="tabBtn" data-tab="Pagado">Pagados</button>
+          <button class="tabBtn" data-tab="Cancelado">Cancelados</button>
         </div>
-      </div>
 
-      <div class="tabs">
-        <button class="tabBtn active" data-tab="Pendiente">Pendientes</button>
-        <button class="tabBtn" data-tab="Pagado">Pagados</button>
-        <button class="tabBtn" data-tab="Cancelado">Cancelados</button>
-      </div>
+        <div id="status" class="mutedSmall"></div>
+        <div id="list" class="list"></div>
 
-      <div class="mutedSmall" id="status"></div>
-      <div class="list" id="list"></div>
-    </div>
-  </div>
-
-  <!-- Modal confirmación -->
-  <div class="confirmOverlay" id="confirmOverlay" aria-hidden="true">
-    <div class="confirmBox">
-      <h3 class="confirmTitle" id="confirmTitle">Confirmación</h3>
-      <p class="confirmText" id="confirmText"></p>
-      <p class="mutedSmall" id="confirmTimer"></p>
-      <div class="confirmFooter">
-        <button class="btn secondary" id="btnCancelModal" type="button">Volver</button>
-        <button class="btn primary" id="btnConfirmModal" type="button" disabled>Confirmar</button>
       </div>
     </div>
+
   </div>
 
   <script src="admin.js"></script>
