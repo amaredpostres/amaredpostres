@@ -27,7 +27,6 @@
     }
     .operatorLine{ font-size:14px; }
     .rightBtns{ display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
-
     .iconBtn{
       width:44px; height:44px; border-radius:14px;
       border:1px solid var(--border); background:rgba(255,255,255,.75);
@@ -35,7 +34,6 @@
       font-size:20px; cursor:pointer;
       box-shadow: 0 8px 18px rgba(64,17,2,.06);
     }
-    .iconBtn:active{ transform: translateY(1px); }
 
     .list{ display:grid; gap:10px; }
 
@@ -60,19 +58,19 @@
 
     .btnRow{ display:flex; gap:10px; justify-content:flex-end; flex-wrap:wrap; margin-top:12px; }
     .btnDanger{ background: rgba(64,17,2,.08); border:1px solid rgba(64,17,2,.18); }
-    .badge{ font-size:12px; font-weight:950; padding:6px 10px; border-radius:999px; border:1px solid var(--border); background:rgba(246,186,96,.12); }
+    .badge{
+      font-size:12px; font-weight:950; padding:6px 10px;
+      border-radius:999px; border:1px solid var(--border);
+      background:rgba(246,186,96,.12);
+    }
     .hr{ height:1px; background: rgba(64,17,2,.10); margin:12px 0; }
 
-    /* HISTORIAL DRAWER */
-    .drawerOverlay{
-      position:fixed; inset:0; background:rgba(0,0,0,.25);
-      display:none; z-index:9000;
-    }
+    /* DRAWER */
+    .drawerOverlay{ position:fixed; inset:0; background:rgba(0,0,0,.25); display:none; z-index:9000; }
     .drawerOverlay.show{ display:block; }
-
     .drawer{
       position:fixed; top:0; right:0; height:100%;
-      width:min(420px, 92vw);
+      width:min(460px, 92vw);
       background: var(--paper);
       border-left:1px solid var(--border);
       box-shadow: -18px 0 60px rgba(0,0,0,.18);
@@ -90,14 +88,19 @@
     }
     .drawerTitle{ font-weight:950; margin:0; }
     .drawerBody{ padding:14px; overflow:auto; }
-    .drawerTabs{ display:flex; gap:10px; margin-bottom:10px; }
-    .drawerTab{
+    .drawerControls{
+      display:flex; gap:10px; align-items:center; flex-wrap:wrap;
+      margin-bottom:10px;
+    }
+    .chip{
       border:1px solid var(--border);
       background: rgba(255,255,255,.75);
-      border-radius:14px; padding:10px 12px;
-      font-weight:900; cursor:pointer;
+      border-radius:999px;
+      padding:8px 10px;
+      font-weight:900;
+      cursor:pointer;
     }
-    .drawerTab.active{ background: rgba(242,91,143,.14); }
+    .chip.active{ background: rgba(242,91,143,.14); }
 
     /* CONFIRM MODAL */
     .confirmOverlay{
@@ -116,7 +119,7 @@
     .confirmText{ color:rgba(64,17,2,.74); font-weight:800; margin:0 0 12px; }
     .confirmFooter{ display:flex; gap:10px; justify-content:flex-end; flex-wrap:wrap; }
 
-    /* LOADING OVERLAY */
+    /* LOADING */
     .loadingOverlay{
       position:fixed; inset:0; display:none;
       align-items:center; justify-content:center;
@@ -177,14 +180,14 @@
       <p id="loginError" class="mutedSmall" style="color:#b00020; text-align:center; margin-top:10px;"></p>
     </div>
 
-    <!-- PANEL (siempre Pendientes) -->
+    <!-- PANEL (Pendientes) -->
     <div id="panelView" class="hidden">
       <div class="card">
         <div class="panelTop">
           <div class="operatorLine">Operador: <strong id="operatorName"></strong></div>
           <div class="rightBtns">
             <button id="btnRefresh" class="btn secondary" type="button">Refrescar</button>
-            <button id="btnHistory" class="iconBtn" type="button" title="Historial (Pagados/Cancelados)">🕘</button>
+            <button id="btnHistory" class="iconBtn" type="button" title="Historial">🕘</button>
             <button id="btnLogout" class="btn secondary" type="button">Cerrar sesión</button>
           </div>
         </div>
@@ -203,10 +206,13 @@
       <button id="btnCloseDrawer" class="btn secondary" type="button">Cerrar</button>
     </div>
     <div class="drawerBody">
-      <div class="drawerTabs">
-        <button class="drawerTab active" data-tab="Pagado">Pagados</button>
-        <button class="drawerTab" data-tab="Cancelado">Cancelados</button>
+      <div class="drawerControls">
+        <button class="chip active" data-filter="ALL">Todos</button>
+        <button class="chip" data-filter="Pagado">Pagados</button>
+        <button class="chip" data-filter="Cancelado">Cancelados</button>
+        <button id="btnHistRefresh" class="btn secondary" type="button">Refrescar</button>
       </div>
+
       <div id="histStatus" class="mutedSmall"></div>
       <div id="histList" class="list"></div>
     </div>
