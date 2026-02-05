@@ -7,100 +7,147 @@
   <link rel="stylesheet" href="styles.css" />
 
   <style>
-    .hidden { display: none !important; }
+    .hidden { display:none !important; }
 
     /* LOGIN */
-    .loginBox {
-      max-width: 420px;
-      margin: 60px auto;
-      padding: 20px;
-      border-radius: 18px;
-      background: var(--paper);
-      border: 1px solid var(--border);
-      box-shadow: var(--shadow);
+    .loginBox{
+      max-width:420px; margin:60px auto; padding:20px;
+      border-radius:18px; background:var(--paper);
+      border:1px solid var(--border); box-shadow:var(--shadow);
     }
-    .loginBox h2 { text-align: center; margin-bottom: 6px; }
-    .loginBox p { text-align: center; font-size: 14px; opacity: .7; margin-bottom: 16px; }
-    .field { display: grid; gap: 6px; margin-bottom: 12px; }
-    .mutedSmall { opacity:.72; font-weight:800; font-size: 13px; }
+    .loginBox h2{ text-align:center; margin:0 0 6px; }
+    .loginBox p{ text-align:center; font-size:14px; opacity:.7; margin:0 0 16px; }
+    .field{ display:grid; gap:6px; margin-bottom:12px; }
+    .mutedSmall{ opacity:.72; font-weight:800; font-size:13px; }
 
     /* PANEL */
-    .tabs {
-      display: flex;
-      gap: 10px;
-      justify-content: center;
-      margin: 10px 0 14px;
-      flex-wrap: wrap;
+    .panelTop{
+      display:flex; justify-content:space-between; align-items:center;
+      gap:10px; flex-wrap:wrap; margin-bottom:10px;
     }
-    .tabBtn {
-      border: 1px solid var(--border);
-      background: rgba(255,255,255,.75);
-      border-radius: 14px;
-      padding: 10px 12px;
-      font-weight: 900;
-      cursor: pointer;
-    }
-    .tabBtn.active { background: rgba(242,91,143,.14); }
+    .operatorLine{ font-size:14px; }
+    .rightBtns{ display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
 
-    .list { display: grid; gap: 10px; }
-
-    .orderItem {
-      border: 1px solid var(--border);
-      background: var(--paper);
-      border-radius: 18px;
-      box-shadow: 0 12px 30px rgba(64,17,2,.08);
-      overflow: hidden;
+    .iconBtn{
+      width:44px; height:44px; border-radius:14px;
+      border:1px solid var(--border); background:rgba(255,255,255,.75);
+      display:flex; align-items:center; justify-content:center;
+      font-size:20px; cursor:pointer;
+      box-shadow: 0 8px 18px rgba(64,17,2,.06);
     }
-    .orderHead {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      gap: 10px;
-      padding: 12px 14px;
-      cursor: pointer;
-    }
-    .orderId { font-weight: 950; }
-    .orderMeta { font-size: 13px; opacity: .7; font-weight: 800; }
-    .chev { font-size: 18px; font-weight: 950; opacity: .7; }
+    .iconBtn:active{ transform: translateY(1px); }
 
-    .orderBody {
-      display: none;
-      padding: 12px 14px;
-      border-top: 1px solid var(--border);
-    }
-    .orderItem.open .orderBody { display: block; }
+    .list{ display:grid; gap:10px; }
 
-    .logoutBar {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: 10px;
-      font-size: 14px;
-      gap: 10px;
-      flex-wrap: wrap;
+    .orderItem{
+      border:1px solid var(--border); background:var(--paper);
+      border-radius:18px; box-shadow:0 12px 30px rgba(64,17,2,.08);
+      overflow:hidden;
     }
+    .orderHead{
+      display:flex; justify-content:space-between; align-items:center;
+      gap:10px; padding:12px 14px; cursor:pointer;
+    }
+    .orderId{ font-weight:950; }
+    .orderMeta{ font-size:13px; opacity:.7; font-weight:800; }
+    .chev{ font-size:18px; font-weight:950; opacity:.7; }
 
-    .grid2 { display:grid; grid-template-columns: 1fr 1fr; gap:10px; }
+    .orderBody{ display:none; padding:12px 14px; border-top:1px solid var(--border); }
+    .orderItem.open .orderBody{ display:block; }
+
+    .grid2{ display:grid; grid-template-columns:1fr 1fr; gap:10px; }
     @media (max-width:720px){ .grid2{ grid-template-columns:1fr; } }
 
-    .btnRow { display:flex; gap:10px; justify-content:flex-end; flex-wrap:wrap; margin-top: 12px; }
-    .btnDanger { background: rgba(64,17,2,.08); border:1px solid rgba(64,17,2,.18); }
-    .badge { font-size:12px; font-weight:950; padding:6px 10px; border-radius:999px; border:1px solid var(--border); background: rgba(246,186,96,.12); }
+    .btnRow{ display:flex; gap:10px; justify-content:flex-end; flex-wrap:wrap; margin-top:12px; }
+    .btnDanger{ background: rgba(64,17,2,.08); border:1px solid rgba(64,17,2,.18); }
+    .badge{ font-size:12px; font-weight:950; padding:6px 10px; border-radius:999px; border:1px solid var(--border); background:rgba(246,186,96,.12); }
+    .hr{ height:1px; background: rgba(64,17,2,.10); margin:12px 0; }
 
-    .hr { height:1px; background: rgba(64,17,2,.10); margin: 12px 0; }
+    /* HISTORIAL DRAWER */
+    .drawerOverlay{
+      position:fixed; inset:0; background:rgba(0,0,0,.25);
+      display:none; z-index:9000;
+    }
+    .drawerOverlay.show{ display:block; }
 
-    /* Modal confirmación con timer */
-    .confirmOverlay{ position:fixed; inset:0; background: rgba(0,0,0,.25); display:none; align-items:center; justify-content:center; padding:16px; z-index:9999; }
+    .drawer{
+      position:fixed; top:0; right:0; height:100%;
+      width:min(420px, 92vw);
+      background: var(--paper);
+      border-left:1px solid var(--border);
+      box-shadow: -18px 0 60px rgba(0,0,0,.18);
+      transform: translateX(100%);
+      transition: transform .2s ease;
+      z-index:9100;
+      display:flex; flex-direction:column;
+    }
+    .drawerOverlay.show + .drawer{ transform: translateX(0); }
+
+    .drawerHeader{
+      padding:14px;
+      border-bottom:1px solid var(--border);
+      display:flex; justify-content:space-between; align-items:center; gap:10px;
+    }
+    .drawerTitle{ font-weight:950; margin:0; }
+    .drawerBody{ padding:14px; overflow:auto; }
+    .drawerTabs{ display:flex; gap:10px; margin-bottom:10px; }
+    .drawerTab{
+      border:1px solid var(--border);
+      background: rgba(255,255,255,.75);
+      border-radius:14px; padding:10px 12px;
+      font-weight:900; cursor:pointer;
+    }
+    .drawerTab.active{ background: rgba(242,91,143,.14); }
+
+    /* CONFIRM MODAL */
+    .confirmOverlay{
+      position:fixed; inset:0; background:rgba(0,0,0,.25);
+      display:none; align-items:center; justify-content:center;
+      padding:16px; z-index:9999;
+    }
     .confirmOverlay.show{ display:flex; }
-    .confirmBox{ width:min(520px, 100%); background: var(--paper); border:1px solid var(--border); border-radius: 18px; box-shadow: var(--shadow); padding: 14px; }
+    .confirmBox{
+      width:min(520px, 100%);
+      background:var(--paper); border:1px solid var(--border);
+      border-radius:18px; box-shadow:var(--shadow);
+      padding:14px;
+    }
     .confirmTitle{ font-weight:950; margin:0 0 6px; }
-    .confirmText{ color: rgba(64,17,2,.74); font-weight:800; margin:0 0 12px; }
+    .confirmText{ color:rgba(64,17,2,.74); font-weight:800; margin:0 0 12px; }
     .confirmFooter{ display:flex; gap:10px; justify-content:flex-end; flex-wrap:wrap; }
+
+    /* LOADING OVERLAY */
+    .loadingOverlay{
+      position:fixed; inset:0; display:none;
+      align-items:center; justify-content:center;
+      background: rgba(255,255,255,.65);
+      backdrop-filter: blur(3px);
+      z-index:9500;
+    }
+    .loadingOverlay.show{ display:flex; }
+    .loadingBox{
+      width:min(360px, 92vw);
+      padding:16px;
+      border-radius:18px;
+      background: var(--paper);
+      border:1px solid var(--border);
+      box-shadow: var(--shadow);
+      text-align:center;
+      font-weight:900;
+    }
+    .spinner{
+      width:22px; height:22px;
+      border:3px solid rgba(64,17,2,.18);
+      border-top-color: rgba(64,17,2,.75);
+      border-radius:999px;
+      margin: 0 auto 10px;
+      animation: spin 0.8s linear infinite;
+    }
+    @keyframes spin{ to{ transform: rotate(360deg); } }
   </style>
 </head>
 
 <body>
-  <!-- TOPBAR -->
   <div class="topbar">
     <div class="topbarInner">
       <div class="brand">
@@ -127,29 +174,42 @@
       </div>
 
       <button id="btnLogin" class="btn primary" style="width:100%;">Ingresar</button>
-
       <p id="loginError" class="mutedSmall" style="color:#b00020; text-align:center; margin-top:10px;"></p>
     </div>
 
-    <!-- PANEL -->
+    <!-- PANEL (siempre Pendientes) -->
     <div id="panelView" class="hidden">
       <div class="card">
-        <div class="logoutBar">
-          <div>Operador: <strong id="operatorName"></strong></div>
-          <button id="btnLogout" class="btn secondary">Cerrar sesión</button>
-        </div>
-
-        <div class="tabs">
-          <button class="tabBtn active" data-tab="Pendiente">Pendientes</button>
-          <button class="tabBtn" data-tab="Pagado">Pagados</button>
-          <button class="tabBtn" data-tab="Cancelado">Cancelados</button>
+        <div class="panelTop">
+          <div class="operatorLine">Operador: <strong id="operatorName"></strong></div>
+          <div class="rightBtns">
+            <button id="btnRefresh" class="btn secondary" type="button">Refrescar</button>
+            <button id="btnHistory" class="iconBtn" type="button" title="Historial (Pagados/Cancelados)">🕘</button>
+            <button id="btnLogout" class="btn secondary" type="button">Cerrar sesión</button>
+          </div>
         </div>
 
         <div id="status" class="mutedSmall"></div>
         <div id="list" class="list"></div>
       </div>
     </div>
+  </div>
 
+  <!-- Drawer historial -->
+  <div id="drawerOverlay" class="drawerOverlay"></div>
+  <div id="drawer" class="drawer" aria-hidden="true">
+    <div class="drawerHeader">
+      <h3 class="drawerTitle">Historial</h3>
+      <button id="btnCloseDrawer" class="btn secondary" type="button">Cerrar</button>
+    </div>
+    <div class="drawerBody">
+      <div class="drawerTabs">
+        <button class="drawerTab active" data-tab="Pagado">Pagados</button>
+        <button class="drawerTab" data-tab="Cancelado">Cancelados</button>
+      </div>
+      <div id="histStatus" class="mutedSmall"></div>
+      <div id="histList" class="list"></div>
+    </div>
   </div>
 
   <!-- Modal confirmación -->
@@ -162,6 +222,14 @@
         <button class="btn secondary" id="btnCancelModal" type="button">Volver</button>
         <button class="btn primary" id="btnConfirmModal" type="button" disabled>Confirmar</button>
       </div>
+    </div>
+  </div>
+
+  <!-- Loading overlay -->
+  <div id="loadingOverlay" class="loadingOverlay" aria-hidden="true">
+    <div class="loadingBox">
+      <div class="spinner"></div>
+      <div id="loadingText">Cargando...</div>
     </div>
   </div>
 
