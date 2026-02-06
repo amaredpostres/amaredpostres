@@ -1,15 +1,34 @@
+// =================== CONFIG ===================
 const API_URL = "https://amared-orders.amaredpostres.workers.dev/";
 
+// Catálogo (mismo de tu web pública)
 const PRODUCT_CATALOG = [
   { id: "mousse_maracuya", name: "Mousse de Maracuyá", unit_price: 10000 },
   { id: "cheesecake_cafe_panela", name: "Cheesecake de café con panela", unit_price: 12500 },
 ];
 
+// =================== SESSION / STATE ===================
 let SESSION = { operator: null, pin: null };
-let pendingOrdersCache = [];
 let REQUEST_IN_FLIGHT = false;
 
-// ===== DOM =====
+let pendingOrdersCache = [];
+let HIST_CACHE = null;  // { paid:[], canceled:[] }
+let HIST_CACHE_TIME = 0;
+const HIST_TTL = 60 * 1000;
+let histFilter = "ALL";
+
+let modalOrder = null;
+
+// timers
+let payCountdownInt = null;
+let cancelCountdownInt = null;
+let payTimerStarted = false;
+let cancelTimerStarted = false;
+
+// Loading overlay counter
+let LOADING_COUNT = 0;
+
+// =================== DOM ===================
 const loginView = document.getElementById("loginView");
 const panelView = document.getElementById("panelView");
 
@@ -21,11 +40,25 @@ const loginError = document.getElementById("loginError");
 const operatorName = document.getElementById("operatorName");
 const btnLogout = document.getElementById("btnLogout");
 const btnRefresh = document.getElementById("btnRefresh");
+const btnHistory = document.getElementById("btnHistory");
 
 const statusEl = document.getElementById("status");
 const listEl = document.getElementById("list");
 
-// Modales
+// Drawer historial
+const drawerOverlay = document.getElementById("drawerOverlay");
+const drawer = document.getElementById("drawer");
+const btnCloseDrawer = document.getElementById("btnCloseDrawer");
+const histStatusEl = document.getElementById("histStatus");
+const histListEl = document.getElementById("histList");
+const btnHistRefresh = document.getElementById("btnHistRefresh");
+const chips = Array.from(document.querySelectorAll(".chip"));
+
+// Loading overlay
+const loadingOverlay = document.getElementById("loadingOverlay");
+const loadingText = document.getElementById("loadingText");
+
+// Modal pago
 const payModal = document.getElementById("payModal");
 const payTitle = document.getElementById("payTitle");
 const payText = document.getElementById("payText");
@@ -37,6 +70,7 @@ const payTimer = document.getElementById("payTimer");
 const btnPayBack = document.getElementById("btnPayBack");
 const btnPayConfirm = document.getElementById("btnPayConfirm");
 
+// Modal cancelar
 const cancelModal = document.getElementById("cancelModal");
 const cancelTitle = document.getElementById("cancelTitle");
 const cancelText = document.getElementById("cancelText");
@@ -47,36 +81,49 @@ const cancelTimer = document.getElementById("cancelTimer");
 const btnCancelBack = document.getElementById("btnCancelBack");
 const btnCancelConfirm = document.getElementById("btnCancelConfirm");
 
-// ===== Modal state =====
-let modalOrder = null;
-let payCountdownInt = null;
-let cancelCountdownInt = null;
-let payTimerStarted = false;
-let cancelTimerStarted = false;
+// =================== UTILS ===================
+function setStatus(msg) { if (statusEl) statusEl.textContent = msg || ""; }
+function setHistStatus(msg) { if (histStatusEl) histStatusEl.textContent = msg || ""; }
 
-// ===== UI helpers =====
-function setStatus(msg) { statusEl.textContent = msg || ""; }
-function money(n) { return Math.round(Number(n || 0)).toLocaleString("es-CO"); }
-function sleep(ms){ return new Promise(r => setTimeout(r, ms)); }
-function safeJsonParse(s){ try { return JSON.parse(s); } catch { return null; } }
+function money(n) {
+  return Math.round(Number(n || 0)).toLocaleString("es-CO");
+}
+function safeJsonParse(s) {
+  try { return JSON.parse(s); } catch { return null; }
+}
 function escapeHtml(s) {
   return String(s ?? "")
-    .replaceAll("&","&amp;")
-    .replaceAll("<","&lt;")
-    .replaceAll(">","&gt;")
-    .replaceAll('"',"&quot;")
-    .replaceAll("'","&#039;");
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
 }
-function openModal(el){ el.classList.add("show"); el.setAttribute("aria-hidden","false"); }
-function closeModal(el){ el.classList.remove("show"); el.setAttribute("aria-hidden","true"); }
+function formatDate(v) {
+  const s = String(v || "").trim();
+  if (s.includes("T")) return s.replace(".000Z", "").replace("T", " ");
+  return s;
+}
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
-// ===== API (con logs + retry 429) =====
+// =================== LOADING (UX) ===================
+function showLoading(text = "Cargando...") {
+  LOADING_COUNT++;
+  if (loadingText) loadingText.textContent = text;
+  if (loadingOverlay) loadingOverlay.classList.add("show");
+}
+function hideLoading() {
+  LOADING_COUNT = Math.max(0, LOADING_COUNT - 1);
+  if (LOADING_COUNT === 0 && loadingOverlay) loadingOverlay.classList.remove("show");
+}
+
+// =================== API (logs + retry 429) ===================
 async function api(body, retries = 2) {
-  console.log("➡️ API request body:", body);
+  console.log("➡️ API request:", body);
 
   const res = await fetch(API_URL, {
     method: "POST",
-    headers: { "Content-Type":"application/json" },
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body)
   });
 
@@ -87,60 +134,158 @@ async function api(body, retries = 2) {
     return api(body, retries - 1);
   }
 
-  const out = await res.json().catch(async ()=>({ ok:false, error: await res.text().catch(()=> "") }));
-  console.log("⬅️ API response JSON:", out);
+  const out = await res.json().catch(async () => ({ ok:false, error: await res.text().catch(() => "") }));
+  console.log("⬅️ API response:", out);
 
   if (!out.ok) throw new Error(out.error || "Error");
   return out;
 }
 
-// ===== Login / Panel =====
+// =================== NAV (login/panel) ===================
 function showPanel() {
-  loginView.classList.add("hidden");
-  panelView.classList.remove("hidden");
-  operatorName.textContent = SESSION.operator || "";
+  if (loginView) loginView.classList.add("hidden");
+  if (panelView) panelView.classList.remove("hidden");
+  if (operatorName) operatorName.textContent = SESSION.operator || "";
 }
 function showLogin() {
-  panelView.classList.add("hidden");
-  loginView.classList.remove("hidden");
+  if (panelView) panelView.classList.add("hidden");
+  if (loginView) loginView.classList.remove("hidden");
 }
 
-btnLogin.addEventListener("click", async () => {
+// =================== Drawer ===================
+function openDrawer() {
+  if (drawerOverlay) drawerOverlay.classList.add("show");
+  if (drawer) drawer.setAttribute("aria-hidden", "false");
+}
+function closeDrawer() {
+  if (drawerOverlay) drawerOverlay.classList.remove("show");
+  if (drawer) drawer.setAttribute("aria-hidden", "true");
+}
+
+// =================== MODALS ===================
+function openModal(el) {
+  if (!el) return;
+  el.classList.add("show");
+  el.setAttribute("aria-hidden", "false");
+}
+function closeModal(el) {
+  if (!el) return;
+  el.classList.remove("show");
+  el.setAttribute("aria-hidden", "true");
+}
+
+// =================== ITEMS HELPERS ===================
+function normalizeItemsFromOrder(order) {
+  if (order.items_json) {
+    const parsed = safeJsonParse(order.items_json);
+    if (Array.isArray(parsed)) {
+      return parsed.map(it => ({
+        id: String(it.id || ""),
+        name: String(it.name || ""),
+        qty: Number(it.qty || 0),
+        unit_price: Number(it.unit_price || it.price || 0),
+      })).filter(it => it.name);
+    }
+  }
+
+  if (order.items) {
+    const lines = String(order.items).split("\n").map(s => s.trim()).filter(Boolean);
+    const out = [];
+    for (const line of lines) {
+      const m = line.replace(/^-+\s*/, "").match(/^(.+?)\s*:\s*(\d+)/);
+      if (!m) continue;
+      const name = m[1].trim();
+      const qty = Number(m[2]);
+      const cat = PRODUCT_CATALOG.find(p => p.name.toLowerCase() === name.toLowerCase());
+      out.push({
+        id: cat?.id || name.toLowerCase().replace(/\s+/g, "_"),
+        name,
+        qty,
+        unit_price: cat?.unit_price || 0
+      });
+    }
+    return out.filter(it => it.name);
+  }
+  return [];
+}
+
+function buildEditableItems(order) {
+  const current = normalizeItemsFromOrder(order);
+  const map = new Map(current.map(it => [it.id, it]));
+
+  const base = PRODUCT_CATALOG.map(p => ({
+    id: p.id,
+    name: p.name,
+    qty: map.get(p.id)?.qty ?? 0,
+    unit_price: p.unit_price
+  }));
+
+  current.forEach(it => {
+    if (!base.some(b => b.id === it.id)) {
+      base.push({
+        id: it.id,
+        name: it.name,
+        qty: it.qty ?? 0,
+        unit_price: it.unit_price ?? 0
+      });
+    }
+  });
+
+  return base;
+}
+
+function calcTotals(items) {
+  const total_units = items.reduce((s, it) => s + Number(it.qty || 0), 0);
+  const subtotal = items.reduce((s, it) => s + Number(it.qty || 0) * Number(it.unit_price || 0), 0);
+  return { total_units, subtotal };
+}
+
+// =================== LOGIN ===================
+btnLogin?.addEventListener("click", async () => {
   loginError.textContent = "";
-  const operator = loginOperator.value.trim();
-  const pin = loginPin.value.trim();
-  if (!operator || !pin) { loginError.textContent = "Completa todos los campos."; return; }
+  const operator = (loginOperator?.value || "").trim();
+  const pin = (loginPin?.value || "").trim();
+
+  if (!operator || !pin) {
+    loginError.textContent = "Completa todos los campos.";
+    return;
+  }
 
   try {
+    showLoading("Verificando acceso...");
     SESSION = { operator, pin };
     sessionStorage.setItem("AMARED_ADMIN", JSON.stringify(SESSION));
+
     showPanel();
-    await loadPendientes();
+    await loadPendientes(false); // valida login
   } catch (e) {
-    SESSION = { operator:null, pin:null };
+    SESSION = { operator: null, pin: null };
     sessionStorage.removeItem("AMARED_ADMIN");
     showLogin();
-    loginError.textContent = "Error: " + String(e.message || e);
+    loginError.textContent = `Error: ${String(e.message || e)}`;
+  } finally {
+    hideLoading();
   }
 });
 
-btnLogout.addEventListener("click", () => {
-  SESSION = { operator:null, pin:null };
+btnLogout?.addEventListener("click", () => {
+  SESSION = { operator: null, pin: null };
   sessionStorage.removeItem("AMARED_ADMIN");
+  closeDrawer();
   showLogin();
 });
 
-btnRefresh.addEventListener("click", async () => {
-  await loadPendientes(true);
-});
+// =================== PENDIENTES ===================
+btnRefresh?.addEventListener("click", async () => loadPendientes(true));
 
-// ===== Cargar pendientes =====
-async function loadPendientes(fromRefresh=false) {
+async function loadPendientes(fromRefresh = false) {
   if (REQUEST_IN_FLIGHT) return;
   REQUEST_IN_FLIGHT = true;
 
   try {
-    setStatus(fromRefresh ? "Actualizando..." : "Cargando pedidos...");
+    showLoading(fromRefresh ? "Actualizando pedidos..." : "Cargando pedidos...");
+    setStatus("Cargando pendientes...");
+
     const out = await api({
       action: "list_orders",
       admin_pin: SESSION.pin,
@@ -148,83 +293,414 @@ async function loadPendientes(fromRefresh=false) {
     });
 
     pendingOrdersCache = out.orders || [];
-    renderPendientes(pendingOrdersCache);
+    renderOrdersList(listEl, pendingOrdersCache, { mode: "PENDIENTES" });
     setStatus(`${pendingOrdersCache.length} pedidos pendientes.`);
   } catch (e) {
     setStatus("❌ " + String(e.message || e));
     throw e;
   } finally {
+    hideLoading();
     REQUEST_IN_FLIGHT = false;
   }
 }
 
-// ===== Render pendientes =====
-function normalizeItemsFromOrder(order) {
-  if (order.items_json) {
-    const parsed = safeJsonParse(order.items_json);
-    if (Array.isArray(parsed)) return parsed;
-  }
-  return [];
+async function softRefreshPendientes() {
+  await sleep(700);
+  try { await loadPendientes(true); } catch {}
 }
 
-function renderPendientes(orders) {
-  listEl.innerHTML = "";
+// =================== HISTORIAL ===================
+btnHistory?.addEventListener("click", async () => {
+  openDrawer();
+  await loadHist(false);
+});
 
-  if (!orders.length) {
-    listEl.innerHTML = `<div class="mutedSmall" style="text-align:center; padding:14px;">Sin pedidos.</div>`;
+drawerOverlay?.addEventListener("click", closeDrawer);
+btnCloseDrawer?.addEventListener("click", closeDrawer);
+btnHistRefresh?.addEventListener("click", async () => loadHist(true));
+
+chips.forEach(ch => {
+  ch.addEventListener("click", async () => {
+    chips.forEach(c => c.classList.remove("active"));
+    ch.classList.add("active");
+    histFilter = ch.dataset.filter;
+    await loadHist(false);
+  });
+});
+
+async function loadHist(forceFetch) {
+  try {
+    showLoading("Cargando historial...");
+    setHistStatus("Cargando...");
+    if (histListEl) histListEl.innerHTML = "";
+
+    const now = Date.now();
+    const useCache = HIST_CACHE && (now - HIST_CACHE_TIME) < HIST_TTL;
+
+    if (forceFetch || !useCache) {
+      const [paid, canceled] = await Promise.all([
+        api({ action: "list_orders", admin_pin: SESSION.pin, payment_status: "Pagado" }),
+        api({ action: "list_orders", admin_pin: SESSION.pin, payment_status: "Cancelado" }),
+      ]);
+      HIST_CACHE = { paid: (paid.orders || []), canceled: (canceled.orders || []) };
+      HIST_CACHE_TIME = now;
+    }
+
+    let all = [...(HIST_CACHE.paid || []), ...(HIST_CACHE.canceled || [])];
+    all.sort((a, b) => (Date.parse(b.created_at || "") || 0) - (Date.parse(a.created_at || "") || 0));
+
+    if (histFilter !== "ALL") {
+      all = all.filter(o => String(o.payment_status) === histFilter);
+    }
+
+    renderOrdersList(histListEl, all, { mode: "HIST" });
+    setHistStatus(`${all.length} pedidos (filtro: ${histFilter === "ALL" ? "Todos" : histFilter}).`);
+  } catch (e) {
+    setHistStatus("❌ " + String(e.message || e));
+  } finally {
+    hideLoading();
+  }
+}
+
+// =================== RENDER ===================
+function renderOrdersList(container, orders, { mode }) {
+  if (!container) return;
+  container.innerHTML = "";
+
+  if (!orders || orders.length === 0) {
+    container.innerHTML = `<div class="mutedSmall" style="text-align:center; padding:14px;">No hay pedidos.</div>`;
     return;
   }
 
-  for (const o of orders) {
+  for (const order of orders) {
     const card = document.createElement("div");
     card.className = "orderItem";
 
-    const items = normalizeItemsFromOrder(o);
-    const lines = items.length
-      ? items.map(it => `<div class="mutedSmall">• ${escapeHtml(it.name)} x${Number(it.qty||0)}</div>`).join("")
-      : `<div class="mutedSmall">• ${escapeHtml(String(o.items||""))}</div>`;
+    const head = document.createElement("div");
+    head.className = "orderHead";
 
-    card.innerHTML = `
-      <div class="orderHead">
-        <div style="min-width:0;">
-          <div class="orderId">#${escapeHtml(o.order_id)} <span class="badge">$${money(o.subtotal)}</span></div>
-          <div class="orderMeta">${escapeHtml(o.customer_name)} • ${escapeHtml(String(o.created_at||""))}</div>
+    const statusBadge = (mode === "HIST")
+      ? `<span class="badge">${escapeHtml(order.payment_status || "")}</span>`
+      : "";
+
+    head.innerHTML = `
+      <div style="min-width:0;">
+        <div class="orderId">
+          ${escapeHtml(order.order_id || "")}
+          <span class="badge">$${money(order.subtotal || 0)}</span>
+          ${statusBadge}
         </div>
+        <div class="orderMeta">${escapeHtml(order.customer_name || "")} • ${escapeHtml(formatDate(order.created_at || ""))}</div>
       </div>
-
-      <div class="orderBody" style="display:block;">
-        <div><strong>Tel:</strong> ${escapeHtml(o.phone)}</div>
-        <div><strong>Dirección:</strong> ${escapeHtml(o.address_text)}</div>
-        <div style="margin-top:6px;"><strong>Items:</strong>${lines}</div>
-
-        <div style="margin-top:12px; display:flex; gap:10px; flex-wrap:wrap;">
-          <button class="btn btnDanger btnCancel" type="button">Cancelar Pedido</button>
-          <button class="btn primary btnPay" type="button">Confirmar pago</button>
-        </div>
-      </div>
+      <div class="chev">›</div>
     `;
 
-    card.querySelector(".btnCancel").addEventListener("click", () => openCancelModal(o));
-    card.querySelector(".btnPay").addEventListener("click", () => openPayModal(o));
+    const body = document.createElement("div");
+    body.className = "orderBody";
+    body.style.display = "none";
 
-    listEl.appendChild(card);
+    head.addEventListener("click", () => {
+      const open = body.style.display !== "none";
+      body.style.display = open ? "none" : "block";
+      card.classList.toggle("open", !open);
+    });
+
+    if (mode === "PENDIENTES") body.appendChild(renderPendingBody(order));
+    else body.appendChild(renderHistBody(order));
+
+    card.appendChild(head);
+    card.appendChild(body);
+    container.appendChild(card);
   }
 }
 
-// ===== Modal Cancelar =====
-cancelReason.addEventListener("change", () => {
-  cancelOtherWrap.classList.toggle("hidden", cancelReason.value !== "Otro");
-  resetCancelTimer();
+function renderHistBody(order) {
+  const wrap = document.createElement("div");
+
+  const items = normalizeItemsFromOrder(order);
+  const lines = items.length
+    ? items.map(it => `<div class="mutedSmall">• ${escapeHtml(it.name)} x${Number(it.qty || 0)}</div>`).join("")
+    : `<div class="mutedSmall">Sin items</div>`;
+
+  wrap.innerHTML = `
+    <div style="display:flex; flex-direction:column; gap:8px;">
+      <div><strong>Dirección:</strong> ${escapeHtml(order.address_text || "")}</div>
+      <div><strong>Ubicación:</strong> ${escapeHtml(order.maps_link || "")}</div>
+      <div><strong>Tel:</strong> ${escapeHtml(order.phone || "")}</div>
+      <div><strong>Notas:</strong> ${escapeHtml(order.notes || "")}</div>
+      <div><strong>Items:</strong><div style="margin-top:6px;">${lines}</div></div>
+      ${order.payment_status === "Pagado" ? `
+        <div class="mutedSmall"><strong>Método:</strong> ${escapeHtml(order.payment_method || "")} • <strong>Ref:</strong> ${escapeHtml(order.payment_ref || "")}</div>
+      ` : ""}
+      ${order.payment_status === "Cancelado" ? `
+        <div class="mutedSmall"><strong>Razón:</strong> ${escapeHtml(order.cancel_reason || "")}</div>
+      ` : ""}
+    </div>
+  `;
+  return wrap;
+}
+
+function renderPendingBody(order) {
+  const wrap = document.createElement("div");
+  let editMode = false;
+
+  let items = buildEditableItems(order);
+  let totals = calcTotals(items);
+
+  function render() {
+    const itemsLines = items.map((it, idx) => `
+      <div class="rowBetween" style="gap:10px;">
+        <div style="flex:1;">
+          <div style="font-weight:900;">${escapeHtml(it.name)}</div>
+          <div class="mutedSmall">$${money(it.unit_price)} c/u</div>
+        </div>
+        <div style="min-width:120px; text-align:right;">
+          ${editMode
+            ? `<input class="input itemQty" type="number" min="0" step="1" value="${Number(it.qty || 0)}" data-idx="${idx}" style="width:110px; text-align:right;" />`
+            : `<div style="font-weight:900;">x${Number(it.qty || 0)}</div>`
+          }
+        </div>
+      </div>
+    `).join("");
+
+    wrap.innerHTML = `
+      <div style="margin-top:10px;">
+        <div><strong>Tel:</strong> ${escapeHtml(order.phone || "")}</div>
+        <div><strong>Dirección:</strong> ${escapeHtml(order.address_text || "")}</div>
+        <div><strong>Ubicación:</strong> ${escapeHtml(order.maps_link || "")}</div>
+        <div><strong>Notas:</strong> ${escapeHtml(order.notes || "")}</div>
+      </div>
+
+      <div style="margin-top:12px;">
+        <div class="mutedSmall" style="font-weight:900;">Items</div>
+        <div style="display:flex; flex-direction:column; gap:10px; margin-top:8px;">${itemsLines}</div>
+      </div>
+
+      <div class="rowBetween" style="margin-top:12px;">
+        <div class="mutedSmall">Unidades</div>
+        <div class="t_units" style="font-weight:950;">${Number(totals.total_units)}</div>
+      </div>
+      <div class="rowBetween">
+        <div class="mutedSmall">Subtotal</div>
+        <div class="t_subtotal" style="font-weight:950;">$${money(totals.subtotal)}</div>
+      </div>
+
+      <div style="margin-top:12px; display:flex; gap:10px; flex-wrap:wrap;">
+        ${!editMode ? `<button class="btn secondary btnEdit" type="button">Editar ítems</button>` : ""}
+        ${editMode ? `<button class="btn secondary btnSave" type="button">Guardar</button>` : ""}
+        ${editMode ? `<button class="btn secondary btnCancelEdit" type="button">Cancelar edición</button>` : ""}
+
+        <button class="btn btnDanger btnCancel" type="button">Cancelar Pedido</button>
+        <button class="btn primary btnPay" type="button">Confirmar pago</button>
+      </div>
+    `;
+
+    // edición qty
+    if (editMode) {
+      wrap.querySelectorAll(".itemQty").forEach(inp => {
+        inp.addEventListener("input", () => {
+          const idx = Number(inp.dataset.idx);
+          items[idx].qty = Number(inp.value || 0);
+          totals = calcTotals(items);
+          wrap.querySelector(".t_units").textContent = String(totals.total_units);
+          wrap.querySelector(".t_subtotal").textContent = `$${money(totals.subtotal)}`;
+        });
+      });
+    }
+
+    // handlers
+    wrap.querySelector(".btnEdit")?.addEventListener("click", () => {
+      editMode = true;
+      render();
+    });
+
+    wrap.querySelector(".btnCancelEdit")?.addEventListener("click", () => {
+      editMode = false;
+      items = buildEditableItems(order);
+      totals = calcTotals(items);
+      render();
+    });
+
+    wrap.querySelector(".btnSave")?.addEventListener("click", async () => {
+      try {
+        showLoading("Guardando cambios...");
+        setStatus("Guardando ítems...");
+
+        const updatedItems = items
+          .map(it => ({
+            id: it.id,
+            name: it.name,
+            qty: Number(it.qty || 0),
+            price: Number(it.unit_price || 0)
+          }))
+          .filter(it => it.qty > 0);
+
+        await api({
+          action: "update_order",
+          admin_pin: SESSION.pin,
+          operator: SESSION.operator,
+          order_id: order.order_id,
+          items: updatedItems
+        });
+
+        // actualizar local
+        order.items_json = JSON.stringify(updatedItems.map(it => ({
+          id: it.id, name: it.name, qty: it.qty, unit_price: it.price
+        })));
+
+        items = buildEditableItems(order);
+        totals = calcTotals(items);
+
+        editMode = false;
+        setStatus("✅ Cambios guardados.");
+        HIST_CACHE = null; HIST_CACHE_TIME = 0;
+        render();
+        await softRefreshPendientes();
+      } catch (e) {
+        setStatus("❌ " + String(e.message || e));
+      } finally {
+        hideLoading();
+      }
+    });
+
+    wrap.querySelector(".btnPay")?.addEventListener("click", () => openPayModal(order));
+    wrap.querySelector(".btnCancel")?.addEventListener("click", () => openCancelModal(order));
+  }
+
+  render();
+  return wrap;
+}
+
+// =================== PAGO ===================
+payMethod?.addEventListener("change", () => {
+  payOtherWrap?.classList.toggle("hidden", payMethod.value !== "Otro");
+  resetPayTimerIfNeeded();
+  maybeStartPayTimer();
+});
+payOtherText?.addEventListener("input", () => { resetPayTimerIfNeeded(); maybeStartPayTimer(); });
+payRef?.addEventListener("input", () => { resetPayTimerIfNeeded(); maybeStartPayTimer(); });
+
+btnPayBack?.addEventListener("click", closePayModal);
+
+function openPayModal(order) {
+  modalOrder = order;
+
+  payMethod.value = "";
+  payRef.value = "";
+  payOtherText.value = "";
+  payOtherWrap.classList.add("hidden");
+
+  btnPayConfirm.disabled = true;
+  payTimer.textContent = "Completa los datos para iniciar la confirmación.";
+  payTimerStarted = false;
+
+  payTitle.textContent = "Confirmar pago";
+  payText.textContent = `Confirma el pago del pedido ${order.order_id} por $${money(order.subtotal)}.`;
+
+  openModal(payModal);
+}
+
+function closePayModal() {
+  stopPayCountdown();
+  closeModal(payModal);
+  modalOrder = null;
+}
+
+function isPayValid() {
+  if (!payMethod.value) return false;
+  if (payMethod.value === "Otro" && !payOtherText.value.trim()) return false;
+  if (!payRef.value.trim()) return false;
+  return true;
+}
+
+function maybeStartPayTimer() {
+  if (payTimerStarted) return;
+  if (!isPayValid()) {
+    btnPayConfirm.disabled = true;
+    payTimer.textContent = "Completa los datos para iniciar la confirmación.";
+    return;
+  }
+  startPayCountdown(3);
+}
+
+function resetPayTimerIfNeeded() {
+  if (!payTimerStarted) return;
+  stopPayCountdown();
+  btnPayConfirm.disabled = true;
+  payTimer.textContent = "Completa los datos para iniciar la confirmación.";
+  payTimerStarted = false;
+}
+
+function startPayCountdown(seconds) {
+  stopPayCountdown();
+  payTimerStarted = true;
+
+  let t = seconds;
+  btnPayConfirm.disabled = true;
+  payTimer.textContent = `Espera ${t}s para habilitar...`;
+
+  payCountdownInt = setInterval(() => {
+    t--;
+    if (t <= 0) {
+      stopPayCountdown(false);
+      payTimer.textContent = "Listo. Puedes confirmar ahora.";
+      btnPayConfirm.disabled = false;
+    } else {
+      payTimer.textContent = `Espera ${t}s para habilitar...`;
+    }
+  }, 1000);
+}
+
+function stopPayCountdown(resetStarted = true) {
+  if (payCountdownInt) clearInterval(payCountdownInt);
+  payCountdownInt = null;
+  if (resetStarted) payTimerStarted = false;
+}
+
+btnPayConfirm?.addEventListener("click", async () => {
+  if (!modalOrder) return;
+  if (!isPayValid()) return;
+
+  const finalMethod = (payMethod.value === "Otro") ? payOtherText.value.trim() : payMethod.value;
+  const finalRef = payRef.value.trim();
+
+  try {
+    setStatus("Confirmando pago...");
+    closePayModal();
+    showLoading("Confirmando pago...");
+
+    await api({
+      action: "confirm_payment", // Worker lo traduce a mark_paid
+      admin_pin: SESSION.pin,
+      operator: SESSION.operator,
+      order_id: modalOrder.order_id,
+      payment_method: finalMethod,
+      payment_ref: finalRef
+    });
+
+    setStatus("✅ Pago confirmado.");
+    HIST_CACHE = null; HIST_CACHE_TIME = 0;
+    await loadPendientes(true);
+  } catch (e) {
+    setStatus("❌ " + String(e.message || e));
+    await softRefreshPendientes();
+  } finally {
+    hideLoading();
+  }
+});
+
+// =================== CANCELAR ===================
+cancelReason?.addEventListener("change", () => {
+  cancelOtherWrap?.classList.toggle("hidden", cancelReason.value !== "Otro");
+  resetCancelTimerIfNeeded();
   maybeStartCancelTimer();
 });
-cancelOtherText.addEventListener("input", () => { resetCancelTimer(); maybeStartCancelTimer(); });
+cancelOtherText?.addEventListener("input", () => { resetCancelTimerIfNeeded(); maybeStartCancelTimer(); });
 
-btnCancelBack.addEventListener("click", () => closeCancelModal());
+btnCancelBack?.addEventListener("click", closeCancelModal);
 
 function openCancelModal(order) {
   modalOrder = order;
-  cancelTitle.textContent = `Cancelar pedido #${order.order_id}`;
-  cancelText.textContent = `${order.customer_name} • $${money(order.subtotal)}`;
 
   cancelReason.value = "";
   cancelOtherText.value = "";
@@ -233,7 +709,9 @@ function openCancelModal(order) {
   btnCancelConfirm.disabled = true;
   cancelTimer.textContent = "Selecciona una razón para habilitar la cancelación.";
   cancelTimerStarted = false;
-  stopCancelCountdown();
+
+  cancelTitle.textContent = "Cancelar pedido";
+  cancelText.textContent = `Vas a cancelar el pedido ${order.order_id} por $${money(order.subtotal)}.`;
 
   openModal(cancelModal);
 }
@@ -251,11 +729,16 @@ function isCancelValid() {
 }
 
 function maybeStartCancelTimer() {
-  if (!isCancelValid()) return;
-  startCancelCountdown(2);
+  if (cancelTimerStarted) return;
+  if (!isCancelValid()) {
+    btnCancelConfirm.disabled = true;
+    cancelTimer.textContent = "Selecciona una razón para habilitar la cancelación.";
+    return;
+  }
+  startCancelCountdown(3);
 }
 
-function resetCancelTimer() {
+function resetCancelTimerIfNeeded() {
   if (!cancelTimerStarted) return;
   stopCancelCountdown();
   btnCancelConfirm.disabled = true;
@@ -283,23 +766,22 @@ function startCancelCountdown(seconds) {
   }, 1000);
 }
 
-function stopCancelCountdown(resetStarted=true) {
+function stopCancelCountdown(resetStarted = true) {
   if (cancelCountdownInt) clearInterval(cancelCountdownInt);
   cancelCountdownInt = null;
   if (resetStarted) cancelTimerStarted = false;
 }
 
-btnCancelConfirm.addEventListener("click", async () => {
-  console.log("✅ CLICK CANCEL CONFIRM", { modalOrder });
-
-  if (!modalOrder) { alert("No se detectó el pedido. Cierra y abre el modal."); return; }
-  if (!isCancelValid()) { alert("Selecciona una razón válida."); return; }
+btnCancelConfirm?.addEventListener("click", async () => {
+  if (!modalOrder) return;
+  if (!isCancelValid()) return;
 
   const reason = (cancelReason.value === "Otro") ? cancelOtherText.value.trim() : cancelReason.value;
 
   try {
     setStatus("Cancelando pedido...");
-    console.log("➡️ ACTION cancel_order", { order_id: modalOrder.order_id, reason });
+    closeCancelModal();
+    showLoading("Cancelando pedido...");
 
     await api({
       action: "cancel_order",
@@ -309,131 +791,18 @@ btnCancelConfirm.addEventListener("click", async () => {
       cancel_reason: reason
     });
 
-    closeCancelModal();
     setStatus("✅ Pedido cancelado.");
-
-    // Recargar lista (esto ya debe venir sin ese pedido si tu Apps Script cambió status)
+    HIST_CACHE = null; HIST_CACHE_TIME = 0;
     await loadPendientes(true);
-
   } catch (e) {
     setStatus("❌ " + String(e.message || e));
+    await softRefreshPendientes();
+  } finally {
+    hideLoading();
   }
 });
 
-// ===== Modal Pago =====
-payMethod.addEventListener("change", () => {
-  payOtherWrap.classList.toggle("hidden", payMethod.value !== "Otro");
-  resetPayTimer();
-  maybeStartPayTimer();
-});
-payOtherText.addEventListener("input", () => { resetPayTimer(); maybeStartPayTimer(); });
-payRef.addEventListener("input", () => { resetPayTimer(); maybeStartPayTimer(); });
-
-btnPayBack.addEventListener("click", () => closePayModal());
-
-function openPayModal(order) {
-  modalOrder = order;
-  payTitle.textContent = `Confirmar pago #${order.order_id}`;
-  payText.textContent = `${order.customer_name} • $${money(order.subtotal)}`;
-
-  payMethod.value = "";
-  payOtherText.value = "";
-  payOtherWrap.classList.add("hidden");
-  payRef.value = "";
-
-  btnPayConfirm.disabled = true;
-  payTimer.textContent = "Completa método y referencia.";
-  payTimerStarted = false;
-  stopPayCountdown();
-
-  openModal(payModal);
-}
-
-function closePayModal() {
-  stopPayCountdown();
-  closeModal(payModal);
-  modalOrder = null;
-}
-
-function isPayValid() {
-  if (!payMethod.value) return false;
-  if (payMethod.value === "Otro" && !payOtherText.value.trim()) return false;
-  if (!payRef.value.trim()) return false;
-  return true;
-}
-
-function maybeStartPayTimer() {
-  if (!isPayValid()) return;
-  startPayCountdown(2);
-}
-
-function resetPayTimer() {
-  if (!payTimerStarted) return;
-  stopPayCountdown();
-  btnPayConfirm.disabled = true;
-  payTimer.textContent = "Completa método y referencia.";
-  payTimerStarted = false;
-}
-
-function startPayCountdown(seconds) {
-  stopPayCountdown();
-  payTimerStarted = true;
-
-  let t = seconds;
-  btnPayConfirm.disabled = true;
-  payTimer.textContent = `Espera ${t}s para habilitar...`;
-
-  payCountdownInt = setInterval(() => {
-    t--;
-    if (t <= 0) {
-      stopPayCountdown(false);
-      payTimer.textContent = "Listo. Puedes confirmar ahora.";
-      btnPayConfirm.disabled = false;
-    } else {
-      payTimer.textContent = `Espera ${t}s para habilitar...`;
-    }
-  }, 1000);
-}
-
-function stopPayCountdown(resetStarted=true) {
-  if (payCountdownInt) clearInterval(payCountdownInt);
-  payCountdownInt = null;
-  if (resetStarted) payTimerStarted = false;
-}
-
-btnPayConfirm.addEventListener("click", async () => {
-  console.log("✅ CLICK PAY CONFIRM", { modalOrder });
-
-  if (!modalOrder) { alert("No se detectó el pedido. Cierra y abre el modal."); return; }
-  if (!isPayValid()) { alert("Completa método de pago y referencia."); return; }
-
-  const method = (payMethod.value === "Otro") ? payOtherText.value.trim() : payMethod.value;
-  const ref = payRef.value.trim();
-
-  try {
-    setStatus("Confirmando pago...");
-    console.log("➡️ ACTION confirm_payment", { order_id: modalOrder.order_id, method, ref });
-
-    await api({
-      action: "confirm_payment", // el Worker lo traduce a mark_paid
-      admin_pin: SESSION.pin,
-      operator: SESSION.operator,
-      order_id: modalOrder.order_id,
-      payment_method: method,
-      payment_ref: ref
-    });
-
-    closePayModal();
-    setStatus("✅ Pago confirmado.");
-
-    await loadPendientes(true);
-
-  } catch (e) {
-    setStatus("❌ " + String(e.message || e));
-  }
-});
-
-// ===== INIT =====
+// =================== INIT ===================
 (function init() {
   const saved = sessionStorage.getItem("AMARED_ADMIN");
   if (saved) {
@@ -441,8 +810,8 @@ btnPayConfirm.addEventListener("click", async () => {
       SESSION = JSON.parse(saved);
       if (SESSION?.operator && SESSION?.pin) {
         showPanel();
-        loadPendientes().catch(() => {
-          SESSION = { operator:null, pin:null };
+        loadPendientes(false).catch(() => {
+          SESSION = { operator: null, pin: null };
           sessionStorage.removeItem("AMARED_ADMIN");
           showLogin();
         });
