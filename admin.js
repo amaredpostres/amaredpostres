@@ -1,6 +1,6 @@
 const API_URL = "https://amared-orders.amaredpostres.workers.dev/";
 
-// Catálogo de productos (siempre visibles en edición)
+// Catálogo de productos (para edición)
 const PRODUCT_CATALOG = [
   { id: "mousse_maracuya", name: "Mousse de Maracuyá", unit_price: 10000 },
   { id: "cheesecake_cafe_panela", name: "Cheesecake de café con panela", unit_price: 12500 },
@@ -9,13 +9,13 @@ const PRODUCT_CATALOG = [
 let SESSION = { operator: null, pin: null };
 
 // ===== Control requests / loading =====
-let REQUEST_IN_FLIGHT = false;     // evita dobles llamadas list_orders
-let LOADING_COUNT = 0;             // permite showLoading anidado sin bloquear
+let REQUEST_IN_FLIGHT = false;
+let LOADING_COUNT = 0;
 
 // Historial cache
-let HIST_CACHE = null;
+let HIST_CACHE = null;       // { paid:[], canceled:[] }
 let HIST_CACHE_TIME = 0;
-const HIST_TTL = 60 * 1000; // 60s
+const HIST_TTL = 60 * 1000;
 
 // UI state
 let histFilter = "ALL";
@@ -31,128 +31,92 @@ const btnLogin = document.getElementById("btnLogin");
 const loginError = document.getElementById("loginError");
 
 const operatorName = document.getElementById("operatorName");
-const btnLogout = document.getElementById('btnLogout');
-
-const statusBadge = document.getElementById("statusBadge");
-const ordersList = document.getElementById("ordersList");
+const btnLogout = document.getElementById("btnLogout");
 const btnRefresh = document.getElementById("btnRefresh");
-
 const btnHistory = document.getElementById("btnHistory");
-const btnCloseHistory = document.getElementById("btnCloseHistory");
-const historyDrawer = document.getElementById("historyDrawer");
-const historyList = document.getElementById("historyList");
-const histChips = document.querySelectorAll(".chip");
 
-const modal = document.getElementById("orderModal");
-const modalBody = document.getElementById("modalBody");
-const modalClose = document.getElementById("modalClose");
+const statusEl = document.getElementById("status");
+const listEl = document.getElementById("list");
 
-const btnMarkPaid = document.getElementById("btnMarkPaid");
-const btnCancelOrder = document.getElementById("btnCancelOrder");
-const btnEditOrder = document.getElementById("btnEditOrder");
+// Drawer historial
+const drawerOverlay = document.getElementById("drawerOverlay");
+const drawer = document.getElementById("drawer");
+const btnCloseDrawer = document.getElementById("btnCloseDrawer");
+const histStatusEl = document.getElementById("histStatus");
+const histListEl = document.getElementById("histList");
+const btnHistRefresh = document.getElementById("btnHistRefresh");
+const chips = Array.from(document.querySelectorAll(".chip"));
 
-const modalNotice = document.getElementById("modalNotice");
+// Loading overlay
+const loadingOverlay = document.getElementById("loadingOverlay");
+const loadingText = document.getElementById("loadingText");
 
-// Pago modal elements
+// Modal pago
 const payModal = document.getElementById("payModal");
-const payModalClose = document.getElementById("payModalClose");
-const btnPayConfirm = document.getElementById("btnPayConfirm");
+const payTitle = document.getElementById("payTitle");
+const payText = document.getElementById("payText");
 const payMethod = document.getElementById("payMethod");
+const payOtherWrap = document.getElementById("payOtherWrap");
+const payOtherText = document.getElementById("payOtherText");
 const payRef = document.getElementById("payRef");
 const payTimer = document.getElementById("payTimer");
+const btnPayBack = document.getElementById("btnPayBack");
+const btnPayConfirm = document.getElementById("btnPayConfirm");
 
-// Cancel modal elements
+// Modal cancelar
 const cancelModal = document.getElementById("cancelModal");
-const cancelModalClose = document.getElementById("cancelModalClose");
-const btnCancelConfirm = document.getElementById("btnCancelConfirm");
+const cancelTitle = document.getElementById("cancelTitle");
+const cancelText = document.getElementById("cancelText");
 const cancelReason = document.getElementById("cancelReason");
+const cancelOtherWrap = document.getElementById("cancelOtherWrap");
+const cancelOtherText = document.getElementById("cancelOtherText");
 const cancelTimer = document.getElementById("cancelTimer");
+const btnCancelBack = document.getElementById("btnCancelBack");
+const btnCancelConfirm = document.getElementById("btnCancelConfirm");
 
-// Edit modal elements
-const editModal = document.getElementById("editModal");
-const editModalClose = document.getElementById("editModalClose");
-const btnEditConfirm = document.getElementById("btnEditConfirm");
-const editItemsContainer = document.getElementById("editItemsContainer");
-const editNotes = document.getElementById("editNotes");
-const editAddress = document.getElementById("editAddress");
-const editMapsLink = document.getElementById("editMapsLink");
+// Timers
+let payCountdownInt = null;
+let cancelCountdownInt = null;
+let payTimerStarted = false;
+let cancelTimerStarted = false;
 
-// ===== Helpers =====
-function sleep(ms){ return new Promise(r=>setTimeout(r, ms)); }
+// Current order in modal
+let modalOrder = null;
 
-function showLoading(msg="Cargando..."){
+// ===== UTILS =====
+function setStatus(msg) { statusEl.textContent = msg || ""; }
+function setHistStatus(msg) { histStatusEl.textContent = msg || ""; }
+function money(n) { return Math.round(Number(n || 0)).toLocaleString("es-CO"); }
+function safeJsonParse(s){ try { return JSON.parse(s); } catch { return null; } }
+
+function showLoading(text="Cargando.") {
   LOADING_COUNT++;
-  statusBadge.textContent = msg;
-  statusBadge.className = "badge badge-loading";
+  loadingText.textContent = text;
+  loadingOverlay.classList.add("show");
 }
-function hideLoading(){
+function hideLoading() {
   LOADING_COUNT = Math.max(0, LOADING_COUNT - 1);
-  if(LOADING_COUNT===0){
-    statusBadge.textContent = "Listo";
-    statusBadge.className = "badge badge-ok";
-  }
-}
-function setStatus(msg, type="ok"){
-  statusBadge.textContent = msg;
-  statusBadge.className = `badge badge-${type}`;
+  if (LOADING_COUNT === 0) loadingOverlay.classList.remove("show");
 }
 
-function showError(el, msg){
-  el.textContent = msg;
-  el.style.display = "block";
-}
-function clearError(el){
-  el.textContent = "";
-  el.style.display = "none";
-}
-
-function parseItems(itemsStr){
-  // items se guarda como: "Mousse de Maracuyá x2 | Cheesecake de café con panela x1"
-  const parts = (itemsStr || "").split("|").map(s=>s.trim()).filter(Boolean);
-  const out = [];
-  for(const p of parts){
-    const m = p.match(/(.+?)\s*x\s*(\d+)/i);
-    if(m){
-      out.push({ name: m[1].trim(), qty: parseInt(m[2],10) });
-    }else{
-      out.push({ name: p, qty: 1 });
-    }
-  }
-  return out;
+function escapeHtml(s) {
+  return String(s ?? "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
 }
 
-function formatMoney(n){
-  try{
-    return new Intl.NumberFormat("es-CO", { style:"currency", currency:"COP", maximumFractionDigits:0 }).format(Number(n)||0);
-  }catch{
-    return `$${Number(n)||0}`;
-  }
+function formatDate(v) {
+  const s = String(v || "").trim();
+  if (s.includes("T")) return s.replace(".000Z","").replace("T"," ");
+  return s;
 }
 
-function safeText(v){
-  return (v===null || v===undefined) ? "" : String(v);
-}
+function sleep(ms){ return new Promise(r => setTimeout(r, ms)); }
 
-function buildWA(items, total, name, phone, address, maps, notes){
-  const lines = [];
-  lines.push("Hola AMARED 👋");
-  lines.push(`Soy *${name}* (${phone}).`);
-  lines.push("");
-  lines.push("🧁 *Pedido:*");
-  for(const it of items){
-    lines.push(`- ${it.name} x${it.qty}`);
-  }
-  lines.push("");
-  lines.push(`💰 *Total:* ${formatMoney(total)}`);
-  lines.push("");
-  lines.push(`📍 *Dirección:* ${address || "—"}`);
-  if(maps) lines.push(`🗺️ *Ubicación:* ${maps}`);
-  if(notes) lines.push(`📝 *Notas:* ${notes}`);
-  return encodeURIComponent(lines.join("\n"));
-}
-
-// ===== API =====
-// NOTA: el Worker tiene rate-limit (~1 request / 5s por IP). Si recibimos 429, esperamos >5s antes de reintentar.
+// ===== API con reintento 429 =====
 async function api(body, retries = 2) {
   const res = await fetch(API_URL, {
     method: "POST",
@@ -161,9 +125,7 @@ async function api(body, retries = 2) {
   });
 
   if (res.status === 429 && retries > 0) {
-    // El Worker aplica rate-limit (~1 request / 5s por IP). Espera un poco más para no rebotar en 429.
-    const waitMs = 5200 * (3 - retries); // 5200ms, 10400ms
-    await sleep(waitMs);
+    await sleep(600 * (3 - retries)); // 600ms, 1200ms
     return api(body, retries - 1);
   }
 
@@ -172,175 +134,580 @@ async function api(body, retries = 2) {
   return out;
 }
 
-// ===== Login =====
-btnLogin?.addEventListener("click", async ()=>{
-  clearError(loginError);
+// ===== ITEMS =====
+function normalizeItemsFromOrder(order) {
+  if (order.items_json) {
+    const parsed = safeJsonParse(order.items_json);
+    if (Array.isArray(parsed)) {
+      return parsed.map(it => ({
+        id: String(it.id || ""),
+        name: String(it.name || ""),
+        qty: Number(it.qty || 0),
+        unit_price: Number(it.unit_price || it.price || 0),
+      })).filter(it => it.name);
+    }
+  }
+
+  // fallback items en texto "- Nombre: 2"
+  if (order.items) {
+    const lines = String(order.items).split("\n").map(s => s.trim()).filter(Boolean);
+    const found = [];
+    for (const line of lines) {
+      const m = line.replace(/^-+\s*/, "").match(/^(.+?)\s*:\s*(\d+)/);
+      if (!m) continue;
+      const name = m[1].trim();
+      const qty = Number(m[2]);
+      const cat = PRODUCT_CATALOG.find(p => name.toLowerCase().includes(p.name.toLowerCase().slice(0, 10)));
+      found.push({
+        id: cat?.id || name.toLowerCase().replace(/\s+/g, "_"),
+        name,
+        qty,
+        unit_price: cat?.unit_price || 0
+      });
+    }
+    return found.filter(it => it.name);
+  }
+
+  return [];
+}
+
+function buildEditableItems(order) {
+  const current = normalizeItemsFromOrder(order);
+  const map = new Map(current.map(it => [it.id, it]));
+
+  const base = PRODUCT_CATALOG.map(p => ({
+    id: p.id,
+    name: p.name,
+    qty: map.get(p.id)?.qty ?? 0,
+    unit_price: p.unit_price
+  }));
+
+  // conservar items extra no catalogados
+  current.forEach(it => {
+    if (!base.some(b => b.id === it.id)) {
+      base.push({
+        id: it.id,
+        name: it.name,
+        qty: it.qty ?? 0,
+        unit_price: it.unit_price ?? 0
+      });
+    }
+  });
+
+  return base;
+}
+
+function calcTotals(items) {
+  const total_units = items.reduce((s,it) => s + Number(it.qty || 0), 0);
+  const subtotal = items.reduce((s,it) => s + Number(it.qty || 0) * Number(it.unit_price || 0), 0);
+  return { total_units, subtotal };
+}
+
+// ===== LOGIN =====
+btnLogin.addEventListener("click", async () => {
+  loginError.textContent = "";
   const operator = loginOperator.value.trim();
   const pin = loginPin.value.trim();
-  if(!operator || !pin){
-    showError(loginError, "Completa operador y PIN.");
-    return;
-  }
-  showLoading("Validando...");
-  try{
-    const out = await api({ action:"admin_login", operator, admin_pin: pin });
-    SESSION.operator = operator;
-    SESSION.pin = pin;
+  if (!operator || !pin) { loginError.textContent = "Completa todos los campos."; return; }
 
-    operatorName.textContent = operator;
-    loginView.style.display = "none";
-    panelView.style.display = "block";
+  try {
+    showLoading("Verificando acceso...");
+    SESSION = { operator, pin };
+    sessionStorage.setItem("AMARED_ADMIN", JSON.stringify(SESSION));
 
-    setStatus("Listo", "ok");
-    await loadPendingOrders(true);
-  }catch(err){
-    showError(loginError, err.message || "Error");
-    setStatus("Error", "err");
-  }finally{
+    showPanel();
+    await loadPendientes(false); // esto valida el PIN (401 si es incorrecto)
+  } catch (e) {
+    SESSION = { operator:null, pin:null };
+    sessionStorage.removeItem("AMARED_ADMIN");
+    showLogin();
+    loginError.textContent = "PIN incorrecto o temporalmente bloqueado. Intenta de nuevo.";
+  } finally {
     hideLoading();
   }
 });
 
-btnLogout?.addEventListener("click", ()=>{
+function showPanel() {
+  loginView.classList.add("hidden");
+  panelView.classList.remove("hidden");
+  operatorName.textContent = SESSION.operator || "";
+}
+
+function showLogin() {
+  panelView.classList.add("hidden");
+  loginView.classList.remove("hidden");
+}
+
+// ===== LOGOUT =====
+btnLogout.addEventListener("click", () => {
   SESSION = { operator:null, pin:null };
-  panelView.style.display = "none";
-  loginView.style.display = "block";
-  ordersList.innerHTML = "";
-  setStatus("Sesión cerrada", "ok");
+  closeDrawer();
+  sessionStorage.removeItem("AMARED_ADMIN");
+  showLogin();
 });
 
-// ===== Orders list =====
-btnRefresh?.addEventListener("click", ()=>{
-  loadPendingOrders(true);
+// ===== PENDIENTES =====
+btnRefresh.addEventListener("click", async () => {
+  await loadPendientes(true);
 });
 
-async function loadPendingOrders(force=false){
-  if(REQUEST_IN_FLIGHT && !force) return;
+async function loadPendientes(fromRefresh=false) {
+  if (REQUEST_IN_FLIGHT) return;
   REQUEST_IN_FLIGHT = true;
-  showLoading("Cargando pedidos...");
-  setStatus("Cargando pendientes...");
 
-  try{
+  try {
+    showLoading(fromRefresh ? "Actualizando pedidos..." : "Cargando pedidos...");
+    setStatus("Cargando pendientes...");
+
     const out = await api({
       action: "list_orders",
       admin_pin: SESSION.pin,
       payment_status: "Pendiente"
     });
 
-    pendingOrdersCache = Array.isArray(out.orders) ? out.orders : [];
-    renderPendingOrders(pendingOrdersCache);
-    setStatus(`Pendientes: ${pendingOrdersCache.length}`, "ok");
-  }catch(err){
-    setStatus(err.message || "Error cargando", "err");
-  }finally{
+    pendingOrdersCache = out.orders || [];
+    renderOrdersList(listEl, pendingOrdersCache, { mode:"PENDIENTES" });
+    setStatus(`${pendingOrdersCache.length} pedidos pendientes.`);
+  } catch (e) {
+    const msg = String(e.message || "");
+    if (msg.toLowerCase().includes("too many") || msg.includes("429")) {
+      setStatus("⚠️ Muchas solicitudes seguidas. Espera 2–3 segundos y vuelve a intentar.");
+    } else {
+      setStatus("❌ " + msg);
+    }
+    throw e;
+  } finally {
     hideLoading();
     REQUEST_IN_FLIGHT = false;
   }
 }
 
-function renderPendingOrders(list){
-  ordersList.innerHTML = "";
-  if(!list || list.length===0){
-    ordersList.innerHTML = `<div class="empty">No hay pedidos pendientes.</div>`;
+async function softRefreshPendientes() {
+  await sleep(700);
+  try { await loadPendientes(true); } catch { /* ignore */ }
+}
+
+// ===== HISTORIAL =====
+btnHistory.addEventListener("click", async () => {
+  openDrawer();
+  await loadHist(false);
+});
+
+drawerOverlay.addEventListener("click", closeDrawer);
+btnCloseDrawer.addEventListener("click", closeDrawer);
+
+btnHistRefresh.addEventListener("click", async () => {
+  await loadHist(true);
+});
+
+chips.forEach(ch => {
+  ch.addEventListener("click", async () => {
+    chips.forEach(c => c.classList.remove("active"));
+    ch.classList.add("active");
+    histFilter = ch.dataset.filter;
+    await loadHist(false);
+  });
+});
+
+function openDrawer() {
+  drawerOverlay.classList.add("show");
+  drawer.setAttribute("aria-hidden","false");
+}
+function closeDrawer() {
+  drawerOverlay.classList.remove("show");
+  drawer.setAttribute("aria-hidden","true");
+}
+
+async function loadHist(forceFetch) {
+  try {
+    showLoading("Cargando historial...");
+    setHistStatus("Cargando...");
+    histListEl.innerHTML = "";
+
+    const now = Date.now();
+    const useCache = HIST_CACHE && (now - HIST_CACHE_TIME) < HIST_TTL;
+
+    if (forceFetch || !useCache) {
+      const [paid, canceled] = await Promise.all([
+        api({ action:"list_orders", admin_pin: SESSION.pin, payment_status:"Pagado" }),
+        api({ action:"list_orders", admin_pin: SESSION.pin, payment_status:"Cancelado" }),
+      ]);
+      HIST_CACHE = {
+        paid: (paid.orders || []),
+        canceled: (canceled.orders || [])
+      };
+      HIST_CACHE_TIME = now;
+    }
+
+    let all = [...(HIST_CACHE?.paid || []), ...(HIST_CACHE?.canceled || [])];
+    all.sort((a,b) => (Date.parse(b.created_at || "")||0) - (Date.parse(a.created_at || "")||0));
+
+    if (histFilter !== "ALL") all = all.filter(o => String(o.payment_status) === histFilter);
+
+    renderOrdersList(histListEl, all, { mode:"HIST" });
+    setHistStatus(`${all.length} pedidos (filtro: ${histFilter === "ALL" ? "Todos" : histFilter}).`);
+  } catch (e) {
+    const msg = String(e.message || "");
+    if (msg.toLowerCase().includes("too many") || msg.includes("429")) {
+      setHistStatus("⚠️ Muchas solicitudes. Espera 2–3s y vuelve a intentar.");
+    } else {
+      setHistStatus("❌ " + msg);
+    }
+  } finally {
+    hideLoading();
+  }
+}
+
+// ===== RENDER LIST =====
+function renderOrdersList(container, orders, opts) {
+  container.innerHTML = "";
+  if (!orders || orders.length === 0) {
+    container.innerHTML = `<div class="mutedSmall" style="text-align:center; padding:14px;">Sin pedidos.</div>`;
     return;
   }
 
-  for(const o of list){
-    const card = document.createElement("div");
-    card.className = "order-card";
-    card.innerHTML = `
-      <div class="order-top">
-        <div class="order-id">${safeText(o.order_id)}</div>
-        <div class="order-total">${formatMoney(o.subtotal || o.total || o.total_amount || o.total_value || o.total_price || o.total_units || o.total)}</div>
-      </div>
-      <div class="order-meta">
-        <div><b>${safeText(o.customer_name)}</b> · ${safeText(o.phone)}</div>
-        <div class="muted">${safeText(o.address_text)}</div>
-        <div class="muted">${safeText(o.created_at || o.order_date || "")}</div>
-      </div>
-      <div class="order-actions">
-        <button class="btn btn-soft" data-open="${safeText(o.order_id)}">Ver</button>
-        <button class="btn btn-primary" data-paid="${safeText(o.order_id)}">Pagar</button>
-        <button class="btn btn-danger" data-cancel="${safeText(o.order_id)}">Cancelar</button>
-      </div>
-    `;
+  for (const order of orders) {
+    const wrap = document.createElement("div");
+    wrap.className = "orderItem";
 
-    ordersList.appendChild(card);
+    let editMode = false;
 
-    card.querySelector('[data-open]')?.addEventListener("click", ()=> openOrderModal(o.order_id));
-    card.querySelector('[data-paid]')?.addEventListener("click", ()=> openPayFlow(o.order_id));
-    card.querySelector('[data-cancel]')?.addEventListener("click", ()=> openCancelFlow(o.order_id));
+    // snapshot para cancelar edición
+    const originalSnapshot = {
+      customer_name: order.customer_name,
+      phone: order.phone,
+      address_text: order.address_text,
+      maps_link: order.maps_link,
+      notes: order.notes,
+      items_json: order.items_json,
+      items: order.items,
+    };
+
+    let items = buildEditableItems(order);
+    let totals = calcTotals(items);
+
+    function showInlineAlert(msg) {
+      const el = wrap.querySelector(".inlineAlert");
+      if (el) {
+        el.textContent = msg || "";
+        el.style.display = msg ? "" : "none";
+      }
+    }
+
+    function validateNotEmpty() {
+      if (!editMode) return true;
+      const nameV = wrap.querySelector(".f_name").value.trim();
+      const phoneV = wrap.querySelector(".f_phone").value.trim();
+      const addrV = wrap.querySelector(".f_address").value.trim();
+      if (!nameV || !phoneV || !addrV) {
+        showInlineAlert("Completa: nombre, teléfono y dirección.");
+        return false;
+      }
+      showInlineAlert("");
+      return true;
+    }
+
+    function render() {
+      const statusBadge = `<span class="badge">${escapeHtml(order.payment_status || "")}</span>`;
+
+      const itemsLines = items
+        .filter(it => it.qty > 0 || editMode)
+        .map((it, idx) => {
+          const line = `
+            <div class="rowBetween" style="gap:10px;">
+              <div style="flex:1;">
+                <div style="font-weight:900;">${escapeHtml(it.name)}</div>
+                <div class="mutedSmall">$${money(it.unit_price)} c/u</div>
+              </div>
+              <div style="min-width:120px; text-align:right;">
+                ${editMode
+                  ? `<input class="input itemQty" type="number" min="0" step="1" value="${Number(it.qty||0)}" data-idx="${idx}" style="width:110px; text-align:right;" />`
+                  : `<div style="font-weight:900;">x${Number(it.qty||0)}</div>`
+                }
+              </div>
+            </div>
+          `;
+          return line;
+        }).join("");
+
+      wrap.innerHTML = `
+        <div class="orderHead">
+          <div>
+            <div class="orderId">#${escapeHtml(order.order_id || "")}</div>
+            <div class="mutedSmall">${escapeHtml(formatDate(order.created_at || ""))} ${statusBadge}</div>
+          </div>
+        </div>
+
+        <div class="inlineAlert" style="display:none; margin:8px 0; color:#b00020; font-weight:800;"></div>
+
+        <details class="orderDetails">
+          <summary class="orderSummary">Ver detalles</summary>
+          <div class="orderBody">
+
+            <div class="grid2" style="gap:10px;">
+              <div>
+                <div class="mutedSmall">Nombre</div>
+                ${editMode
+                  ? `<input class="input f_name" value="${escapeHtml(order.customer_name || "")}" />`
+                  : `<div style="font-weight:900;">${escapeHtml(order.customer_name || "")}</div>`
+                }
+              </div>
+              <div>
+                <div class="mutedSmall">Teléfono</div>
+                ${editMode
+                  ? `<input class="input f_phone" value="${escapeHtml(order.phone || "")}" />`
+                  : `<div style="font-weight:900;">${escapeHtml(order.phone || "")}</div>`
+                }
+              </div>
+            </div>
+
+            <div style="margin-top:10px;">
+              <div class="mutedSmall">Dirección</div>
+              ${editMode
+                ? `<input class="input f_address" value="${escapeHtml(order.address_text || "")}" />`
+                : `<div style="font-weight:900;">${escapeHtml(order.address_text || "")}</div>`
+              }
+            </div>
+
+            <div style="margin-top:10px;">
+              <div class="mutedSmall">Ubicación</div>
+              ${editMode
+                ? `<input class="input f_maps" value="${escapeHtml(order.maps_link || "")}" placeholder="Link Maps / WHATSAPP" />`
+                : `<div style="font-weight:900;">${escapeHtml(order.maps_link || "")}</div>`
+              }
+            </div>
+
+            <div style="margin-top:10px;">
+              <div class="mutedSmall">Notas</div>
+              ${editMode
+                ? `<textarea class="textarea f_notes" rows="2">${escapeHtml(order.notes || "")}</textarea>`
+                : `<div style="font-weight:900;">${escapeHtml(order.notes || "")}</div>`
+              }
+            </div>
+
+            <div style="margin-top:12px;">
+              <div class="mutedSmall" style="font-weight:900;">Items</div>
+              <div style="display:flex; flex-direction:column; gap:10px; margin-top:8px;">${itemsLines || `<div class="mutedSmall">Sin items</div>`}</div>
+            </div>
+
+            <div class="rowBetween" style="margin-top:12px;">
+              <div class="mutedSmall">Unidades</div>
+              <div class="t_units" style="font-weight:950;">${Number(totals.total_units)}</div>
+            </div>
+            <div class="rowBetween">
+              <div class="mutedSmall">Subtotal</div>
+              <div class="t_subtotal" style="font-weight:950;">$${money(totals.subtotal)}</div>
+            </div>
+
+            <div style="margin-top:12px; display:flex; gap:10px; flex-wrap:wrap;">
+              ${opts.mode === "PENDIENTES" && !editMode ? `<button class="btn secondary btnEdit" type="button">Editar</button>` : ""}
+              ${opts.mode === "PENDIENTES" && editMode ? `<button class="btn secondary btnSave" type="button">Guardar cambios</button>` : ""}
+              ${opts.mode === "PENDIENTES" && editMode ? `<button class="btn secondary btnCancelEdit" type="button">Cancelar edición</button>` : ""}
+              ${opts.mode === "PENDIENTES" ? `<button class="btn btnDanger btnCancel" type="button">Cancelar Pedido</button>` : ""}
+              ${opts.mode === "PENDIENTES" ? `<button class="btn primary btnPay" type="button">Confirmar pago</button>` : ""}
+            </div>
+
+          </div>
+        </details>
+      `;
+
+      // Live totals update si editMode
+      function hookLiveUpdates() {
+        wrap.querySelectorAll(".itemQty").forEach(inp => {
+          inp.addEventListener("input", () => {
+            const idx = Number(inp.dataset.idx);
+            items[idx].qty = Number(inp.value || 0);
+            totals = calcTotals(items);
+
+            wrap.querySelector(".t_units").textContent = String(totals.total_units);
+            wrap.querySelector(".t_subtotal").textContent = `$${money(totals.subtotal)}`;
+
+            validateNotEmpty();
+          });
+        });
+
+        // también validar cambios en inputs
+        wrap.querySelector(".f_name")?.addEventListener("input", validateNotEmpty);
+        wrap.querySelector(".f_phone")?.addEventListener("input", validateNotEmpty);
+        wrap.querySelector(".f_address")?.addEventListener("input", validateNotEmpty);
+      }
+      if (editMode) hookLiveUpdates();
+
+      // Editar
+      const btnEdit = wrap.querySelector(".btnEdit");
+      if (btnEdit) btnEdit.addEventListener("click", () => {
+        editMode = true;
+        render();
+      });
+
+      // Cancelar edición
+      const btnCancelEdit = wrap.querySelector(".btnCancelEdit");
+      if (btnCancelEdit) btnCancelEdit.addEventListener("click", () => {
+        editMode = false;
+
+        order.customer_name = originalSnapshot.customer_name;
+        order.phone = originalSnapshot.phone;
+        order.address_text = originalSnapshot.address_text;
+        order.maps_link = originalSnapshot.maps_link;
+        order.notes = originalSnapshot.notes;
+        order.items_json = originalSnapshot.items_json;
+        order.items = originalSnapshot.items;
+
+        items = buildEditableItems(order);
+        totals = calcTotals(items);
+        showInlineAlert("");
+        render();
+      });
+
+      // Guardar cambios
+      const btnSave = wrap.querySelector(".btnSave");
+      if (btnSave) {
+        btnSave.addEventListener("click", async () => {
+          if (!validateNotEmpty()) return;
+
+          const customer_name = wrap.querySelector(".f_name").value.trim();
+          const phone = wrap.querySelector(".f_phone").value.trim();
+          const address_text = wrap.querySelector(".f_address").value.trim();
+          const maps_link = wrap.querySelector(".f_maps").value.trim();
+          const notes = wrap.querySelector(".f_notes").value.trim();
+
+          // items que se envían al webhook (formato esperado: id,name,qty,price)
+          const updatedItems = items
+            .map(it => ({
+              id: it.id,
+              name: it.name,
+              qty: Number(it.qty || 0),
+              price: Number(it.unit_price || 0)
+            }))
+            .filter(it => it.qty > 0);
+
+          try {
+            showLoading("Guardando cambios...");
+            setStatus("Guardando...");
+
+            await api({
+              action: "update_order",
+              admin_pin: SESSION.pin,
+              operator: SESSION.operator,
+              order_id: order.order_id,
+              customer_name,
+              phone,
+              address_text,
+              maps_link,
+              notes,
+              items: updatedItems
+            });
+
+            // actualizar UI local
+            order.customer_name = customer_name;
+            order.phone = phone;
+            order.address_text = address_text;
+            order.maps_link = maps_link;
+            order.notes = notes;
+            order.items_json = JSON.stringify(updatedItems.map(it => ({
+              id: it.id, name: it.name, qty: it.qty, unit_price: it.price
+            })));
+
+            items = buildEditableItems(order);
+            totals = calcTotals(items);
+
+            setStatus("✅ Cambios guardados.");
+            editMode = false;
+
+            HIST_CACHE = null;
+            HIST_CACHE_TIME = 0;
+
+            render();
+            await softRefreshPendientes();
+          } catch (e) {
+            setStatus("❌ " + (e.message || "No se pudo guardar."));
+          } finally {
+            hideLoading();
+          }
+        });
+      }
+
+      // Cancelar pedido
+      const btnCancel = wrap.querySelector(".btnCancel");
+      if (btnCancel) btnCancel.addEventListener("click", () => {
+        openCancelModal(order);
+      });
+
+      // Confirmar pago
+      const btnPay = wrap.querySelector(".btnPay");
+      if (btnPay) btnPay.addEventListener("click", () => {
+        openPayModal(order);
+      });
+    }
+
+    render();
+    container.appendChild(wrap);
   }
 }
 
-// ===== Modal (ver pedido) =====
-let modalOrder = null;
-
-function openOrderModal(orderId){
-  modalOrder = pendingOrdersCache.find(x=>x.order_id===orderId) || null;
-  if(!modalOrder) return;
-
-  const items = parseItems(modalOrder.items);
-  const itemsHtml = items.map(it=>`<li>${safeText(it.name)} <b>x${it.qty}</b></li>`).join("");
-
-  const waMsg = buildWA(
-    items,
-    modalOrder.subtotal || modalOrder.total || 0,
-    modalOrder.customer_name || "",
-    modalOrder.phone || "",
-    modalOrder.address_text || "",
-    modalOrder.maps_link || "",
-    modalOrder.notes || ""
-  );
-
-  modalBody.innerHTML = `
-    <div class="modal-section">
-      <div class="row"><span class="muted">Pedido</span><b>${safeText(modalOrder.order_id)}</b></div>
-      <div class="row"><span class="muted">Cliente</span><b>${safeText(modalOrder.customer_name)}</b></div>
-      <div class="row"><span class="muted">Teléfono</span><b>${safeText(modalOrder.phone)}</b></div>
-      <div class="row"><span class="muted">Dirección</span><b>${safeText(modalOrder.address_text)}</b></div>
-      ${modalOrder.maps_link ? `<div class="row"><span class="muted">Maps</span><a target="_blank" href="${safeText(modalOrder.maps_link)}">Abrir</a></div>` : ""}
-      ${modalOrder.email ? `<div class="row"><span class="muted">Email</span><b>${safeText(modalOrder.email)}</b></div>` : ""}
-      ${modalOrder.wa_opt_in ? `<div class="row"><span class="muted">Opt-in WhatsApp</span><b>${safeText(modalOrder.wa_opt_in)}</b></div>` : ""}
-    </div>
-
-    <div class="modal-section">
-      <div class="muted">Items</div>
-      <ul class="items">${itemsHtml}</ul>
-      <div class="row total"><span>Total</span><b>${formatMoney(modalOrder.subtotal || modalOrder.total || 0)}</b></div>
-      ${modalOrder.notes ? `<div class="notes"><b>Notas:</b> ${safeText(modalOrder.notes)}</div>` : ""}
-    </div>
-
-    <div class="modal-section">
-      <a class="btn btn-soft w100" target="_blank" href="https://wa.me/?text=${waMsg}">Abrir WhatsApp (mensaje)</a>
-    </div>
-  `;
-
-  modal.style.display = "flex";
-  modalNotice.textContent = "";
-}
-
-modalClose?.addEventListener("click", ()=>{ modal.style.display="none"; });
-modal?.addEventListener("click", (e)=>{ if(e.target===modal) modal.style.display="none"; });
-
-// ===== Pago flow =====
-let payCountdownInt = null;
-function stopPayCountdown(clearText=true){
-  if(payCountdownInt){ clearInterval(payCountdownInt); payCountdownInt=null; }
-  if(clearText) payTimer.textContent = "";
-}
-
-function openPayFlow(orderId){
-  modalOrder = pendingOrdersCache.find(x=>x.order_id===orderId) || null;
-  if(!modalOrder) return;
-
-  payMethod.value = "Transferencia";
+// ===== MODAL PAGO =====
+function openPayModal(order) {
+  modalOrder = order;
+  payTitle.textContent = `Confirmar pago #${order.order_id || ""}`;
+  payText.textContent = `${order.customer_name || ""} • $${money(order.subtotal || 0)}`;
+  payMethod.value = "";
+  payOtherText.value = "";
+  payOtherWrap.classList.add("hidden");
   payRef.value = "";
-  payModal.style.display = "flex";
+  btnPayConfirm.disabled = true;
+  payTimer.textContent = "Completa los datos para iniciar la confirmación.";
+  payTimerStarted = false;
+  stopPayCountdown();
 
-  // bloqueo 5s (reduce doble click + respeta rate limit)
-  let t = 5;
-  stopPayCountdown(false);
+  payModal.classList.add("show");
+  payModal.setAttribute("aria-hidden","false");
+}
+
+function closePayModal() {
+  payModal.classList.remove("show");
+  payModal.setAttribute("aria-hidden","true");
+  stopPayCountdown();
+  modalOrder = null;
+}
+
+btnPayBack.addEventListener("click", closePayModal);
+
+payMethod.addEventListener("change", () => {
+  payOtherWrap.classList.toggle("hidden", payMethod.value !== "Otro");
+  resetPayTimerIfNeeded();
+  maybeStartPayTimer();
+});
+payOtherText.addEventListener("input", () => { resetPayTimerIfNeeded(); maybeStartPayTimer(); });
+payRef.addEventListener("input", () => { resetPayTimerIfNeeded(); maybeStartPayTimer(); });
+
+function isPayValid() {
+  const method = payMethod.value;
+  const ref = payRef.value.trim();
+  if (!method) return false;
+  if (method === "Otro" && !payOtherText.value.trim()) return false;
+  if (!ref) return false;
+  return true;
+}
+
+function maybeStartPayTimer() {
+  if (!modalOrder) return;
+  if (!isPayValid()) return;
+  startPayCountdown(3);
+}
+
+function resetPayTimerIfNeeded() {
+  if (!payTimerStarted) return;
+  stopPayCountdown();
+  btnPayConfirm.disabled = true;
+  payTimer.textContent = "Completa los datos para iniciar la confirmación.";
+  payTimerStarted = false;
+}
+
+function startPayCountdown(seconds){
+  stopPayCountdown();
+  payTimerStarted = true;
+
+  let t = seconds;
   btnPayConfirm.disabled = true;
   payTimer.textContent = `Espera ${t}s para habilitar...`;
 
@@ -356,29 +723,34 @@ function openPayFlow(orderId){
   }, 1000);
 }
 
-payModalClose?.addEventListener("click", ()=>{
-  payModal.style.display="none";
-  stopPayCountdown(true);
-});
-payModal?.addEventListener("click", (e)=>{
-  if(e.target===payModal){
-    payModal.style.display="none";
-    stopPayCountdown(true);
+function stopPayCountdown(resetStarted=true){
+  if (payCountdownInt) clearInterval(payCountdownInt);
+  payCountdownInt = null;
+  if (resetStarted) payTimerStarted = false;
+}
+
+btnPayConfirm.addEventListener("click", async () => {
+  if (!modalOrder) return;
+
+  if (!isPayValid()) {
+    alert("Completa método de pago y referencia para confirmar.");
+    return;
   }
-});
 
-btnPayConfirm?.addEventListener("click", async ()=>{
-  if(!modalOrder) return;
+  const finalMethod = payMethod.value === "Otro" ? payOtherText.value.trim() : payMethod.value;
+  const finalRef = payRef.value.trim();
 
-  const finalMethod = payMethod.value.trim() || "Transferencia";
-  const finalRef = payRef.value.trim() || "";
+  try {
+    // UI optimista
+    pendingOrdersCache = pendingOrdersCache.filter(o => o.order_id !== modalOrder.order_id);
+    renderOrdersList(listEl, pendingOrdersCache, { mode:"PENDIENTES" });
+    setStatus("Procesando confirmación...");
 
-  btnPayConfirm.disabled = true;
-  showLoading("Confirmando pago...");
-  try{
-    // ✅ FIX: la acción correcta es "mark_paid" (no "confirm_payment")
+    closePayModal();
+    showLoading("Confirmando pago...");
+
     await api({
-      action: "mark_paid",
+      action: "mark_paid",              // ✅ acción correcta en Apps Script
       admin_pin: SESSION.pin,
       operator: SESSION.operator,
       order_id: modalOrder.order_id,
@@ -386,40 +758,84 @@ btnPayConfirm?.addEventListener("click", async ()=>{
       payment_ref: finalRef
     });
 
-    payModal.style.display = "none";
-    stopPayCountdown(true);
+    setStatus("✅ Pago confirmado. Pedido removido de Pendientes.");
 
-    modalNotice.textContent = "✅ Pago confirmado.";
-    setStatus("Pago confirmado", "ok");
+    HIST_CACHE = null;
+    HIST_CACHE_TIME = 0;
 
-    // refresca lista (una sola vez)
-    await loadPendingOrders(true);
-  }catch(err){
-    modalNotice.textContent = `❌ ${err.message || "Error al confirmar"}`;
-    setStatus("Error confirmando", "err");
-  }finally{
+    await softRefreshPendientes();
+  } catch (e) {
+    const msg = String(e.message || "");
+    if (msg.toLowerCase().includes("too many") || msg.includes("429")) {
+      setStatus("⚠️ Muchas solicitudes. Refresca en unos segundos si no ves el cambio.");
+    } else {
+      setStatus("❌ " + msg);
+    }
+    await softRefreshPendientes();
+  } finally {
     hideLoading();
-    btnPayConfirm.disabled = false;
   }
 });
 
-// ===== Cancel flow =====
-let cancelCountdownInt = null;
-function stopCancelCountdown(clearText=true){
-  if(cancelCountdownInt){ clearInterval(cancelCountdownInt); cancelCountdownInt=null; }
-  if(clearText) cancelTimer.textContent = "";
+// ===== MODAL CANCELAR =====
+function openCancelModal(order) {
+  modalOrder = order;
+  cancelTitle.textContent = `Cancelar pedido #${order.order_id || ""}`;
+  cancelText.textContent = `${order.customer_name || ""} • $${money(order.subtotal || 0)}`;
+  cancelReason.value = "";
+  cancelOtherText.value = "";
+  cancelOtherWrap.classList.add("hidden");
+  btnCancelConfirm.disabled = true;
+  cancelTimer.textContent = "Selecciona una razón para habilitar la cancelación.";
+  cancelTimerStarted = false;
+  stopCancelCountdown();
+
+  cancelModal.classList.add("show");
+  cancelModal.setAttribute("aria-hidden","false");
 }
 
-function openCancelFlow(orderId){
-  modalOrder = pendingOrdersCache.find(x=>x.order_id===orderId) || null;
-  if(!modalOrder) return;
+function closeCancelModal() {
+  cancelModal.classList.remove("show");
+  cancelModal.setAttribute("aria-hidden","true");
+  stopCancelCountdown();
+  modalOrder = null;
+}
 
-  cancelReason.value = "";
-  cancelModal.style.display = "flex";
+btnCancelBack.addEventListener("click", closeCancelModal);
 
-  // bloqueo 5s (reduce doble click + respeta rate limit)
-  let t = 5;
-  stopCancelCountdown(false);
+cancelReason.addEventListener("change", () => {
+  cancelOtherWrap.classList.toggle("hidden", cancelReason.value !== "Otro");
+  resetCancelTimerIfNeeded();
+  maybeStartCancelTimer();
+});
+cancelOtherText.addEventListener("input", () => { resetCancelTimerIfNeeded(); maybeStartCancelTimer(); });
+
+function isCancelValid() {
+  const r = cancelReason.value;
+  if (!r) return false;
+  if (r === "Otro" && !cancelOtherText.value.trim()) return false;
+  return true;
+}
+
+function maybeStartCancelTimer() {
+  if (!modalOrder) return;
+  if (!isCancelValid()) return;
+  startCancelCountdown(3);
+}
+
+function resetCancelTimerIfNeeded() {
+  if (!cancelTimerStarted) return;
+  stopCancelCountdown();
+  btnCancelConfirm.disabled = true;
+  cancelTimer.textContent = "Selecciona una razón para habilitar la cancelación.";
+  cancelTimerStarted = false;
+}
+
+function startCancelCountdown(seconds){
+  stopCancelCountdown();
+  cancelTimerStarted = true;
+
+  let t = seconds;
   btnCancelConfirm.disabled = true;
   cancelTimer.textContent = `Espera ${t}s para habilitar...`;
 
@@ -427,7 +843,7 @@ function openCancelFlow(orderId){
     t--;
     if (t <= 0) {
       stopCancelCountdown(false);
-      cancelTimer.textContent = "Listo. Puedes confirmar ahora.";
+      cancelTimer.textContent = "Listo. Puedes cancelar ahora.";
       btnCancelConfirm.disabled = false;
     } else {
       cancelTimer.textContent = `Espera ${t}s para habilitar...`;
@@ -435,260 +851,70 @@ function openCancelFlow(orderId){
   }, 1000);
 }
 
-cancelModalClose?.addEventListener("click", ()=>{
-  cancelModal.style.display="none";
-  stopCancelCountdown(true);
-});
-cancelModal?.addEventListener("click", (e)=>{
-  if(e.target===cancelModal){
-    cancelModal.style.display="none";
-    stopCancelCountdown(true);
+function stopCancelCountdown(resetStarted=true){
+  if (cancelCountdownInt) clearInterval(cancelCountdownInt);
+  cancelCountdownInt = null;
+  if (resetStarted) cancelTimerStarted = false;
+}
+
+btnCancelConfirm.addEventListener("click", async () => {
+  if (!modalOrder) return;
+
+  if (!isCancelValid()) {
+    alert("Selecciona una razón para cancelar.");
+    return;
   }
-});
 
-btnCancelConfirm?.addEventListener("click", async ()=>{
-  if(!modalOrder) return;
+  const finalReason = cancelReason.value === "Otro"
+    ? cancelOtherText.value.trim()
+    : cancelReason.value;
 
-  const reason = cancelReason.value.trim() || "Sin razón";
+  try {
+    // UI optimista
+    pendingOrdersCache = pendingOrdersCache.filter(o => o.order_id !== modalOrder.order_id);
+    renderOrdersList(listEl, pendingOrdersCache, { mode:"PENDIENTES" });
+    setStatus("Procesando cancelación...");
 
-  btnCancelConfirm.disabled = true;
-  showLoading("Cancelando pedido...");
-  try{
+    closeCancelModal();
+    showLoading("Cancelando pedido...");
+
     await api({
       action: "cancel_order",
       admin_pin: SESSION.pin,
       operator: SESSION.operator,
       order_id: modalOrder.order_id,
-      reason
+      cancel_reason: finalReason
     });
 
-    cancelModal.style.display = "none";
-    stopCancelCountdown(true);
+    setStatus("✅ Pedido cancelado. Removido de Pendientes.");
 
-    modalNotice.textContent = "✅ Pedido cancelado.";
-    setStatus("Pedido cancelado", "ok");
+    HIST_CACHE = null;
+    HIST_CACHE_TIME = 0;
 
-    // refresca lista
-    await loadPendingOrders(true);
-  }catch(err){
-    modalNotice.textContent = `❌ ${err.message || "Error al cancelar"}`;
-    setStatus("Error cancelando", "err");
-  }finally{
-    hideLoading();
-    btnCancelConfirm.disabled = false;
-  }
-});
-
-// ===== Edit flow (UI existente; persistencia depende del backend) =====
-let editDraft = null;
-
-function openEditFlow(orderId){
-  modalOrder = pendingOrdersCache.find(x=>x.order_id===orderId) || null;
-  if(!modalOrder) return;
-
-  // draft base
-  editDraft = {
-    order_id: modalOrder.order_id,
-    notes: modalOrder.notes || "",
-    address_text: modalOrder.address_text || "",
-    maps_link: modalOrder.maps_link || "",
-    items: parseItems(modalOrder.items)
-  };
-
-  renderEditItems(editDraft.items);
-  editNotes.value = editDraft.notes;
-  editAddress.value = editDraft.address_text;
-  editMapsLink.value = editDraft.maps_link;
-
-  editModal.style.display = "flex";
-}
-
-function renderEditItems(items){
-  editItemsContainer.innerHTML = "";
-
-  // Siempre mostrar catálogo completo (para agregar)
-  for(const p of PRODUCT_CATALOG){
-    const existing = items.find(i => i.name.toLowerCase() === p.name.toLowerCase());
-    const qty = existing ? existing.qty : 0;
-
-    const row = document.createElement("div");
-    row.className = "edit-item-row";
-    row.innerHTML = `
-      <div class="edit-item-name">${p.name}</div>
-      <div class="edit-item-qty">
-        <button class="btn btn-soft" data-dec>-</button>
-        <span class="qty">${qty}</span>
-        <button class="btn btn-soft" data-inc>+</button>
-      </div>
-    `;
-    const qtyEl = row.querySelector(".qty");
-    row.querySelector("[data-dec]")?.addEventListener("click", ()=>{
-      const current = Number(qtyEl.textContent)||0;
-      const next = Math.max(0, current - 1);
-      qtyEl.textContent = String(next);
-      applyEditQty(p.name, next);
-    });
-    row.querySelector("[data-inc]")?.addEventListener("click", ()=>{
-      const current = Number(qtyEl.textContent)||0;
-      const next = current + 1;
-      qtyEl.textContent = String(next);
-      applyEditQty(p.name, next);
-    });
-
-    editItemsContainer.appendChild(row);
-  }
-}
-
-function applyEditQty(name, qty){
-  if(!editDraft) return;
-  const idx = editDraft.items.findIndex(i => i.name.toLowerCase() === name.toLowerCase());
-  if(qty<=0){
-    if(idx>=0) editDraft.items.splice(idx,1);
-  }else{
-    if(idx>=0) editDraft.items[idx].qty = qty;
-    else editDraft.items.push({ name, qty });
-  }
-}
-
-editModalClose?.addEventListener("click", ()=>{
-  editModal.style.display="none";
-  editDraft = null;
-});
-editModal?.addEventListener("click", (e)=>{
-  if(e.target===editModal){
-    editModal.style.display="none";
-    editDraft = null;
-  }
-});
-
-btnEditOrder?.addEventListener("click", ()=>{
-  if(modalOrder) openEditFlow(modalOrder.order_id);
-});
-
-btnEditConfirm?.addEventListener("click", async ()=>{
-  if(!editDraft) return;
-
-  editDraft.notes = editNotes.value.trim();
-  editDraft.address_text = editAddress.value.trim();
-  editDraft.maps_link = editMapsLink.value.trim();
-
-  // Construir items string igual formato original
-  const itemsStr = editDraft.items
-    .map(i => `${i.name} x${i.qty}`)
-    .join(" | ");
-
-  showLoading("Guardando cambios...");
-  try{
-    // IMPORTANTE: Este endpoint debe existir en tu Apps Script / Worker si quieres persistir.
-    // Si aún no lo implementaste, este bloque seguirá fallando con "Invalid action".
-    await api({
-      action: "update_order",
-      admin_pin: SESSION.pin,
-      operator: SESSION.operator,
-      order_id: editDraft.order_id,
-      items: itemsStr,
-      notes: editDraft.notes,
-      address_text: editDraft.address_text,
-      maps_link: editDraft.maps_link
-    });
-
-    editModal.style.display="none";
-    editDraft = null;
-
-    modalNotice.textContent = "✅ Cambios guardados.";
-    setStatus("Cambios guardados", "ok");
-
-    await loadPendingOrders(true);
-  }catch(err){
-    modalNotice.textContent = `❌ ${err.message || "Error guardando"}`;
-    setStatus("Error guardando", "err");
-  }finally{
+    await softRefreshPendientes();
+  } catch (e) {
+    const msg = String(e.message || "");
+    if (msg.toLowerCase().includes("too many") || msg.includes("429")) {
+      setStatus("⚠️ Muchas solicitudes. Refresca en unos segundos si no ves el cambio.");
+    } else {
+      setStatus("❌ " + msg);
+    }
+    await softRefreshPendientes();
+  } finally {
     hideLoading();
   }
 });
 
-// ===== Botones del modal principal =====
-btnMarkPaid?.addEventListener("click", ()=>{
-  if(modalOrder) openPayFlow(modalOrder.order_id);
-});
-btnCancelOrder?.addEventListener("click", ()=>{
-  if(modalOrder) openCancelFlow(modalOrder.order_id);
-});
-
-// ===== History drawer =====
-btnHistory?.addEventListener("click", ()=> openHistoryDrawer());
-btnCloseHistory?.addEventListener("click", ()=> closeHistoryDrawer());
-
-function openHistoryDrawer(){
-  historyDrawer.classList.add("open");
-  loadHistory(true);
-}
-function closeHistoryDrawer(){
-  historyDrawer.classList.remove("open");
-}
-
-histChips?.forEach(chip=>{
-  chip.addEventListener("click", ()=>{
-    histChips.forEach(c=>c.classList.remove("active"));
-    chip.classList.add("active");
-    histFilter = chip.dataset.filter || "ALL";
-    renderHistory(HIST_CACHE || []);
-  });
-});
-
-async function loadHistory(force=false){
-  const now = Date.now();
-  if(!force && HIST_CACHE && (now - HIST_CACHE_TIME) < HIST_TTL){
-    renderHistory(HIST_CACHE);
-    return;
+// ===== INIT =====
+(function init() {
+  const saved = sessionStorage.getItem("AMARED_ADMIN");
+  if (saved) {
+    try {
+      SESSION = JSON.parse(saved);
+      if (SESSION?.operator && SESSION?.pin) {
+        showPanel();
+        loadPendientes(false).catch(()=>{});
+      }
+    } catch {}
   }
-
-  showLoading("Cargando historial...");
-  try{
-    const out = await api({
-      action: "history",
-      admin_pin: SESSION.pin
-    });
-
-    HIST_CACHE = Array.isArray(out.orders) ? out.orders : [];
-    HIST_CACHE_TIME = now;
-    renderHistory(HIST_CACHE);
-  }catch(err){
-    historyList.innerHTML = `<div class="empty">Error: ${safeText(err.message)}</div>`;
-  }finally{
-    hideLoading();
-  }
-}
-
-function renderHistory(list){
-  let filtered = list || [];
-  if(histFilter==="PAID") filtered = filtered.filter(o=> (o.payment_status||"").toLowerCase()==="pagado");
-  if(histFilter==="CANCEL") filtered = filtered.filter(o=> (o.payment_status||"").toLowerCase()==="cancelado");
-
-  historyList.innerHTML = "";
-  if(!filtered || filtered.length===0){
-    historyList.innerHTML = `<div class="empty">No hay registros.</div>`;
-    return;
-  }
-
-  for(const o of filtered){
-    const card = document.createElement("div");
-    card.className = "order-card";
-    card.innerHTML = `
-      <div class="order-top">
-        <div class="order-id">${safeText(o.order_id)}</div>
-        <div class="order-total">${formatMoney(o.subtotal || o.total || 0)}</div>
-      </div>
-      <div class="order-meta">
-        <div><b>${safeText(o.customer_name)}</b> · ${safeText(o.phone)}</div>
-        <div class="muted">${safeText(o.payment_status)}</div>
-        <div class="muted">${safeText(o.created_at || o.order_date || "")}</div>
-      </div>
-    `;
-    historyList.appendChild(card);
-  }
-}
-
-// ===== Inicial =====
-setStatus("Ingresa para comenzar", "ok");
-clearError(loginError);
+})();
