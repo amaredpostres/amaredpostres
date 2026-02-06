@@ -8,8 +8,9 @@ const PRODUCT_CATALOG = [
 
 let SESSION = { operator: null, pin: null };
 
-// ===== Control de requests (anti “Too many requests”) =====
-let IS_LOADING = false;
+// ===== Control requests / loading =====
+let REQUEST_IN_FLIGHT = false;     // evita dobles llamadas list_orders
+let LOADING_COUNT = 0;             // permite showLoading anidado sin bloquear
 
 // Historial cache
 let HIST_CACHE = null;
@@ -76,6 +77,8 @@ const btnCancelConfirm = document.getElementById("btnCancelConfirm");
 // Timers
 let payCountdownInt = null;
 let cancelCountdownInt = null;
+let payTimerStarted = false;
+let cancelTimerStarted = false;
 
 // Current order in modal
 let modalOrder = null;
@@ -87,14 +90,13 @@ function money(n) { return Math.round(Number(n || 0)).toLocaleString("es-CO"); }
 function safeJsonParse(s){ try { return JSON.parse(s); } catch { return null; } }
 
 function showLoading(text="Cargando...") {
-  if (IS_LOADING) return;          // lock anti spam
-  IS_LOADING = true;
+  LOADING_COUNT++;
   loadingText.textContent = text;
   loadingOverlay.classList.add("show");
 }
 function hideLoading() {
-  IS_LOADING = false;
-  loadingOverlay.classList.remove("show");
+  LOADING_COUNT = Math.max(0, LOADING_COUNT - 1);
+  if (LOADING_COUNT === 0) loadingOverlay.classList.remove("show");
 }
 
 function escapeHtml(s) {
@@ -113,7 +115,7 @@ function formatDate(v) {
 
 function sleep(ms){ return new Promise(r => setTimeout(r, ms)); }
 
-// ===== API con reintento para 429 =====
+// ===== API con reintento 429 =====
 async function api(body, retries = 2) {
   const res = await fetch(API_URL, {
     method: "POST",
@@ -121,7 +123,6 @@ async function api(body, retries = 2) {
     body: JSON.stringify(body)
   });
 
-  // 429 Too many requests → reintentar suave
   if (res.status === 429 && retries > 0) {
     await sleep(600 * (3 - retries)); // 600ms, 1200ms
     return api(body, retries - 1);
@@ -202,7 +203,7 @@ function calcTotals(items) {
 }
 
 // ===== LOGIN =====
-// IMPORTANTE: Login = 1 sola request (cargar pendientes valida PIN)
+// Login = 1 sola request (loadPendientes valida PIN)
 btnLogin.addEventListener("click", async () => {
   loginError.textContent = "";
   const operator = loginOperator.value.trim();
@@ -215,7 +216,7 @@ btnLogin.addEventListener("click", async () => {
     sessionStorage.setItem("AMARED_ADMIN", JSON.stringify(SESSION));
 
     showPanel();
-    await loadPendientes(false); // <- si PIN es malo, caerá en catch
+    await loadPendientes(false);
   } catch {
     SESSION = { operator:null, pin:null };
     sessionStorage.removeItem("AMARED_ADMIN");
@@ -251,6 +252,9 @@ btnRefresh.addEventListener("click", async () => {
 });
 
 async function loadPendientes(fromRefresh=false) {
+  if (REQUEST_IN_FLIGHT) return; // evita spam
+  REQUEST_IN_FLIGHT = true;
+
   try {
     showLoading(fromRefresh ? "Actualizando pedidos..." : "Cargando pedidos...");
     setStatus("Cargando pendientes...");
@@ -265,7 +269,6 @@ async function loadPendientes(fromRefresh=false) {
     renderOrdersList(listEl, pendingOrdersCache, { mode:"PENDIENTES" });
     setStatus(`${pendingOrdersCache.length} pedidos pendientes.`);
   } catch (e) {
-    // mensaje más amigable si es rate limit
     const msg = String(e.message || "");
     if (msg.toLowerCase().includes("too many") || msg.includes("429")) {
       setStatus("⚠️ Muchas solicitudes seguidas. Espera 2–3 segundos y vuelve a intentar.");
@@ -275,7 +278,15 @@ async function loadPendientes(fromRefresh=false) {
     throw e;
   } finally {
     hideLoading();
+    REQUEST_IN_FLIGHT = false;
   }
+}
+
+// refresh “suave” después de acciones (reduce 429)
+async function softRefreshPendientes() {
+  // pequeño delay para evitar choque con el request que acaba de ocurrir
+  await sleep(700);
+  try { await loadPendientes(true); } catch { /* si falla 429, no pasa nada */ }
 }
 
 // ===== HISTORIAL =====
@@ -288,14 +299,14 @@ drawerOverlay.addEventListener("click", closeDrawer);
 btnCloseDrawer.addEventListener("click", closeDrawer);
 
 btnHistRefresh.addEventListener("click", async () => {
-  await loadHist(true); // fuerza fetch (sin caché)
+  await loadHist(true);
 });
 
 chips.forEach(ch => {
   ch.addEventListener("click", async () => {
     chips.forEach(c => c.classList.remove("active"));
     ch.classList.add("active");
-    histFilter = ch.dataset.filter; // ALL / Pagado / Cancelado
+    histFilter = ch.dataset.filter;
     await loadHist(false);
   });
 });
@@ -328,14 +339,9 @@ async function loadHist(forceFetch) {
     }
 
     let all = [...(HIST_CACHE || [])];
-
-    // Orden desc por fecha
     all.sort((a,b) => (Date.parse(b.created_at || "")||0) - (Date.parse(a.created_at || "")||0));
 
-    // Filtro
-    if (histFilter !== "ALL") {
-      all = all.filter(o => String(o.payment_status) === histFilter);
-    }
+    if (histFilter !== "ALL") all = all.filter(o => String(o.payment_status) === histFilter);
 
     renderOrdersList(histListEl, all, { mode:"HIST" });
     setHistStatus(`${all.length} pedidos (filtro: ${histFilter === "ALL" ? "Todos" : histFilter}).`);
@@ -400,7 +406,7 @@ function renderOrdersList(container, orders, { mode }) {
   });
 }
 
-// ===== DETAIL: HIST (solo lectura) =====
+// ===== DETAIL: HIST =====
 function renderHistDetail(order) {
   const wrap = document.createElement("div");
   const items = normalizeItemsFromOrder(order).filter(it => Number(it.qty) > 0);
@@ -427,7 +433,7 @@ function renderHistDetail(order) {
   return wrap;
 }
 
-// ===== DETAIL: PENDIENTES (editar solo con botón + modales obligatorios) =====
+// ===== DETAIL: PENDIENTES =====
 function renderPendingDetail(order, headEl) {
   const wrap = document.createElement("div");
   let editMode = false;
@@ -435,7 +441,6 @@ function renderPendingDetail(order, headEl) {
   let items = buildEditableItems(order);
   let totals = calcTotals(items);
 
-  // Snapshot para “cancelar edición”
   const originalSnapshot = {
     customer_name: order.customer_name || "",
     phone: order.phone || "",
@@ -551,7 +556,7 @@ function renderPendingDetail(order, headEl) {
       </div>
     `;
 
-    // live totals update si editMode
+    // Live totals update si editMode
     function hookLiveUpdates() {
       wrap.querySelectorAll(".itemQty").forEach(inp => {
         inp.addEventListener("input", () => {
@@ -620,7 +625,6 @@ function renderPendingDetail(order, headEl) {
             items: updatedItems
           });
 
-          // Actualizar order local (sin refrescar)
           totals = calcTotals(items);
           order.subtotal = totals.subtotal;
           order.total_units = totals.total_units;
@@ -641,7 +645,6 @@ function renderPendingDetail(order, headEl) {
           showInlineAlert("");
           setStatus("✅ Cambios guardados.");
 
-          // refrescar pendientes para consistencia visual
           await loadPendientes(true);
         } catch (e) {
           setStatus("❌ " + (e.message || "Error"));
@@ -651,19 +654,17 @@ function renderPendingDetail(order, headEl) {
       });
     }
 
-    // Confirmar pago → abre modal obligatorio
+    // Confirmar pago (abre modal)
     wrap.querySelector(".btnPay").addEventListener("click", () => {
-      // si está editando, valida vacío antes de abrir
       if (editMode && !validateNotEmpty()) return;
       openPayModal(order);
     });
 
-    // Cancelar pedido → abre modal obligatorio
+    // Cancelar pedido (abre modal)
     wrap.querySelector(".btnCancel").addEventListener("click", () => {
       openCancelModal(order);
     });
 
-    // actualizar header badge y resumen
     updateHeaderBadge();
   }
 
@@ -671,9 +672,29 @@ function renderPendingDetail(order, headEl) {
   return wrap;
 }
 
-// ===== MODAL PAGO =====
+// ===== MODAL helpers =====
+function openModal(el){
+  el.classList.add("show");
+  el.setAttribute("aria-hidden","false");
+}
+function closeModal(el){
+  el.classList.remove("show");
+  el.setAttribute("aria-hidden","true");
+}
+
+// ===== MODAL PAGO: timer solo cuando campos están completos =====
 payMethod.addEventListener("change", () => {
   payOtherWrap.classList.toggle("hidden", payMethod.value !== "Otro");
+  resetPayTimerIfNeeded();
+  maybeStartPayTimer();
+});
+payOtherText.addEventListener("input", () => {
+  resetPayTimerIfNeeded();
+  maybeStartPayTimer();
+});
+payRef.addEventListener("input", () => {
+  resetPayTimerIfNeeded();
+  maybeStartPayTimer();
 });
 
 btnPayBack.addEventListener("click", closePayModal);
@@ -681,75 +702,142 @@ btnPayBack.addEventListener("click", closePayModal);
 function openPayModal(order) {
   modalOrder = order;
 
-  // reset fields
   payMethod.value = "";
   payRef.value = "";
   payOtherText.value = "";
   payOtherWrap.classList.add("hidden");
 
   btnPayConfirm.disabled = true;
+  payTimer.textContent = "Completa los datos para iniciar la confirmación.";
+  payTimerStarted = false;
 
   payTitle.textContent = "Confirmar pago";
   payText.textContent = `Confirma el pago del pedido ${order.order_id} por $${money(order.subtotal)}.`;
 
   openModal(payModal);
-  startModalTimer("PAY", 3);
 }
 
 function closePayModal() {
-  stopModalTimer("PAY");
+  stopPayCountdown();
   closeModal(payModal);
   modalOrder = null;
+}
+
+function isPayValid() {
+  if (!payMethod.value) return false;
+  if (payMethod.value === "Otro" && !payOtherText.value.trim()) return false;
+  if (!payRef.value.trim()) return false;
+  return true;
+}
+
+function maybeStartPayTimer() {
+  if (payTimerStarted) return;
+  if (!isPayValid()) {
+    btnPayConfirm.disabled = true;
+    payTimer.textContent = "Completa los datos para iniciar la confirmación.";
+    return;
+  }
+  // datos completos -> inicia timer 3s
+  startPayCountdown(3);
+}
+
+function resetPayTimerIfNeeded() {
+  if (!payTimerStarted) return;
+  // si cambian inputs, reinicia (para obligar a revisar)
+  stopPayCountdown();
+  btnPayConfirm.disabled = true;
+  payTimer.textContent = "Completa los datos para iniciar la confirmación.";
+  payTimerStarted = false;
+}
+
+function startPayCountdown(seconds){
+  stopPayCountdown();
+  payTimerStarted = true;
+
+  let t = seconds;
+  btnPayConfirm.disabled = true;
+  payTimer.textContent = `Espera ${t}s para habilitar...`;
+
+  payCountdownInt = setInterval(() => {
+    t--;
+    if (t <= 0) {
+      stopPayCountdown(false);
+      payTimer.textContent = "Listo. Puedes confirmar ahora.";
+      btnPayConfirm.disabled = false;
+    } else {
+      payTimer.textContent = `Espera ${t}s para habilitar...`;
+    }
+  }, 1000);
+}
+
+function stopPayCountdown(resetStarted=true){
+  if (payCountdownInt) clearInterval(payCountdownInt);
+  payCountdownInt = null;
+  if (resetStarted) payTimerStarted = false;
 }
 
 btnPayConfirm.addEventListener("click", async () => {
   if (!modalOrder) return;
 
-  // Validación obligatoria
-  if (!payMethod.value) {
-    alert("Debes seleccionar un método de pago.");
-    return;
-  }
-  if (payMethod.value === "Otro" && !payOtherText.value.trim()) {
-    alert("Debes especificar el método de pago.");
-    return;
-  }
-  if (!payRef.value.trim()) {
-    alert("Debes ingresar la referencia del pago.");
+  // seguridad extra
+  if (!isPayValid()) {
+    alert("Completa método de pago y referencia para confirmar.");
     return;
   }
 
   const finalMethod = payMethod.value === "Otro" ? payOtherText.value.trim() : payMethod.value;
+  const finalRef = payRef.value.trim();
 
   try {
+    // 1) UI optimista: remover pedido YA
+    pendingOrdersCache = pendingOrdersCache.filter(o => o.order_id !== modalOrder.order_id);
+    renderOrdersList(listEl, pendingOrdersCache, { mode:"PENDIENTES" });
+    setStatus("Procesando confirmación...");
+
+    // 2) cerrar modal y mostrar loading encima
+    closePayModal();
     showLoading("Confirmando pago...");
+
     await api({
       action: "mark_paid",
       admin_pin: SESSION.pin,
       operator: SESSION.operator,
       order_id: modalOrder.order_id,
       payment_method: finalMethod,
-      payment_ref: payRef.value.trim()
+      payment_ref: finalRef
     });
 
     setStatus("✅ Pago confirmado. Pedido removido de Pendientes.");
 
-    // invalidar cache historial (para que refleje el cambio)
+    // invalidar cache historial
     HIST_CACHE = null;
     HIST_CACHE_TIME = 0;
 
-    closePayModal();
-    await loadPendientes(true);
+    // 3) refresh suave (reduce 429)
+    await softRefreshPendientes();
   } catch (e) {
-    setStatus("❌ " + (e.message || "Error"));
+    // si falló, volvemos a pedir pendientes para reparar UI
+    const msg = String(e.message || "");
+    if (msg.toLowerCase().includes("too many") || msg.includes("429")) {
+      setStatus("⚠️ Confirmado, pero hay muchas solicitudes. Refresca en unos segundos si no ves el cambio.");
+    } else {
+      setStatus("❌ " + msg);
+    }
+    await softRefreshPendientes();
   } finally {
     hideLoading();
   }
 });
 
-// ===== MODAL CANCELAR =====
+// ===== MODAL CANCELAR: timer solo cuando razón está completa =====
 cancelReason.addEventListener("change", () => {
   cancelOtherWrap.classList.toggle("hidden", cancelReason.value !== "Otro");
+  resetCancelTimerIfNeeded();
+  maybeStartCancelTimer();
+});
+cancelOtherText.addEventListener("input", () => {
+  resetCancelTimerIfNeeded();
+  maybeStartCancelTimer();
 });
 
 btnCancelBack.addEventListener("click", closeCancelModal);
@@ -757,43 +845,98 @@ btnCancelBack.addEventListener("click", closeCancelModal);
 function openCancelModal(order) {
   modalOrder = order;
 
-  // reset fields
   cancelReason.value = "";
   cancelOtherText.value = "";
   cancelOtherWrap.classList.add("hidden");
 
   btnCancelConfirm.disabled = true;
+  cancelTimer.textContent = "Selecciona la razón para iniciar la cancelación.";
+  cancelTimerStarted = false;
 
   cancelTitle.textContent = "Cancelar pedido";
   cancelText.textContent = `Vas a cancelar el pedido ${order.order_id}. Esta acción dejará trazabilidad.`;
 
   openModal(cancelModal);
-  startModalTimer("CANCEL", 3);
 }
 
 function closeCancelModal() {
-  stopModalTimer("CANCEL");
+  stopCancelCountdown();
   closeModal(cancelModal);
   modalOrder = null;
+}
+
+function isCancelValid() {
+  if (!cancelReason.value) return false;
+  if (cancelReason.value === "Otro" && !cancelOtherText.value.trim()) return false;
+  return true;
+}
+
+function maybeStartCancelTimer() {
+  if (cancelTimerStarted) return;
+  if (!isCancelValid()) {
+    btnCancelConfirm.disabled = true;
+    cancelTimer.textContent = "Selecciona la razón para iniciar la cancelación.";
+    return;
+  }
+  startCancelCountdown(3);
+}
+
+function resetCancelTimerIfNeeded() {
+  if (!cancelTimerStarted) return;
+  stopCancelCountdown();
+  btnCancelConfirm.disabled = true;
+  cancelTimer.textContent = "Selecciona la razón para iniciar la cancelación.";
+  cancelTimerStarted = false;
+}
+
+function startCancelCountdown(seconds){
+  stopCancelCountdown();
+  cancelTimerStarted = true;
+
+  let t = seconds;
+  btnCancelConfirm.disabled = true;
+  cancelTimer.textContent = `Espera ${t}s para habilitar...`;
+
+  cancelCountdownInt = setInterval(() => {
+    t--;
+    if (t <= 0) {
+      stopCancelCountdown(false);
+      cancelTimer.textContent = "Listo. Puedes confirmar ahora.";
+      btnCancelConfirm.disabled = false;
+    } else {
+      cancelTimer.textContent = `Espera ${t}s para habilitar...`;
+    }
+  }, 1000);
+}
+
+function stopCancelCountdown(resetStarted=true){
+  if (cancelCountdownInt) clearInterval(cancelCountdownInt);
+  cancelCountdownInt = null;
+  if (resetStarted) cancelTimerStarted = false;
 }
 
 btnCancelConfirm.addEventListener("click", async () => {
   if (!modalOrder) return;
 
-  // Validación obligatoria
-  if (!cancelReason.value) {
-    alert("Debes seleccionar una razón de cancelación.");
-    return;
-  }
-  if (cancelReason.value === "Otro" && !cancelOtherText.value.trim()) {
-    alert("Debes especificar la razón de cancelación.");
+  if (!isCancelValid()) {
+    alert("Selecciona una razón para cancelar.");
     return;
   }
 
-  const finalReason = cancelReason.value === "Otro" ? cancelOtherText.value.trim() : cancelReason.value;
+  const finalReason = cancelReason.value === "Otro"
+    ? cancelOtherText.value.trim()
+    : cancelReason.value;
 
   try {
+    // 1) UI optimista: remover pedido YA
+    pendingOrdersCache = pendingOrdersCache.filter(o => o.order_id !== modalOrder.order_id);
+    renderOrdersList(listEl, pendingOrdersCache, { mode:"PENDIENTES" });
+    setStatus("Procesando cancelación...");
+
+    // 2) cerrar modal y loading encima
+    closeCancelModal();
     showLoading("Cancelando pedido...");
+
     await api({
       action: "cancel_order",
       admin_pin: SESSION.pin,
@@ -808,71 +951,20 @@ btnCancelConfirm.addEventListener("click", async () => {
     HIST_CACHE = null;
     HIST_CACHE_TIME = 0;
 
-    closeCancelModal();
-    await loadPendientes(true);
+    // 3) refresh suave
+    await softRefreshPendientes();
   } catch (e) {
-    setStatus("❌ " + (e.message || "Error"));
+    const msg = String(e.message || "");
+    if (msg.toLowerCase().includes("too many") || msg.includes("429")) {
+      setStatus("⚠️ Cancelado, pero hay muchas solicitudes. Refresca en unos segundos si no ves el cambio.");
+    } else {
+      setStatus("❌ " + msg);
+    }
+    await softRefreshPendientes();
   } finally {
     hideLoading();
   }
 });
-
-// ===== Helpers modales =====
-function openModal(el){
-  el.classList.add("show");
-  el.setAttribute("aria-hidden","false");
-}
-function closeModal(el){
-  el.classList.remove("show");
-  el.setAttribute("aria-hidden","true");
-}
-
-// Timer 3s habilita botón confirmar
-function startModalTimer(type, seconds){
-  stopModalTimer(type);
-
-  let t = seconds;
-  if (type === "PAY") {
-    btnPayConfirm.disabled = true;
-    payTimer.textContent = `Espera ${t}s para habilitar...`;
-    payCountdownInt = setInterval(() => {
-      t--;
-      if (t <= 0) {
-        clearInterval(payCountdownInt);
-        payTimer.textContent = "Listo. Puedes confirmar ahora.";
-        btnPayConfirm.disabled = false;
-      } else {
-        payTimer.textContent = `Espera ${t}s para habilitar...`;
-      }
-    }, 1000);
-  } else {
-    btnCancelConfirm.disabled = true;
-    cancelTimer.textContent = `Espera ${t}s para habilitar...`;
-    cancelCountdownInt = setInterval(() => {
-      t--;
-      if (t <= 0) {
-        clearInterval(cancelCountdownInt);
-        cancelTimer.textContent = "Listo. Puedes confirmar ahora.";
-        btnCancelConfirm.disabled = false;
-      } else {
-        cancelTimer.textContent = `Espera ${t}s para habilitar...`;
-      }
-    }, 1000);
-  }
-}
-
-function stopModalTimer(type){
-  if (type === "PAY" && payCountdownInt) {
-    clearInterval(payCountdownInt);
-    payCountdownInt = null;
-    payTimer.textContent = "";
-  }
-  if (type === "CANCEL" && cancelCountdownInt) {
-    clearInterval(cancelCountdownInt);
-    cancelCountdownInt = null;
-    cancelTimer.textContent = "";
-  }
-}
 
 // ===== INIT =====
 (function init() {
