@@ -617,12 +617,12 @@ function renderPendingDetail(order, headEl) {
             admin_pin: SESSION.pin,
             operator: SESSION.operator,
             order_id: order.order_id,
-            customer_name: wrap.querySelector(".f_name").value.trim(),
-            phone: wrap.querySelector(".f_phone").value.trim(),
-            address_text: wrap.querySelector(".f_address").value.trim(),
-            maps_link: wrap.querySelector(".f_maps").value.trim(),
-            notes: wrap.querySelector(".f_notes").value.trim(),
-            items: updatedItems
+            customer_name,
+            phone,
+            address_text,
+            maps_link,
+            notes,
+            items
           });
 
           totals = calcTotals(items);
@@ -799,13 +799,14 @@ btnPayConfirm.addEventListener("click", async () => {
     showLoading("Confirmando pago...");
 
     await api({
-      action: "mark_paid",
+      action: "confirm_payment",
       admin_pin: SESSION.pin,
       operator: SESSION.operator,
       order_id: modalOrder.order_id,
       payment_method: finalMethod,
       payment_ref: finalRef
     });
+
 
     setStatus("✅ Pago confirmado. Pedido removido de Pendientes.");
 
@@ -975,3 +976,4 @@ btnCancelConfirm.addEventListener("click", async () => {
     loadPendientes(false).catch(()=>{});
   }
 })();
+
