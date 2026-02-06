@@ -445,9 +445,23 @@ function renderHistBody(order) {
   return wrap;
 }
 
+
 function renderPendingBody(order) {
   const wrap = document.createElement("div");
   let editMode = false;
+
+  // Copia editable inicial (para poder cancelar edición)
+  const initialFields = {
+    customer_name: String(order.customer_name || ""),
+    phone: String(order.phone || ""),
+    address_text: String(order.address_text || ""),
+    maps_link: String(order.maps_link || ""),
+    notes: String(order.notes || ""),
+    email: String(order.email || ""),
+    wa_opt_in: Boolean(order.wa_opt_in),
+  };
+
+  let fields = { ...initialFields };
 
   let items = buildEditableItems(order);
   let totals = calcTotals(items);
@@ -469,11 +483,53 @@ function renderPendingBody(order) {
     `).join("");
 
     wrap.innerHTML = `
-      <div style="margin-top:10px;">
-        <div><strong>Tel:</strong> ${escapeHtml(order.phone || "")}</div>
-        <div><strong>Dirección:</strong> ${escapeHtml(order.address_text || "")}</div>
-        <div><strong>Ubicación:</strong> ${escapeHtml(order.maps_link || "")}</div>
-        <div><strong>Notas:</strong> ${escapeHtml(order.notes || "")}</div>
+      <div style="margin-top:10px; display:flex; flex-direction:column; gap:10px;">
+
+        ${!editMode ? `
+          <div><strong>Nombre:</strong> ${escapeHtml(fields.customer_name)}</div>
+          <div><strong>Tel:</strong> ${escapeHtml(fields.phone)}</div>
+          <div><strong>Dirección:</strong> ${escapeHtml(fields.address_text)}</div>
+          <div><strong>Ubicación:</strong> ${escapeHtml(fields.maps_link)}</div>
+          <div><strong>Email:</strong> ${escapeHtml(fields.email)}</div>
+          <div><strong>Opt-in WhatsApp:</strong> ${fields.wa_opt_in ? "Sí" : "No"}</div>
+          <div><strong>Notas:</strong> ${escapeHtml(fields.notes)}</div>
+        ` : `
+          <div>
+            <div class="mutedSmall" style="font-weight:900;">Nombre</div>
+            <input id="ed_name" class="input" type="text" value="${escapeHtml(fields.customer_name)}" />
+          </div>
+
+          <div>
+            <div class="mutedSmall" style="font-weight:900;">Teléfono</div>
+            <input id="ed_phone" class="input" type="text" value="${escapeHtml(fields.phone)}" />
+            <div class="mutedSmall">Tip: déjalo como texto para no perder ceros.</div>
+          </div>
+
+          <div>
+            <div class="mutedSmall" style="font-weight:900;">Dirección</div>
+            <input id="ed_addr" class="input" type="text" value="${escapeHtml(fields.address_text)}" />
+          </div>
+
+          <div>
+            <div class="mutedSmall" style="font-weight:900;">Ubicación (Maps/WhatsApp)</div>
+            <input id="ed_maps" class="input" type="text" value="${escapeHtml(fields.maps_link)}" />
+          </div>
+
+          <div>
+            <div class="mutedSmall" style="font-weight:900;">Email (opcional)</div>
+            <input id="ed_email" class="input" type="email" value="${escapeHtml(fields.email)}" />
+          </div>
+
+          <div style="display:flex; align-items:center; gap:10px;">
+            <input id="ed_optin" type="checkbox" ${fields.wa_opt_in ? "checked" : ""} />
+            <label for="ed_optin"><strong>Opt-in WhatsApp</strong></label>
+          </div>
+
+          <div>
+            <div class="mutedSmall" style="font-weight:900;">Notas</div>
+            <textarea id="ed_notes" class="input" rows="3" style="resize:vertical;">${escapeHtml(fields.notes)}</textarea>
+          </div>
+        `}
       </div>
 
       <div style="margin-top:12px;">
@@ -491,8 +547,8 @@ function renderPendingBody(order) {
       </div>
 
       <div style="margin-top:12px; display:flex; gap:10px; flex-wrap:wrap;">
-        ${!editMode ? `<button class="btn secondary btnEdit" type="button">Editar ítems</button>` : ""}
-        ${editMode ? `<button class="btn secondary btnSave" type="button">Guardar</button>` : ""}
+        ${!editMode ? `<button class="btn secondary btnEdit" type="button">Editar pedido</button>` : ""}
+        ${editMode ? `<button class="btn secondary btnSave" type="button">Guardar cambios</button>` : ""}
         ${editMode ? `<button class="btn secondary btnCancelEdit" type="button">Cancelar edición</button>` : ""}
 
         <button class="btn btnDanger btnCancel" type="button">Cancelar Pedido</button>
@@ -500,7 +556,7 @@ function renderPendingBody(order) {
       </div>
     `;
 
-    // edición qty
+    // ====== En modo edición: listeners para items ======
     if (editMode) {
       wrap.querySelectorAll(".itemQty").forEach(inp => {
         inp.addEventListener("input", () => {
@@ -511,9 +567,33 @@ function renderPendingBody(order) {
           wrap.querySelector(".t_subtotal").textContent = `$${money(totals.subtotal)}`;
         });
       });
+
+      // ====== listeners para campos ======
+      const ed_name = wrap.querySelector("#ed_name");
+      const ed_phone = wrap.querySelector("#ed_phone");
+      const ed_addr = wrap.querySelector("#ed_addr");
+      const ed_maps = wrap.querySelector("#ed_maps");
+      const ed_email = wrap.querySelector("#ed_email");
+      const ed_notes = wrap.querySelector("#ed_notes");
+      const ed_optin = wrap.querySelector("#ed_optin");
+
+      const syncFields = () => {
+        fields.customer_name = (ed_name?.value || "").trim();
+        fields.phone = (ed_phone?.value || "").trim();
+        fields.address_text = (ed_addr?.value || "").trim();
+        fields.maps_link = (ed_maps?.value || "").trim();
+        fields.email = (ed_email?.value || "").trim();
+        fields.notes = (ed_notes?.value || "").trim();
+        fields.wa_opt_in = !!ed_optin?.checked;
+      };
+
+      [ed_name, ed_phone, ed_addr, ed_maps, ed_email, ed_notes].forEach(el => {
+        el?.addEventListener("input", syncFields);
+      });
+      ed_optin?.addEventListener("change", syncFields);
     }
 
-    // handlers
+    // ====== Botones ======
     wrap.querySelector(".btnEdit")?.addEventListener("click", () => {
       editMode = true;
       render();
@@ -521,6 +601,7 @@ function renderPendingBody(order) {
 
     wrap.querySelector(".btnCancelEdit")?.addEventListener("click", () => {
       editMode = false;
+      fields = { ...initialFields };
       items = buildEditableItems(order);
       totals = calcTotals(items);
       render();
@@ -529,7 +610,21 @@ function renderPendingBody(order) {
     wrap.querySelector(".btnSave")?.addEventListener("click", async () => {
       try {
         showLoading("Guardando cambios...");
-        setStatus("Guardando ítems...");
+        setStatus("Guardando cambios del pedido...");
+
+        // Validaciones mínimas (antes de enviar)
+        if (!fields.customer_name.trim()) {
+          alert("El nombre no puede quedar vacío.");
+          return;
+        }
+        if (!fields.phone.trim()) {
+          alert("El teléfono no puede quedar vacío.");
+          return;
+        }
+        if (!fields.address_text.trim()) {
+          alert("La dirección no puede quedar vacía.");
+          return;
+        }
 
         const updatedItems = items
           .map(it => ({
@@ -545,24 +640,62 @@ function renderPendingBody(order) {
           admin_pin: SESSION.pin,
           operator: SESSION.operator,
           order_id: order.order_id,
+
+          // ✅ campos completos editables
+          customer_name: fields.customer_name,
+          phone: fields.phone,
+          address_text: fields.address_text,
+          maps_link: fields.maps_link,
+          notes: fields.notes,
+          email: fields.email,
+          wa_opt_in: fields.wa_opt_in,
+
+          // ✅ items (recalcula subtotal/unidades en backend)
           items: updatedItems
         });
 
-        // actualizar local
+        // Actualiza el objeto local para que al cerrar edición se vea lo nuevo
+        order.customer_name = fields.customer_name;
+        order.phone = fields.phone;
+        order.address_text = fields.address_text;
+        order.maps_link = fields.maps_link;
+        order.notes = fields.notes;
+        order.email = fields.email;
+        order.wa_opt_in = fields.wa_opt_in;
+
         order.items_json = JSON.stringify(updatedItems.map(it => ({
           id: it.id, name: it.name, qty: it.qty, unit_price: it.price
         })));
 
+        // refrescar totals local
         items = buildEditableItems(order);
         totals = calcTotals(items);
 
+        // cerrar edición
         editMode = false;
-        setStatus("✅ Cambios guardados.");
+
+        // actualiza snapshot “inicial” para futuras ediciones
+        initialFields.customer_name = fields.customer_name;
+        initialFields.phone = fields.phone;
+        initialFields.address_text = fields.address_text;
+        initialFields.maps_link = fields.maps_link;
+        initialFields.notes = fields.notes;
+        initialFields.email = fields.email;
+        initialFields.wa_opt_in = fields.wa_opt_in;
+
+        setStatus("✅ Pedido actualizado (solo permitido si estaba Pendiente).");
         HIST_CACHE = null; HIST_CACHE_TIME = 0;
+
         render();
         await softRefreshPendientes();
+
       } catch (e) {
-        setStatus("❌ " + String(e.message || e));
+        const msg = String(e.message || e);
+        // Si intentan editar después de pagado/cancelado, el backend responde Locked
+        if (msg.toLowerCase().includes("locked")) {
+          alert("Este pedido ya no está Pendiente. No se puede editar después de confirmar/cancelar.");
+        }
+        setStatus("❌ " + msg);
       } finally {
         hideLoading();
       }
@@ -847,3 +980,4 @@ btnCancelConfirm?.addEventListener("click", async () => {
     } catch {}
   }
 })();
+
