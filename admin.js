@@ -1,21 +1,19 @@
-// =================== CONFIG ===================
 const API_URL = "https://amared-orders.amaredpostres.workers.dev/";
 
-// Catálogo para edición (mismos que tu web pública)
+// Catálogo de productos (siempre visibles en edición)
 const PRODUCT_CATALOG = [
   { id: "mousse_maracuya", name: "Mousse de Maracuyá", unit_price: 10000 },
   { id: "cheesecake_cafe_panela", name: "Cheesecake de café con panela", unit_price: 12500 },
 ];
 
-// =================== SESSION ===================
 let SESSION = { operator: null, pin: null };
 
-// Evitar dobles llamadas / loading anidado
+// ===== Control requests / loading =====
 let REQUEST_IN_FLIGHT = false;
 let LOADING_COUNT = 0;
 
-// Historial cache (reduce 429)
-let HIST_CACHE = null; // { paid:[], canceled:[] }
+// Historial cache
+let HIST_CACHE = null;
 let HIST_CACHE_TIME = 0;
 const HIST_TTL = 60 * 1000;
 
@@ -23,7 +21,7 @@ const HIST_TTL = 60 * 1000;
 let histFilter = "ALL";
 let pendingOrdersCache = [];
 
-// =================== DOM ===================
+// ===== DOM =====
 const loginView = document.getElementById("loginView");
 const panelView = document.getElementById("panelView");
 
@@ -85,33 +83,13 @@ let cancelTimerStarted = false;
 // Current order in modal
 let modalOrder = null;
 
-// =================== UTILS ===================
+// ===== UTILS =====
 function setStatus(msg) { statusEl.textContent = msg || ""; }
 function setHistStatus(msg) { histStatusEl.textContent = msg || ""; }
+function money(n) { return Math.round(Number(n || 0)).toLocaleString("es-CO"); }
+function safeJsonParse(s){ try { return JSON.parse(s); } catch { return null; } }
 
-function money(n) {
-  return Math.round(Number(n || 0)).toLocaleString("es-CO");
-}
-function safeJsonParse(s) {
-  try { return JSON.parse(s); } catch { return null; }
-}
-function escapeHtml(s) {
-  // ✅ FIX: aquí estaba roto en tu archivo (faltaba el punto antes de replaceAll)
-  return String(s ?? "")
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#039;");
-}
-function formatDate(v) {
-  const s = String(v || "").trim();
-  if (s.includes("T")) return s.replace(".000Z", "").replace("T", " ");
-  return s;
-}
-function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
-
-function showLoading(text = "Cargando.") {
+function showLoading(text="Cargando...") {
   LOADING_COUNT++;
   loadingText.textContent = text;
   loadingOverlay.classList.add("show");
@@ -121,55 +99,42 @@ function hideLoading() {
   if (LOADING_COUNT === 0) loadingOverlay.classList.remove("show");
 }
 
-// =================== API (retry 429) ===================
-async function api(body, retries = 2) {
-  console.log("➡️ API request body:", body);
+function escapeHtml(s) {
+  return String(s ?? "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
+}
+function formatDate(v) {
+  const s = String(v || "").trim();
+  if (s.includes("T")) return s.replace(".000Z","").replace("T"," ");
+  return s;
+}
 
+function sleep(ms){ return new Promise(r => setTimeout(r, ms)); }
+
+// ===== API con reintento 429 =====
+async function api(body, retries = 2) {
   const res = await fetch(API_URL, {
     method: "POST",
     headers: { "Content-Type":"application/json" },
     body: JSON.stringify(body)
   });
 
-  console.log("⬅️ API status:", res.status);
-
   if (res.status === 429 && retries > 0) {
-    await sleep(650 * (3 - retries));
+    await sleep(650 * (3 - retries)); // 650ms, 1300ms
     return api(body, retries - 1);
   }
 
-  const out = await res.json().catch(async ()=>({ ok:false, error: await res.text().catch(()=> "") }));
-  console.log("⬅️ API response JSON:", out);
-
+  const out = await res.json().catch(async ()=>({ ok:false, error: await res.text() }));
   if (!out.ok) throw new Error(out.error || "Error");
   return out;
 }
 
-
-// =================== NAV (login/panel) ===================
-function showPanel() {
-  loginView.classList.add("hidden");
-  panelView.classList.remove("hidden");
-  operatorName.textContent = SESSION.operator || "";
-}
-function showLogin() {
-  panelView.classList.add("hidden");
-  loginView.classList.remove("hidden");
-}
-
-// =================== Drawer ===================
-function openDrawer() {
-  drawerOverlay.classList.add("show");
-  drawer.setAttribute("aria-hidden", "false");
-}
-function closeDrawer() {
-  drawerOverlay.classList.remove("show");
-  drawer.setAttribute("aria-hidden", "true");
-}
-
-// =================== ITEMS helpers ===================
+// ===== ITEMS =====
 function normalizeItemsFromOrder(order) {
-  // 1) prefer items_json
   if (order.items_json) {
     const parsed = safeJsonParse(order.items_json);
     if (Array.isArray(parsed)) {
@@ -182,24 +147,23 @@ function normalizeItemsFromOrder(order) {
     }
   }
 
-  // 2) fallback: items en texto "- Nombre: 2"
   if (order.items) {
     const lines = String(order.items).split("\n").map(s => s.trim()).filter(Boolean);
-    const out = [];
+    const found = [];
     for (const line of lines) {
       const m = line.replace(/^-+\s*/, "").match(/^(.+?)\s*:\s*(\d+)/);
       if (!m) continue;
       const name = m[1].trim();
       const qty = Number(m[2]);
-      const cat = PRODUCT_CATALOG.find(p => p.name.toLowerCase() === name.toLowerCase());
-      out.push({
+      const cat = PRODUCT_CATALOG.find(p => name.toLowerCase().includes(p.name.toLowerCase().slice(0, 10)));
+      found.push({
         id: cat?.id || name.toLowerCase().replace(/\s+/g, "_"),
         name,
         qty,
         unit_price: cat?.unit_price || 0
       });
     }
-    return out.filter(it => it.name);
+    return found.filter(it => it.name);
   }
 
   return [];
@@ -209,7 +173,6 @@ function buildEditableItems(order) {
   const current = normalizeItemsFromOrder(order);
   const map = new Map(current.map(it => [it.id, it]));
 
-  // siempre mostrar catálogo
   const base = PRODUCT_CATALOG.map(p => ({
     id: p.id,
     name: p.name,
@@ -217,7 +180,6 @@ function buildEditableItems(order) {
     unit_price: p.unit_price
   }));
 
-  // conservar items extra si existieran
   current.forEach(it => {
     if (!base.some(b => b.id === it.id)) {
       base.push({
@@ -233,55 +195,60 @@ function buildEditableItems(order) {
 }
 
 function calcTotals(items) {
-  const total_units = items.reduce((s, it) => s + Number(it.qty || 0), 0);
-  const subtotal = items.reduce((s, it) => s + Number(it.qty || 0) * Number(it.unit_price || 0), 0);
+  const total_units = items.reduce((s,it) => s + Number(it.qty || 0), 0);
+  const subtotal = items.reduce((s,it) => s + Number(it.qty || 0) * Number(it.unit_price || 0), 0);
   return { total_units, subtotal };
 }
 
-// =================== LOGIN ===================
+// ===== LOGIN =====
 btnLogin.addEventListener("click", async () => {
   loginError.textContent = "";
   const operator = loginOperator.value.trim();
   const pin = loginPin.value.trim();
-  if (!operator || !pin) {
-    loginError.textContent = "Completa todos los campos.";
-    return;
-  }
+  if (!operator || !pin) { loginError.textContent = "Completa todos los campos."; return; }
 
   try {
     showLoading("Verificando acceso...");
     SESSION = { operator, pin };
     sessionStorage.setItem("AMARED_ADMIN", JSON.stringify(SESSION));
 
-    // Validar con un list_orders (si falla, no dejamos sesión)
     showPanel();
-    await loadPendientes(false);
-  } catch (e) {
-    SESSION = { operator: null, pin: null };
+    await loadPendientes(false); // valida pin porque el Worker lo verifica
+  } catch {
+    SESSION = { operator:null, pin:null };
     sessionStorage.removeItem("AMARED_ADMIN");
     showLogin();
-
-    // ✅ Mostrar el error real (útil para CORS/429/variables)
-    loginError.textContent = `Error: ${String(e.message || e || "No se pudo iniciar sesión.")}`;
+    loginError.textContent = "PIN incorrecto o temporalmente bloqueado. Intenta de nuevo.";
   } finally {
     hideLoading();
   }
 });
 
-// Logout
+function showPanel() {
+  loginView.classList.add("hidden");
+  panelView.classList.remove("hidden");
+  operatorName.textContent = SESSION.operator;
+}
+
+function showLogin() {
+  panelView.classList.add("hidden");
+  loginView.classList.remove("hidden");
+}
+
+// ===== LOGOUT =====
 btnLogout.addEventListener("click", () => {
-  SESSION = { operator: null, pin: null };
-  sessionStorage.removeItem("AMARED_ADMIN");
+  SESSION = { operator:null, pin:null };
   closeDrawer();
+  sessionStorage.removeItem("AMARED_ADMIN");
   showLogin();
 });
 
-// =================== Pendientes ===================
+// ===== PENDIENTES =====
 btnRefresh.addEventListener("click", async () => {
   await loadPendientes(true);
 });
 
-async function loadPendientes(fromRefresh = false) {
+async function loadPendientes(fromRefresh=false) {
   if (REQUEST_IN_FLIGHT) return;
   REQUEST_IN_FLIGHT = true;
 
@@ -296,8 +263,16 @@ async function loadPendientes(fromRefresh = false) {
     });
 
     pendingOrdersCache = out.orders || [];
-    renderOrdersList(listEl, pendingOrdersCache, { mode: "PENDIENTES" });
+    renderOrdersList(listEl, pendingOrdersCache, { mode:"PENDIENTES" });
     setStatus(`${pendingOrdersCache.length} pedidos pendientes.`);
+  } catch (e) {
+    const msg = String(e.message || "");
+    if (msg.toLowerCase().includes("too many") || msg.includes("429")) {
+      setStatus("⚠️ Muchas solicitudes seguidas. Espera 2–3 segundos y vuelve a intentar.");
+    } else {
+      setStatus("❌ " + msg);
+    }
+    throw e;
   } finally {
     hideLoading();
     REQUEST_IN_FLIGHT = false;
@@ -305,11 +280,11 @@ async function loadPendientes(fromRefresh = false) {
 }
 
 async function softRefreshPendientes() {
-  await sleep(700);
+  await sleep(750);
   try { await loadPendientes(true); } catch { /* ignore */ }
 }
 
-// =================== Historial ===================
+// ===== HISTORIAL =====
 btnHistory.addEventListener("click", async () => {
   openDrawer();
   await loadHist(false);
@@ -317,7 +292,10 @@ btnHistory.addEventListener("click", async () => {
 
 drawerOverlay.addEventListener("click", closeDrawer);
 btnCloseDrawer.addEventListener("click", closeDrawer);
-btnHistRefresh.addEventListener("click", async () => loadHist(true));
+
+btnHistRefresh.addEventListener("click", async () => {
+  await loadHist(true);
+});
 
 chips.forEach(ch => {
   ch.addEventListener("click", async () => {
@@ -327,6 +305,15 @@ chips.forEach(ch => {
     await loadHist(false);
   });
 });
+
+function openDrawer() {
+  drawerOverlay.classList.add("show");
+  drawer.setAttribute("aria-hidden","false");
+}
+function closeDrawer() {
+  drawerOverlay.classList.remove("show");
+  drawer.setAttribute("aria-hidden","true");
+}
 
 async function loadHist(forceFetch) {
   try {
@@ -339,45 +326,41 @@ async function loadHist(forceFetch) {
 
     if (forceFetch || !useCache) {
       const [paid, canceled] = await Promise.all([
-        api({ action: "list_orders", admin_pin: SESSION.pin, payment_status: "Pagado" }),
-        api({ action: "list_orders", admin_pin: SESSION.pin, payment_status: "Cancelado" }),
+        api({ action:"list_orders", admin_pin: SESSION.pin, payment_status:"Pagado" }),
+        api({ action:"list_orders", admin_pin: SESSION.pin, payment_status:"Cancelado" }),
       ]);
-
-      // ✅ FIX: aquí estaba roto en tu admin.js (tenías [.(...) ...])
-      HIST_CACHE = {
-        paid: (paid.orders || []),
-        canceled: (canceled.orders || [])
-      };
+      HIST_CACHE = [...(paid.orders || []), ...(canceled.orders || [])];
       HIST_CACHE_TIME = now;
     }
 
-    let all = [...(HIST_CACHE.paid || []), ...(HIST_CACHE.canceled || [])];
-    all.sort((a, b) => (Date.parse(b.created_at || "") || 0) - (Date.parse(a.created_at || "") || 0));
+    let all = [...(HIST_CACHE || [])];
+    all.sort((a,b) => (Date.parse(b.created_at || "")||0) - (Date.parse(a.created_at || "")||0));
+    if (histFilter !== "ALL") all = all.filter(o => String(o.payment_status) === histFilter);
 
-    if (histFilter !== "ALL") {
-      all = all.filter(o => String(o.payment_status) === histFilter);
-    }
-
-    renderOrdersList(histListEl, all, { mode: "HIST" });
+    renderOrdersList(histListEl, all, { mode:"HIST" });
     setHistStatus(`${all.length} pedidos (filtro: ${histFilter === "ALL" ? "Todos" : histFilter}).`);
   } catch (e) {
     const msg = String(e.message || "");
-    setHistStatus("❌ " + msg);
+    if (msg.toLowerCase().includes("too many") || msg.includes("429")) {
+      setHistStatus("⚠️ Muchas solicitudes seguidas. Espera 2–3 segundos y presiona Refrescar.");
+    } else {
+      setHistStatus("❌ " + msg);
+    }
   } finally {
     hideLoading();
   }
 }
 
-// =================== Render ===================
+// ===== RENDER LIST =====
 function renderOrdersList(container, orders, { mode }) {
   container.innerHTML = "";
 
-  if (!orders || orders.length === 0) {
-    container.innerHTML = `<div class="mutedSmall" style="text-align:center; padding:14px;">No hay pedidos.</div>`;
+  if (!orders.length) {
+    container.innerHTML = `<div class="mutedSmall">No hay pedidos.</div>`;
     return;
   }
 
-  for (const order of orders) {
+  orders.forEach(order => {
     const card = document.createElement("div");
     card.className = "orderItem";
 
@@ -391,90 +374,100 @@ function renderOrdersList(container, orders, { mode }) {
     head.innerHTML = `
       <div style="min-width:0;">
         <div class="orderId">
-          ${escapeHtml(order.order_id || "")}
-          <span class="badge">$${money(order.subtotal || 0)}</span>
+          ${escapeHtml(order.order_id)}
+          <span class="badge">$${money(order.subtotal)}</span>
           ${statusBadge}
         </div>
-        <div class="orderMeta">${escapeHtml(order.customer_name || "")} • ${escapeHtml(formatDate(order.created_at || ""))}</div>
+        <div class="orderMeta">${escapeHtml(order.customer_name || "")} • ${escapeHtml(formatDate(order.created_at))}</div>
       </div>
       <div class="chev">›</div>
     `;
 
     const body = document.createElement("div");
     body.className = "orderBody";
-    body.style.display = "none";
+
+    if (mode === "PENDIENTES") body.appendChild(renderPendingDetail(order, head));
+    else body.appendChild(renderHistDetail(order));
 
     head.addEventListener("click", () => {
-      const open = body.style.display !== "none";
-      body.style.display = open ? "none" : "block";
-      card.classList.toggle("open", !open);
+      const open = card.classList.toggle("open");
+      head.querySelector(".chev").textContent = open ? "⌄" : "›";
     });
-
-    if (mode === "PENDIENTES") {
-      body.appendChild(renderPendingBody(order));
-    } else {
-      body.appendChild(renderHistBody(order));
-    }
 
     card.appendChild(head);
     card.appendChild(body);
     container.appendChild(card);
-  }
+  });
 }
 
-function renderHistBody(order) {
+function renderHistDetail(order) {
   const wrap = document.createElement("div");
+  const items = normalizeItemsFromOrder(order).filter(it => Number(it.qty) > 0);
+  const totals = calcTotals(items);
 
-  const items = normalizeItemsFromOrder(order);
-  const lines = items.length
-    ? items.map(it => `<div class="mutedSmall">• ${escapeHtml(it.name)} x${Number(it.qty || 0)}</div>`).join("")
-    : `<div class="mutedSmall">Sin items</div>`;
+  const itemsHtml = items.length
+    ? items.map(it => `<div class="mutedSmall"><strong>${escapeHtml(it.name)}</strong> x ${it.qty}</div>`).join("")
+    : `<div class="mutedSmall">Items no disponibles.</div>`;
 
   wrap.innerHTML = `
-    <div style="display:flex; flex-direction:column; gap:8px;">
-      <div><strong>Dirección:</strong> ${escapeHtml(order.address_text || "")}</div>
-      <div><strong>Ubicación:</strong> ${escapeHtml(order.maps_link || "")}</div>
-      <div><strong>Tel:</strong> ${escapeHtml(order.phone || "")}</div>
-      <div><strong>Notas:</strong> ${escapeHtml(order.notes || "")}</div>
-      <div><strong>Items:</strong><div style="margin-top:6px;">${lines}</div></div>
+    <div class="mutedSmall"><strong>Tel:</strong> ${escapeHtml(order.phone || "")}</div>
+    <div class="mutedSmall"><strong>Dirección:</strong> ${escapeHtml(order.address_text || "")}</div>
+    <div class="mutedSmall"><strong>Ubicación:</strong> ${escapeHtml(order.maps_link || "")}</div>
+    <div class="mutedSmall"><strong>Notas:</strong> ${escapeHtml(order.notes || "—")}</div>
+
+    <div class="hr"></div>
+    <div class="mutedSmall" style="font-weight:950; margin-bottom:6px;">Ítems</div>
+    ${itemsHtml}
+
+    <div class="mutedSmall" style="margin-top:8px;">
+      Unidades: <strong>${totals.total_units}</strong> • Subtotal: <strong>$${money(order.subtotal || totals.subtotal)}</strong>
     </div>
   `;
   return wrap;
 }
 
-function renderPendingBody(order) {
+function renderPendingDetail(order, headEl) {
   const wrap = document.createElement("div");
-
   let editMode = false;
-
-  // snapshot
-  const original = {
-    customer_name: order.customer_name,
-    phone: order.phone,
-    address_text: order.address_text,
-    maps_link: order.maps_link,
-    notes: order.notes,
-    items_json: order.items_json,
-    items: order.items
-  };
 
   let items = buildEditableItems(order);
   let totals = calcTotals(items);
+
+  const originalSnapshot = {
+    customer_name: order.customer_name || "",
+    phone: order.phone || "",
+    address_text: order.address_text || "",
+    maps_link: order.maps_link || "",
+    notes: order.notes || "",
+    items: JSON.stringify(items)
+  };
 
   function showInlineAlert(msg) {
     const el = wrap.querySelector(".inlineAlert");
     if (!el) return;
     el.textContent = msg || "";
-    el.style.display = msg ? "" : "none";
+    el.style.display = msg ? "block" : "none";
+  }
+
+  function updateHeaderBadge() {
+    if (!headEl) return;
+    const badge = headEl.querySelector(".badge");
+    if (badge) badge.textContent = `$${money(order.subtotal ?? totals.subtotal)}`;
+  }
+
+  function computeTotalsFromInputsIfEditing() {
+    if (!editMode) return;
+    wrap.querySelectorAll(".itemQty").forEach(inp => {
+      const idx = Number(inp.dataset.idx);
+      items[idx].qty = Number(inp.value || 0);
+    });
+    totals = calcTotals(items);
   }
 
   function validateNotEmpty() {
-    if (!editMode) return true;
-    const nameV = wrap.querySelector(".f_name").value.trim();
-    const phoneV = wrap.querySelector(".f_phone").value.trim();
-    const addrV = wrap.querySelector(".f_address").value.trim();
-    if (!nameV || !phoneV || !addrV) {
-      showInlineAlert("Completa: nombre, teléfono y dirección.");
+    computeTotalsFromInputsIfEditing();
+    if (totals.total_units <= 0) {
+      showInlineAlert("⚠️ El pedido no puede quedar vacío. Agrega al menos 1 ítem.");
       return false;
     }
     showInlineAlert("");
@@ -482,72 +475,71 @@ function renderPendingBody(order) {
   }
 
   function render() {
-    const itemsLines = items.map((it, idx) => {
-      return `
-        <div class="rowBetween" style="gap:10px;">
-          <div style="flex:1;">
-            <div style="font-weight:900;">${escapeHtml(it.name)}</div>
-            <div class="mutedSmall">$${money(it.unit_price)} c/u</div>
-          </div>
-          <div style="min-width:120px; text-align:right;">
-            ${editMode
-              ? `<input class="input itemQty" type="number" min="0" step="1" value="${Number(it.qty || 0)}" data-idx="${idx}" style="width:110px; text-align:right;" />`
-              : `<div style="font-weight:900;">x${Number(it.qty || 0)}</div>`
-            }
-          </div>
+    totals = calcTotals(items);
+
+    const summaryStyle = editMode
+      ? `background: rgba(246,186,96,.12); border:1px solid rgba(64,17,2,.12);`
+      : `background: rgba(255,255,255,.55); border:1px solid rgba(64,17,2,.10);`;
+
+    const itemsHtml = items.map((it, idx) => `
+      <div class="grid2" style="align-items:end; margin-bottom:10px;">
+        <div class="field" style="margin:0;">
+          <label>${escapeHtml(it.name)}</label>
+          <div class="mutedSmall">$${money(it.unit_price)} c/u</div>
         </div>
-      `;
-    }).join("");
+        <div class="field" style="margin:0;">
+          <label>Cantidad</label>
+          <input class="input itemQty" type="number" min="0" step="1"
+            data-idx="${idx}" value="${it.qty}"
+            ${editMode ? "" : "disabled"}>
+        </div>
+      </div>
+    `).join("");
 
     wrap.innerHTML = `
-      <div class="inlineAlert" style="display:none; margin:8px 0; color:#b00020; font-weight:900;"></div>
-
-      <div class="grid2" style="gap:10px;">
-        <div>
-          <div class="mutedSmall">Nombre</div>
-          ${editMode ? `<input class="input f_name" value="${escapeHtml(order.customer_name || "")}" />`
-                    : `<div style="font-weight:900;">${escapeHtml(order.customer_name || "")}</div>`}
+      <div style="${summaryStyle} border-radius:14px; padding:10px 12px; display:flex; justify-content:space-between; gap:10px; flex-wrap:wrap;">
+        <div class="mutedSmall" style="font-weight:950;">
+          Total actual: <span class="t_subtotal">$${money(totals.subtotal)}</span>
         </div>
-        <div>
-          <div class="mutedSmall">Teléfono</div>
-          ${editMode ? `<input class="input f_phone" value="${escapeHtml(order.phone || "")}" />`
-                    : `<div style="font-weight:900;">${escapeHtml(order.phone || "")}</div>`}
+        <div class="mutedSmall" style="font-weight:950;">
+          Unidades: <span class="t_units">${totals.total_units}</span>
         </div>
       </div>
 
-      <div style="margin-top:10px;">
-        <div class="mutedSmall">Dirección</div>
-        ${editMode ? `<input class="input f_address" value="${escapeHtml(order.address_text || "")}" />`
-                  : `<div style="font-weight:900;">${escapeHtml(order.address_text || "")}</div>`}
+      <div class="inlineAlert mutedSmall" style="display:none; color:#b00020; margin-top:8px;"></div>
+
+      <div class="grid2" style="margin-top:10px;">
+        <div class="field">
+          <label>Nombre</label>
+          <input class="input f_name" ${editMode ? "" : "disabled"} value="${escapeHtml(order.customer_name || "")}">
+        </div>
+        <div class="field">
+          <label>Teléfono</label>
+          <input class="input f_phone" ${editMode ? "" : "disabled"} value="${escapeHtml(order.phone || "")}">
+        </div>
       </div>
 
-      <div style="margin-top:10px;">
-        <div class="mutedSmall">Ubicación</div>
-        ${editMode ? `<input class="input f_maps" value="${escapeHtml(order.maps_link || "")}" placeholder="Link Maps / WhatsApp" />`
-                  : `<div style="font-weight:900;">${escapeHtml(order.maps_link || "")}</div>`}
+      <div class="field" style="margin-top:10px;">
+        <label>Dirección</label>
+        <input class="input f_address" ${editMode ? "" : "disabled"} value="${escapeHtml(order.address_text || "")}">
       </div>
 
-      <div style="margin-top:10px;">
-        <div class="mutedSmall">Notas</div>
-        ${editMode ? `<textarea class="textarea f_notes" rows="2">${escapeHtml(order.notes || "")}</textarea>`
-                  : `<div style="font-weight:900;">${escapeHtml(order.notes || "")}</div>`}
+      <div class="field" style="margin-top:10px;">
+        <label>Ubicación (maps_link o WHATSAPP)</label>
+        <input class="input f_maps" ${editMode ? "" : "disabled"} value="${escapeHtml(order.maps_link || "")}">
       </div>
 
-      <div style="margin-top:12px;">
-        <div class="mutedSmall" style="font-weight:900;">Items</div>
-        <div style="display:flex; flex-direction:column; gap:10px; margin-top:8px;">${itemsLines}</div>
+      <div class="field" style="margin-top:10px;">
+        <label>Notas</label>
+        <textarea class="textarea f_notes" rows="3" ${editMode ? "" : "disabled"}>${escapeHtml(order.notes || "")}</textarea>
       </div>
 
-      <div class="rowBetween" style="margin-top:12px;">
-        <div class="mutedSmall">Unidades</div>
-        <div class="t_units" style="font-weight:950;">${Number(totals.total_units)}</div>
-      </div>
-      <div class="rowBetween">
-        <div class="mutedSmall">Subtotal</div>
-        <div class="t_subtotal" style="font-weight:950;">$${money(totals.subtotal)}</div>
-      </div>
+      <div class="hr"></div>
 
-      <div style="margin-top:12px; display:flex; gap:10px; flex-wrap:wrap;">
+      <div class="mutedSmall" style="font-weight:950; margin-bottom:6px;">Ítems</div>
+      ${itemsHtml}
+
+      <div class="btnRow">
         ${!editMode ? `<button class="btn secondary btnEdit" type="button">Editar</button>` : ""}
         ${editMode ? `<button class="btn secondary btnSave" type="button">Guardar cambios</button>` : ""}
         ${editMode ? `<button class="btn secondary btnCancelEdit" type="button">Cancelar edición</button>` : ""}
@@ -556,136 +548,123 @@ function renderPendingBody(order) {
       </div>
     `;
 
-    // live updates
-    if (editMode) {
+    function hookLiveUpdates() {
       wrap.querySelectorAll(".itemQty").forEach(inp => {
         inp.addEventListener("input", () => {
           const idx = Number(inp.dataset.idx);
           items[idx].qty = Number(inp.value || 0);
           totals = calcTotals(items);
+
           wrap.querySelector(".t_units").textContent = String(totals.total_units);
           wrap.querySelector(".t_subtotal").textContent = `$${money(totals.subtotal)}`;
+
           validateNotEmpty();
         });
       });
-
-      wrap.querySelector(".f_name")?.addEventListener("input", validateNotEmpty);
-      wrap.querySelector(".f_phone")?.addEventListener("input", validateNotEmpty);
-      wrap.querySelector(".f_address")?.addEventListener("input", validateNotEmpty);
     }
+    if (editMode) hookLiveUpdates();
 
-    // handlers
-    wrap.querySelector(".btnEdit")?.addEventListener("click", () => {
+    const btnEdit = wrap.querySelector(".btnEdit");
+    if (btnEdit) btnEdit.addEventListener("click", () => {
       editMode = true;
       render();
     });
 
-    wrap.querySelector(".btnCancelEdit")?.addEventListener("click", () => {
+    const btnCancelEdit = wrap.querySelector(".btnCancelEdit");
+    if (btnCancelEdit) btnCancelEdit.addEventListener("click", () => {
       editMode = false;
 
-      order.customer_name = original.customer_name;
-      order.phone = original.phone;
-      order.address_text = original.address_text;
-      order.maps_link = original.maps_link;
-      order.notes = original.notes;
-      order.items_json = original.items_json;
-      order.items = original.items;
+      order.customer_name = originalSnapshot.customer_name;
+      order.phone = originalSnapshot.phone;
+      order.address_text = originalSnapshot.address_text;
+      order.maps_link = originalSnapshot.maps_link;
+      order.notes = originalSnapshot.notes;
 
-      items = buildEditableItems(order);
+      items = safeJsonParse(originalSnapshot.items) || buildEditableItems(order);
       totals = calcTotals(items);
       showInlineAlert("");
+
       render();
     });
 
-    wrap.querySelector(".btnSave")?.addEventListener("click", async () => {
-      if (!validateNotEmpty()) return;
+    const btnSave = wrap.querySelector(".btnSave");
+    if (btnSave) {
+      btnSave.addEventListener("click", async () => {
+        if (!validateNotEmpty()) return;
 
-      const customer_name = wrap.querySelector(".f_name").value.trim();
-      const phone = wrap.querySelector(".f_phone").value.trim();
-      const address_text = wrap.querySelector(".f_address").value.trim();
-      const maps_link = wrap.querySelector(".f_maps").value.trim();
-      const notes = wrap.querySelector(".f_notes").value.trim();
+        try {
+          showLoading("Guardando cambios...");
+          setStatus("Guardando...");
 
-      // Formato esperado por tu Apps Script: [{id,name,qty,price}]
-      const updatedItems = items
-        .map(it => ({
-          id: it.id,
-          name: it.name,
-          qty: Number(it.qty || 0),
-          price: Number(it.unit_price || 0)
-        }))
-        .filter(it => it.qty > 0);
+          const updatedItems = items
+            .map(it => ({ id: it.id, name: it.name, qty: Number(it.qty || 0), unit_price: it.unit_price }))
+            .filter(it => it.qty > 0);
 
-      try {
-        showLoading("Guardando cambios...");
-        setStatus("Guardando...");
+          await api({
+            action: "update_order",
+            admin_pin: SESSION.pin,
+            operator: SESSION.operator,
+            order_id: order.order_id,
+            customer_name: wrap.querySelector(".f_name").value.trim(),
+            phone: wrap.querySelector(".f_phone").value.trim(),
+            address_text: wrap.querySelector(".f_address").value.trim(),
+            maps_link: wrap.querySelector(".f_maps").value.trim(),
+            notes: wrap.querySelector(".f_notes").value.trim(),
+            items: updatedItems
+          });
 
-        await api({
-          action: "update_order",
-          admin_pin: SESSION.pin,
-          operator: SESSION.operator,
-          order_id: order.order_id,
-          customer_name,
-          phone,
-          address_text,
-          maps_link,
-          notes,
-          items: updatedItems
-        });
+          totals = calcTotals(items);
+          order.subtotal = totals.subtotal;
+          order.total_units = totals.total_units;
 
-        // actualizar local
-        order.customer_name = customer_name;
-        order.phone = phone;
-        order.address_text = address_text;
-        order.maps_link = maps_link;
-        order.notes = notes;
-        order.items_json = JSON.stringify(updatedItems.map(it => ({
-          id: it.id, name: it.name, qty: it.qty, unit_price: it.price
-        })));
+          order.customer_name = wrap.querySelector(".f_name").value.trim();
+          order.phone = wrap.querySelector(".f_phone").value.trim();
+          order.address_text = wrap.querySelector(".f_address").value.trim();
+          order.maps_link = wrap.querySelector(".f_maps").value.trim();
+          order.notes = wrap.querySelector(".f_notes").value.trim();
 
-        items = buildEditableItems(order);
-        totals = calcTotals(items);
+          order.items_json = JSON.stringify(updatedItems);
 
-        setStatus("✅ Cambios guardados.");
-        editMode = false;
+          updateHeaderBadge();
+          editMode = false;
 
-        HIST_CACHE = null;
-        HIST_CACHE_TIME = 0;
+          setStatus("✅ Cambios guardados.");
+          await loadPendientes(true);
+        } catch (e) {
+          setStatus("❌ " + (e.message || "Error"));
+        } finally {
+          hideLoading();
+        }
+      });
+    }
 
-        render();
-        await softRefreshPendientes();
-      } catch (e) {
-        setStatus("❌ " + (e.message || "No se pudo guardar."));
-      } finally {
-        hideLoading();
-      }
-    });
-
-    wrap.querySelector(".btnPay")?.addEventListener("click", () => {
+    wrap.querySelector(".btnPay").addEventListener("click", () => {
       if (editMode && !validateNotEmpty()) return;
       openPayModal(order);
     });
 
-    wrap.querySelector(".btnCancel")?.addEventListener("click", () => {
+    wrap.querySelector(".btnCancel").addEventListener("click", () => {
       openCancelModal(order);
     });
+
+    updateHeaderBadge();
   }
 
   render();
   return wrap;
 }
 
-// =================== Modal helpers ===================
-function openModal(el) {
+// ===== MODAL helpers =====
+function openModal(el){
   el.classList.add("show");
-  el.setAttribute("aria-hidden", "false");
+  el.setAttribute("aria-hidden","false");
 }
-function closeModal(el) {
+function closeModal(el){
   el.classList.remove("show");
-  el.setAttribute("aria-hidden", "true");
+  el.setAttribute("aria-hidden","true");
 }
 
-// =================== PAGO ===================
+// ===== PAGO: timer SOLO cuando info obligatoria esté lista =====
 payMethod.addEventListener("change", () => {
   payOtherWrap.classList.toggle("hidden", payMethod.value !== "Otro");
   resetPayTimerIfNeeded();
@@ -745,7 +724,7 @@ function resetPayTimerIfNeeded() {
   payTimerStarted = false;
 }
 
-function startPayCountdown(seconds) {
+function startPayCountdown(seconds){
   stopPayCountdown();
   payTimerStarted = true;
 
@@ -765,7 +744,7 @@ function startPayCountdown(seconds) {
   }, 1000);
 }
 
-function stopPayCountdown(resetStarted = true) {
+function stopPayCountdown(resetStarted=true){
   if (payCountdownInt) clearInterval(payCountdownInt);
   payCountdownInt = null;
   if (resetStarted) payTimerStarted = false;
@@ -773,43 +752,49 @@ function stopPayCountdown(resetStarted = true) {
 
 btnPayConfirm.addEventListener("click", async () => {
   if (!modalOrder) return;
-  if (!isPayValid()) return;
+  if (!isPayValid()) { alert("Completa método de pago y referencia."); return; }
 
-  const finalMethod = (payMethod.value === "Otro") ? payOtherText.value.trim() : payMethod.value;
+  const finalMethod = payMethod.value === "Otro" ? payOtherText.value.trim() : payMethod.value;
   const finalRef = payRef.value.trim();
+  const orderId = modalOrder.order_id;
 
   try {
     // UI optimista
-    pendingOrdersCache = pendingOrdersCache.filter(o => o.order_id !== modalOrder.order_id);
-    renderOrdersList(listEl, pendingOrdersCache, { mode: "PENDIENTES" });
-    setStatus("Procesando confirmación...");
+    pendingOrdersCache = pendingOrdersCache.filter(o => o.order_id !== orderId);
+    renderOrdersList(listEl, pendingOrdersCache, { mode:"PENDIENTES" });
 
     closePayModal();
     showLoading("Confirmando pago...");
 
-    // ✅ acción oficial (tu Worker puede traducir a mark_paid)
     await api({
       action: "confirm_payment",
       admin_pin: SESSION.pin,
       operator: SESSION.operator,
-      order_id: modalOrder.order_id,
+      order_id: orderId,
       payment_method: finalMethod,
       payment_ref: finalRef
     });
 
-    setStatus("✅ Pago confirmado. Pedido removido de Pendientes.");
+    setStatus("✅ Pago confirmado.");
+
+    // invalidar historial
     HIST_CACHE = null; HIST_CACHE_TIME = 0;
 
     await softRefreshPendientes();
   } catch (e) {
-    setStatus("❌ " + (e.message || "Error confirmando pago."));
+    const msg = String(e.message || "");
+    if (msg.toLowerCase().includes("too many") || msg.includes("429")) {
+      setStatus("⚠️ Muchas solicitudes. Espera 2–3 segundos y presiona Refrescar.");
+    } else {
+      setStatus("❌ " + msg);
+    }
     await softRefreshPendientes();
   } finally {
     hideLoading();
   }
 });
 
-// =================== CANCELAR ===================
+// ===== CANCELAR: timer SOLO cuando razón obligatoria esté lista =====
 cancelReason.addEventListener("change", () => {
   cancelOtherWrap.classList.toggle("hidden", cancelReason.value !== "Otro");
   resetCancelTimerIfNeeded();
@@ -827,11 +812,11 @@ function openCancelModal(order) {
   cancelOtherWrap.classList.add("hidden");
 
   btnCancelConfirm.disabled = true;
-  cancelTimer.textContent = "Selecciona una razón para habilitar la cancelación.";
+  cancelTimer.textContent = "Selecciona la razón para iniciar la cancelación.";
   cancelTimerStarted = false;
 
   cancelTitle.textContent = "Cancelar pedido";
-  cancelText.textContent = `Vas a cancelar el pedido ${order.order_id} por $${money(order.subtotal)}.`;
+  cancelText.textContent = `Vas a cancelar el pedido ${order.order_id}.`;
 
   openModal(cancelModal);
 }
@@ -852,7 +837,7 @@ function maybeStartCancelTimer() {
   if (cancelTimerStarted) return;
   if (!isCancelValid()) {
     btnCancelConfirm.disabled = true;
-    cancelTimer.textContent = "Selecciona una razón para habilitar la cancelación.";
+    cancelTimer.textContent = "Selecciona la razón para iniciar la cancelación.";
     return;
   }
   startCancelCountdown(3);
@@ -862,11 +847,11 @@ function resetCancelTimerIfNeeded() {
   if (!cancelTimerStarted) return;
   stopCancelCountdown();
   btnCancelConfirm.disabled = true;
-  cancelTimer.textContent = "Selecciona una razón para habilitar la cancelación.";
+  cancelTimer.textContent = "Selecciona la razón para iniciar la cancelación.";
   cancelTimerStarted = false;
 }
 
-function startCancelCountdown(seconds) {
+function startCancelCountdown(seconds){
   stopCancelCountdown();
   cancelTimerStarted = true;
 
@@ -878,7 +863,7 @@ function startCancelCountdown(seconds) {
     t--;
     if (t <= 0) {
       stopCancelCountdown(false);
-      cancelTimer.textContent = "Listo. Puedes cancelar ahora.";
+      cancelTimer.textContent = "Listo. Puedes confirmar ahora.";
       btnCancelConfirm.disabled = false;
     } else {
       cancelTimer.textContent = `Espera ${t}s para habilitar...`;
@@ -886,7 +871,7 @@ function startCancelCountdown(seconds) {
   }, 1000);
 }
 
-function stopCancelCountdown(resetStarted = true) {
+function stopCancelCountdown(resetStarted=true){
   if (cancelCountdownInt) clearInterval(cancelCountdownInt);
   cancelCountdownInt = null;
   if (resetStarted) cancelTimerStarted = false;
@@ -894,15 +879,15 @@ function stopCancelCountdown(resetStarted = true) {
 
 btnCancelConfirm.addEventListener("click", async () => {
   if (!modalOrder) return;
-  if (!isCancelValid()) return;
+  if (!isCancelValid()) { alert("Selecciona una razón válida."); return; }
 
-  const reason = (cancelReason.value === "Otro") ? cancelOtherText.value.trim() : cancelReason.value;
+  const finalReason = cancelReason.value === "Otro" ? cancelOtherText.value.trim() : cancelReason.value;
+  const orderId = modalOrder.order_id;
 
   try {
     // UI optimista
-    pendingOrdersCache = pendingOrdersCache.filter(o => o.order_id !== modalOrder.order_id);
-    renderOrdersList(listEl, pendingOrdersCache, { mode: "PENDIENTES" });
-    setStatus("Procesando cancelación...");
+    pendingOrdersCache = pendingOrdersCache.filter(o => o.order_id !== orderId);
+    renderOrdersList(listEl, pendingOrdersCache, { mode:"PENDIENTES" });
 
     closeCancelModal();
     showLoading("Cancelando pedido...");
@@ -911,38 +896,33 @@ btnCancelConfirm.addEventListener("click", async () => {
       action: "cancel_order",
       admin_pin: SESSION.pin,
       operator: SESSION.operator,
-      order_id: modalOrder.order_id,
-      cancel_reason: reason
+      order_id: orderId,
+      cancel_reason: finalReason
     });
 
-    setStatus("✅ Pedido cancelado. Removido de Pendientes.");
-    HIST_CACHE = null; HIST_CACHE_TIME = 0;
+    setStatus("✅ Pedido cancelado.");
 
+    HIST_CACHE = null; HIST_CACHE_TIME = 0;
     await softRefreshPendientes();
   } catch (e) {
-    setStatus("❌ " + (e.message || "Error cancelando pedido."));
+    const msg = String(e.message || "");
+    if (msg.toLowerCase().includes("too many") || msg.includes("429")) {
+      setStatus("⚠️ Muchas solicitudes. Espera 2–3 segundos y presiona Refrescar.");
+    } else {
+      setStatus("❌ " + msg);
+    }
     await softRefreshPendientes();
   } finally {
     hideLoading();
   }
 });
 
-// =================== INIT ===================
+// ===== INIT =====
 (function init() {
   const saved = sessionStorage.getItem("AMARED_ADMIN");
   if (saved) {
-    try {
-      SESSION = JSON.parse(saved);
-      if (SESSION?.operator && SESSION?.pin) {
-        showPanel();
-        loadPendientes(false).catch(() => {
-          // si pin inválido / CORS / etc
-          SESSION = { operator: null, pin: null };
-          sessionStorage.removeItem("AMARED_ADMIN");
-          showLogin();
-        });
-      }
-    } catch { /* ignore */ }
+    SESSION = JSON.parse(saved);
+    showPanel();
+    loadPendientes(false).catch(()=>{});
   }
 })();
-
