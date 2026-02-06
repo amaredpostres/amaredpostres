@@ -27,6 +27,7 @@
     }
     .operatorLine{ font-size:14px; }
     .rightBtns{ display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
+
     .iconBtn{
       width:44px; height:44px; border-radius:14px;
       border:1px solid var(--border); background:rgba(255,255,255,.75);
@@ -34,6 +35,7 @@
       font-size:20px; cursor:pointer;
       box-shadow: 0 8px 18px rgba(64,17,2,.06);
     }
+    .iconBtn:active{ transform: translateY(1px); }
 
     .list{ display:grid; gap:10px; }
 
@@ -102,22 +104,22 @@
     }
     .chip.active{ background: rgba(242,91,143,.14); }
 
-    /* CONFIRM MODAL */
-    .confirmOverlay{
+    /* MODALS */
+    .modalOverlay{
       position:fixed; inset:0; background:rgba(0,0,0,.25);
       display:none; align-items:center; justify-content:center;
       padding:16px; z-index:9999;
     }
-    .confirmOverlay.show{ display:flex; }
-    .confirmBox{
-      width:min(520px, 100%);
+    .modalOverlay.show{ display:flex; }
+    .modalBox{
+      width:min(560px, 100%);
       background:var(--paper); border:1px solid var(--border);
       border-radius:18px; box-shadow:var(--shadow);
       padding:14px;
     }
-    .confirmTitle{ font-weight:950; margin:0 0 6px; }
-    .confirmText{ color:rgba(64,17,2,.74); font-weight:800; margin:0 0 12px; }
-    .confirmFooter{ display:flex; gap:10px; justify-content:flex-end; flex-wrap:wrap; }
+    .modalTitle{ font-weight:950; margin:0 0 6px; }
+    .modalText{ color:rgba(64,17,2,.74); font-weight:800; margin:0 0 12px; }
+    .modalFooter{ display:flex; gap:10px; justify-content:flex-end; flex-wrap:wrap; }
 
     /* LOADING */
     .loadingOverlay{
@@ -218,15 +220,72 @@
     </div>
   </div>
 
-  <!-- Modal confirmación -->
-  <div class="confirmOverlay" id="confirmOverlay" aria-hidden="true">
-    <div class="confirmBox">
-      <h3 class="confirmTitle" id="confirmTitle">Confirmación</h3>
-      <p class="confirmText" id="confirmText"></p>
-      <p class="mutedSmall" id="confirmTimer"></p>
-      <div class="confirmFooter">
-        <button class="btn secondary" id="btnCancelModal" type="button">Volver</button>
-        <button class="btn primary" id="btnConfirmModal" type="button" disabled>Confirmar</button>
+  <!-- MODAL CONFIRMAR PAGO -->
+  <div class="modalOverlay" id="payModal" aria-hidden="true">
+    <div class="modalBox">
+      <h3 class="modalTitle" id="payTitle">Confirmar pago</h3>
+      <p class="modalText" id="payText"></p>
+
+      <div class="field">
+        <label>Método de pago</label>
+        <select id="payMethod" class="input">
+          <option value="">Seleccionar método de pago</option>
+          <option value="Nequi">Nequi</option>
+          <option value="Daviplata">Daviplata</option>
+          <option value="Bancolombia">Bancolombia</option>
+          <option value="Davivienda">Davivienda</option>
+          <option value="Efectivo">Efectivo</option>
+          <option value="Otro">Otro</option>
+        </select>
+      </div>
+
+      <div class="field hidden" id="payOtherWrap">
+        <label>Otro método</label>
+        <input id="payOtherText" class="input" placeholder="Especificar método" />
+      </div>
+
+      <div class="field">
+        <label>Referencia de pago</label>
+        <input id="payRef" class="input" placeholder="Referencia / últimos dígitos" />
+      </div>
+
+      <p class="mutedSmall" id="payTimer"></p>
+
+      <div class="modalFooter">
+        <button class="btn secondary" id="btnPayBack" type="button">Volver</button>
+        <button class="btn primary" id="btnPayConfirm" type="button" disabled>Confirmar pago</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL CANCELAR -->
+  <div class="modalOverlay" id="cancelModal" aria-hidden="true">
+    <div class="modalBox">
+      <h3 class="modalTitle" id="cancelTitle">Cancelar pedido</h3>
+      <p class="modalText" id="cancelText"></p>
+
+      <div class="field">
+        <label>Razón de cancelación</label>
+        <select id="cancelReason" class="input">
+          <option value="">Seleccionar razón</option>
+          <option value="Cliente canceló">Cliente canceló</option>
+          <option value="Error en el pedido">Error en el pedido</option>
+          <option value="Dirección incorrecta">Dirección incorrecta</option>
+          <option value="Duplicado">Duplicado</option>
+          <option value="Otro">Otro</option>
+        </select>
+      </div>
+
+      <div class="field hidden" id="cancelOtherWrap">
+        <label>Otra razón</label>
+        <input id="cancelOtherText" class="input" placeholder="Especificar razón" />
+      </div>
+
+      <p class="mutedSmall" id="cancelTimer"></p>
+
+      <div class="modalFooter">
+        <button class="btn secondary" id="btnCancelBack" type="button">Volver</button>
+        <button class="btn primary" id="btnCancelConfirm" type="button" disabled>Cancelar pedido</button>
       </div>
     </div>
   </div>
