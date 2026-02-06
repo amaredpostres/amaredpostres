@@ -356,7 +356,12 @@ async function loadHist(forceFetch) {
     renderOrdersList(histListEl, all, { mode: "HIST" });
     setHistStatus(`${all.length} pedidos (filtro: ${histFilter === "ALL" ? "Todos" : histFilter}).`);
   } catch (e) {
-    setHistStatus("❌ " + String(e.message || e));
+    const msg = String(e.message || "");
+    if (msg.toLowerCase().includes("too many") || msg.includes("429")) {
+      setHistStatus("⚠️ Muchas solicitudes seguidas. Espera 2–3 segundos y presiona Refrescar.");
+    } else {
+      setHistStatus("❌ " + msg);
+    }
   } finally {
     hideLoading();
   }
@@ -664,25 +669,37 @@ btnPayConfirm?.addEventListener("click", async () => {
   const finalMethod = (payMethod.value === "Otro") ? payOtherText.value.trim() : payMethod.value;
   const finalRef = payRef.value.trim();
 
+  const orderId = modalOrder.order_id;
+
   try {
-    setStatus("Confirmando pago...");
+    // ✅ UI optimista: remover YA del listado
+    pendingOrdersCache = pendingOrdersCache.filter(o => o.order_id !== orderId);
+    renderOrdersList(listEl, pendingOrdersCache, { mode: "PENDIENTES" });
+    setStatus("Procesando confirmación de pago...");
+
     closePayModal();
     showLoading("Confirmando pago...");
 
     await api({
-      action: "confirm_payment", // Worker lo traduce a mark_paid
+      action: "confirm_payment",
       admin_pin: SESSION.pin,
       operator: SESSION.operator,
-      order_id: modalOrder.order_id,
+      order_id: orderId,
       payment_method: finalMethod,
       payment_ref: finalRef
     });
 
-    setStatus("✅ Pago confirmado.");
+    setStatus("✅ Pago confirmado. Removido de Pendientes.");
     HIST_CACHE = null; HIST_CACHE_TIME = 0;
-    await loadPendientes(true);
+
+    await softRefreshPendientes();
   } catch (e) {
-    setStatus("❌ " + String(e.message || e));
+    const msg = String(e.message || "");
+    if (msg.toLowerCase().includes("too many") || msg.includes("429")) {
+      setStatus("⚠️ Confirmado, pero hay muchas solicitudes. Refresca en unos segundos si no ves el cambio.");
+    } else {
+      setStatus("❌ " + msg);
+    }
     await softRefreshPendientes();
   } finally {
     hideLoading();
@@ -777,9 +794,14 @@ btnCancelConfirm?.addEventListener("click", async () => {
   if (!isCancelValid()) return;
 
   const reason = (cancelReason.value === "Otro") ? cancelOtherText.value.trim() : cancelReason.value;
+  const orderId = modalOrder.order_id;
 
   try {
-    setStatus("Cancelando pedido...");
+    // ✅ UI optimista: remover YA del listado
+    pendingOrdersCache = pendingOrdersCache.filter(o => o.order_id !== orderId);
+    renderOrdersList(listEl, pendingOrdersCache, { mode: "PENDIENTES" });
+    setStatus("Procesando cancelación...");
+
     closeCancelModal();
     showLoading("Cancelando pedido...");
 
@@ -787,15 +809,21 @@ btnCancelConfirm?.addEventListener("click", async () => {
       action: "cancel_order",
       admin_pin: SESSION.pin,
       operator: SESSION.operator,
-      order_id: modalOrder.order_id,
+      order_id: orderId,
       cancel_reason: reason
     });
 
-    setStatus("✅ Pedido cancelado.");
+    setStatus("✅ Pedido cancelado. Removido de Pendientes.");
     HIST_CACHE = null; HIST_CACHE_TIME = 0;
-    await loadPendientes(true);
+
+    await softRefreshPendientes();
   } catch (e) {
-    setStatus("❌ " + String(e.message || e));
+    const msg = String(e.message || "");
+    if (msg.toLowerCase().includes("too many") || msg.includes("429")) {
+      setStatus("⚠️ Cancelado, pero hay muchas solicitudes. Refresca en unos segundos si no ves el cambio.");
+    } else {
+      setStatus("❌ " + msg);
+    }
     await softRefreshPendientes();
   } finally {
     hideLoading();
