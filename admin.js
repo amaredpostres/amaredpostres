@@ -12,7 +12,7 @@ let SESSION = { operator: null, pin: null };
 
 // UI state
 let histFilter = "ALL"; // ALL | Pagado | Cancelado
-let pendingOrdersCache = []; // para evitar desincronización visual
+let pendingOrdersCache = [];
 
 // ===== DOM =====
 const loginView = document.getElementById("loginView");
@@ -100,7 +100,6 @@ function escapeHtml(s) {
 
 // ===== ITEMS =====
 function normalizeItemsFromOrder(order) {
-  // 1) items_json preferido
   if (order.items_json) {
     const parsed = safeJsonParse(order.items_json);
     if (Array.isArray(parsed)) {
@@ -113,7 +112,6 @@ function normalizeItemsFromOrder(order) {
     }
   }
 
-  // 2) fallback items texto "- Nombre: 2"
   if (order.items) {
     const lines = String(order.items).split("\n").map(s => s.trim()).filter(Boolean);
     const found = [];
@@ -137,11 +135,9 @@ function normalizeItemsFromOrder(order) {
 }
 
 function buildEditableItems(order) {
-  // Siempre mostrar todo el catálogo + los items actuales del pedido (por si cambian nombres)
   const current = normalizeItemsFromOrder(order);
   const map = new Map(current.map(it => [it.id, it]));
 
-  // Catálogo (si no está en pedido, qty=0)
   const base = PRODUCT_CATALOG.map(p => ({
     id: p.id,
     name: p.name,
@@ -149,7 +145,7 @@ function buildEditableItems(order) {
     unit_price: p.unit_price
   }));
 
-  // Si el pedido trae algún item extra fuera del catálogo, lo añadimos para no perderlo
+  // conserva items extra fuera del catálogo
   current.forEach(it => {
     if (!base.some(b => b.id === it.id)) {
       base.push({
@@ -245,13 +241,13 @@ function renderPendientes(orders) {
 // ===== HISTORIAL =====
 btnHistory.addEventListener("click", async () => {
   openDrawer();
-  await loadHist(true);
+  await loadHist();
 });
 drawerOverlay.addEventListener("click", closeDrawer);
 btnCloseDrawer.addEventListener("click", closeDrawer);
 
 btnHistRefresh.addEventListener("click", async () => {
-  await loadHist(true);
+  await loadHist();
 });
 
 chips.forEach(ch => {
@@ -259,7 +255,7 @@ chips.forEach(ch => {
     chips.forEach(c => c.classList.remove("active"));
     ch.classList.add("active");
     histFilter = ch.dataset.filter; // ALL / Pagado / Cancelado
-    await loadHist(false); // recargar para aplicar filtro (y por consistencia)
+    await loadHist();
   });
 });
 
@@ -272,13 +268,12 @@ function closeDrawer() {
   drawer.setAttribute("aria-hidden","true");
 }
 
-async function loadHist(forceFetch) {
+async function loadHist() {
   try {
     showLoading("Cargando historial...");
     setHistStatus("Cargando...");
     histListEl.innerHTML = "";
 
-    // Fetch both Pagado + Cancelado and merge, then filter
     const [paid, canceled] = await Promise.all([
       api({ action:"list_orders", admin_pin: SESSION.pin, payment_status:"Pagado" }),
       api({ action:"list_orders", admin_pin: SESSION.pin, payment_status:"Cancelado" }),
@@ -286,8 +281,12 @@ async function loadHist(forceFetch) {
 
     let all = [...(paid.orders || []), ...(canceled.orders || [])];
 
-    // Orden por fecha desc
-    all.sort((a,b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime());
+    // Orden por fecha desc (fallback si created_at no parsea: deja orden)
+    all.sort((a,b) => {
+      const ta = Date.parse(a.created_at || "") || 0;
+      const tb = Date.parse(b.created_at || "") || 0;
+      return tb - ta;
+    });
 
     if (histFilter !== "ALL") {
       all = all.filter(o => String(o.payment_status) === histFilter);
@@ -333,7 +332,7 @@ function renderOrdersList(container, orders, { mode }) {
     const body = document.createElement("div");
     body.className = "orderBody";
 
-    if (mode === "PENDIENTES") body.appendChild(renderPendingDetail(order));
+    if (mode === "PENDIENTES") body.appendChild(renderPendingDetail(order, head));
     else body.appendChild(renderHistDetail(order));
 
     head.addEventListener("click", () => {
@@ -347,7 +346,7 @@ function renderOrdersList(container, orders, { mode }) {
   });
 }
 
-// ===== DETAIL: HIST (solo lectura) =====
+// ===== DETAIL: HIST =====
 function renderHistDetail(order) {
   const wrap = document.createElement("div");
   const items = normalizeItemsFromOrder(order).filter(it => Number(it.qty) > 0);
@@ -390,8 +389,8 @@ function renderHistDetail(order) {
   return wrap;
 }
 
-// ===== DETAIL: PENDIENTES (editable con botón Editar) =====
-function renderPendingDetail(order) {
+// ===== DETAIL: PENDIENTES (con modo editar) =====
+function renderPendingDetail(order, headEl) {
   const wrap = document.createElement("div");
   let editMode = false;
 
@@ -399,7 +398,59 @@ function renderPendingDetail(order) {
   let items = buildEditableItems(order);
   let totals = calcTotals(items);
 
+  // Para restaurar si cancelas edición
+  const originalSnapshot = {
+    customer_name: order.customer_name || "",
+    phone: order.phone || "",
+    address_text: order.address_text || "",
+    maps_link: order.maps_link || "",
+    notes: order.notes || "",
+    items: JSON.stringify(items)
+  };
+
+  function showInlineAlert(msg) {
+    const el = wrap.querySelector(".inlineAlert");
+    if (!el) return;
+    el.textContent = msg || "";
+    el.style.display = msg ? "block" : "none";
+  }
+
+  function updateSummaryUI() {
+    // summary dentro del detalle
+    const u = wrap.querySelector(".t_units");
+    const s = wrap.querySelector(".t_subtotal");
+    if (u) u.textContent = String(totals.total_units);
+    if (s) s.textContent = `$${money(totals.subtotal)}`;
+
+    // badge del header ($) mientras estás en el pedido (sin refrescar)
+    if (headEl) {
+      const badge = headEl.querySelector(".badge");
+      if (badge) badge.textContent = `$${money(order.subtotal ?? totals.subtotal)}`;
+    }
+  }
+
+  function computeTotalsFromInputsIfEditing() {
+    if (!editMode) return;
+    wrap.querySelectorAll(".itemQty").forEach(inp => {
+      const idx = Number(inp.dataset.idx);
+      items[idx].qty = Number(inp.value || 0);
+    });
+    totals = calcTotals(items);
+  }
+
+  function validateNotEmpty() {
+    computeTotalsFromInputsIfEditing();
+    if (totals.total_units <= 0) {
+      showInlineAlert("⚠️ El pedido no puede quedar vacío. Agrega al menos 1 ítem.");
+      return false;
+    }
+    showInlineAlert("");
+    return true;
+  }
+
   function render() {
+    totals = calcTotals(items);
+
     const itemsHtml = items.map((it, idx) => `
       <div class="grid2" style="align-items:end; margin-bottom:10px;">
         <div class="field" style="margin:0;">
@@ -415,8 +466,24 @@ function renderPendingDetail(order) {
       </div>
     `).join("");
 
+    // Mini resumen PRO (siempre visible; y si editMode, lo marcamos como “actual”)
+    const summaryStyle = editMode
+      ? `background: rgba(246,186,96,.12); border:1px solid rgba(64,17,2,.12);`
+      : `background: rgba(255,255,255,.55); border:1px solid rgba(64,17,2,.10);`;
+
     wrap.innerHTML = `
-      <div class="btnRow" style="justify-content:flex-start; margin-top:0;">
+      <div style="${summaryStyle} border-radius:14px; padding:10px 12px; display:flex; justify-content:space-between; gap:10px; flex-wrap:wrap;">
+        <div class="mutedSmall" style="font-weight:950;">
+          Total actual: <span class="t_subtotal">$${money(totals.subtotal)}</span>
+        </div>
+        <div class="mutedSmall" style="font-weight:950;">
+          Unidades: <span class="t_units">${totals.total_units}</span>
+        </div>
+      </div>
+
+      <div class="inlineAlert mutedSmall" style="display:none; color:#b00020; margin-top:8px;"></div>
+
+      <div class="btnRow" style="justify-content:flex-start; margin-top:10px;">
         ${editMode
           ? `<button class="btn secondary btnCancelEdit" type="button">Cancelar edición</button>`
           : `<button class="btn secondary btnEdit" type="button">Editar</button>`
@@ -454,17 +521,12 @@ function renderPendingDetail(order) {
       <div class="mutedSmall" style="font-weight:950; margin-bottom:6px;">Ítems</div>
       ${itemsHtml}
 
-      <div class="mutedSmall" style="margin-top:8px;">
-        Unidades: <strong class="t_units">${totals.total_units}</strong> •
-        Subtotal: <strong class="t_subtotal">$${money(totals.subtotal)}</strong>
-      </div>
-
       <div class="hr"></div>
 
       <div class="grid2">
         <div class="field">
           <label>Método de pago</label>
-          <select class="input f_method" ${editMode ? "" : ""}>
+          <select class="input f_method">
             ${PAYMENT_METHODS.map(m => `<option value="${m}">${m}</option>`).join("")}
           </select>
         </div>
@@ -492,41 +554,53 @@ function renderPendingDetail(order) {
       </div>
     `;
 
-    // Botón Editar / Cancelar edición
+    // Editar / Cancelar edición
     const btnEdit = wrap.querySelector(".btnEdit");
     const btnCancelEdit = wrap.querySelector(".btnCancelEdit");
 
     if (btnEdit) btnEdit.addEventListener("click", () => {
       editMode = true;
       render();
-      hookQtyLiveUpdate();
+      hookLiveUpdates();
     });
+
     if (btnCancelEdit) btnCancelEdit.addEventListener("click", () => {
       editMode = false;
-      // restaurar valores originales del pedido
-      items = buildEditableItems(order);
+      // restaurar snapshot completo
+      order.customer_name = originalSnapshot.customer_name;
+      order.phone = originalSnapshot.phone;
+      order.address_text = originalSnapshot.address_text;
+      order.maps_link = originalSnapshot.maps_link;
+      order.notes = originalSnapshot.notes;
+
+      items = safeJsonParse(originalSnapshot.items) || buildEditableItems(order);
       totals = calcTotals(items);
+      showInlineAlert("");
       render();
     });
 
-    // Live update totals cuando editas cantidades
-    function hookQtyLiveUpdate() {
+    function hookLiveUpdates() {
       wrap.querySelectorAll(".itemQty").forEach(inp => {
         inp.addEventListener("input", () => {
           const idx = Number(inp.dataset.idx);
           items[idx].qty = Number(inp.value || 0);
           totals = calcTotals(items);
-          wrap.querySelector(".t_units").textContent = String(totals.total_units);
-          wrap.querySelector(".t_subtotal").textContent = `$${money(totals.subtotal)}`;
+          // actualizar el resumen pro
+          updateSummaryUI();
+          // validación en vivo (sin bloquear, solo avisa)
+          validateNotEmpty();
         });
       });
     }
-    if (editMode) hookQtyLiveUpdate();
+    if (editMode) hookLiveUpdates();
 
     // Guardar cambios (solo si editMode)
     const btnSave = wrap.querySelector(".btnSave");
     if (btnSave) {
       btnSave.addEventListener("click", async () => {
+        // ✅ Validación anti vacío
+        if (!validateNotEmpty()) return;
+
         try {
           showLoading("Guardando cambios...");
           setStatus("Guardando...");
@@ -548,20 +622,27 @@ function renderPendingDetail(order) {
             items: updatedItems
           });
 
-          // ✅ FIX: actualizar inmediatamente el order local (subtotal/units/items) para confirmar sin refrescar
+          // ✅ Actualizar el order local inmediatamente (sin refrescar)
           const newTotals = calcTotals(items);
           order.subtotal = newTotals.subtotal;
           order.total_units = newTotals.total_units;
+          order.customer_name = wrap.querySelector(".f_name").value.trim();
+          order.phone = wrap.querySelector(".f_phone").value.trim();
+          order.address_text = wrap.querySelector(".f_address").value.trim();
+          order.maps_link = wrap.querySelector(".f_maps").value.trim();
+          order.notes = wrap.querySelector(".f_notes").value.trim();
           order.items_json = JSON.stringify(updatedItems.map(it => ({
             id: it.id, name: it.name, qty: it.qty, unit_price: it.price
           })));
 
-          // salir de edición y refrescar UI del detalle
-          editMode = false;
-          setStatus("✅ Cambios guardados.");
-          render();
+          // actualiza header badge inmediatamente
+          updateSummaryUI();
 
-          // además refrescamos la lista para que el badge $ y resumen se actualicen
+          editMode = false;
+          showInlineAlert("");
+          setStatus("✅ Cambios guardados.");
+
+          // refresca lista para asegurar coherencia visual (badge $ + nombre)
           await loadPendientes(true);
         } catch (e) {
           setStatus("❌ " + (e.message || "Error"));
@@ -571,8 +652,21 @@ function renderPendingDetail(order) {
       });
     }
 
-    // Confirmar pago (usa el subtotal actualizado en `order.subtotal`)
+    // Confirmar pago (si está vacío, bloquea)
     wrap.querySelector(".btnPay").addEventListener("click", async () => {
+      // si está en modo edición y quedó vacío, no permite confirmar
+      if (editMode) {
+        if (!validateNotEmpty()) return;
+      } else {
+        // incluso fuera de edición: evita confirmar si por algún motivo el pedido viene vacío
+        const currentItems = normalizeItemsFromOrder(order).filter(it => Number(it.qty) > 0);
+        const t = calcTotals(currentItems);
+        if (t.total_units <= 0) {
+          showInlineAlert("⚠️ No se puede confirmar un pedido vacío.");
+          return;
+        }
+      }
+
       const method = wrap.querySelector(".f_method").value;
       const ref = wrap.querySelector(".f_ref").value.trim();
 
@@ -593,7 +687,6 @@ function renderPendingDetail(order) {
           });
           hideLoading();
           setStatus("✅ Pago confirmado. Pedido removido de Pendientes.");
-          // ✅ refrescar pendientes para que se mueva de sección
           await loadPendientes(true);
         }
       });
@@ -619,11 +712,13 @@ function renderPendingDetail(order) {
           });
           hideLoading();
           setStatus("✅ Pedido cancelado. Removido de Pendientes.");
-          // ✅ refrescar pendientes para que se mueva de sección
           await loadPendientes(true);
         }
       });
     });
+
+    // Actualiza resumen inicial
+    updateSummaryUI();
   }
 
   render();
