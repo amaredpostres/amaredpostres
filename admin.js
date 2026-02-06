@@ -100,9 +100,23 @@ function escapeHtml(s) {
     .replaceAll("'", "&#039;");
 }
 function formatDate(v) {
-  const s = String(v || "").trim();
-  if (s.includes("T")) return s.replace(".000Z", "").replace("T", " ");
-  return s;
+  if (!v) return "";
+  const d = new Date(v);
+
+  // Si no es una fecha válida, devuelve el texto tal cual
+  if (Number.isNaN(d.getTime())) return String(v);
+
+  // Mostrar en hora de Colombia (Ibagué): America/Bogota (UTC-5)
+  return new Intl.DateTimeFormat("es-CO", {
+    timeZone: "America/Bogota",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false
+  }).format(d);
 }
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
@@ -980,4 +994,5 @@ btnCancelConfirm?.addEventListener("click", async () => {
     } catch {}
   }
 })();
+
 
