@@ -123,21 +123,28 @@ function hideLoading() {
 
 // =================== API (retry 429) ===================
 async function api(body, retries = 2) {
+  console.log("➡️ API request body:", body);
+
   const res = await fetch(API_URL, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type":"application/json" },
     body: JSON.stringify(body)
   });
 
+  console.log("⬅️ API status:", res.status);
+
   if (res.status === 429 && retries > 0) {
-    await sleep(650 * (3 - retries)); // 650ms, 1300ms
+    await sleep(650 * (3 - retries));
     return api(body, retries - 1);
   }
 
-  const out = await res.json().catch(async () => ({ ok: false, error: await res.text().catch(() => "") }));
+  const out = await res.json().catch(async ()=>({ ok:false, error: await res.text().catch(()=> "") }));
+  console.log("⬅️ API response JSON:", out);
+
   if (!out.ok) throw new Error(out.error || "Error");
   return out;
 }
+
 
 // =================== NAV (login/panel) ===================
 function showPanel() {
@@ -938,3 +945,4 @@ btnCancelConfirm.addEventListener("click", async () => {
     } catch { /* ignore */ }
   }
 })();
+
