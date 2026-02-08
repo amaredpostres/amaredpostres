@@ -2,124 +2,193 @@
 <html lang="es">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>AMARED | Cocina</title>
 
-  <link rel="icon" href="assets/favicon.ico" type="image/x-icon" />
+  <link rel="icon" href="assets/favicon.ico" type="image/x-icon">
   <link rel="stylesheet" href="styles.css" />
+
+  <style>
+    .hidden{display:none!important;}
+    .container{max-width:1100px;margin:0 auto;padding:14px;}
+    .card{background:var(--paper);border:1px solid var(--border);border-radius:22px;box-shadow:var(--shadow);padding:14px;}
+    .topbar{position:sticky;top:0;z-index:999;background:rgba(254,246,239,.92);backdrop-filter: blur(8px);border-bottom:1px solid rgba(64,17,2,.08);}
+    .topbarInner{max-width:1100px;margin:0 auto;padding:10px 14px;display:flex;align-items:center;justify-content:space-between;gap:10px;}
+    .brand{display:flex;align-items:center;gap:10px;}
+    .brandLogo{height:34px;width:auto;}
+    .title{font-weight:950;line-height:1;}
+    .subtitle{font-size:12px;opacity:.72;font-weight:800;margin-top:2px;}
+    .btnRow{display:flex;gap:10px;flex-wrap:wrap;align-items:center;justify-content:flex-end;}
+    .muted{opacity:.75;font-weight:800;}
+    .small{font-size:13px;}
+    .grid2{display:grid;grid-template-columns:1.1fr .9fr;gap:12px;}
+    @media(max-width:920px){.grid2{grid-template-columns:1fr;}}
+    .pill{display:inline-flex;align-items:center;gap:8px;border:1px solid var(--border);background:rgba(246,186,96,.12);border-radius:999px;padding:8px 10px;font-weight:950;font-size:13px;}
+
+    .loginBox{max-width:420px;margin:60px auto;padding:20px;border-radius:18px;background:var(--paper);border:1px solid var(--border);box-shadow:var(--shadow);}
+    .field{display:grid;gap:6px;margin-bottom:12px;}
+    .label{font-weight:950;}
+    .iconBtn{border:1px solid var(--border);background:var(--paper);border-radius:16px;padding:10px 12px;box-shadow:0 10px 20px rgba(64,17,2,.08);cursor:pointer;font-weight:950;}
+    .iconBtn:hover{transform:translateY(-1px);}
+
+    /* PRODUCT LIST */
+    .productList{display:grid;gap:10px;margin-top:12px;}
+    .prodItem{border:1px solid var(--border);border-radius:20px;overflow:hidden;background:var(--paper);box-shadow:0 12px 30px rgba(64,17,2,.08);}
+    .prodHead{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:12px 14px;cursor:pointer;}
+    .prodName{font-weight:950;font-size:16px;}
+    .prodQty{font-weight:950;font-size:22px;}
+    .chev{font-size:18px;font-weight:950;opacity:.7;}
+    .prodBody{display:none;padding:12px 14px;border-top:1px solid var(--border);background:rgba(254,246,239,.5);}
+    .prodItem.open .prodBody{display:block;}
+
+    .kTable{display:grid;gap:8px;margin-top:10px;}
+    .kRow{display:flex;justify-content:space-between;gap:10px;align-items:center;background:var(--paper);border:1px solid var(--border);border-radius:16px;padding:10px 12px;}
+    .kRow b{font-weight:950;}
+    .totalBox{margin-top:10px;display:flex;justify-content:space-between;align-items:center;gap:10px;border:1px dashed rgba(64,17,2,.25);border-radius:16px;padding:10px 12px;background:rgba(246,186,96,.10);font-weight:950;}
+
+    /* LOADING OVERLAY */
+    .loadingOverlay{position:fixed;inset:0;background:rgba(0,0,0,.25);display:flex;align-items:center;justify-content:center;z-index:20000;}
+    .loadingBox{width:min(420px,92vw);background:var(--paper);border:1px solid var(--border);border-radius:18px;box-shadow:var(--shadow);padding:14px;display:flex;gap:12px;align-items:center;}
+    .spinner{width:24px;height:24px;border:3px solid rgba(64,17,2,.18);border-top-color:rgba(64,17,2,.75);border-radius:50%;animation:spin .8s linear infinite;}
+    @keyframes spin{to{transform:rotate(360deg);}}
+    .loadingText{font-weight:950;}
+
+    /* MODAL */
+    .modalOverlay{position:fixed;inset:0;background:rgba(0,0,0,.35);display:none;align-items:center;justify-content:center;z-index:21000;padding:14px;}
+    .modalOverlay.show{display:flex;}
+    .modalBox{width:min(980px,100%);background:var(--paper);border:1px solid var(--border);border-radius:22px;box-shadow:var(--shadow);overflow:hidden;}
+    .modalHead{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:12px 14px;border-bottom:1px solid var(--border);background:rgba(254,246,239,.7);}
+    .modalTitle{font-weight:950;margin:0;}
+    .tabs{display:flex;gap:8px;flex-wrap:wrap;}
+    .tab{border:1px solid var(--border);background:var(--paper);border-radius:999px;padding:8px 10px;font-weight:950;cursor:pointer;}
+    .tab.active{background:rgba(246,186,96,.18);}
+    .modalBody{padding:14px;}
+    .ordersGrid{display:grid;gap:10px;}
+    .orderCard{border:1px solid var(--border);background:var(--paper);border-radius:18px;box-shadow:0 12px 30px rgba(64,17,2,.08);padding:12px;}
+    .rowBetween{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;}
+    .orderId{font-weight:950;}
+    .orderMeta{font-size:13px;opacity:.72;font-weight:800;}
+    .badge{border:1px solid var(--border);border-radius:999px;padding:6px 10px;font-weight:950;font-size:12px;background:rgba(246,186,96,.12);}
+
+    /* RECIPE OVERLAY */
+    .recipeOverlay{position:fixed;inset:0;background:rgba(0,0,0,.35);display:none;align-items:center;justify-content:center;z-index:22000;padding:14px;}
+    .recipeOverlay.show{display:flex;}
+    .recipeBox{width:min(980px,100%);background:var(--paper);border:1px solid var(--border);border-radius:22px;box-shadow:var(--shadow);overflow:hidden;display:grid;grid-template-columns:1.1fr .9fr;}
+    @media(max-width:900px){.recipeBox{grid-template-columns:1fr;}}
+    .recipeLeft{padding:16px;}
+    .recipeRight{padding:16px;border-left:1px solid var(--border);background:rgba(254,246,239,.65);display:flex;align-items:center;justify-content:center;}
+    @media(max-width:900px){.recipeRight{border-left:none;border-top:1px solid var(--border);}}
+    .recipeTitle{margin:0 0 8px;font-weight:950;font-size:22px;}
+    .stepCounter{font-weight:900;opacity:.7;margin-bottom:10px;}
+    .stepText{font-size:clamp(20px,2.2vw,34px);font-weight:950;line-height:1.15;margin:0 0 12px;}
+    .stepHint{font-size:14px;font-weight:800;opacity:.75;margin-top:6px;}
+    .stepImg{width:100%;max-height:420px;object-fit:contain;border-radius:18px;border:1px solid var(--border);background:white;}
+    .recipeFooter{display:flex;gap:10px;justify-content:space-between;flex-wrap:wrap;margin-top:12px;}
+
+    /* TIMER WIDGET */
+    .timerWidget{position:fixed;top:74px;right:14px;z-index:23000;width:min(280px,88vw);border:1px solid var(--border);background:rgba(255,255,255,.92);border-radius:18px;box-shadow:var(--shadow);padding:10px 12px;display:none;}
+    .timerWidget.show{display:block;}
+    .timerTitle{font-weight:950;margin:0 0 4px;}
+    .timerTime{font-size:22px;font-weight:950;}
+    .timerNote{font-size:12.5px;opacity:.72;font-weight:800;margin-top:4px;}
+
+    /* CONFIRM 3s */
+    .confirmOverlay{position:fixed;inset:0;background:rgba(0,0,0,.25);display:none;align-items:center;justify-content:center;padding:16px;z-index:24000;}
+    .confirmOverlay.show{display:flex;}
+    .confirmBox{width:min(520px,100%);background:var(--paper);border:1px solid var(--border);border-radius:18px;box-shadow:var(--shadow);padding:14px;}
+    .confirmTitle{font-weight:950;margin:0 0 6px;}
+    .confirmText{color:rgba(64,17,2,.74);font-weight:800;margin:0 0 12px;}
+    .confirmFooter{display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap;}
+    .countdown{font-weight:950;font-size:18px;opacity:.85;}
+  </style>
 </head>
 
 <body>
-  <div class="app">
-    <header class="topbar">
-      <div class="brandRow">
-        <img src="assets/Logo-Isotipo-Amared.svg" alt="AMARED" class="brandLogo" />
+  <div class="topbar">
+    <div class="topbarInner">
+      <div class="brand">
+        <img src="assets/Logo-Amared.svg" class="brandLogo" alt="AMARED" />
         <div>
-          <div class="brandTitle">AMARED</div>
-          <div class="brandSubtitle">Vista Cocina</div>
+          <div class="title">Cocina</div>
+          <div class="subtitle" id="subtitle">Producción del día</div>
         </div>
       </div>
 
-      <div class="topbarActions">
-        <button id="btnRefresh" class="btn secondary" type="button">Actualizar</button>
-        <button id="btnLogout" class="btn" type="button">Salir</button>
+      <div class="btnRow">
+        <button id="btnOrders" class="iconBtn" type="button" title="Ver pedidos del día">📋 Pedidos</button>
+        <button id="btnRefresh" class="btn secondary" type="button">Refrescar</button>
+        <button id="btnLogout" class="btn secondary" type="button">Salir</button>
       </div>
-    </header>
-
-    <!-- LOGIN -->
-    <main id="loginView" class="container">
-      <section class="card">
-        <h2 class="cardTitle">Acceso Cocina</h2>
-        <p class="muted small">Ingresa el nombre del operador y el PIN para ver los pedidos pagados.</p>
-
-        <label class="label">Operador</label>
-        <input id="opName" class="input" type="text" placeholder="Ej: Cocina 1" />
-
-        <label class="label">PIN</label>
-        <input id="opPin" class="input" type="password" placeholder="PIN" />
-
-        <div id="loginError" class="status error"></div>
-
-        <button id="btnLogin" class="btn primary" type="button">Entrar</button>
-      </section>
-    </main>
-
-    <!-- PANEL -->
-    <main id="panelView" class="container hidden">
-      <section class="grid2">
-        <div class="card">
-          <div class="rowBetween">
-            <h3 class="cardTitle" style="margin:0;">Pedidos Pagados</h3>
-            <select id="filterKitchen" class="input" style="max-width:200px;">
-              <option value="">Todos</option>
-              <option value="No iniciar">No iniciar</option>
-              <option value="En proceso">En proceso</option>
-              <option value="Listo">Listo</option>
-            </select>
-          </div>
-
-          <div id="ordersList" class="list"></div>
-          <div id="ordersStatus" class="status"></div>
-        </div>
-
-        <div class="card">
-          <h3 class="cardTitle">Totales del día (según pedidos cargados)</h3>
-          <div id="totalsBox" class="miniCard"></div>
-          <div class="muted small">
-            Estos totales se calculan con los pedidos “Pagados” que estás viendo en la lista (según filtro).
-          </div>
-        </div>
-      </section>
-
-      <section class="card">
-        <div class="rowBetween">
-          <h3 class="cardTitle" style="margin:0;">Modo Paso a Paso</h3>
-          <button id="btnCloseSteps" class="btn secondary" type="button">Cerrar</button>
-        </div>
-
-        <div id="stepsWrap" class="stepsWrap hidden">
-          <div class="stepsHeader">
-            <div>
-              <div id="stepsTitle" class="stepsTitle">—</div>
-              <div id="stepsMeta" class="muted small">—</div>
-            </div>
-
-            <div class="stepsTimer">
-              <div class="muted small">Temporizador base</div>
-              <div id="timerText" class="timerText">—</div>
-              <button id="btnStartFridge" class="btn secondary" type="button">Ya está en nevera</button>
-            </div>
-          </div>
-
-          <div class="stepsBody">
-            <div class="stepVisual">
-              <img id="stepImg" alt="Paso" />
-            </div>
-
-            <div class="stepText">
-              <div id="stepIndex" class="muted small">Paso 1 / 1</div>
-              <div id="stepDesc" class="stepDesc">—</div>
-
-              <div class="stepsNav">
-                <button id="btnPrev" class="btn secondary" type="button">Atrás</button>
-                <button id="btnNext" class="btn primary" type="button">Siguiente</button>
-              </div>
-
-              <div class="rowBetween" style="margin-top:10px; gap:10px;">
-                <button id="btnToInProcess" class="btn secondary" type="button">Marcar: En proceso</button>
-                <button id="btnToDone" class="btn primary" type="button">Finalizar elaboración</button>
-              </div>
-              <div class="muted small">“Finalizar” muestra un conteo de 3 segundos para evitar errores.</div>
-            </div>
-          </div>
-
-          <div id="stepsMsg" class="status"></div>
-        </div>
-      </section>
-    </main>
+    </div>
   </div>
 
-  <!-- LOADING OVERLAY -->
+  <!-- TIMER WIDGET -->
+  <div id="timerWidget" class="timerWidget" aria-live="polite">
+    <div class="timerTitle" id="timerTitle">Base en nevera</div>
+    <div class="timerTime" id="timerTime">30:00</div>
+    <div class="timerNote" id="timerNote">El contador inicia cuando confirmas “Ya está en la nevera”.</div>
+  </div>
+
+  <div class="container">
+    <!-- LOGIN -->
+    <div id="loginView" class="loginBox">
+      <h2 style="text-align:center;margin:0 0 6px;">Cocina</h2>
+      <p class="muted small" style="text-align:center;margin:0 0 16px;">Acceso restringido</p>
+
+      <div class="field">
+        <label class="label">Nombre del operador</label>
+        <input id="loginOperator" class="input" placeholder="Ej: Cocina / Producción" />
+      </div>
+
+      <div class="field">
+        <label class="label">PIN</label>
+        <input id="loginPin" type="password" class="input" placeholder="••••••" />
+      </div>
+
+      <button id="btnLogin" class="btn primary" style="width:100%;">Ingresar</button>
+      <p id="loginError" class="muted small" style="color:#b00020;text-align:center;margin-top:10px;"></p>
+    </div>
+
+    <!-- APP -->
+    <div id="appView" class="hidden">
+      <div class="grid2">
+        <!-- Totales del lote -->
+        <div class="card">
+          <div class="rowBetween">
+            <div>
+              <div class="muted small">Producción del lote</div>
+              <div style="font-weight:950;font-size:34px;line-height:1;" id="totalUnits">0</div>
+              <div class="muted small" id="lotWindow">—</div>
+            </div>
+            <span class="pill">🍰 Totales</span>
+          </div>
+
+          <div class="productList" id="productList"></div>
+        </div>
+
+        <!-- Info rápida -->
+        <div class="card">
+          <div class="rowBetween">
+            <div>
+              <div class="muted small">Entregas</div>
+              <div style="font-weight:950;font-size:18px;">3:30 – 4:00 pm</div>
+              <div class="muted small">Todos los días (según tu logística)</div>
+            </div>
+            <span class="pill">🚚 Horario</span>
+          </div>
+
+          <div style="margin-top:12px;" class="muted small">
+            <b>Regla:</b> pedidos hasta <b>3:00 pm</b> entran al lote del día.  
+            Después de 3:00 pm se producen al siguiente día hábil (viernes después de 3pm → lunes).
+          </div>
+
+          <div style="margin-top:12px;" class="muted small" id="status">—</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- LOADING -->
   <div id="loading" class="loadingOverlay hidden" aria-hidden="true">
     <div class="loadingBox">
       <div class="spinner"></div>
@@ -127,23 +196,70 @@
     </div>
   </div>
 
-  <!-- MODAL 3s -->
-  <div id="confirm3" class="modalOverlay hidden" aria-hidden="true">
-    <div class="modal">
-      <div class="modalHeader">
-        <h3 class="modalTitle">Confirmar acción</h3>
-        <button id="btnCloseConfirm3" class="iconBtn" type="button" aria-label="Cerrar">✕</button>
-      </div>
-      <div class="modalBody">
-        <p id="confirm3Text" class="muted">—</p>
-        <div class="countdown">
-          <strong id="confirm3Count">3</strong>
-          <span class="muted">segundos</span>
+  <!-- ORDERS MODAL -->
+  <div id="ordersModal" class="modalOverlay" aria-hidden="true">
+    <div class="modalBox">
+      <div class="modalHead">
+        <div style="display:flex;flex-direction:column;gap:2px;">
+          <h3 class="modalTitle" style="margin:0;">Pedidos</h3>
+          <div class="muted small" id="ordersModalSub">—</div>
+        </div>
+        <div class="btnRow">
+          <div class="tabs">
+            <button id="tabToday" class="tab active" type="button">Del lote</button>
+            <button id="tabHistory" class="tab" type="button">Historial</button>
+          </div>
+          <button id="btnCloseOrders" class="btn secondary" type="button">Cerrar</button>
         </div>
       </div>
-      <div class="modalFooter">
-        <button id="btnCancelConfirm3" class="btn secondary" type="button">Cancelar</button>
-        <button id="btnDoConfirm3" class="btn primary" type="button">Confirmar</button>
+      <div class="modalBody">
+        <div id="ordersList" class="ordersGrid"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- RECIPE OVERLAY -->
+  <div id="recipeOverlay" class="recipeOverlay" aria-hidden="true">
+    <div class="recipeBox">
+      <div class="recipeLeft">
+        <div class="rowBetween" style="align-items:center;">
+          <h3 class="recipeTitle" id="recipeTitle">Receta</h3>
+          <button id="btnCloseRecipe" class="btn secondary" type="button">Cerrar</button>
+        </div>
+
+        <div class="stepCounter" id="stepCounter">Paso 1 de 1</div>
+        <p class="stepText" id="stepText">...</p>
+        <div class="stepHint" id="stepHint"></div>
+
+        <div class="recipeFooter">
+          <button id="btnPrevStep" class="btn secondary" type="button">Anterior</button>
+          <div style="display:flex;gap:10px;flex-wrap:wrap;">
+            <button id="btnTimerStart" class="btn secondary hidden" type="button">✅ Ya está en la nevera</button>
+            <button id="btnNextStep" class="btn primary" type="button">Siguiente</button>
+          </div>
+        </div>
+
+        <div style="margin-top:12px;display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap;">
+          <button id="btnFinishBatch" class="btn primary" type="button">Finalizar elaboración del lote</button>
+        </div>
+        <div class="muted small" style="margin-top:6px;">Finalizar muestra un conteo de 3 segundos para evitar errores.</div>
+      </div>
+
+      <div class="recipeRight">
+        <img id="stepImg" class="stepImg" src="assets/Logo-Isotipo-Amared.svg" alt="Paso" />
+      </div>
+    </div>
+  </div>
+
+  <!-- CONFIRM 3s -->
+  <div id="confirmOverlay" class="confirmOverlay" aria-hidden="true">
+    <div class="confirmBox">
+      <h3 class="confirmTitle" id="confirmTitle">Confirmar</h3>
+      <p class="confirmText" id="confirmText">...</p>
+      <div class="countdown" id="confirmCountdown">3</div>
+      <div class="confirmFooter">
+        <button id="btnConfirmBack" class="btn secondary" type="button">Volver</button>
+        <button id="btnConfirmGo" class="btn primary" type="button" disabled>Confirmar</button>
       </div>
     </div>
   </div>
