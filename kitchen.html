@@ -1,252 +1,405 @@
 <!doctype html>
 <html lang="es">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
   <title>AMARED | Cocina</title>
 
   <link rel="icon" href="assets/favicon.ico" type="image/x-icon">
-  <link rel="stylesheet" href="styles.css" />
+  <link rel="stylesheet" href="styles.css"/>
 
   <style>
     .hidden{display:none!important;}
-    .container{max-width:1100px;margin:0 auto;padding:14px;}
-    .card{background:var(--paper);border:1px solid var(--border);border-radius:22px;box-shadow:var(--shadow);padding:14px;}
-    .topbar{position:sticky;top:0;z-index:999;background:rgba(254,246,239,.92);backdrop-filter: blur(8px);border-bottom:1px solid rgba(64,17,2,.08);}
-    .topbarInner{max-width:1100px;margin:0 auto;padding:10px 14px;display:flex;align-items:center;justify-content:space-between;gap:10px;}
-    .brand{display:flex;align-items:center;gap:10px;}
-    .brandLogo{height:34px;width:auto;}
-    .title{font-weight:950;line-height:1;}
-    .subtitle{font-size:12px;opacity:.72;font-weight:800;margin-top:2px;}
-    .btnRow{display:flex;gap:10px;flex-wrap:wrap;align-items:center;justify-content:flex-end;}
-    .muted{opacity:.75;font-weight:800;}
+    .topbar2{
+      position: sticky; top:0; z-index:50;
+      background: var(--paper);
+      border-bottom:1px solid var(--border);
+      box-shadow: 0 10px 30px rgba(64,17,2,.06);
+    }
+    .topbar2in{
+      max-width:1100px; margin:0 auto;
+      padding:12px 14px;
+      display:flex; align-items:center; justify-content:space-between; gap:10px;
+    }
+    .brandRow{display:flex; align-items:center; gap:10px;}
+    .brandLogo2{width:44px;height:44px;object-fit:contain;}
+    .ttl{font-weight:950; line-height:1;}
+    .sub{opacity:.7; font-weight:800; font-size:13px; margin-top:2px;}
+    .container2{max-width:1100px;margin:0 auto;padding:14px;}
+
+    .card2{
+      background: var(--paper);
+      border:1px solid var(--border);
+      border-radius:22px;
+      box-shadow: var(--shadow);
+      padding:14px;
+    }
+
+    .row{display:flex; gap:10px; flex-wrap:wrap; align-items:center;}
+    .rowBetween{display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap;}
+
+    .muted{opacity:.72; font-weight:800;}
     .small{font-size:13px;}
-    .grid2{display:grid;grid-template-columns:1.1fr .9fr;gap:12px;}
-    @media(max-width:920px){.grid2{grid-template-columns:1fr;}}
-    .pill{display:inline-flex;align-items:center;gap:8px;border:1px solid var(--border);background:rgba(246,186,96,.12);border-radius:999px;padding:8px 10px;font-weight:950;font-size:13px;}
 
-    .loginBox{max-width:420px;margin:60px auto;padding:20px;border-radius:18px;background:var(--paper);border:1px solid var(--border);box-shadow:var(--shadow);}
-    .field{display:grid;gap:6px;margin-bottom:12px;}
-    .label{font-weight:950;}
-    .iconBtn{border:1px solid var(--border);background:var(--paper);border-radius:16px;padding:10px 12px;box-shadow:0 10px 20px rgba(64,17,2,.08);cursor:pointer;font-weight:950;}
-    .iconBtn:hover{transform:translateY(-1px);}
+    .gridCards{
+      display:grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap:12px;
+      margin-top:12px;
+    }
+    @media(max-width:860px){ .gridCards{grid-template-columns:1fr;} }
 
-    /* PRODUCT LIST */
-    .productList{display:grid;gap:10px;margin-top:12px;}
-    .prodItem{border:1px solid var(--border);border-radius:20px;overflow:hidden;background:var(--paper);box-shadow:0 12px 30px rgba(64,17,2,.08);}
-    .prodHead{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:12px 14px;cursor:pointer;}
-    .prodName{font-weight:950;font-size:16px;}
-    .prodQty{font-weight:950;font-size:22px;}
-    .chev{font-size:18px;font-weight:950;opacity:.7;}
-    .prodBody{display:none;padding:12px 14px;border-top:1px solid var(--border);background:rgba(254,246,239,.5);}
-    .prodItem.open .prodBody{display:block;}
+    .pCard{
+      background: rgba(254,246,239,.75);
+      border:1px solid var(--border);
+      border-radius:22px;
+      padding:14px;
+      box-shadow: 0 12px 30px rgba(64,17,2,.08);
+      overflow:hidden;
+    }
+    .pHead{cursor:pointer;}
+    .bigNum{font-size:40px; font-weight:950; line-height:1;}
+    .pill{
+      display:inline-flex; align-items:center; gap:8px;
+      border:1px solid var(--border);
+      background: rgba(246,186,96,.15);
+      border-radius:999px;
+      padding:8px 10px;
+      font-weight:950;
+      font-size:13px;
+      white-space:nowrap;
+    }
+    .accBody{
+      margin-top:12px;
+      padding-top:12px;
+      border-top:1px dashed rgba(64,17,2,.2);
+      display:none;
+    }
+    .pCard.open .accBody{display:block;}
+    .accGrid{display:grid; gap:10px;}
+    .line{
+      display:flex; justify-content:space-between; gap:10px;
+      border:1px solid var(--border);
+      border-radius:16px;
+      padding:10px 12px;
+      background: white;
+      font-weight:900;
+    }
+    .line span{opacity:.75; font-weight:900;}
 
-    .kTable{display:grid;gap:8px;margin-top:10px;}
-    .kRow{display:flex;justify-content:space-between;gap:10px;align-items:center;background:var(--paper);border:1px solid var(--border);border-radius:16px;padding:10px 12px;}
-    .kRow b{font-weight:950;}
-    .totalBox{margin-top:10px;display:flex;justify-content:space-between;align-items:center;gap:10px;border:1px dashed rgba(64,17,2,.25);border-radius:16px;padding:10px 12px;background:rgba(246,186,96,.10);font-weight:950;}
+    /* Loading overlay */
+    .loadingOverlay{
+      position:fixed; inset:0;
+      background: rgba(0,0,0,.26);
+      z-index:9999;
+      display:none;
+      align-items:center;
+      justify-content:center;
+      padding:16px;
+    }
+    .loadingOverlay.show{display:flex;}
+    .loadingBox{
+      width:min(520px, 100%);
+      background:var(--paper);
+      border:1px solid var(--border);
+      border-radius:18px;
+      box-shadow: var(--shadow);
+      padding:14px;
+      text-align:center;
+    }
+    .spinner{
+      width:34px; height:34px;
+      border:4px solid rgba(64,17,2,.15);
+      border-top:4px solid rgba(64,17,2,.65);
+      border-radius:50%;
+      margin:0 auto 10px;
+      animation: spin 1s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
 
-    /* LOADING OVERLAY */
-    .loadingOverlay{position:fixed;inset:0;background:rgba(0,0,0,.25);display:flex;align-items:center;justify-content:center;z-index:20000;}
-    .loadingBox{width:min(420px,92vw);background:var(--paper);border:1px solid var(--border);border-radius:18px;box-shadow:var(--shadow);padding:14px;display:flex;gap:12px;align-items:center;}
-    .spinner{width:24px;height:24px;border:3px solid rgba(64,17,2,.18);border-top-color:rgba(64,17,2,.75);border-radius:50%;animation:spin .8s linear infinite;}
-    @keyframes spin{to{transform:rotate(360deg);}}
-    .loadingText{font-weight:950;}
+    /* Login */
+    .loginBox{max-width:520px;margin:40px auto;}
+    .field{display:grid; gap:6px; margin-top:10px;}
+    select.input, input.input{
+      padding:12px 12px;
+      border-radius:14px;
+      border:1px solid var(--border);
+      font-weight:900;
+      background:white;
+    }
 
-    /* MODAL */
-    .modalOverlay{position:fixed;inset:0;background:rgba(0,0,0,.35);display:none;align-items:center;justify-content:center;z-index:21000;padding:14px;}
+    /* Icon button */
+    .iconBtn{
+      width:44px;height:44px;
+      display:inline-flex; align-items:center; justify-content:center;
+      border-radius:16px;
+      border:1px solid var(--border);
+      background:white;
+      box-shadow: 0 10px 25px rgba(64,17,2,.08);
+      cursor:pointer;
+      font-size:18px;
+      font-weight:950;
+    }
+
+    /* Orders modal */
+    .modalOverlay{
+      position:fixed; inset:0;
+      background: rgba(0,0,0,.28);
+      z-index:12000;
+      display:none;
+      align-items:center;
+      justify-content:center;
+      padding:16px;
+    }
     .modalOverlay.show{display:flex;}
-    .modalBox{width:min(980px,100%);background:var(--paper);border:1px solid var(--border);border-radius:22px;box-shadow:var(--shadow);overflow:hidden;}
-    .modalHead{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:12px 14px;border-bottom:1px solid var(--border);background:rgba(254,246,239,.7);}
-    .modalTitle{font-weight:950;margin:0;}
-    .tabs{display:flex;gap:8px;flex-wrap:wrap;}
-    .tab{border:1px solid var(--border);background:var(--paper);border-radius:999px;padding:8px 10px;font-weight:950;cursor:pointer;}
-    .tab.active{background:rgba(246,186,96,.18);}
-    .modalBody{padding:14px;}
-    .ordersGrid{display:grid;gap:10px;}
-    .orderCard{border:1px solid var(--border);background:var(--paper);border-radius:18px;box-shadow:0 12px 30px rgba(64,17,2,.08);padding:12px;}
-    .rowBetween{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;}
-    .orderId{font-weight:950;}
-    .orderMeta{font-size:13px;opacity:.72;font-weight:800;}
-    .badge{border:1px solid var(--border);border-radius:999px;padding:6px 10px;font-weight:950;font-size:12px;background:rgba(246,186,96,.12);}
+    .modalBox{
+      width:min(980px, 100%);
+      max-height: 86vh;
+      overflow:auto;
+      background: var(--paper);
+      border: 1px solid var(--border);
+      border-radius:22px;
+      box-shadow: var(--shadow);
+      padding:14px;
+    }
+    .tabs{display:flex; gap:10px; flex-wrap:wrap; margin-top:10px;}
+    .tab{
+      padding:10px 12px;
+      border-radius:999px;
+      border:1px solid var(--border);
+      font-weight:950;
+      cursor:pointer;
+      background:white;
+      opacity:.85;
+    }
+    .tab.active{background:rgba(242,91,143,.12); opacity:1;}
+    .oList{display:grid; gap:10px; margin-top:12px;}
+    .oItem{
+      border:1px solid var(--border);
+      border-radius:18px;
+      padding:12px;
+      background:white;
+      box-shadow: 0 12px 28px rgba(64,17,2,.08);
+    }
+    .oMeta{font-size:13px; font-weight:900; opacity:.72;}
 
-    /* RECIPE OVERLAY */
-    .recipeOverlay{position:fixed;inset:0;background:rgba(0,0,0,.35);display:none;align-items:center;justify-content:center;z-index:22000;padding:14px;}
+    /* Recipe overlay full page */
+    .recipeOverlay{
+      position:fixed; inset:0;
+      background: rgba(0,0,0,.32);
+      z-index:14000;
+      display:none;
+      padding:14px;
+      align-items:center;
+      justify-content:center;
+    }
     .recipeOverlay.show{display:flex;}
-    .recipeBox{width:min(980px,100%);background:var(--paper);border:1px solid var(--border);border-radius:22px;box-shadow:var(--shadow);overflow:hidden;display:grid;grid-template-columns:1.1fr .9fr;}
-    @media(max-width:900px){.recipeBox{grid-template-columns:1fr;}}
-    .recipeLeft{padding:16px;}
-    .recipeRight{padding:16px;border-left:1px solid var(--border);background:rgba(254,246,239,.65);display:flex;align-items:center;justify-content:center;}
-    @media(max-width:900px){.recipeRight{border-left:none;border-top:1px solid var(--border);}}
-    .recipeTitle{margin:0 0 8px;font-weight:950;font-size:22px;}
-    .stepCounter{font-weight:900;opacity:.7;margin-bottom:10px;}
-    .stepText{font-size:clamp(20px,2.2vw,34px);font-weight:950;line-height:1.15;margin:0 0 12px;}
-    .stepHint{font-size:14px;font-weight:800;opacity:.75;margin-top:6px;}
-    .stepImg{width:100%;max-height:420px;object-fit:contain;border-radius:18px;border:1px solid var(--border);background:white;}
-    .recipeFooter{display:flex;gap:10px;justify-content:space-between;flex-wrap:wrap;margin-top:12px;}
+    .recipeBox{
+      width:min(1100px, 100%);
+      max-height: 92vh;
+      overflow:auto;
+      background: var(--paper);
+      border:1px solid var(--border);
+      border-radius:22px;
+      box-shadow: var(--shadow);
+    }
+    .recipeTop{
+      position: sticky; top:0;
+      background: var(--paper);
+      border-bottom:1px solid var(--border);
+      padding:12px 14px;
+      display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap;
+      z-index:2;
+    }
+    .recipeContent{
+      padding:14px;
+      display:grid;
+      grid-template-columns: 1.1fr .9fr;
+      gap:12px;
+    }
+    @media(max-width:900px){ .recipeContent{grid-template-columns:1fr;} }
 
-    /* TIMER WIDGET */
-    .timerWidget{position:fixed;top:74px;right:14px;z-index:23000;width:min(280px,88vw);border:1px solid var(--border);background:rgba(255,255,255,.92);border-radius:18px;box-shadow:var(--shadow);padding:10px 12px;display:none;}
-    .timerWidget.show{display:block;}
-    .timerTitle{font-weight:950;margin:0 0 4px;}
-    .timerTime{font-size:22px;font-weight:950;}
-    .timerNote{font-size:12.5px;opacity:.72;font-weight:800;margin-top:4px;}
+    .stepCounter{font-weight:950; opacity:.7;}
+    .stepText{
+      font-size: clamp(22px, 2.2vw, 38px);
+      font-weight: 950;
+      line-height:1.12;
+      margin: 8px 0 12px;
+    }
+    .stepImg{
+      width:100%;
+      max-height: 420px;
+      object-fit: contain;
+      border-radius:18px;
+      border:1px solid var(--border);
+      background:white;
+    }
 
-    /* CONFIRM 3s */
-    .confirmOverlay{position:fixed;inset:0;background:rgba(0,0,0,.25);display:none;align-items:center;justify-content:center;padding:16px;z-index:24000;}
+    /* Timer widget inside recipe */
+    .timerMini{
+      border:1px solid var(--border);
+      border-radius:18px;
+      background: rgba(246,186,96,.12);
+      padding:10px 12px;
+      display:flex; flex-direction:column; gap:4px;
+      font-weight:900;
+    }
+    .timerTime{font-size:22px; font-weight:950;}
+    .btnRow{display:flex; gap:10px; flex-wrap:wrap; justify-content:flex-end; margin-top:12px;}
+
+    /* Confirm 3s */
+    .confirmOverlay{
+      position:fixed; inset:0;
+      background: rgba(0,0,0,.26);
+      z-index:16000;
+      display:none;
+      align-items:center;
+      justify-content:center;
+      padding:16px;
+    }
     .confirmOverlay.show{display:flex;}
-    .confirmBox{width:min(520px,100%);background:var(--paper);border:1px solid var(--border);border-radius:18px;box-shadow:var(--shadow);padding:14px;}
-    .confirmTitle{font-weight:950;margin:0 0 6px;}
-    .confirmText{color:rgba(64,17,2,.74);font-weight:800;margin:0 0 12px;}
-    .confirmFooter{display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap;}
-    .countdown{font-weight:950;font-size:18px;opacity:.85;}
+    .confirmBox{
+      width:min(520px,100%);
+      background: var(--paper);
+      border:1px solid var(--border);
+      border-radius:18px;
+      box-shadow: var(--shadow);
+      padding:14px;
+    }
+    .countdown{font-weight:950; font-size:20px; opacity:.85;}
   </style>
 </head>
 
 <body>
-  <div class="topbar">
-    <div class="topbarInner">
-      <div class="brand">
-        <img src="assets/Logo-Amared.svg" class="brandLogo" alt="AMARED" />
+  <div class="topbar2">
+    <div class="topbar2in">
+      <div class="brandRow">
+        <img src="assets/Logo-Isotipo-Amared.svg" class="brandLogo2" alt="AMARED">
         <div>
-          <div class="title">Cocina</div>
-          <div class="subtitle" id="subtitle">Producción del día</div>
+          <div class="ttl">AMARED</div>
+          <div class="sub">Cocina · Producción diaria</div>
         </div>
       </div>
 
-      <div class="btnRow">
-        <button id="btnOrders" class="iconBtn" type="button" title="Ver pedidos del día">📋 Pedidos</button>
+      <div class="row">
+        <button id="btnOrders" class="iconBtn" title="Ver pedidos">📋</button>
         <button id="btnRefresh" class="btn secondary" type="button">Refrescar</button>
         <button id="btnLogout" class="btn secondary" type="button">Salir</button>
       </div>
     </div>
   </div>
 
-  <!-- TIMER WIDGET -->
-  <div id="timerWidget" class="timerWidget" aria-live="polite">
-    <div class="timerTitle" id="timerTitle">Base en nevera</div>
-    <div class="timerTime" id="timerTime">30:00</div>
-    <div class="timerNote" id="timerNote">El contador inicia cuando confirmas “Ya está en la nevera”.</div>
-  </div>
+  <div class="container2">
 
-  <div class="container">
     <!-- LOGIN -->
-    <div id="loginView" class="loginBox">
-      <h2 style="text-align:center;margin:0 0 6px;">Cocina</h2>
-      <p class="muted small" style="text-align:center;margin:0 0 16px;">Acceso restringido</p>
+    <div id="loginView" class="loginBox card2">
+      <h2 style="margin:0 0 6px;">Acceso Cocina</h2>
+      <div class="muted small">Selecciona un perfil aprobado + ingresa el PIN.</div>
 
       <div class="field">
-        <label class="label">Nombre del operador</label>
-        <input id="loginOperator" class="input" placeholder="Ej: Cocina / Producción" />
+        <label class="muted small">Perfil</label>
+        <select id="selOperator" class="input">
+          <!-- opciones desde JS -->
+        </select>
       </div>
 
       <div class="field">
-        <label class="label">PIN</label>
-        <input id="loginPin" type="password" class="input" placeholder="••••••" />
+        <label class="muted small">PIN</label>
+        <input id="inpPin" class="input" type="password" placeholder="••••••">
       </div>
 
-      <button id="btnLogin" class="btn primary" style="width:100%;">Ingresar</button>
-      <p id="loginError" class="muted small" style="color:#b00020;text-align:center;margin-top:10px;"></p>
+      <div class="field">
+        <button id="btnLogin" class="btn primary" type="button">Ingresar</button>
+        <div id="loginErr" class="muted small" style="color:#b00020;"></div>
+      </div>
     </div>
 
     <!-- APP -->
     <div id="appView" class="hidden">
-      <div class="grid2">
-        <!-- Totales del lote -->
-        <div class="card">
-          <div class="rowBetween">
-            <div>
-              <div class="muted small">Producción del lote</div>
-              <div style="font-weight:950;font-size:34px;line-height:1;" id="totalUnits">0</div>
-              <div class="muted small" id="lotWindow">—</div>
-            </div>
-            <span class="pill">🍰 Totales</span>
+      <div class="card2">
+        <div class="rowBetween">
+          <div>
+            <div class="muted small">Producción para</div>
+            <div style="font-weight:950; font-size:20px;" id="prodDateText">—</div>
+            <div class="muted small" id="prodRuleText">—</div>
           </div>
-
-          <div class="productList" id="productList"></div>
-        </div>
-
-        <!-- Info rápida -->
-        <div class="card">
-          <div class="rowBetween">
-            <div>
-              <div class="muted small">Entregas</div>
-              <div style="font-weight:950;font-size:18px;">3:30 – 4:00 pm</div>
-              <div class="muted small">Todos los días (según tu logística)</div>
-            </div>
-            <span class="pill">🚚 Horario</span>
-          </div>
-
-          <div style="margin-top:12px;" class="muted small">
-            <b>Regla:</b> pedidos hasta <b>3:00 pm</b> entran al lote del día.  
-            Después de 3:00 pm se producen al siguiente día hábil (viernes después de 3pm → lunes).
-          </div>
-
-          <div style="margin-top:12px;" class="muted small" id="status">—</div>
+          <div class="pill" id="prodPill">0 unidades</div>
         </div>
       </div>
+
+      <div class="gridCards" id="productCards"></div>
     </div>
   </div>
 
   <!-- LOADING -->
-  <div id="loading" class="loadingOverlay hidden" aria-hidden="true">
+  <div id="loading" class="loadingOverlay" aria-hidden="true">
     <div class="loadingBox">
       <div class="spinner"></div>
-      <div id="loadingText" class="loadingText">Cargando...</div>
+      <div style="font-weight:950; font-size:18px;" id="loadingTitle">Cargando...</div>
+      <div class="muted small" id="loadingDesc">Por favor espera.</div>
     </div>
   </div>
 
-  <!-- ORDERS MODAL -->
+  <!-- PEDIDOS MODAL -->
   <div id="ordersModal" class="modalOverlay" aria-hidden="true">
     <div class="modalBox">
-      <div class="modalHead">
-        <div style="display:flex;flex-direction:column;gap:2px;">
-          <h3 class="modalTitle" style="margin:0;">Pedidos</h3>
+      <div class="rowBetween">
+        <div>
+          <div style="font-weight:950; font-size:18px;">Pedidos</div>
           <div class="muted small" id="ordersModalSub">—</div>
         </div>
-        <div class="btnRow">
-          <div class="tabs">
-            <button id="tabToday" class="tab active" type="button">Del lote</button>
-            <button id="tabHistory" class="tab" type="button">Historial</button>
-          </div>
-          <button id="btnCloseOrders" class="btn secondary" type="button">Cerrar</button>
-        </div>
+        <button id="btnCloseOrders" class="btn secondary" type="button">Cerrar</button>
       </div>
-      <div class="modalBody">
-        <div id="ordersList" class="ordersGrid"></div>
+
+      <div class="tabs">
+        <button class="tab active" id="tabToday" type="button">Pedidos del día</button>
+        <button class="tab" id="tabHistory" type="button">Anteriores (Listo)</button>
       </div>
+
+      <div id="ordersList" class="oList"></div>
     </div>
   </div>
 
   <!-- RECIPE OVERLAY -->
   <div id="recipeOverlay" class="recipeOverlay" aria-hidden="true">
     <div class="recipeBox">
-      <div class="recipeLeft">
-        <div class="rowBetween" style="align-items:center;">
-          <h3 class="recipeTitle" id="recipeTitle">Receta</h3>
-          <button id="btnCloseRecipe" class="btn secondary" type="button">Cerrar</button>
+      <div class="recipeTop">
+        <div>
+          <div style="font-weight:950; font-size:18px;" id="recipeTitle">Receta</div>
+          <div class="muted small" id="recipeSub">—</div>
         </div>
+        <div class="row">
+          <button id="btnRecipeClose" class="btn secondary" type="button">Cerrar</button>
+        </div>
+      </div>
 
-        <div class="stepCounter" id="stepCounter">Paso 1 de 1</div>
-        <p class="stepText" id="stepText">...</p>
-        <div class="stepHint" id="stepHint"></div>
+      <div class="recipeContent">
+        <div>
+          <div class="stepCounter" id="stepCounter">Paso 1 de 1</div>
+          <div class="stepText" id="stepText">—</div>
+          <div class="muted small" id="stepHint"></div>
 
-        <div class="recipeFooter">
-          <button id="btnPrevStep" class="btn secondary" type="button">Anterior</button>
-          <div style="display:flex;gap:10px;flex-wrap:wrap;">
-            <button id="btnTimerStart" class="btn secondary hidden" type="button">✅ Ya está en la nevera</button>
-            <button id="btnNextStep" class="btn primary" type="button">Siguiente</button>
+          <div class="btnRow">
+            <button id="btnPrev" class="btn secondary" type="button">Anterior</button>
+            <button id="btnNext" class="btn primary" type="button">Siguiente</button>
+          </div>
+
+          <div class="btnRow" style="justify-content:space-between; margin-top:14px;">
+            <button id="btnStartBatch" class="btn secondary" type="button">Marcar lote: En proceso</button>
+            <button id="btnFinishBatch" class="btn primary" type="button">Finalizar lote</button>
           </div>
         </div>
 
-        <div style="margin-top:12px;display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap;">
-          <button id="btnFinishBatch" class="btn primary" type="button">Finalizar elaboración del lote</button>
-        </div>
-        <div class="muted small" style="margin-top:6px;">Finalizar muestra un conteo de 3 segundos para evitar errores.</div>
-      </div>
+        <div style="display:grid; gap:10px;">
+          <img id="stepImg" class="stepImg" src="assets/Logo-Isotipo-Amared.svg" alt="Paso">
 
-      <div class="recipeRight">
-        <img id="stepImg" class="stepImg" src="assets/Logo-Isotipo-Amared.svg" alt="Paso" />
+          <div class="timerMini">
+            <div class="muted small">Base en nevera (30 min)</div>
+            <div class="timerTime" id="timerTime">No iniciado</div>
+            <button id="btnFridgeStart" class="btn secondary" type="button">✅ Ya está en la nevera</button>
+            <div class="muted small">El temporizador inicia solo cuando confirmas que ya se ingresó al refrigerador.</div>
+          </div>
+        </div>
       </div>
     </div>
   </div>
@@ -254,10 +407,11 @@
   <!-- CONFIRM 3s -->
   <div id="confirmOverlay" class="confirmOverlay" aria-hidden="true">
     <div class="confirmBox">
-      <h3 class="confirmTitle" id="confirmTitle">Confirmar</h3>
-      <p class="confirmText" id="confirmText">...</p>
-      <div class="countdown" id="confirmCountdown">3</div>
-      <div class="confirmFooter">
+      <div style="font-weight:950; font-size:18px;" id="confirmTitle">Confirmar</div>
+      <div class="muted small" id="confirmText" style="margin-top:6px;">—</div>
+      <div class="countdown" id="confirmCountdown" style="margin-top:12px;">3</div>
+
+      <div class="btnRow" style="margin-top:12px;">
         <button id="btnConfirmBack" class="btn secondary" type="button">Volver</button>
         <button id="btnConfirmGo" class="btn primary" type="button" disabled>Confirmar</button>
       </div>
