@@ -11,7 +11,6 @@
   <style>
     .hidden{display:none!important;}
 
-    /* TOPBAR */
     .topbar2{
       position: sticky; top:0; z-index:50;
       background: var(--paper);
@@ -100,11 +99,11 @@
     }
     .line span{opacity:.75; font-weight:900;}
 
-    /* Loading overlay (ENCIMA de todo) */
+    /* Loading overlay (encima de todo) */
     .loadingOverlay{
       position:fixed; inset:0;
       background: rgba(0,0,0,.26);
-      z-index:30000; /* clave */
+      z-index:30000;
       display:none;
       align-items:center;
       justify-content:center;
@@ -272,18 +271,23 @@
       align-items:center;
     }
 
-    /* Timer widget (solo cuando toca) */
-    .timerMini{
+    /* Timer floating (siempre visible después de iniciar) */
+    .timerFloat{
+      position:fixed;
+      right:12px; bottom:12px;
+      z-index:20000;
       border:1px solid var(--border);
       border-radius:18px;
-      background: rgba(246,186,96,.12);
+      background: rgba(246,186,96,.14);
+      box-shadow: 0 16px 40px rgba(64,17,2,.14);
       padding:10px 12px;
       display:none;
-      flex-direction:column; gap:4px;
-      font-weight:900;
+      min-width: 220px;
     }
-    .timerMini.show{display:flex;}
-    .timerTime{font-size:22px; font-weight:950;}
+    .timerFloat.show{display:block;}
+    .timerFloat .t1{font-weight:950; font-size:13px; opacity:.75;}
+    .timerFloat .t2{font-weight:950; font-size:22px; margin-top:4px;}
+    .timerFloat .t3{font-weight:900; font-size:12px; opacity:.7; margin-top:4px;}
 
     .btnRow{display:flex; gap:10px; flex-wrap:wrap; justify-content:flex-end; margin-top:12px;}
 
@@ -311,6 +315,29 @@
     /* Preparados */
     .doneSection{margin-top:12px;}
     .donePill{background: rgba(0,0,0,.03);}
+
+    /* Perfiles modal + Costos modal (simple) */
+    .formGrid{display:grid; gap:10px; margin-top:10px;}
+    .miniRow{display:flex; gap:10px; align-items:center; flex-wrap:wrap;}
+    .miniRow .input{flex:1;}
+    .hr{height:1px; background:rgba(64,17,2,.12); margin:12px 0;}
+
+    .priceRow{
+      display:flex; gap:10px; align-items:center;
+      border:1px solid var(--border);
+      border-radius:16px;
+      padding:10px 12px;
+      background:white;
+      font-weight:900;
+    }
+    .priceRow .k{flex:1; opacity:.75;}
+    .priceRow input{
+      width:140px;
+      padding:10px 10px;
+      border-radius:14px;
+      border:1px solid rgba(64,17,2,.18);
+      font-weight:950;
+    }
   </style>
 </head>
 
@@ -325,9 +352,10 @@
         </div>
       </div>
 
-      <!-- ✅ Top actions SOLO se muestran cuando ya estás logueado -->
+      <!-- Acciones SOLO logueado -->
       <div id="topActions" class="topActions hidden">
         <button id="btnOrders" class="iconBtn" title="Ver pedidos">📋</button>
+        <button id="btnCosts" class="iconBtn" title="Costos">🧾</button>
         <button id="btnRefresh" class="btn secondary" type="button">Refrescar</button>
         <button id="btnLogout" class="btn secondary" type="button">Salir</button>
       </div>
@@ -353,6 +381,7 @@
 
       <div class="field">
         <button id="btnLogin" class="btn primary" type="button">Ingresar</button>
+        <button id="btnManageProfiles" class="btn secondary" type="button">Gestionar perfiles</button>
         <div id="loginErr" class="muted small" style="color:#b00020;"></div>
       </div>
     </div>
@@ -394,6 +423,13 @@
     </div>
   </div>
 
+  <!-- TIMER FLOAT -->
+  <div id="timerFloat" class="timerFloat" aria-hidden="true">
+    <div class="t1">Base en nevera</div>
+    <div class="t2" id="timerFloatTime">No iniciado</div>
+    <div class="t3">30 min desde que confirmaste.</div>
+  </div>
+
   <!-- PEDIDOS MODAL -->
   <div id="ordersModal" class="modalOverlay" aria-hidden="true">
     <div class="modalBox">
@@ -430,8 +466,6 @@
       <div class="recipeContent">
         <div>
           <div class="stepCounter" id="stepCounter">Paso 1 de 1</div>
-
-          <!-- Aquí renderizamos texto o HTML (Paso 1) -->
           <div class="stepText" id="stepText">—</div>
           <div class="stepHintBox" id="stepHint"></div>
 
@@ -439,23 +473,10 @@
             <button id="btnPrev" class="btn secondary" type="button">Anterior</button>
             <button id="btnNext" class="btn primary" type="button">Siguiente</button>
           </div>
-
-          <!-- Acciones producción -->
-          <div class="btnRow" style="justify-content:space-between; margin-top:14px;">
-            <button id="btnStartBatch" class="btn secondary" type="button">Iniciar elaboración</button>
-            <button id="btnFinishBatch" class="btn primary" type="button">Finalizar</button>
-          </div>
         </div>
 
         <div style="display:grid; gap:10px;">
           <img id="stepImg" class="stepImg" src="assets/Logo-Isotipo-Amared.svg" alt="Paso">
-
-          <div class="timerMini" id="timerBox">
-            <div class="muted small">Base en nevera (30 min)</div>
-            <div class="timerTime" id="timerTime">No iniciado</div>
-            <button id="btnFridgeStart" class="btn secondary" type="button">✅ Ya está en la nevera</button>
-            <div class="muted small">El temporizador inicia solo cuando confirmas que ya se ingresó al refrigerador.</div>
-          </div>
         </div>
       </div>
     </div>
@@ -475,8 +496,80 @@
     </div>
   </div>
 
-  <!-- ✅ perfiles en otro archivo -->
+  <!-- MODAL: Gestionar perfiles -->
+  <div id="profilesModal" class="modalOverlay" aria-hidden="true">
+    <div class="modalBox">
+      <div class="rowBetween">
+        <div>
+          <div style="font-weight:950; font-size:18px;">Gestionar perfiles</div>
+          <div class="muted small">Requiere clave secreta (solo para crear perfiles).</div>
+        </div>
+        <button id="btnCloseProfiles" class="btn secondary" type="button">Cerrar</button>
+      </div>
+
+      <div class="hr"></div>
+
+      <div id="profilesGate">
+        <div class="muted small">Ingresa la clave secreta para continuar.</div>
+        <div class="formGrid">
+          <input id="inpProfilesSecret" class="input" type="password" placeholder="Clave secreta">
+          <button id="btnProfilesUnlock" class="btn primary" type="button">Verificar</button>
+          <div id="profilesGateErr" class="muted small" style="color:#b00020;"></div>
+        </div>
+      </div>
+
+      <div id="profilesEditor" class="hidden">
+        <div class="muted small">Perfiles actuales:</div>
+        <div id="profilesList" class="oList"></div>
+
+        <div class="hr"></div>
+
+        <div class="muted small">Agregar nuevo perfil:</div>
+        <div class="miniRow" style="margin-top:10px;">
+          <input id="inpNewProfile" class="input" placeholder="Nombre (ej: Laura)">
+          <button id="btnAddProfile" class="btn primary" type="button">Agregar</button>
+        </div>
+        <div class="muted small" style="margin-top:8px;">* Los perfiles se guardan en este navegador (localStorage).</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: Costos -->
+  <div id="costsModal" class="modalOverlay" aria-hidden="true">
+    <div class="modalBox">
+      <div class="rowBetween">
+        <div>
+          <div style="font-weight:950; font-size:18px;">Costos de ingredientes</div>
+          <div class="muted small">Edita COP por unidad (g/ml/unidad). Requiere clave secreta.</div>
+        </div>
+        <button id="btnCloseCosts" class="btn secondary" type="button">Cerrar</button>
+      </div>
+
+      <div class="hr"></div>
+
+      <div id="costsGate">
+        <div class="muted small">Ingresa clave secreta para editar costos.</div>
+        <div class="formGrid">
+          <input id="inpCostsSecret" class="input" type="password" placeholder="Clave secreta">
+          <button id="btnCostsUnlock" class="btn primary" type="button">Verificar</button>
+          <div id="costsGateErr" class="muted small" style="color:#b00020;"></div>
+        </div>
+      </div>
+
+      <div id="costsEditor" class="hidden">
+        <div class="muted small">Precios (COP por unidad):</div>
+        <div id="costsList" class="oList"></div>
+
+        <div class="btnRow" style="margin-top:12px;">
+          <button id="btnSaveCosts" class="btn primary" type="button">Guardar</button>
+        </div>
+        <div class="muted small" style="margin-top:8px;">* Los costos se guardan en este navegador (localStorage). Más adelante los conectamos a Sheets.</div>
+      </div>
+    </div>
+  </div>
+
   <script src="kitchen-profiles.js"></script>
+  <script src="kitchen-costs.js"></script>
   <script src="kitchen.js"></script>
 </body>
 </html>
