@@ -1,16 +1,16 @@
 /* =========================
    AMARED - Cocina (Producción diaria)
-   - Corta pedidos a las 3:00 pm (America/Bogota)
-   - Regla fin de semana:
-     * Viernes después de 3pm => Producción Lunes
-     * Sábado / Domingo => Producción Lunes
-   - Pantalla principal: solo totales por producto
-   - Acordeón: ingredientes + costo estimado
-   - Iniciar: paso a paso (Paso 1 muestra ingredientes totales del lote)
-   - Temporizador base: inicia con botón “Ya está en la nevera”
-   - Finalizar lote: confirm 3s + kitchen_status="Listo" en bulk
-   - Pedidos del día: modal con tab histórico
-   - Operadores: perfiles predefinidos (no se escribe nombre)
+   Ajustes:
+   - Topbar oculta en Login
+   - Perfiles desde kitchen-profiles.js
+   - Acordeón con botón (abrir/cerrar)
+   - Loading overlay por encima de confirm
+   - Paso 1 ingredientes en tabla visual
+   - Confirm 3s al iniciar receta (marca En proceso)
+   - Timer solo en paso timer_base
+   - Finalización por postre y por lote
+   - Actualiza: kitchen_started_at/by y kitchen_done_at/by
+   - Escribe hoja: COCINA_LOTES (upsert por producción)
 ========================= */
 
 const API_URL = "https://amared-orders.amaredpostres.workers.dev/";
@@ -18,12 +18,9 @@ const TZ = "America/Bogota";
 const CUTOFF_HOUR = 15; // 3:00 pm
 const BASE_FRIDGE_MINUTES = 30;
 
-// ✅ Perfiles aprobados (edita aquí)
-const OPERATOR_PROFILES = [
-  { id: "cocina_1", label: "Cocina 1" },
-  { id: "cocina_2", label: "Cocina 2" },
-  { id: "produccion", label: "Producción" },
-];
+const OPERATOR_PROFILES = (window.AMARED_KITCHEN_PROFILES && Array.isArray(window.AMARED_KITCHEN_PROFILES))
+  ? window.AMARED_KITCHEN_PROFILES
+  : [{ id:"esperanza", label:"Esperanza" }, { id:"cristian", label:"Cristian" }];
 
 // Productos del sistema (IDs deben coincidir con items_json.id)
 const PRODUCTS = [
@@ -32,7 +29,7 @@ const PRODUCTS = [
   { id: "arroz_con_leche", name: "Arroz con leche (no activo)" },
 ];
 
-// Recetas por UNIDAD (tu conversión 6 → 1)
+// Recetas por UNIDAD
 const RECIPE_UNIT = {
   mousse_maracuya: {
     unitIngredients: [
@@ -45,14 +42,11 @@ const RECIPE_UNIT = {
       { key:"Vainilla (ml, opcional)", qty:0.33, costPerUnit:0 },
       { key:"Galletas trituradas (g)", qty:25, costPerUnit:0 },
       { key:"Mantequilla (g)", qty:11.7, costPerUnit:0 },
-
-      // Decoración: siempre chocorramo + logo con polvo
-      // (Como no diste gramos exactos para el polvo, lo dejamos como “decorativo”)
-      { key:"Chocorramo (topping)", qty:1, costPerUnit:0 }, // ajusta costo por unidad de chocorramo
-      { key:"Chocolate en polvo (logo, decorativo)", qty:1, costPerUnit:0 }, // costo por “uso decorativo”
+      { key:"Chocorramo (topping)", qty:1, costPerUnit:0 },
+      { key:"Chocolate en polvo (logo, decorativo)", qty:1, costPerUnit:0 },
     ],
     steps: [
-      { type:"batch_ingredients" }, // Paso 1 especial: ingredientes totales lote
+      { type:"batch_ingredients" },
       { type:"normal", text:"Tritura las galletas (textura arenosa).", img:"assets/steps/mousse/step01.webp" },
       { type:"normal", text:"Mezcla galleta + mantequilla derretida hasta que compacte.", img:"assets/steps/mousse/step02.webp" },
       { type:"normal", text:"Porciona y compacta 25 g de base en cada vasito.", img:"assets/steps/mousse/step03.webp" },
@@ -63,8 +57,8 @@ const RECIPE_UNIT = {
       { type:"normal", text:"Con la licuadora encendida, integra la gelatina disuelta lentamente.", img:"assets/steps/mousse/step08.webp" },
       { type:"normal", text:"Sirve la mezcla en los vasitos sobre la base.", img:"assets/steps/mousse/step09.webp" },
       { type:"normal", text:"Refrigera mínimo 8 horas o toda la noche.", img:"assets/steps/mousse/step10.webp" },
-      { type:"normal", text:"Decora SIEMPRE con Chocorramo.", img:"assets/steps/mousse/step11.webp" },
-      { type:"normal", text:"Decora el logo con una pequeña cantidad de chocolate en polvo (solo decorativo).", img:"assets/steps/mousse/step12.webp" },
+      { type:"normal", text:"Agregar el chocorramo (1 por postre).", img:"assets/steps/mousse/step11.webp" },
+      { type:"normal", text:"Espolvorea chocolate con la forma del logo.", img:"assets/steps/mousse/step12.webp" },
     ],
   },
 
@@ -124,6 +118,7 @@ const RECIPE_UNIT = {
 ======================= */
 const loginView = document.getElementById("loginView");
 const appView = document.getElementById("appView");
+const topActions = document.getElementById("topActions");
 
 const selOperator = document.getElementById("selOperator");
 const inpPin = document.getElementById("inpPin");
@@ -138,6 +133,10 @@ const prodDateText = document.getElementById("prodDateText");
 const prodRuleText = document.getElementById("prodRuleText");
 const prodPill = document.getElementById("prodPill");
 const productCards = document.getElementById("productCards");
+
+const doneSection = document.getElementById("doneSection");
+const doneCards = document.getElementById("doneCards");
+const doneCount = document.getElementById("doneCount");
 
 const loading = document.getElementById("loading");
 const loadingTitle = document.getElementById("loadingTitle");
@@ -161,8 +160,11 @@ const stepHint = document.getElementById("stepHint");
 const stepImg = document.getElementById("stepImg");
 const btnPrev = document.getElementById("btnPrev");
 const btnNext = document.getElementById("btnNext");
+
 const btnStartBatch = document.getElementById("btnStartBatch");
 const btnFinishBatch = document.getElementById("btnFinishBatch");
+
+const timerBox = document.getElementById("timerBox");
 const btnFridgeStart = document.getElementById("btnFridgeStart");
 const timerTime = document.getElementById("timerTime");
 
@@ -177,6 +179,7 @@ const btnConfirmGo = document.getElementById("btnConfirmGo");
    STATE
 ======================= */
 let SESSION = { operatorId:null, operatorLabel:null, pin:null };
+
 let paidOrders = [];
 let todayProductionOrders = [];
 let historyOrders = [];
@@ -188,12 +191,24 @@ let currentStepIdx = 0;
 
 let baseTimerInterval = null;
 let baseTimerEndMs = null;
-let lastBaseFridgeStartedIso = null;
 
 let confirmTimer = null;
 let confirmOnGo = null;
 
 let ordersTab = "today";
+
+/* ========== Lote UI state (local) ========== */
+function lotKey(){
+  return `AMARED_LOT_DONE_${getTodayProductionDayKey()}`;
+}
+function getLotDone(){
+  const raw = localStorage.getItem(lotKey());
+  const obj = raw ? safeJsonParse(raw) : null;
+  return obj && typeof obj === "object" ? obj : {};
+}
+function setLotDone(obj){
+  localStorage.setItem(lotKey(), JSON.stringify(obj || {}));
+}
 
 /* =======================
    UTIL
@@ -224,8 +239,8 @@ function money(n){
 }
 
 function disableUIWhileLoading(disabled){
-  btnRefresh.disabled = disabled;
-  btnOrders.disabled = disabled;
+  if (btnRefresh) btnRefresh.disabled = disabled;
+  if (btnOrders) btnOrders.disabled = disabled;
   if (btnLogin) btnLogin.disabled = disabled;
 }
 
@@ -245,7 +260,6 @@ async function api(payload){
 
 /* =======================
    TIME RULES (cutoff + weekend)
-   -> productionDayKey: YYYY-MM-DD (Bogotá)
 ======================= */
 function getBogotaParts(date){
   const fmt = new Intl.DateTimeFormat("en-CA", {
@@ -268,7 +282,6 @@ function getBogotaParts(date){
 }
 
 function addDaysBogotaKey(yyyy_mm_dd, days){
-  // YYYY-MM-DD -> Date UTC safe, then add days, then reformat in Bogota
   const [Y,M,D] = yyyy_mm_dd.split("-").map(Number);
   const dt = new Date(Date.UTC(Y, M-1, D, 12, 0, 0));
   dt.setUTCDate(dt.getUTCDate() + days);
@@ -276,60 +289,38 @@ function addDaysBogotaKey(yyyy_mm_dd, days){
 }
 
 function getWeekdayBogota(date){
-  // 0 Sun ... 6 Sat, in Bogota
   const parts = new Intl.DateTimeFormat("en-US", { timeZone: TZ, weekday:"short" }).formatToParts(date);
   const wd = parts.find(p=>p.type==="weekday")?.value || "";
   const map = { Sun:0, Mon:1, Tue:2, Wed:3, Thu:4, Fri:5, Sat:6 };
   return map[wd] ?? 0;
 }
 
-// Calcula el productionDayKey según created_at (Bogotá) + reglas
 function computeProductionDayKeyForOrder(createdAt){
   const dt = new Date(createdAt);
   if (Number.isNaN(dt.getTime())) return null;
 
   const p = getBogotaParts(dt);
   const orderDayKey = p.key;
+  const weekday = getWeekdayBogota(dt);
 
-  // weekday del orderDay (en Bogota)
-  const weekday = getWeekdayBogota(dt); // 0=Dom, 6=Sab
+  if (weekday === 6) return addDaysBogotaKey(orderDayKey, 2); // Sat -> Mon
+  if (weekday === 0) return addDaysBogotaKey(orderDayKey, 1); // Sun -> Mon
 
-  // Si es sábado o domingo -> producción lunes
-  if (weekday === 6) { // Sat
-    // lunes siguiente: +2 días
-    return addDaysBogotaKey(orderDayKey, 2);
-  }
-  if (weekday === 0) { // Sun
-    // lunes siguiente: +1 día
-    return addDaysBogotaKey(orderDayKey, 1);
-  }
+  if (weekday === 5 && p.hh >= CUTOFF_HOUR) return addDaysBogotaKey(orderDayKey, 3); // Fri after 3pm -> Mon
 
-  // Si es viernes y pasó 3pm -> producción lunes
-  if (weekday === 5 && p.hh >= CUTOFF_HOUR) {
-    return addDaysBogotaKey(orderDayKey, 3); // viernes -> lunes
-  }
-
-  // Para lunes-jueves:
-  // - antes de 3pm => producción hoy
-  // - después de 3pm => producción mañana
   if (p.hh >= CUTOFF_HOUR) return addDaysBogotaKey(orderDayKey, 1);
   return orderDayKey;
 }
 
-// Production day de HOY (según hora actual en Bogotá)
 function getTodayProductionDayKey(){
   const now = new Date();
   const p = getBogotaParts(now);
   const weekday = getWeekdayBogota(now);
 
-  // Sábado o domingo: producción lunes (aunque estés abriendo la página)
   if (weekday === 6) return addDaysBogotaKey(p.key, 2);
   if (weekday === 0) return addDaysBogotaKey(p.key, 1);
-
-  // Si hoy es viernes y hora >= 3pm => producción lunes
   if (weekday === 5 && p.hh >= CUTOFF_HOUR) return addDaysBogotaKey(p.key, 3);
 
-  // En días hábiles: producción “hoy”
   return p.key;
 }
 
@@ -341,7 +332,6 @@ function productionRuleText(todayKey){
    ITEMS & AGGREGATION
 ======================= */
 function normalizeItemsFromOrder(order){
-  // Preferimos items_json (string JSON)
   const raw = order.items_json;
   if (raw) {
     const parsed = typeof raw === "string" ? safeJsonParse(raw) : raw;
@@ -354,7 +344,6 @@ function normalizeItemsFromOrder(order){
     }
   }
 
-  // Fallback: parse del texto items (si es posible)
   if (order.items) {
     const lines = String(order.items).split("\n").map(s=>s.trim()).filter(Boolean);
     const out = [];
@@ -372,7 +361,7 @@ function normalizeItemsFromOrder(order){
 }
 
 function aggregateByProduct(orders){
-  const map = new Map(); // productId -> qty
+  const map = new Map();
   let totalUnits = 0;
 
   for(const o of orders){
@@ -396,12 +385,7 @@ function calcBatchIngredients(productId, units){
     const cost = (Number(ing.costPerUnit || 0) * Number(units || 0));
     totalCost += cost;
 
-    return {
-      key: ing.key,
-      qty: totalQty,
-      unitCost: ing.costPerUnit || 0,
-      cost,
-    };
+    return { key: ing.key, qty: totalQty, cost };
   });
 
   return { lines, totalCost };
@@ -429,7 +413,7 @@ function clearSession(){
 }
 
 /* =======================
-   UI RENDER
+   UI VIEW
 ======================= */
 function renderOperatorProfiles(){
   selOperator.innerHTML = OPERATOR_PROFILES
@@ -440,94 +424,12 @@ function renderOperatorProfiles(){
 function showLogin(){
   loginView.classList.remove("hidden");
   appView.classList.add("hidden");
+  topActions.classList.add("hidden"); // ✅ oculta acciones
 }
 function showApp(){
   loginView.classList.add("hidden");
   appView.classList.remove("hidden");
-}
-
-function renderMain(todayKey){
-  const nice = fmtDateCO(new Date());
-  prodDateText.textContent = `Producción: ${todayKey}`;
-  prodRuleText.textContent = productionRuleText(todayKey);
-
-  const { byProduct, totalUnits } = aggregateByProduct(todayProductionOrders);
-  prodPill.textContent = `${totalUnits} unidades`;
-
-  // cards por producto (solo los que tengan qty > 0)
-  const cards = [];
-  for(const p of PRODUCTS){
-    const qty = byProduct.get(p.id) || 0;
-    if(qty <= 0) continue;
-
-    const { lines, totalCost } = calcBatchIngredients(p.id, qty);
-
-    const ingHtml = lines.map(li => {
-      const q = (Math.round(li.qty*10)/10).toLocaleString("es-CO");
-      const c = (li.cost && li.cost > 0) ? `$${money(li.cost)}` : "—";
-      return `<div class="line"><span>${li.key}</span><div>${q} · ${c}</div></div>`;
-    }).join("");
-
-    const costText = totalCost > 0 ? `$${money(totalCost)}` : "Configura costos en kitchen.js";
-
-    cards.push(`
-      <div class="pCard" data-pid="${p.id}">
-        <div class="pHead rowBetween">
-          <div>
-            <div class="muted small">${p.name}</div>
-            <div class="bigNum">${qty}</div>
-          </div>
-          <div class="pill">Insumos + receta</div>
-        </div>
-
-        <div class="accBody">
-          <div class="accGrid">
-            <div class="rowBetween">
-              <div class="muted small">Ingredientes totales (lote)</div>
-              <div class="pill">Costo estimado: ${costText}</div>
-            </div>
-            ${ingHtml || `<div class="muted small">Sin receta configurada.</div>`}
-
-            <div class="rowBetween" style="margin-top:8px;">
-              <button class="btn secondary" data-act="start" data-pid="${p.id}">Iniciar</button>
-              <button class="btn secondary" data-act="viewOrders" data-pid="${p.id}">Ver pedidos del día</button>
-            </div>
-          </div>
-        </div>
-      </div>
-    `);
-  }
-
-  productCards.innerHTML = cards.length ? cards.join("") : `
-    <div class="card2" style="grid-column:1/-1;">
-      <div style="font-weight:950; font-size:18px;">No hay producción para hoy</div>
-      <div class="muted small">No existen pedidos pagados que correspondan a la producción de ${todayKey}.</div>
-    </div>
-  `;
-
-  // accordion toggle
-  productCards.querySelectorAll(".pCard .pHead").forEach(head => {
-    head.addEventListener("click", () => {
-      const card = head.closest(".pCard");
-      card.classList.toggle("open");
-    });
-  });
-
-  // buttons
-  productCards.querySelectorAll("button[data-act='start']").forEach(b => {
-    b.addEventListener("click", (e) => {
-      e.stopPropagation();
-      const pid = b.dataset.pid;
-      openRecipe(pid);
-    });
-  });
-
-  productCards.querySelectorAll("button[data-act='viewOrders']").forEach(b => {
-    b.addEventListener("click", (e) => {
-      e.stopPropagation();
-      openOrdersModal("today");
-    });
-  });
+  topActions.classList.remove("hidden"); // ✅ muestra acciones
 }
 
 /* =======================
@@ -564,7 +466,6 @@ function renderOrdersModalList(){
     return;
   }
 
-  // orden por created_at (asc)
   const sorted = [...list].sort((a,b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
 
   ordersList.innerHTML = sorted.map(o => {
@@ -581,222 +482,6 @@ function renderOrdersModalList(){
       </div>
     `;
   }).join("");
-}
-
-/* =======================
-   RECIPE OVERLAY (batch mode)
-======================= */
-function openRecipe(productId){
-  currentProductId = productId;
-  currentSteps = RECIPE_UNIT[productId]?.steps || [];
-  currentStepIdx = 0;
-
-  // ids de pedidos del lote (producción de hoy) que contienen ese producto
-  currentBatchOrderIds = getBatchOrderIdsForProduct(productId);
-
-  const productName = PRODUCTS.find(p=>p.id===productId)?.name || productId;
-  const todayKey = getTodayProductionDayKey();
-
-  recipeTitle.textContent = `Receta · ${productName}`;
-  recipeSub.textContent = `Lote de producción ${todayKey} · ${currentBatchOrderIds.length} pedido(s) involucrados`;
-
-  recipeOverlay.classList.add("show");
-  recipeOverlay.setAttribute("aria-hidden","false");
-
-  renderRecipeStep();
-  resetTimerUI();
-}
-
-function closeRecipe(){
-  recipeOverlay.classList.remove("show");
-  recipeOverlay.setAttribute("aria-hidden","true");
-
-  currentProductId = null;
-  currentBatchOrderIds = [];
-  currentSteps = [];
-  currentStepIdx = 0;
-
-  stopBaseTimer();
-  resetTimerUI();
-}
-
-function renderRecipeStep(){
-  const totalSteps = currentSteps.length || 1;
-  stepCounter.textContent = `Paso ${Math.min(currentStepIdx+1,totalSteps)} de ${totalSteps}`;
-
-  const step = currentSteps[currentStepIdx] || { type:"normal", text:"—", img:"assets/Logo-Isotipo-Amared.svg" };
-
-  // Paso 1 especial: ingredientes totales del lote
-  if(step.type === "batch_ingredients"){
-    const qty = getTotalUnitsForProductInTodayBatch(currentProductId);
-    const { lines, totalCost } = calcBatchIngredients(currentProductId, qty);
-
-    const listText = lines.map(li => {
-      const q = (Math.round(li.qty*10)/10).toLocaleString("es-CO");
-      const c = (li.cost && li.cost > 0) ? ` · $${money(li.cost)}` : "";
-      return `• ${li.key}: ${q}${c}`;
-    }).join("\n");
-
-    stepText.textContent = `Ingredientes para el lote (${qty} unidades):\n\n${listText || "Sin receta configurada."}\n\nCosto estimado: ${totalCost>0 ? "$"+money(totalCost) : "Configura costos en kitchen.js"}`;
-    stepHint.textContent = "Verifica los insumos antes de iniciar para evitar interrupciones.";
-
-    stepImg.src = "assets/Logo-Isotipo-Amared.svg";
-  } else {
-    stepText.textContent = step.text || "—";
-    stepHint.textContent = (step.type === "timer_base")
-      ? "Cuando la base ya esté dentro de la nevera, presiona “Ya está en la nevera” para iniciar 30 min."
-      : "";
-
-    stepImg.src = step.img || "assets/Logo-Isotipo-Amared.svg";
-  }
-
-  btnPrev.disabled = currentStepIdx === 0;
-  btnNext.textContent = (currentStepIdx >= totalSteps-1) ? "Finalizar receta" : "Siguiente";
-}
-
-btnPrev.addEventListener("click", () => {
-  if(currentStepIdx > 0){
-    currentStepIdx--;
-    renderRecipeStep();
-  }
-});
-
-btnNext.addEventListener("click", () => {
-  const totalSteps = currentSteps.length || 1;
-  if(currentStepIdx >= totalSteps-1){
-    // cerrar receta
-    closeRecipe();
-    return;
-  }
-  currentStepIdx++;
-  renderRecipeStep();
-});
-
-btnRecipeClose.addEventListener("click", closeRecipe);
-
-/* =======================
-   Batch actions (bulk)
-======================= */
-function getBatchOrderIdsForProduct(productId){
-  const ids = [];
-  for(const o of todayProductionOrders){
-    const items = normalizeItemsFromOrder(o);
-    if(items.some(it => it.id === productId && it.qty>0)){
-      ids.push(String(o.order_id));
-    }
-  }
-  return ids;
-}
-
-function getTotalUnitsForProductInTodayBatch(productId){
-  let total = 0;
-  for(const o of todayProductionOrders){
-    const items = normalizeItemsFromOrder(o);
-    for(const it of items){
-      if(it.id === productId) total += it.qty;
-    }
-  }
-  return total;
-}
-
-async function bulkUpdate(patch){
-  if(!currentBatchOrderIds.length) return;
-
-  showLoading("Actualizando lote...", "Aplicando cambios en bloque para evitar múltiples peticiones.");
-  disableUIWhileLoading(true);
-
-  try{
-    await api({
-      action: "kitchen_bulk_update",
-      admin_pin: SESSION.pin,
-      operator: SESSION.operatorLabel,
-      order_ids: currentBatchOrderIds,
-      patch
-    });
-
-    // refrescar data
-    await loadKitchenData(true);
-  } finally {
-    disableUIWhileLoading(false);
-    hideLoading();
-  }
-}
-
-// Marcar lote en proceso
-btnStartBatch.addEventListener("click", async () => {
-  await confirm3s(
-    "Marcar lote como “En proceso”",
-    `Esto marcará ${currentBatchOrderIds.length} pedido(s) como “En proceso”.`,
-    async () => bulkUpdate({ kitchen_status:"En proceso" })
-  );
-});
-
-// Finalizar lote
-btnFinishBatch.addEventListener("click", async () => {
-  await confirm3s(
-    "Finalizar lote",
-    `Esto marcará ${currentBatchOrderIds.length} pedido(s) como “Listo”.`,
-    async () => bulkUpdate({ kitchen_status:"Listo" })
-  );
-});
-
-/* =======================
-   Base fridge timer (bulk)
-   - Guardamos solo base_fridge_started_at (server)
-   - UI calcula el resto
-======================= */
-btnFridgeStart.addEventListener("click", async () => {
-  if(!currentBatchOrderIds.length) return;
-
-  const iso = new Date().toISOString();
-  lastBaseFridgeStartedIso = iso;
-
-  await confirm3s(
-    "Iniciar temporizador (base en nevera)",
-    "Confirma que la base ya está dentro de la nevera. Se guardará el inicio y se contará 30 min.",
-    async () => {
-      await bulkUpdate({ base_fridge_started_at: iso, kitchen_status:"En proceso" });
-      startBaseTimer(iso);
-    }
-  );
-});
-
-function resetTimerUI(){
-  timerTime.textContent = "No iniciado";
-}
-
-function startBaseTimer(startIso){
-  stopBaseTimer();
-  const startMs = new Date(startIso).getTime();
-  if(Number.isNaN(startMs)) return;
-
-  baseTimerEndMs = startMs + BASE_FRIDGE_MINUTES * 60 * 1000;
-  tickBaseTimer();
-  baseTimerInterval = setInterval(tickBaseTimer, 250);
-}
-
-function stopBaseTimer(){
-  if(baseTimerInterval) clearInterval(baseTimerInterval);
-  baseTimerInterval = null;
-  baseTimerEndMs = null;
-}
-
-function tickBaseTimer(){
-  if(!baseTimerEndMs){
-    timerTime.textContent = "No iniciado";
-    return;
-  }
-  const left = baseTimerEndMs - Date.now();
-  if(left <= 0){
-    timerTime.textContent = "✅ Base lista";
-    stopBaseTimer();
-    alert("✅ Base lista. Puedes continuar.");
-    return;
-  }
-  const sec = Math.ceil(left/1000);
-  const mm = Math.floor(sec/60);
-  const ss = sec%60;
-  timerTime.textContent = `${String(mm).padStart(2,"0")}:${String(ss).padStart(2,"0")} restantes`;
 }
 
 /* =======================
@@ -859,6 +544,497 @@ function confirm3s(title, text, onGo){
 }
 
 /* =======================
+   Batch actions (bulk)
+======================= */
+function getBatchOrderIdsForProduct(productId){
+  const ids = [];
+  for(const o of todayProductionOrders){
+    const items = normalizeItemsFromOrder(o);
+    if(items.some(it => it.id === productId && it.qty>0)){
+      ids.push(String(o.order_id));
+    }
+  }
+  return ids;
+}
+
+function getTotalUnitsForProductInTodayBatch(productId){
+  let total = 0;
+  for(const o of todayProductionOrders){
+    const items = normalizeItemsFromOrder(o);
+    for(const it of items){
+      if(it.id === productId) total += it.qty;
+    }
+  }
+  return total;
+}
+
+function getProductsNeededToday(){
+  const { byProduct } = aggregateByProduct(todayProductionOrders);
+  const needed = [];
+  for(const p of PRODUCTS){
+    const q = byProduct.get(p.id) || 0;
+    if(q > 0) needed.push(p.id);
+  }
+  return needed;
+}
+
+function allProductsDone(){
+  const needed = getProductsNeededToday();
+  const done = getLotDone();
+  return needed.length > 0 && needed.every(pid => done[pid] === true);
+}
+
+async function bulkUpdate(orderIds, patch){
+  if(!orderIds.length) return;
+
+  showLoading("Actualizando...", "Aplicando cambios sin duplicar peticiones.");
+  disableUIWhileLoading(true);
+
+  try{
+    await api({
+      action: "kitchen_bulk_update",
+      admin_pin: SESSION.pin,
+      operator: SESSION.operatorLabel,
+      order_ids: orderIds,
+      patch
+    });
+
+    await loadKitchenData(true);
+  } finally {
+    disableUIWhileLoading(false);
+    hideLoading();
+  }
+}
+
+/* =======================
+   Recipe overlay
+======================= */
+let currentStepsTotal = 0;
+
+function openRecipe(productId){
+  currentProductId = productId;
+  currentSteps = RECIPE_UNIT[productId]?.steps || [];
+  currentStepsTotal = currentSteps.length || 1;
+  currentStepIdx = 0;
+  currentBatchOrderIds = getBatchOrderIdsForProduct(productId);
+
+  const productName = PRODUCTS.find(p=>p.id===productId)?.name || productId;
+  const todayKey = getTodayProductionDayKey();
+
+  recipeTitle.textContent = `Receta · ${productName}`;
+  recipeSub.textContent = `Producción ${todayKey} · ${currentBatchOrderIds.length} pedido(s)`;
+
+  recipeOverlay.classList.add("show");
+  recipeOverlay.setAttribute("aria-hidden","false");
+
+  stopBaseTimer();
+  timerBox.classList.remove("show");
+  timerTime.textContent = "No iniciado";
+
+  renderRecipeStep();
+  refreshFinishButtonLabel();
+}
+
+function closeRecipe(){
+  recipeOverlay.classList.remove("show");
+  recipeOverlay.setAttribute("aria-hidden","true");
+
+  currentProductId = null;
+  currentBatchOrderIds = [];
+  currentSteps = [];
+  currentStepIdx = 0;
+
+  stopBaseTimer();
+  timerBox.classList.remove("show");
+  timerTime.textContent = "No iniciado";
+}
+
+function formatQty(q){
+  const rounded = Math.round(q*10)/10;
+  return rounded.toLocaleString("es-CO");
+}
+
+function renderBatchIngredientsHTML(productId){
+  const qty = getTotalUnitsForProductInTodayBatch(productId);
+  const { lines, totalCost } = calcBatchIngredients(productId, qty);
+
+  const costText = totalCost > 0 ? `$${money(totalCost)}` : "—";
+
+  const rows = lines.map(li => `
+    <div class="batchRow">
+      <div class="k">${li.key}</div>
+      <div>${formatQty(li.qty)}</div>
+    </div>
+  `).join("");
+
+  return `
+    <div class="batchBox">
+      <div class="batchTop">
+        <div style="font-weight:950;">Ingredientes del lote</div>
+        <div class="pill">Unidades: ${qty} · Costo: ${costText}</div>
+      </div>
+      <div class="muted small" style="margin-top:6px;">Verifica estos insumos antes de iniciar para evitar interrupciones.</div>
+      ${rows || `<div class="muted small" style="margin-top:10px;">Sin receta configurada.</div>`}
+    </div>
+  `;
+}
+
+function renderRecipeStep(){
+  stepCounter.textContent = `Paso ${Math.min(currentStepIdx+1,currentStepsTotal)} de ${currentStepsTotal}`;
+
+  const step = currentSteps[currentStepIdx] || { type:"normal", text:"—", img:"assets/Logo-Isotipo-Amared.svg" };
+
+  // Timer solo si estamos en ese paso
+  if(step.type === "timer_base"){
+    timerBox.classList.add("show");
+  } else {
+    timerBox.classList.remove("show");
+  }
+
+  if(step.type === "batch_ingredients"){
+    stepText.innerHTML = renderBatchIngredientsHTML(currentProductId);
+    stepHint.textContent = "Recuerda: al iniciar se marca el postre como En proceso.";
+    stepImg.src = "assets/Logo-Isotipo-Amared.svg";
+  } else {
+    stepText.textContent = step.text || "—";
+    stepHint.textContent = (step.type === "timer_base")
+      ? "Cuando la base ya esté dentro de la nevera, presiona “Ya está en la nevera” para iniciar 30 min."
+      : "";
+    stepImg.src = step.img || "assets/Logo-Isotipo-Amared.svg";
+  }
+
+  btnPrev.disabled = currentStepIdx === 0;
+  btnNext.textContent = (currentStepIdx >= currentStepsTotal-1) ? "Terminar" : "Siguiente";
+  refreshFinishButtonLabel();
+}
+
+function refreshFinishButtonLabel(){
+  // Botón de finalizar cambia según si es el último postre pendiente del día
+  const needed = getProductsNeededToday();
+  const done = getLotDone();
+  const remaining = needed.filter(pid => !done[pid]);
+
+  const isLastProduct = (remaining.length === 1 && remaining[0] === currentProductId);
+
+  // Solo mostramos "Finalizar" en el último paso (para evitar confusiones)
+  const atLastStep = currentStepIdx >= currentStepsTotal - 1;
+
+  btnFinishBatch.disabled = !atLastStep;
+
+  if(isLastProduct){
+    btnFinishBatch.textContent = "Finalizar lote";
+  } else {
+    btnFinishBatch.textContent = "Finalizar preparación (este postre)";
+  }
+
+  // Iniciar elaboración: solo útil al inicio (Paso 1 o Paso 2)
+  const atBeginning = currentStepIdx <= 1;
+  btnStartBatch.style.display = atBeginning ? "inline-flex" : "none";
+}
+
+/* =======================
+   Timer base
+======================= */
+btnFridgeStart.addEventListener("click", async () => {
+  if(!currentBatchOrderIds.length) return;
+
+  const iso = new Date().toISOString();
+
+  await confirm3s(
+    "Iniciar temporizador (base en nevera)",
+    "Confirma que la base ya está dentro de la nevera. Se guardará el inicio y se contará 30 min.",
+    async () => {
+      await bulkUpdate(currentBatchOrderIds, { base_fridge_started_at: iso, kitchen_status:"En proceso" });
+      startBaseTimer(iso);
+    }
+  );
+});
+
+function startBaseTimer(startIso){
+  stopBaseTimer();
+  const startMs = new Date(startIso).getTime();
+  if(Number.isNaN(startMs)) return;
+
+  baseTimerEndMs = startMs + BASE_FRIDGE_MINUTES * 60 * 1000;
+  tickBaseTimer();
+  baseTimerInterval = setInterval(tickBaseTimer, 250);
+}
+
+function stopBaseTimer(){
+  if(baseTimerInterval) clearInterval(baseTimerInterval);
+  baseTimerInterval = null;
+  baseTimerEndMs = null;
+}
+
+function tickBaseTimer(){
+  if(!baseTimerEndMs){
+    timerTime.textContent = "No iniciado";
+    return;
+  }
+  const left = baseTimerEndMs - Date.now();
+  if(left <= 0){
+    timerTime.textContent = "✅ Base lista";
+    stopBaseTimer();
+    alert("✅ Base lista. Puedes continuar.");
+    return;
+  }
+  const sec = Math.ceil(left/1000);
+  const mm = Math.floor(sec/60);
+  const ss = sec%60;
+  timerTime.textContent = `${String(mm).padStart(2,"0")}:${String(ss).padStart(2,"0")} restantes`;
+}
+
+/* =======================
+   Buttons in recipe
+======================= */
+btnPrev.addEventListener("click", () => {
+  if(currentStepIdx > 0){
+    currentStepIdx--;
+    renderRecipeStep();
+  }
+});
+
+btnNext.addEventListener("click", () => {
+  if(currentStepIdx >= currentStepsTotal-1){
+    closeRecipe();
+    return;
+  }
+  currentStepIdx++;
+  renderRecipeStep();
+});
+
+btnRecipeClose.addEventListener("click", closeRecipe);
+
+/* Iniciar elaboración:
+   - confirm 3s
+   - marca En proceso en backend
+   - registra lote en COCINA_LOTES
+*/
+btnStartBatch.addEventListener("click", async () => {
+  if(!currentProductId) return;
+  if(!currentBatchOrderIds.length) return;
+
+  const name = PRODUCTS.find(p=>p.id===currentProductId)?.name || currentProductId;
+
+  await confirm3s(
+    "Iniciar elaboración",
+    `¿Confirmas iniciar la elaboración de: ${name}? (Se marcará como “En proceso”)`,
+    async () => {
+      await bulkUpdate(currentBatchOrderIds, { kitchen_status:"En proceso" });
+      await upsertKitchenLot("in_progress");
+      // se queda en receta
+    }
+  );
+});
+
+/* Finalizar:
+   - si NO es último producto pendiente: marca este producto como listo (orders) + guarda en lotDone
+   - si ES el último: marca listo + finaliza lote (COCINA_LOTES) y vuelve
+*/
+btnFinishBatch.addEventListener("click", async () => {
+  if(!currentProductId) return;
+  if(!currentBatchOrderIds.length) return;
+
+  const needed = getProductsNeededToday();
+  const done = getLotDone();
+  const remaining = needed.filter(pid => !done[pid]);
+  const isLastProduct = (remaining.length === 1 && remaining[0] === currentProductId);
+
+  const productName = PRODUCTS.find(p=>p.id===currentProductId)?.name || currentProductId;
+
+  if(isLastProduct){
+    await confirm3s(
+      "Finalizar lote",
+      "Esto marcará como “Listo” el último postre del día y cerrará el lote.",
+      async () => {
+        await bulkUpdate(currentBatchOrderIds, { kitchen_status:"Listo" });
+
+        const d = getLotDone();
+        d[currentProductId] = true;
+        setLotDone(d);
+
+        await upsertKitchenLot("done");
+        closeRecipe();
+      }
+    );
+  } else {
+    await confirm3s(
+      "Finalizar preparación",
+      `Esto marcará como “Listo” el postre: ${productName}.`,
+      async () => {
+        await bulkUpdate(currentBatchOrderIds, { kitchen_status:"Listo" });
+
+        const d = getLotDone();
+        d[currentProductId] = true;
+        setLotDone(d);
+
+        await upsertKitchenLot("in_progress");
+        closeRecipe();
+      }
+    );
+  }
+});
+
+/* =======================
+   COCINA_LOTES (server)
+======================= */
+async function upsertKitchenLot(status){
+  // Guardamos trazabilidad por día (no bloquea si falla)
+  try{
+    const todayKey = getTodayProductionDayKey();
+    const needed = getProductsNeededToday();
+    const done = getLotDone();
+    const doneCountLocal = needed.filter(pid => done[pid]).length;
+
+    const payload = {
+      action: "kitchen_lot_upsert",
+      admin_pin: SESSION.pin,
+      operator: SESSION.operatorLabel,
+      production_day: todayKey,
+      status: status || "in_progress",
+      products_json: JSON.stringify({ needed, done, doneCount: doneCountLocal })
+    };
+
+    await api(payload);
+  } catch (_) {}
+}
+
+/* =======================
+   MAIN RENDER
+======================= */
+function renderMain(todayKey){
+  prodDateText.textContent = `Producción: ${todayKey}`;
+  prodRuleText.textContent = productionRuleText(todayKey);
+
+  const { byProduct, totalUnits } = aggregateByProduct(todayProductionOrders);
+  prodPill.textContent = `${totalUnits} unidades`;
+
+  const doneMap = getLotDone();
+
+  // Cards pendientes
+  const cards = [];
+  // Cards terminadas
+  const doneCardsHtml = [];
+
+  for(const p of PRODUCTS){
+    const qty = byProduct.get(p.id) || 0;
+    if(qty <= 0) continue;
+
+    const isDone = doneMap[p.id] === true;
+
+    const { lines, totalCost } = calcBatchIngredients(p.id, qty);
+    const costText = totalCost > 0 ? `$${money(totalCost)}` : "—";
+
+    const ingHtml = lines.map(li => {
+      const q = formatQty(li.qty);
+      // ✅ sin “—” extra
+      return `<div class="line"><span>${li.key}</span><div>${q}</div></div>`;
+    }).join("");
+
+    const content = `
+      <div class="accGrid">
+        <div class="rowBetween">
+          <div class="muted small">Ingredientes totales (lote)</div>
+          <div class="pill">Costo estimado: ${costText}</div>
+        </div>
+        ${ingHtml || `<div class="muted small">Sin receta configurada.</div>`}
+
+        <div class="rowBetween" style="margin-top:8px;">
+          <button class="btn secondary" data-act="start" data-pid="${p.id}" ${isDone ? "disabled" : ""}>Iniciar</button>
+          <button class="btn secondary" data-act="viewOrders" data-pid="${p.id}">Ver pedidos del día</button>
+        </div>
+      </div>
+    `;
+
+    const cardHtml = `
+      <div class="pCard ${isDone ? "" : ""}" data-pid="${p.id}">
+        <div class="rowBetween">
+          <div>
+            <div class="muted small">${p.name}</div>
+            <div class="bigNum">${qty}</div>
+          </div>
+
+          <!-- ✅ botón grande abre/cierra -->
+          <button class="btn secondary" type="button" data-act="toggle" data-pid="${p.id}">
+            ${"Insumos + receta"}
+          </button>
+        </div>
+
+        <div class="accBody">
+          <div class="rowBetween" style="margin-bottom:10px;">
+            <div class="pill">Insumos</div>
+            <button class="btn secondary" type="button" data-act="toggle" data-pid="${p.id}">Cerrar</button>
+          </div>
+          ${content}
+        </div>
+      </div>
+    `;
+
+    if(isDone){
+      doneCardsHtml.push(cardHtml.replace("Iniciar", "Iniciar"));
+    } else {
+      cards.push(cardHtml);
+    }
+  }
+
+  productCards.innerHTML = cards.length ? cards.join("") : `
+    <div class="card2" style="grid-column:1/-1;">
+      <div style="font-weight:950; font-size:18px;">No hay producción pendiente</div>
+      <div class="muted small">No existen postres pendientes por preparar para ${todayKey}.</div>
+    </div>
+  `;
+
+  // Sección “Preparados”
+  if(doneCardsHtml.length){
+    doneSection.classList.remove("hidden");
+    doneCount.textContent = `${doneCardsHtml.length}`;
+    doneCards.innerHTML = doneCardsHtml.join("");
+  } else {
+    doneSection.classList.add("hidden");
+  }
+
+  // Delegación de eventos
+  productCards.onclick = async (e) => {
+    const btn = e.target.closest("button[data-act]");
+    if(!btn) return;
+    const act = btn.dataset.act;
+    const pid = btn.dataset.pid;
+    const card = btn.closest(".pCard");
+
+    if(act === "toggle"){
+      card.classList.toggle("open");
+      return;
+    }
+
+    if(act === "viewOrders"){
+      openOrdersModal("today");
+      return;
+    }
+
+    if(act === "start"){
+      // confirm 3s antes de abrir receta + marcar En proceso
+      const pname = PRODUCTS.find(p=>p.id===pid)?.name || pid;
+      const orderIds = getBatchOrderIdsForProduct(pid);
+      if(!orderIds.length){
+        alert("No hay pedidos para este postre hoy.");
+        return;
+      }
+
+      await confirm3s(
+        "Iniciar elaboración",
+        `¿Iniciar la elaboración de ${pname}? Esto marcará los pedidos como “En proceso”.`,
+        async () => {
+          await bulkUpdate(orderIds, { kitchen_status:"En proceso" });
+          await upsertKitchenLot("in_progress");
+          openRecipe(pid);
+        }
+      );
+      return;
+    }
+  };
+}
+
+/* =======================
    LOAD + FILTER by Production day
 ======================= */
 async function loadKitchenData(fromRefresh){
@@ -875,37 +1051,26 @@ async function loadKitchenData(fromRefresh){
     });
 
     paidOrders = (out.orders || []).map(o => {
-      // Asegurar fecha usable: created_at a veces viene como "yyyy-MM-dd HH:mm:ss"
-      // Lo convertimos a ISO aproximado local si no parsea; fallback.
       let created = o.created_at;
       let dt = new Date(created);
       if(Number.isNaN(dt.getTime())){
-        // intentar parse "YYYY-MM-DD HH:mm:ss"
         const m = String(created||"").match(/^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2}):(\d{2})$/);
-        if(m){
-          // construimos como hora local de Bogotá (aprox) => convertimos a Date (sin tz real)
-          // Para lógica de día usamos Intl con TZ, pero Date necesita algo parseable:
-          // usamos ISO "YYYY-MM-DDTHH:mm:ss-05:00"
-          created = `${m[1]}-${m[2]}-${m[3]}T${m[4]}:${m[5]}:${m[6]}-05:00`;
-        }
+        if(m) created = `${m[1]}-${m[2]}-${m[3]}T${m[4]}:${m[5]}:${m[6]}-05:00`;
       }
       o.__created_iso = created;
       o.__prod_day = computeProductionDayKeyForOrder(created);
       return o;
     });
 
-    // pedidos del día (producción hoyKey) y que NO estén Listo
     todayProductionOrders = paidOrders
       .filter(o => o.__prod_day === todayKey)
       .filter(o => String(o.kitchen_status || "No iniciar") !== "Listo");
 
-    // histórico: pagados y kitchen_status Listo (sin limitar fechas)
     historyOrders = paidOrders
       .filter(o => String(o.kitchen_status || "") === "Listo")
       .sort((a,b) => new Date(b.__created_iso).getTime() - new Date(a.__created_iso).getTime())
-      .slice(0, 200); // límite visual
+      .slice(0, 200);
 
-    // UI main
     renderMain(todayKey);
   } finally {
     disableUIWhileLoading(false);
@@ -959,7 +1124,6 @@ tabHistory.addEventListener("click", () => setActiveTab("history"));
   renderOperatorProfiles();
 
   if(loadSession()){
-    // sesión previa
     showApp();
     loadKitchenData(false).catch(() => {
       clearSession();
@@ -968,15 +1132,4 @@ tabHistory.addEventListener("click", () => setActiveTab("history"));
   } else {
     showLogin();
   }
-
-  // delegación para acordeón y acciones
-  productCards.addEventListener("click", (e) => {
-    const card = e.target.closest(".pCard");
-    if(!card) return;
-
-    // si clic en botón no hace toggle (ya lo maneja el stopPropagation en HTML? aquí no hace falta)
-    if(e.target.closest("button")) return;
-
-    card.classList.toggle("open");
-  });
 })();
