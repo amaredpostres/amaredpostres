@@ -1,7 +1,5 @@
 // kitchen-profiles.js
-// Perfiles aprobados (no se escribe el nombre manualmente en login).
-// Para agregar uno nuevo: añade un objeto { id, label }.
-
+// Perfiles por defecto (se pueden ampliar desde la UI con clave secreta).
 window.AMARED_KITCHEN_PROFILES = [
   { id: "esperanza", label: "Esperanza" },
   { id: "cristian", label: "Cristian" },
