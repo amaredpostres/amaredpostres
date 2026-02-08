@@ -1,0 +1,153 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>AMARED | Cocina</title>
+
+  <link rel="icon" href="assets/favicon.ico" type="image/x-icon" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+
+<body>
+  <div class="app">
+    <header class="topbar">
+      <div class="brandRow">
+        <img src="assets/Logo-Isotipo-Amared.svg" alt="AMARED" class="brandLogo" />
+        <div>
+          <div class="brandTitle">AMARED</div>
+          <div class="brandSubtitle">Vista Cocina</div>
+        </div>
+      </div>
+
+      <div class="topbarActions">
+        <button id="btnRefresh" class="btn secondary" type="button">Actualizar</button>
+        <button id="btnLogout" class="btn" type="button">Salir</button>
+      </div>
+    </header>
+
+    <!-- LOGIN -->
+    <main id="loginView" class="container">
+      <section class="card">
+        <h2 class="cardTitle">Acceso Cocina</h2>
+        <p class="muted small">Ingresa el nombre del operador y el PIN para ver los pedidos pagados.</p>
+
+        <label class="label">Operador</label>
+        <input id="opName" class="input" type="text" placeholder="Ej: Cocina 1" />
+
+        <label class="label">PIN</label>
+        <input id="opPin" class="input" type="password" placeholder="PIN" />
+
+        <div id="loginError" class="status error"></div>
+
+        <button id="btnLogin" class="btn primary" type="button">Entrar</button>
+      </section>
+    </main>
+
+    <!-- PANEL -->
+    <main id="panelView" class="container hidden">
+      <section class="grid2">
+        <div class="card">
+          <div class="rowBetween">
+            <h3 class="cardTitle" style="margin:0;">Pedidos Pagados</h3>
+            <select id="filterKitchen" class="input" style="max-width:200px;">
+              <option value="">Todos</option>
+              <option value="No iniciar">No iniciar</option>
+              <option value="En proceso">En proceso</option>
+              <option value="Listo">Listo</option>
+            </select>
+          </div>
+
+          <div id="ordersList" class="list"></div>
+          <div id="ordersStatus" class="status"></div>
+        </div>
+
+        <div class="card">
+          <h3 class="cardTitle">Totales del día (según pedidos cargados)</h3>
+          <div id="totalsBox" class="miniCard"></div>
+          <div class="muted small">
+            Estos totales se calculan con los pedidos “Pagados” que estás viendo en la lista (según filtro).
+          </div>
+        </div>
+      </section>
+
+      <section class="card">
+        <div class="rowBetween">
+          <h3 class="cardTitle" style="margin:0;">Modo Paso a Paso</h3>
+          <button id="btnCloseSteps" class="btn secondary" type="button">Cerrar</button>
+        </div>
+
+        <div id="stepsWrap" class="stepsWrap hidden">
+          <div class="stepsHeader">
+            <div>
+              <div id="stepsTitle" class="stepsTitle">—</div>
+              <div id="stepsMeta" class="muted small">—</div>
+            </div>
+
+            <div class="stepsTimer">
+              <div class="muted small">Temporizador base</div>
+              <div id="timerText" class="timerText">—</div>
+              <button id="btnStartFridge" class="btn secondary" type="button">Ya está en nevera</button>
+            </div>
+          </div>
+
+          <div class="stepsBody">
+            <div class="stepVisual">
+              <img id="stepImg" alt="Paso" />
+            </div>
+
+            <div class="stepText">
+              <div id="stepIndex" class="muted small">Paso 1 / 1</div>
+              <div id="stepDesc" class="stepDesc">—</div>
+
+              <div class="stepsNav">
+                <button id="btnPrev" class="btn secondary" type="button">Atrás</button>
+                <button id="btnNext" class="btn primary" type="button">Siguiente</button>
+              </div>
+
+              <div class="rowBetween" style="margin-top:10px; gap:10px;">
+                <button id="btnToInProcess" class="btn secondary" type="button">Marcar: En proceso</button>
+                <button id="btnToDone" class="btn primary" type="button">Finalizar elaboración</button>
+              </div>
+              <div class="muted small">“Finalizar” muestra un conteo de 3 segundos para evitar errores.</div>
+            </div>
+          </div>
+
+          <div id="stepsMsg" class="status"></div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <!-- LOADING OVERLAY -->
+  <div id="loading" class="loadingOverlay hidden" aria-hidden="true">
+    <div class="loadingBox">
+      <div class="spinner"></div>
+      <div id="loadingText" class="loadingText">Cargando...</div>
+    </div>
+  </div>
+
+  <!-- MODAL 3s -->
+  <div id="confirm3" class="modalOverlay hidden" aria-hidden="true">
+    <div class="modal">
+      <div class="modalHeader">
+        <h3 class="modalTitle">Confirmar acción</h3>
+        <button id="btnCloseConfirm3" class="iconBtn" type="button" aria-label="Cerrar">✕</button>
+      </div>
+      <div class="modalBody">
+        <p id="confirm3Text" class="muted">—</p>
+        <div class="countdown">
+          <strong id="confirm3Count">3</strong>
+          <span class="muted">segundos</span>
+        </div>
+      </div>
+      <div class="modalFooter">
+        <button id="btnCancelConfirm3" class="btn secondary" type="button">Cancelar</button>
+        <button id="btnDoConfirm3" class="btn primary" type="button">Confirmar</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="kitchen.js"></script>
+</body>
+</html>
