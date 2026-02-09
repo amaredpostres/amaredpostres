@@ -1,42 +1,50 @@
-// kitchen-costs.js
-// Precios por unidad (COP):
-// - Si eliges unidad "g": COP por gramo
-// - Si eliges unidad "ml": COP por mililitro
-// - Si eliges unidad "unidad": COP por unidad
-//
-// ✅ IMPORTANTE:
-// - Aquí NO incluimos la unidad en el nombre (ej: "Leche condensada").
-// - La unidad se selecciona manualmente en la página de Costos.
-// - Duplicados como "Leche condensada (g/ml)" se unifican en un solo ingrediente.
+// kitchen-costs.js (AMARED)
+// ✅ Lista CANÓNICA de ingredientes (sin paréntesis, sin duplicados).
+// La unidad se define en la página de costos (g / ml / unidad).
 
-window.AMARED_INGREDIENT_PRICES = {
-  // Base comunes
-  "Pulpa maracuyá": 0,
-  "Leche condensada": 0,
-  "Crema de leche": 0,
-  "Leche entera": 0,
-  "Gelatina sin sabor": 0,
-  "Agua gelatina": 0,
-  "Vainilla": 0,
+window.AMARED_INGREDIENT_GROUPS = [
+  {
+    id: "shared_all",
+    title: "Ingredientes que comparten todos los postres",
+    keys: ["Leche condensada"]
+  },
+  {
+    id: "shared_mousse_rice",
+    title: "Ingredientes que comparten Mousse de maracuyá y Arroz con leche",
+    keys: ["Leche entera"]
+  },
+  {
+    id: "shared_mousse_cheesecake",
+    title: "Ingredientes que comparten Mousse y Cheesecake",
+    keys: ["Crema de leche", "Mantequilla sin sal", "Vainilla", "Gelatina sin sabor"]
+  },
+  {
+    id: "shared_cheesecake_rice",
+    title: "Ingredientes que comparten Cheesecake y Arroz con leche",
+    keys: ["Sal"]
+  },
+  {
+    id: "mousse",
+    title: "Postre: Mousse de maracuyá",
+    keys: ["Pulpa de maracuyá", "Galletas saladas", "Chocorramo", "Chocolate en polvo"]
+  },
+  {
+    id: "rice",
+    title: "Postre: Arroz con leche (puede cambiar)",
+    keys: ["Arroz blanco", "Agua", "Azúcar", "Canela en astilla", "Queso costeño"]
+  },
+  {
+    id: "cheesecake",
+    title: "Postre: Cheesecake de café con panela",
+    keys: ["Galleta de leche", "Queso crema", "Café", "Panela", "Harina de galleta de leche"]
+  }
+];
 
-  // Bases y mezclas
-  "Galletas trituradas": 0,
-  "Mantequilla": 0,
-
-  // Toppings / decoraciones
-  "Chocorramo": 0,
-  "Chocolate en polvo": 0,
-  "Harina galleta de leche": 0,
-
-  // Cheesecake específicos
-  "Queso crema": 0,
-  "Café preparado": 0,
-  "Panela": 0,
-
-  // Arroz con leche
-  "Arroz": 0,
-  "Azúcar": 0,
-  "Canela": 0,
-  "Sal": 0,
-  "Agua": 0
-};
+// Precios por unidad (COP) -> se sobreescriben con lo que venga de Sheets/localStorage.
+window.AMARED_INGREDIENT_PRICES = (function(){
+  const all = {};
+  for (const g of window.AMARED_INGREDIENT_GROUPS) {
+    for (const k of g.keys) all[k] = 0;
+  }
+  return all;
+})();
