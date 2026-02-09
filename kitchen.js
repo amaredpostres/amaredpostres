@@ -397,7 +397,18 @@ function lotKey(){ return `AMARED_LOT_DONE_${getTodayProductionDayKey()}`; }
 function getLotDone(){
   const raw = localStorage.getItem(lotKey());
   const obj = raw ? safeJsonParse(raw) : null;
-  return obj && typeof obj === "object" ? obj : {};
+  if(!obj || typeof obj !== "object") return {};
+  // ✅ Migración: versiones viejas guardaban true/false
+  const out = {};
+  for(const [k,v] of Object.entries(obj)){
+    if(v === true) out[k] = 0; // migración: antes era boolean, ahora se recalcula
+    else if(v === false || v == null) out[k] = 0;
+    else {
+      const n = Number(v);
+      out[k] = Number.isFinite(n) && n > 0 ? n : 0;
+    }
+  }
+  return out;
 }
 function setLotDone(obj){ localStorage.setItem(lotKey(), JSON.stringify(obj || {})); }
 
@@ -821,7 +832,7 @@ btnNext.addEventListener("click", async () => {
             patch: { kitchen_status:"Listo" }
           });
           const d = getLotDone();
-          d[currentProductId] = true;
+          d[currentProductId] = getTotalUnitsForProductInTodayBatch(currentProductId);
           setLotDone(d);
           closeRecipeRaw();
           await loadKitchenData(true);
@@ -835,7 +846,7 @@ btnNext.addEventListener("click", async () => {
         "Esto guardará este postre como preparado en la vista del lote (sin cerrar el lote completo).",
         async () => {
           const d = getLotDone();
-          d[currentProductId] = true;
+          d[currentProductId] = getTotalUnitsForProductInTodayBatch(currentProductId);
           setLotDone(d);
           closeRecipeRaw();
           await loadKitchenData(true);
@@ -862,52 +873,60 @@ function renderMain(todayKey){
   const doneCardsHtml = [];
 
   for(const p of PRODUCTS){
-    const qty = byProduct.get(p.id) || 0;
-    if(qty <= 0) continue;
+    const qtyTotal = byProduct.get(p.id) || 0;
+    if(qtyTotal <= 0) continue;
 
-    const isDone = doneMap[p.id] === true;
-    const { lines, totalCost } = calcBatchIngredients(p.id, qty);
-    const costText = totalCost > 0 ? `$${money(totalCost)}` : "—";
+    // ✅ Ahora guardamos "cuántas unidades ya fueron preparadas" (no boolean)
+    let doneQty = 0;
+    const rawDone = doneMap[p.id];
+    doneQty = Math.max(0, Math.min(qtyTotal, Math.floor(Number(rawDone || 0))));
 
-    const ingHtml = lines.map(li =>
-      `<div class="line"><span>${li.key}</span><div>${formatQty(li.qty)}</div></div>`
-    ).join("");
+    const pendingQty = Math.max(0, qtyTotal - doneQty);
 
-    const cardHtml = `
-      <div class="pCard" data-pid="${p.id}">
-        <div class="rowBetween">
-          <div>
-            <div class="muted small">${p.name}</div>
-            <div class="bigNum">${qty}</div>
+    function buildCard(displayQty, isDoneSection){
+      const { lines, totalCost } = calcBatchIngredients(p.id, displayQty);
+      const costText = totalCost > 0 ? `$${money(totalCost)}` : "—";
+      const ingHtml = lines.map(li =>
+        `<div class="line"><span>${li.key}</span><div>${formatQty(li.qty)}</div></div>`
+      ).join("");
+
+      return `
+        <div class="pCard" data-pid="${p.id}">
+          <div class="rowBetween">
+            <div>
+              <div class="muted small">${p.name}${isDoneSection ? " · Preparados" : ""}</div>
+              <div class="bigNum">${displayQty}</div>
+            </div>
+            <button class="btn secondary" type="button" data-act="toggle" data-pid="${p.id}">Insumos + receta</button>
           </div>
-          <button class="btn secondary" type="button" data-act="toggle" data-pid="${p.id}">Insumos + receta</button>
-        </div>
 
-        <div class="accBody">
-          <div class="rowBetween" style="margin-bottom:10px;">
-            <div class="pill">Insumos</div>
-            <button class="btn secondary" type="button" data-act="toggle" data-pid="${p.id}">Cerrar</button>
-          </div>
-
-          <div class="accGrid">
-            <div class="rowBetween">
-              <div class="muted small">Ingredientes totales (lote)</div>
-              <div class="pill">Costo estimado: ${costText}</div>
+          <div class="accBody">
+            <div class="rowBetween" style="margin-bottom:10px;">
+              <div class="pill">Insumos</div>
+              <button class="btn secondary" type="button" data-act="toggle" data-pid="${p.id}">Cerrar</button>
             </div>
 
-            ${ingHtml || `<div class="muted small">Sin receta configurada.</div>`}
+            <div class="accGrid">
+              <div class="rowBetween">
+                <div class="muted small">Ingredientes totales (lote)</div>
+                <div class="pill">Costo estimado: ${costText}</div>
+              </div>
 
-            <div class="rowBetween" style="margin-top:8px;">
-              <button class="btn secondary" data-act="start" data-pid="${p.id}" ${isDone ? "disabled" : ""}>Iniciar</button>
-              <button class="btn secondary" data-act="viewOrders" data-pid="${p.id}">Ver pedidos del día</button>
+              ${ingHtml || `<div class="muted small">Sin receta configurada.</div>`}
+
+              <div class="rowBetween" style="margin-top:8px;">
+                <button class="btn secondary" data-act="start" data-pid="${p.id}" ${isDoneSection ? "disabled" : ""}>Iniciar</button>
+                <button class="btn secondary" data-act="viewOrders" data-pid="${p.id}">Ver pedidos del día</button>
+              </div>
             </div>
           </div>
         </div>
-      </div>
-    `;
+      `;
+    }
 
-    if(isDone) doneCardsHtml.push(cardHtml);
-    else cards.push(cardHtml);
+    // ✅ Si entran pedidos nuevos después, solo la diferencia queda como pendiente
+    if(pendingQty > 0) cards.push(buildCard(pendingQty, false));
+    if(doneQty > 0) doneCardsHtml.push(buildCard(doneQty, true));
   }
 
   productCards.innerHTML = cards.length ? cards.join("") : `
