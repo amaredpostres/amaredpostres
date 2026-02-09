@@ -401,34 +401,6 @@ function getLotDone(){
 }
 function setLotDone(obj){ localStorage.setItem(lotKey(), JSON.stringify(obj || {})); }
 
-// Lot server state (COCINA_LOTES)
-let LOT_STATUS = null;
-let LOT_OPERATOR = null;
-
-function applyServerLot(lot){
-  if(!lot){ LOT_STATUS = null; LOT_OPERATOR = null; return; }
-  LOT_STATUS = String(lot.status || "").trim() || null;
-  LOT_OPERATOR = String(lot.operator || "").trim() || null;
-  const raw = lot.products_json;
-  if(raw){
-    const parsed = typeof raw === "string" ? safeJsonParse(raw) : raw;
-    if(parsed && typeof parsed === "object") setLotDone(parsed);
-  }
-}
-
-async function upsertLot(status){
-  const todayKey = getTodayProductionDayKey();
-  const productsJson = JSON.stringify(getLotDone() || {});
-  return api({
-    action: "kitchen_lot_upsert",
-    admin_pin: SESSION.pin,
-    production_day: todayKey,
-    status: status || "En producción",
-    operator: SESSION.operatorLabel,
-    products_json: productsJson
-  });
-}
-
 // Profiles UI
 function renderOperatorProfiles(){
   selOperator.innerHTML = profiles.map(p => `<option value="${p.id}">${p.label}</option>`).join("");
@@ -851,7 +823,6 @@ btnNext.addEventListener("click", async () => {
           const d = getLotDone();
           d[currentProductId] = true;
           setLotDone(d);
-          try{ await upsertLot("En producción"); } catch(e){}
           closeRecipeRaw();
           await loadKitchenData(true);
           hideLoading();
@@ -941,8 +912,8 @@ function renderMain(todayKey){
 
   productCards.innerHTML = cards.length ? cards.join("") : `
     <div class="card2" style="grid-column:1/-1;">
-      <div style="font-weight:950; font-size:18px;">${(LOT_STATUS === "Finalizado") ? "✅ Producción del día finalizada" : "No hay producción pendiente"}</div>
-      <div class="muted small">${(LOT_STATUS === "Finalizado") ? `Este día (${todayKey}) ya fue producido. Puedes revisar pedidos en el historial.` : `No existen postres pendientes por preparar para ${todayKey}.`}</div>
+      <div style="font-weight:950; font-size:18px;">No hay producción pendiente</div>
+      <div class="muted small">No existen postres pendientes por preparar para ${todayKey}.</div>
     </div>
   `;
 
@@ -954,15 +925,23 @@ function renderMain(todayKey){
     doneSection.classList.add("hidden");
   }
 
-  productCards.onclick = async (e) => {
+  function bindCardsClick(container){
+  if(!container) return;
+  container.onclick = async (e) => {
     const btn = e.target.closest("button[data-act]");
     if(!btn) return;
     const act = btn.dataset.act;
     const pid = btn.dataset.pid;
     const card = btn.closest(".pCard");
 
-    if(act === "toggle"){ card.classList.toggle("open"); return; }
-    if(act === "viewOrders"){ openOrdersModal("today"); return; }
+    if(act === "toggle"){ 
+      if(card) card.classList.toggle("open"); 
+      return; 
+    }
+    if(act === "viewOrders"){ 
+      openOrdersModal("today"); 
+      return; 
+    }
 
     if(act === "start"){
       const pname = PRODUCTS.find(p=>p.id===pid)?.name || pid;
@@ -981,7 +960,6 @@ function renderMain(todayKey){
             order_ids: orderIds,
             patch: { kitchen_status:"En proceso" }
           });
-          try{ await upsertLot("En producción"); } catch(e){}
           openRecipe(pid);
         }
       );
@@ -989,7 +967,12 @@ function renderMain(todayKey){
   };
 }
 
-// Load + filter
+  // ⬇️ Delegación de eventos en AMBAS columnas
+  bindCardsClick(productCards);
+  bindCardsClick(doneCards);
+}
+
+ // Load + filter
 async function loadKitchenData(fromRefresh){
   const todayKey = getTodayProductionDayKey();
   showLoading(fromRefresh ? "Actualizando..." : "Cargando cocina...", "Obteniendo pedidos pagados y calculando producción del día.");
@@ -1010,18 +993,6 @@ async function loadKitchenData(fromRefresh){
       .filter(o => String(o.kitchen_status || "") === "Listo")
       .sort((a,b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
       .slice(0, 200);
-
-    // ✅ Lote del día (COCINA_LOTES): sincroniza estado + preparados
-    try{
-      const lotResp = await api({
-        action: "kitchen_lot_get",
-        admin_pin: SESSION.pin,
-        production_day: todayKey
-      });
-      applyServerLot(lotResp.lot);
-    } catch(e){
-      // Si aún no existe la acción en backend, no bloqueamos la app
-    }
 
     renderMain(todayKey);
   } finally {
