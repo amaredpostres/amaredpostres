@@ -1,45 +1,28 @@
-/* =========================
-   AMARED - Cocina (Producción diaria)
-   Cambios pedidos por Cristian:
-   - Costos estimados reales (editable con clave secreta)
-   - Perfiles gestionables desde login con clave secreta
-   - Confirm UX: al confirmar, se cierra el aviso y queda el loader
-   - Loader se quita cuando ya está visible el paso a paso
-   - Paso temporizador: botón principal = Iniciar temporizador (obligatorio)
-   - Temporizador queda flotante y visible mientras avanzas
-   - Quitar botones redundantes dentro del paso a paso
-   - Botón final en último paso: Finalizar este postre / Finalizar lote
-   - Cerrar receta durante proceso -> confirma 3s y revierte a "No iniciar"
-   - Finalizar lote -> cierra receta y refresca
-========================= */
-
 const API_URL = "https://amared-orders.amaredpostres.workers.dev/";
 const TZ = "America/Bogota";
 const CUTOFF_HOUR = 15;
 const BASE_FRIDGE_MINUTES = 30;
 
-/* ===== Claves UI (front) =====
-   Nota: esto está en frontend (visible si alguien inspecciona código).
-   Para máxima seguridad, en el futuro lo validamos desde Worker/GAS.
-*/
-const PROFILES_SECRET_CODE = "AMARED_PROFILES_2026";
-const COSTS_SECRET_CODE = "AMARED_COSTS_2026";
+// ✅ Ya NO hay claves en el frontend
+async function validateSecretWithWorker(type, secret) {
+  const out = await api({ action:"validate_secret", type, secret });
+  if (!out?.ok) throw new Error("Clave inválida");
+  return true;
+}
 
 const LS_PROFILES_KEY = "AMARED_KITCHEN_PROFILES_LOCAL";
 const LS_COSTS_KEY = "AMARED_INGREDIENT_PRICES_LOCAL";
 
-/* =======================
-   Perfiles
-======================= */
 const DEFAULT_PROFILES = (window.AMARED_KITCHEN_PROFILES && Array.isArray(window.AMARED_KITCHEN_PROFILES))
   ? window.AMARED_KITCHEN_PROFILES
   : [{ id:"esperanza", label:"Esperanza" }, { id:"cristian", label:"Cristian" }];
+
+function safeJsonParse(s){ try { return JSON.parse(s); } catch { return null; } }
 
 function loadProfiles(){
   const raw = localStorage.getItem(LS_PROFILES_KEY);
   const local = raw ? safeJsonParse(raw) : null;
   const merged = [...DEFAULT_PROFILES];
-
   if(Array.isArray(local)){
     for(const p of local){
       if(!p?.id || !p?.label) continue;
@@ -52,17 +35,12 @@ function saveProfilesLocal(list){
   localStorage.setItem(LS_PROFILES_KEY, JSON.stringify(list || []));
 }
 function makeIdFromLabel(label){
-  return String(label||"")
-    .trim()
-    .toLowerCase()
+  return String(label||"").trim().toLowerCase()
     .replace(/[^a-z0-9áéíóúñ]+/gi, "_")
     .replace(/_+/g,"_")
     .replace(/^_|_$/g,"");
 }
 
-/* =======================
-   Costos
-======================= */
 const DEFAULT_PRICES = (window.AMARED_INGREDIENT_PRICES && typeof window.AMARED_INGREDIENT_PRICES === "object")
   ? window.AMARED_INGREDIENT_PRICES
   : {};
@@ -76,19 +54,12 @@ function savePrices(prices){
   localStorage.setItem(LS_COSTS_KEY, JSON.stringify(prices || {}));
 }
 
-/* =======================
-   Productos
-======================= */
 const PRODUCTS = [
   { id: "mousse_maracuya", name: "Mousse de Maracuyá" },
   { id: "cheesecake_cafe_panela", name: "Cheesecake de café con panela" },
   { id: "arroz_con_leche", name: "Arroz con leche (no activo)" },
 ];
 
-/* =======================
-   Recetas por UNIDAD
-   - key: mismo texto que se usa en precios
-======================= */
 const RECIPE_UNIT = {
   mousse_maracuya: {
     unitIngredients: [
@@ -109,18 +80,13 @@ const RECIPE_UNIT = {
       { type:"normal", text:"Tritura las galletas (textura arenosa).", img:"assets/steps/mousse/step01.webp" },
       { type:"normal", text:"Mezcla galleta + mantequilla derretida hasta que compacte.", img:"assets/steps/mousse/step02.webp" },
       { type:"normal", text:"Porciona y compacta 25 g de base en cada vasito.", img:"assets/steps/mousse/step03.webp" },
-
-      // Paso temporizador (obligatorio para continuar)
       { type:"timer_base", text:"Ingresa los vasitos con la base a la nevera (30 min). Presiona “Iniciar temporizador” cuando ya estén adentro.", img:"assets/steps/mousse/step04.webp" },
-
       { type:"normal", text:"En licuadora mezcla TODO junto: pulpa, leche condensada, crema, leche entera y vainilla (opcional).", img:"assets/steps/mousse/step05.webp" },
       { type:"normal", text:"En olla: calienta agua hasta tibia (sin hervir).", img:"assets/steps/mousse/step06.webp" },
       { type:"normal", text:"Agrega gelatina sin sabor y revuelve hasta disolver homogéneo.", img:"assets/steps/mousse/step07.webp" },
       { type:"normal", text:"Con la licuadora encendida, integra la gelatina disuelta lentamente.", img:"assets/steps/mousse/step08.webp" },
       { type:"normal", text:"Sirve la mezcla en los vasitos sobre la base.", img:"assets/steps/mousse/step09.webp" },
       { type:"normal", text:"Refrigera mínimo 8 horas o toda la noche.", img:"assets/steps/mousse/step10.webp" },
-
-      // Ajuste: 20g por postre
       { type:"normal", text:"Agregar chocorramo (20 g por postre).", img:"assets/steps/mousse/step11.webp" },
       { type:"normal", text:"Espolvorea chocolate con la forma del logo.", img:"assets/steps/mousse/step12.webp" },
     ],
@@ -138,8 +104,6 @@ const RECIPE_UNIT = {
       { key:"Gelatina sin sabor (g)", qty:1.67 },
       { key:"Agua gelatina (ml)", qty:7.5 },
       { key:"Vainilla (ml)", qty:0.33 },
-
-      // Decoración adicional
       { key:"Decoración: harina galleta de leche (g)", qty:1 },
     ],
     steps: [
@@ -147,17 +111,12 @@ const RECIPE_UNIT = {
       { type:"normal", text:"Tritura galletas (textura arenosa).", img:"assets/steps/cheesecake/step01.webp" },
       { type:"normal", text:"Mezcla galleta + mantequilla derretida.", img:"assets/steps/cheesecake/step02.webp" },
       { type:"normal", text:"Porciona y compacta 25 g de base en cada vasito.", img:"assets/steps/cheesecake/step03.webp" },
-
-      // Temporizador obligatorio
       { type:"timer_base", text:"Ingresa los vasitos con la base a la nevera (30 min). Presiona “Iniciar temporizador” cuando ya estén adentro.", img:"assets/steps/cheesecake/step04.webp" },
-
       { type:"normal", text:"Mezcla queso crema + crema + leche condensada + vainilla hasta homogéneo.", img:"assets/steps/cheesecake/step06.webp" },
       { type:"normal", text:"En olla: calienta agua tibia (sin hervir).", img:"assets/steps/cheesecake/step07.webp" },
       { type:"normal", text:"Agrega gelatina y revuelve hasta disolver homogéneo.", img:"assets/steps/cheesecake/step08.webp" },
       { type:"normal", text:"Integra la gelatina disuelta lentamente mientras mezclas.", img:"assets/steps/cheesecake/step09.webp" },
       { type:"normal", text:"Sirve sobre la base y refrigera.", img:"assets/steps/cheesecake/step10.webp" },
-
-      // Paso adicional decor
       { type:"normal", text:"Decora espolvoreando harina de la galleta de leche (decoración).", img:"assets/steps/cheesecake/step11.webp" },
     ],
   },
@@ -186,59 +145,47 @@ const RECIPE_UNIT = {
   },
 };
 
-/* =======================
-   DOM
-======================= */
+// DOM
 const loginView = document.getElementById("loginView");
 const appView = document.getElementById("appView");
 const topActions = document.getElementById("topActions");
-
 const selOperator = document.getElementById("selOperator");
 const inpPin = document.getElementById("inpPin");
 const btnLogin = document.getElementById("btnLogin");
 const btnManageProfiles = document.getElementById("btnManageProfiles");
 const loginErr = document.getElementById("loginErr");
-
 const btnRefresh = document.getElementById("btnRefresh");
 const btnLogout = document.getElementById("btnLogout");
 const btnOrders = document.getElementById("btnOrders");
 const btnCosts = document.getElementById("btnCosts");
-
 const prodDateText = document.getElementById("prodDateText");
 const prodRuleText = document.getElementById("prodRuleText");
 const prodPill = document.getElementById("prodPill");
 const productCards = document.getElementById("productCards");
-
 const doneSection = document.getElementById("doneSection");
 const doneCards = document.getElementById("doneCards");
 const doneCount = document.getElementById("doneCount");
-
 const loading = document.getElementById("loading");
 const loadingTitle = document.getElementById("loadingTitle");
 const loadingDesc = document.getElementById("loadingDesc");
-
 const ordersModal = document.getElementById("ordersModal");
 const btnCloseOrders = document.getElementById("btnCloseOrders");
 const ordersModalSub = document.getElementById("ordersModalSub");
 const tabToday = document.getElementById("tabToday");
 const tabHistory = document.getElementById("tabHistory");
 const ordersList = document.getElementById("ordersList");
-
 const recipeOverlay = document.getElementById("recipeOverlay");
 const btnRecipeClose = document.getElementById("btnRecipeClose");
 const recipeTitle = document.getElementById("recipeTitle");
 const recipeSub = document.getElementById("recipeSub");
-
 const stepCounter = document.getElementById("stepCounter");
 const stepText = document.getElementById("stepText");
 const stepHint = document.getElementById("stepHint");
 const stepImg = document.getElementById("stepImg");
 const btnPrev = document.getElementById("btnPrev");
 const btnNext = document.getElementById("btnNext");
-
 const timerFloat = document.getElementById("timerFloat");
 const timerFloatTime = document.getElementById("timerFloatTime");
-
 const confirmOverlay = document.getElementById("confirmOverlay");
 const confirmTitle = document.getElementById("confirmTitle");
 const confirmText = document.getElementById("confirmText");
@@ -246,7 +193,7 @@ const confirmCountdown = document.getElementById("confirmCountdown");
 const btnConfirmBack = document.getElementById("btnConfirmBack");
 const btnConfirmGo = document.getElementById("btnConfirmGo");
 
-/* Profiles modal */
+// Profiles modal
 const profilesModal = document.getElementById("profilesModal");
 const btnCloseProfiles = document.getElementById("btnCloseProfiles");
 const profilesGate = document.getElementById("profilesGate");
@@ -258,7 +205,7 @@ const profilesList = document.getElementById("profilesList");
 const inpNewProfile = document.getElementById("inpNewProfile");
 const btnAddProfile = document.getElementById("btnAddProfile");
 
-/* Costs modal */
+// Costs modal
 const costsModal = document.getElementById("costsModal");
 const btnCloseCosts = document.getElementById("btnCloseCosts");
 const costsGate = document.getElementById("costsGate");
@@ -269,47 +216,23 @@ const costsGateErr = document.getElementById("costsGateErr");
 const costsList = document.getElementById("costsList");
 const btnSaveCosts = document.getElementById("btnSaveCosts");
 
-/* =======================
-   STATE
-======================= */
 let SESSION = { operatorId:null, operatorLabel:null, pin:null };
-
 let profiles = [];
 let prices = {};
-
 let paidOrders = [];
 let todayProductionOrders = [];
 let historyOrders = [];
-
 let currentProductId = null;
 let currentBatchOrderIds = [];
 let currentSteps = [];
 let currentStepIdx = 0;
-
 let baseTimerInterval = null;
 let baseTimerEndMs = null;
-
 let confirmTimer = null;
 let confirmOnGo = null;
-
 let ordersTab = "today";
 
-/* Lote UI state */
-function lotKey(){
-  return `AMARED_LOT_DONE_${getTodayProductionDayKey()}`;
-}
-function getLotDone(){
-  const raw = localStorage.getItem(lotKey());
-  const obj = raw ? safeJsonParse(raw) : null;
-  return obj && typeof obj === "object" ? obj : {};
-}
-function setLotDone(obj){
-  localStorage.setItem(lotKey(), JSON.stringify(obj || {}));
-}
-
-/* =======================
-   UTIL
-======================= */
+// Utils UI
 function showLoading(title, desc){
   loadingTitle.textContent = title || "Cargando...";
   loadingDesc.textContent = desc || "Por favor espera.";
@@ -319,19 +242,6 @@ function showLoading(title, desc){
 function hideLoading(){
   loading.classList.remove("show");
   loading.setAttribute("aria-hidden","true");
-}
-function safeJsonParse(s){
-  try { return JSON.parse(s); } catch { return null; }
-}
-function fmtDateTimeCO(d){
-  return new Intl.DateTimeFormat("es-CO", { timeZone: TZ, dateStyle:"short", timeStyle:"short" }).format(d);
-}
-function money(n){
-  return Math.round(Number(n||0)).toLocaleString("es-CO");
-}
-function formatQty(q){
-  const rounded = Math.round(q*10)/10;
-  return rounded.toLocaleString("es-CO");
 }
 function disableUIWhileLoading(disabled){
   if (btnRefresh) btnRefresh.disabled = disabled;
@@ -349,10 +259,18 @@ function showApp(){
   appView.classList.remove("hidden");
   topActions.classList.remove("hidden");
 }
+function fmtDateTimeCO(d){
+  return new Intl.DateTimeFormat("es-CO", { timeZone: TZ, dateStyle:"short", timeStyle:"short" }).format(d);
+}
+function money(n){
+  return Math.round(Number(n||0)).toLocaleString("es-CO");
+}
+function formatQty(q){
+  const rounded = Math.round(q*10)/10;
+  return rounded.toLocaleString("es-CO");
+}
 
-/* =======================
-   API
-======================= */
+// API
 async function api(payload){
   const res = await fetch(API_URL, {
     method:"POST",
@@ -364,9 +282,7 @@ async function api(payload){
   return out;
 }
 
-/* =======================
-   TIME RULES
-======================= */
+// Time rules
 function getBogotaParts(date){
   const fmt = new Intl.DateTimeFormat("en-CA", {
     timeZone: TZ,
@@ -376,10 +292,7 @@ function getBogotaParts(date){
   });
   const parts = fmt.formatToParts(date);
   const get = (t) => parts.find(p => p.type === t)?.value;
-  return {
-    hh: Number(get("hour")),
-    key: `${get("year")}-${get("month")}-${get("day")}`
-  };
+  return { hh: Number(get("hour")), key: `${get("year")}-${get("month")}-${get("day")}` };
 }
 function addDaysBogotaKey(yyyy_mm_dd, days){
   const [Y,M,D] = yyyy_mm_dd.split("-").map(Number);
@@ -396,7 +309,6 @@ function getWeekdayBogota(date){
 function computeProductionDayKeyForOrder(createdAt){
   const dt = new Date(createdAt);
   if (Number.isNaN(dt.getTime())) return null;
-
   const p = getBogotaParts(dt);
   const orderDayKey = p.key;
   const weekday = getWeekdayBogota(dt);
@@ -404,7 +316,6 @@ function computeProductionDayKeyForOrder(createdAt){
   if (weekday === 6) return addDaysBogotaKey(orderDayKey, 2);
   if (weekday === 0) return addDaysBogotaKey(orderDayKey, 1);
   if (weekday === 5 && p.hh >= CUTOFF_HOUR) return addDaysBogotaKey(orderDayKey, 3);
-
   if (p.hh >= CUTOFF_HOUR) return addDaysBogotaKey(orderDayKey, 1);
   return orderDayKey;
 }
@@ -416,16 +327,13 @@ function getTodayProductionDayKey(){
   if (weekday === 6) return addDaysBogotaKey(p.key, 2);
   if (weekday === 0) return addDaysBogotaKey(p.key, 1);
   if (weekday === 5 && p.hh >= CUTOFF_HOUR) return addDaysBogotaKey(p.key, 3);
-
   return p.key;
 }
 function productionRuleText(todayKey){
   return `Regla: pedidos del día hasta las 3:00 pm → se producen HOY (${todayKey}) para entregar mañana 3:30–4:00 pm. Pedidos después de 3:00 pm pasan al siguiente día hábil (viernes > 3pm → lunes).`;
 }
 
-/* =======================
-   ITEMS & AGGREGATION
-======================= */
+// Items
 function normalizeItemsFromOrder(order){
   const raw = order.items_json;
   if (raw) {
@@ -443,7 +351,6 @@ function normalizeItemsFromOrder(order){
 function aggregateByProduct(orders){
   const map = new Map();
   let totalUnits = 0;
-
   for(const o of orders){
     const items = normalizeItemsFromOrder(o);
     for(const it of items){
@@ -454,20 +361,16 @@ function aggregateByProduct(orders){
   return { byProduct: map, totalUnits };
 }
 
-/* =======================
-   COST CALC
-======================= */
+// Costs calc
 function calcBatchIngredients(productId, units){
   const recipe = RECIPE_UNIT[productId];
   if (!recipe) return { lines:[], totalCost:0 };
-
   let totalCost = 0;
 
   const lines = recipe.unitIngredients.map(ing => {
     const totalQty = (Number(ing.qty || 0) * Number(units || 0));
     const pricePerUnit = Number(prices[ing.key] || 0);
     const cost = totalQty * pricePerUnit;
-
     totalCost += cost;
     return { key: ing.key, qty: totalQty, pricePerUnit, cost };
   });
@@ -475,20 +378,13 @@ function calcBatchIngredients(productId, units){
   return { lines, totalCost };
 }
 
-/* =======================
-   SESSION
-======================= */
-function saveSession(){
-  sessionStorage.setItem("AMARED_KITCHEN_SESSION", JSON.stringify(SESSION));
-}
+// Session
+function saveSession(){ sessionStorage.setItem("AMARED_KITCHEN_SESSION", JSON.stringify(SESSION)); }
 function loadSession(){
   const raw = sessionStorage.getItem("AMARED_KITCHEN_SESSION");
   if(!raw) return false;
   const s = safeJsonParse(raw);
-  if(s?.operatorId && s?.operatorLabel && s?.pin){
-    SESSION = s;
-    return true;
-  }
+  if(s?.operatorId && s?.operatorLabel && s?.pin){ SESSION = s; return true; }
   return false;
 }
 function clearSession(){
@@ -496,13 +392,18 @@ function clearSession(){
   SESSION = { operatorId:null, operatorLabel:null, pin:null };
 }
 
-/* =======================
-   PROFILES UI
-======================= */
+// Lot done state
+function lotKey(){ return `AMARED_LOT_DONE_${getTodayProductionDayKey()}`; }
+function getLotDone(){
+  const raw = localStorage.getItem(lotKey());
+  const obj = raw ? safeJsonParse(raw) : null;
+  return obj && typeof obj === "object" ? obj : {};
+}
+function setLotDone(obj){ localStorage.setItem(lotKey(), JSON.stringify(obj || {})); }
+
+// Profiles UI
 function renderOperatorProfiles(){
-  selOperator.innerHTML = profiles
-    .map(p => `<option value="${p.id}">${p.label}</option>`)
-    .join("");
+  selOperator.innerHTML = profiles.map(p => `<option value="${p.id}">${p.label}</option>`).join("");
 }
 function openProfilesModal(){
   profilesGate.classList.remove("hidden");
@@ -529,8 +430,8 @@ function renderProfilesList(){
           <div style="font-weight:950;">${p.label}</div>
           <div class="pill">${isDefault ? "Base" : "Local"}</div>
         </div>
-        ${isDefault ? `<div class="muted small">Este perfil viene del archivo kitchen-profiles.js</div>`
-                    : `<button class="btn secondary" data-del="${p.id}" type="button" style="margin-top:10px;">Eliminar</button>`}
+        ${isDefault ? `<div class="muted small">Este perfil viene de kitchen-profiles.js</div>`
+          : `<button class="btn secondary" data-del="${p.id}" type="button" style="margin-top:10px;">Eliminar</button>`}
       </div>
     `;
   }).join("");
@@ -541,19 +442,15 @@ function renderProfilesList(){
     const btn = e.target.closest("button[data-del]");
     if(!btn) return;
     const id = btn.dataset.del;
-
     const next = localList.filter(x => x.id !== id);
     saveProfilesLocal(next);
-
     profiles = loadProfiles();
     renderOperatorProfiles();
     renderProfilesList();
   };
 }
 
-/* =======================
-   COSTS UI
-======================= */
+// Costs UI
 function openCostsModal(){
   costsGate.classList.remove("hidden");
   costsEditor.classList.add("hidden");
@@ -569,9 +466,7 @@ function closeCostsModal(){
 function getAllIngredientKeys(){
   const set = new Set();
   for(const pid of Object.keys(RECIPE_UNIT)){
-    for(const ing of (RECIPE_UNIT[pid].unitIngredients || [])){
-      set.add(ing.key);
-    }
+    for(const ing of (RECIPE_UNIT[pid].unitIngredients || [])) set.add(ing.key);
   }
   return Array.from(set).sort((a,b)=>a.localeCompare(b,"es"));
 }
@@ -588,9 +483,7 @@ function renderCostsEditor(){
   }).join("");
 }
 
-/* =======================
-   ORDERS MODAL
-======================= */
+// Orders modal
 function setActiveTab(which){
   ordersTab = which;
   tabToday.classList.toggle("active", which==="today");
@@ -601,7 +494,6 @@ function openOrdersModal(which){
   setActiveTab(which || "today");
   ordersModal.classList.add("show");
   ordersModal.setAttribute("aria-hidden","false");
-
   const todayKey = getTodayProductionDayKey();
   ordersModalSub.textContent = which==="today"
     ? `Pedidos que se producen hoy (${todayKey})`
@@ -613,14 +505,11 @@ function closeOrdersModal(){
 }
 function renderOrdersModalList(){
   const list = (ordersTab==="today") ? todayProductionOrders : historyOrders;
-
   if(!list.length){
     ordersList.innerHTML = `<div class="muted small" style="text-align:center; padding:14px;">No hay pedidos para mostrar.</div>`;
     return;
   }
-
   const sorted = [...list].sort((a,b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
-
   ordersList.innerHTML = sorted.map(o => {
     const items = normalizeItemsFromOrder(o);
     const units = items.reduce((s,it)=>s+it.qty,0);
@@ -637,19 +526,10 @@ function renderOrdersModalList(){
   }).join("");
 }
 
-/* =======================
-   CONFIRM 3s (UX mejorada)
-   - al confirmar: cierra el aviso inmediatamente
-   - luego se muestra loader desde el onGo
-======================= */
-function openConfirm(){
-  confirmOverlay.classList.add("show");
-  confirmOverlay.setAttribute("aria-hidden","false");
-}
-function closeConfirm(){
-  confirmOverlay.classList.remove("show");
-  confirmOverlay.setAttribute("aria-hidden","true");
-}
+// Confirm 3s (cierra aviso y deja loader)
+function openConfirm(){ confirmOverlay.classList.add("show"); confirmOverlay.setAttribute("aria-hidden","false"); }
+function closeConfirm(){ confirmOverlay.classList.remove("show"); confirmOverlay.setAttribute("aria-hidden","true"); }
+
 function confirm3s(title, text, onGo){
   return new Promise((resolve) => {
     if(confirmTimer) clearInterval(confirmTimer);
@@ -685,33 +565,20 @@ function confirm3s(title, text, onGo){
     btnConfirmGo.onclick = async () => {
       if(btnConfirmGo.disabled) return;
       btnConfirmGo.disabled = true;
-
-      // ✅ cerrar aviso inmediatamente
-      closeConfirm();
-
-      try{
-        await confirmOnGo?.();
-        resolve(true);
-      } catch (e){
-        alert(String(e.message || e));
-        resolve(false);
-      } finally {
-        confirmOnGo = null;
-      }
+      closeConfirm(); // ✅ se cierra el aviso al confirmar
+      try{ await confirmOnGo?.(); resolve(true); }
+      catch(e){ alert(String(e.message||e)); resolve(false); }
+      finally{ confirmOnGo = null; }
     };
   });
 }
 
-/* =======================
-   Batch helpers
-======================= */
+// Batch helpers
 function getBatchOrderIdsForProduct(productId){
   const ids = [];
   for(const o of todayProductionOrders){
     const items = normalizeItemsFromOrder(o);
-    if(items.some(it => it.id === productId && it.qty>0)){
-      ids.push(String(o.order_id));
-    }
+    if(items.some(it => it.id === productId && it.qty>0)) ids.push(String(o.order_id));
   }
   return ids;
 }
@@ -719,9 +586,7 @@ function getTotalUnitsForProductInTodayBatch(productId){
   let total = 0;
   for(const o of todayProductionOrders){
     const items = normalizeItemsFromOrder(o);
-    for(const it of items){
-      if(it.id === productId) total += it.qty;
-    }
+    for(const it of items) if(it.id === productId) total += it.qty;
   }
   return total;
 }
@@ -735,15 +600,11 @@ function getProductsNeededToday(){
   return needed;
 }
 
-/* =======================
-   Bulk update
-======================= */
+// Bulk update
 async function bulkUpdate(orderIds, patch){
   if(!orderIds.length) return;
-
   showLoading("Actualizando...", "Aplicando cambios.");
   disableUIWhileLoading(true);
-
   try{
     await api({
       action: "kitchen_bulk_update",
@@ -752,7 +613,6 @@ async function bulkUpdate(orderIds, patch){
       order_ids: orderIds,
       patch
     });
-
     await loadKitchenData(true);
   } finally {
     disableUIWhileLoading(false);
@@ -760,87 +620,12 @@ async function bulkUpdate(orderIds, patch){
   }
 }
 
-/* =======================
-   Recipe overlay
-======================= */
+// Recipe overlay
 let currentStepsTotal = 0;
-let timerStartedForThisRecipe = false;
-
-function openRecipe(productId){
-  currentProductId = productId;
-  currentSteps = RECIPE_UNIT[productId]?.steps || [];
-  currentStepsTotal = currentSteps.length || 1;
-  currentStepIdx = 0;
-  currentBatchOrderIds = getBatchOrderIdsForProduct(productId);
-
-  timerStartedForThisRecipe = false;
-
-  const productName = PRODUCTS.find(p=>p.id===productId)?.name || productId;
-  const todayKey = getTodayProductionDayKey();
-
-  recipeTitle.textContent = `Receta · ${productName}`;
-  recipeSub.textContent = `Producción ${todayKey} · ${currentBatchOrderIds.length} pedido(s)`;
-
-  recipeOverlay.classList.add("show");
-  recipeOverlay.setAttribute("aria-hidden","false");
-
-  // Loader se quita cuando ya está visible el paso a paso
-  renderRecipeStep();
-  hideLoading();
-}
-
-async function closeRecipeWithGuard(){
-  // Si se inició el proceso (En proceso), al cerrar se debe confirmar y revertir a No iniciar
-  if(!currentProductId) return;
-
-  const pname = PRODUCTS.find(p=>p.id===currentProductId)?.name || currentProductId;
-
-  // confirm 3s + revert
-  await confirm3s(
-    "Salir del proceso",
-    `¿Deseas salir de la elaboración de "${pname}"? Esto devolverá el estado a "No iniciar".`,
-    async () => {
-      showLoading("Revirtiendo...", "Dejando el postre como No iniciar.");
-      await api({
-        action: "kitchen_bulk_update",
-        admin_pin: SESSION.pin,
-        operator: SESSION.operatorLabel,
-        order_ids: currentBatchOrderIds,
-        patch: { kitchen_status: "No iniciar" }
-      });
-      closeRecipeRaw();
-      await loadKitchenData(true);
-      hideLoading();
-    }
-  );
-}
-
-function closeRecipeRaw(){
-  recipeOverlay.classList.remove("show");
-  recipeOverlay.setAttribute("aria-hidden","true");
-
-  currentProductId = null;
-  currentBatchOrderIds = [];
-  currentSteps = [];
-  currentStepIdx = 0;
-  currentStepsTotal = 0;
-
-  timerStartedForThisRecipe = false;
-}
-
-btnRecipeClose.addEventListener("click", async () => {
-  // si no hay nada, cierra
-  if(!currentProductId) return closeRecipeRaw();
-
-  // Solo pedir confirmación si estábamos en modo “en proceso”
-  // Como nosotros ponemos En proceso al entrar al paso a paso, aquí siempre lo aplicamos:
-  await closeRecipeWithGuard();
-});
 
 function renderBatchIngredientsHTML(productId){
   const qty = getTotalUnitsForProductInTodayBatch(productId);
   const { lines, totalCost } = calcBatchIngredients(productId, qty);
-
   const costText = totalCost > 0 ? `$${money(totalCost)}` : "—";
 
   const rows = lines.map(li => `
@@ -862,37 +647,15 @@ function renderBatchIngredientsHTML(productId){
   `;
 }
 
-/* =======================
-   Timer base (float)
-======================= */
-function showTimerFloat(){
-  timerFloat.classList.add("show");
-  timerFloat.setAttribute("aria-hidden","false");
-}
-function hideTimerFloat(){
-  timerFloat.classList.remove("show");
-  timerFloat.setAttribute("aria-hidden","true");
-}
-function startBaseTimer(startIso){
-  stopBaseTimer();
-  const startMs = new Date(startIso).getTime();
-  if(Number.isNaN(startMs)) return;
-
-  baseTimerEndMs = startMs + BASE_FRIDGE_MINUTES * 60 * 1000;
-  showTimerFloat();
-  tickBaseTimer();
-  baseTimerInterval = setInterval(tickBaseTimer, 250);
-}
+// Timer float
+function showTimerFloat(){ timerFloat.classList.add("show"); timerFloat.setAttribute("aria-hidden","false"); }
 function stopBaseTimer(){
   if(baseTimerInterval) clearInterval(baseTimerInterval);
   baseTimerInterval = null;
   baseTimerEndMs = null;
 }
 function tickBaseTimer(){
-  if(!baseTimerEndMs){
-    timerFloatTime.textContent = "No iniciado";
-    return;
-  }
+  if(!baseTimerEndMs){ timerFloatTime.textContent = "No iniciado"; return; }
   const left = baseTimerEndMs - Date.now();
   if(left <= 0){
     timerFloatTime.textContent = "✅ Base lista";
@@ -904,10 +667,70 @@ function tickBaseTimer(){
   const ss = sec%60;
   timerFloatTime.textContent = `${String(mm).padStart(2,"0")}:${String(ss).padStart(2,"0")}`;
 }
+function startBaseTimer(startIso){
+  stopBaseTimer();
+  const startMs = new Date(startIso).getTime();
+  if(Number.isNaN(startMs)) return;
+  baseTimerEndMs = startMs + BASE_FRIDGE_MINUTES * 60 * 1000;
+  showTimerFloat();
+  tickBaseTimer();
+  baseTimerInterval = setInterval(tickBaseTimer, 250);
+}
 
-/* =======================
-   Step rendering + buttons logic
-======================= */
+function openRecipe(productId){
+  currentProductId = productId;
+  currentSteps = RECIPE_UNIT[productId]?.steps || [];
+  currentStepsTotal = currentSteps.length || 1;
+  currentStepIdx = 0;
+  currentBatchOrderIds = getBatchOrderIdsForProduct(productId);
+
+  const productName = PRODUCTS.find(p=>p.id===productId)?.name || productId;
+  const todayKey = getTodayProductionDayKey();
+  recipeTitle.textContent = `Receta · ${productName}`;
+  recipeSub.textContent = `Producción ${todayKey} · ${currentBatchOrderIds.length} pedido(s)`;
+
+  recipeOverlay.classList.add("show");
+  recipeOverlay.setAttribute("aria-hidden","false");
+
+  renderRecipeStep();
+  hideLoading(); // ✅ loader se quita cuando ya se ve la receta
+}
+function closeRecipeRaw(){
+  recipeOverlay.classList.remove("show");
+  recipeOverlay.setAttribute("aria-hidden","true");
+  currentProductId = null;
+  currentBatchOrderIds = [];
+  currentSteps = [];
+  currentStepIdx = 0;
+  currentStepsTotal = 0;
+}
+async function closeRecipeWithGuard(){
+  if(!currentProductId) return;
+  const pname = PRODUCTS.find(p=>p.id===currentProductId)?.name || currentProductId;
+
+  await confirm3s(
+    "Salir del proceso",
+    `¿Deseas salir de la elaboración de "${pname}"? Esto devolverá el estado a "No iniciar".`,
+    async () => {
+      showLoading("Revirtiendo...", "Dejando el postre como No iniciar.");
+      await api({
+        action: "kitchen_bulk_update",
+        admin_pin: SESSION.pin,
+        operator: SESSION.operatorLabel,
+        order_ids: currentBatchOrderIds,
+        patch: { kitchen_status: "No iniciar" }
+      });
+      closeRecipeRaw();
+      await loadKitchenData(true);
+      hideLoading();
+    }
+  );
+}
+btnRecipeClose.addEventListener("click", async () => {
+  if(!currentProductId) return closeRecipeRaw();
+  await closeRecipeWithGuard();
+});
+
 function getNeededAndRemaining(){
   const needed = getProductsNeededToday();
   const done = getLotDone();
@@ -946,9 +769,6 @@ function renderRecipeStep(){
   }
 }
 
-/* =======================
-   Navigation buttons
-======================= */
 btnPrev.addEventListener("click", () => {
   if(currentStepIdx > 0){
     currentStepIdx--;
@@ -960,7 +780,6 @@ btnNext.addEventListener("click", async () => {
   const step = currentSteps[currentStepIdx] || { type:"normal" };
   const atLastStep = currentStepIdx >= currentStepsTotal - 1;
 
-  // Paso temporizador: NO puede avanzar si no inicia temporizador
   if(step.type === "timer_base"){
     await confirm3s(
       "Iniciar temporizador (base en nevera)",
@@ -968,8 +787,6 @@ btnNext.addEventListener("click", async () => {
       async () => {
         showLoading("Iniciando temporizador...", "Guardando inicio y activando contador.");
         const iso = new Date().toISOString();
-
-        // Guardar base_fridge_started_at + mantener En proceso
         await api({
           action: "kitchen_bulk_update",
           admin_pin: SESSION.pin,
@@ -977,11 +794,7 @@ btnNext.addEventListener("click", async () => {
           order_ids: currentBatchOrderIds,
           patch: { base_fridge_started_at: iso, kitchen_status:"En proceso" }
         });
-
         startBaseTimer(iso);
-        timerStartedForThisRecipe = true;
-
-        // avanzar automáticamente
         currentStepIdx++;
         renderRecipeStep();
         hideLoading();
@@ -990,9 +803,8 @@ btnNext.addEventListener("click", async () => {
     return;
   }
 
-  // Último paso => finalizar este postre o finalizar lote
   if(atLastStep){
-    const { needed, done, remaining } = getNeededAndRemaining();
+    const { remaining } = getNeededAndRemaining();
     const isLastProduct = (remaining.length === 1 && remaining[0] === currentProductId);
 
     if(isLastProduct){
@@ -1008,14 +820,13 @@ btnNext.addEventListener("click", async () => {
             order_ids: currentBatchOrderIds,
             patch: { kitchen_status:"Listo" }
           });
-
           const d = getLotDone();
           d[currentProductId] = true;
           setLotDone(d);
-
           closeRecipeRaw();
           await loadKitchenData(true);
           hideLoading();
+          location.reload(); // ✅ refresca al finalizar lote
         }
       );
     } else {
@@ -1023,11 +834,9 @@ btnNext.addEventListener("click", async () => {
         "Finalizar este postre",
         "Esto guardará este postre como preparado en la vista del lote (sin cerrar el lote completo).",
         async () => {
-          // NO tocamos BD aquí (según tu solicitud)
           const d = getLotDone();
           d[currentProductId] = true;
           setLotDone(d);
-
           closeRecipeRaw();
           await loadKitchenData(true);
         }
@@ -1036,14 +845,11 @@ btnNext.addEventListener("click", async () => {
     return;
   }
 
-  // Paso normal: avanzar
   currentStepIdx++;
   renderRecipeStep();
 });
 
-/* =======================
-   MAIN RENDER
-======================= */
+// Main render
 function renderMain(todayKey){
   prodDateText.textContent = `Producción: ${todayKey}`;
   prodRuleText.textContent = productionRuleText(todayKey);
@@ -1052,7 +858,6 @@ function renderMain(todayKey){
   prodPill.textContent = `${totalUnits} unidades`;
 
   const doneMap = getLotDone();
-
   const cards = [];
   const doneCardsHtml = [];
 
@@ -1061,29 +866,12 @@ function renderMain(todayKey){
     if(qty <= 0) continue;
 
     const isDone = doneMap[p.id] === true;
-
     const { lines, totalCost } = calcBatchIngredients(p.id, qty);
     const costText = totalCost > 0 ? `$${money(totalCost)}` : "—";
 
-    const ingHtml = lines.map(li => {
-      return `<div class="line"><span>${li.key}</span><div>${formatQty(li.qty)}</div></div>`;
-    }).join("");
-
-    const content = `
-      <div class="accGrid">
-        <div class="rowBetween">
-          <div class="muted small">Ingredientes totales (lote)</div>
-          <div class="pill">Costo estimado: ${costText}</div>
-        </div>
-
-        ${ingHtml || `<div class="muted small">Sin receta configurada.</div>`}
-
-        <div class="rowBetween" style="margin-top:8px;">
-          <button class="btn secondary" data-act="start" data-pid="${p.id}" ${isDone ? "disabled" : ""}>Iniciar</button>
-          <button class="btn secondary" data-act="viewOrders" data-pid="${p.id}">Ver pedidos del día</button>
-        </div>
-      </div>
-    `;
+    const ingHtml = lines.map(li =>
+      `<div class="line"><span>${li.key}</span><div>${formatQty(li.qty)}</div></div>`
+    ).join("");
 
     const cardHtml = `
       <div class="pCard" data-pid="${p.id}">
@@ -1092,10 +880,7 @@ function renderMain(todayKey){
             <div class="muted small">${p.name}</div>
             <div class="bigNum">${qty}</div>
           </div>
-
-          <button class="btn secondary" type="button" data-act="toggle" data-pid="${p.id}">
-            Insumos + receta
-          </button>
+          <button class="btn secondary" type="button" data-act="toggle" data-pid="${p.id}">Insumos + receta</button>
         </div>
 
         <div class="accBody">
@@ -1103,7 +888,20 @@ function renderMain(todayKey){
             <div class="pill">Insumos</div>
             <button class="btn secondary" type="button" data-act="toggle" data-pid="${p.id}">Cerrar</button>
           </div>
-          ${content}
+
+          <div class="accGrid">
+            <div class="rowBetween">
+              <div class="muted small">Ingredientes totales (lote)</div>
+              <div class="pill">Costo estimado: ${costText}</div>
+            </div>
+
+            ${ingHtml || `<div class="muted small">Sin receta configurada.</div>`}
+
+            <div class="rowBetween" style="margin-top:8px;">
+              <button class="btn secondary" data-act="start" data-pid="${p.id}" ${isDone ? "disabled" : ""}>Iniciar</button>
+              <button class="btn secondary" data-act="viewOrders" data-pid="${p.id}">Ver pedidos del día</button>
+            </div>
+          </div>
         </div>
       </div>
     `;
@@ -1134,30 +932,19 @@ function renderMain(todayKey){
     const pid = btn.dataset.pid;
     const card = btn.closest(".pCard");
 
-    if(act === "toggle"){
-      card.classList.toggle("open");
-      return;
-    }
-
-    if(act === "viewOrders"){
-      openOrdersModal("today");
-      return;
-    }
+    if(act === "toggle"){ card.classList.toggle("open"); return; }
+    if(act === "viewOrders"){ openOrdersModal("today"); return; }
 
     if(act === "start"){
       const pname = PRODUCTS.find(p=>p.id===pid)?.name || pid;
       const orderIds = getBatchOrderIdsForProduct(pid);
-      if(!orderIds.length){
-        alert("No hay pedidos para este postre hoy.");
-        return;
-      }
+      if(!orderIds.length){ alert("No hay pedidos para este postre hoy."); return; }
 
       await confirm3s(
         "Iniciar paso a paso",
         `¿Iniciar la elaboración de ${pname}? Esto marcará los pedidos como “En proceso”.`,
         async () => {
           showLoading("Iniciando...", "Cargando receta y marcando estado en proceso.");
-
           await api({
             action: "kitchen_bulk_update",
             admin_pin: SESSION.pin,
@@ -1165,31 +952,20 @@ function renderMain(todayKey){
             order_ids: orderIds,
             patch: { kitchen_status:"En proceso" }
           });
-
-          // Abrir receta ya con loader activo (se oculta cuando renderiza)
           openRecipe(pid);
         }
       );
-      return;
     }
   };
 }
 
-/* =======================
-   LOAD + FILTER
-======================= */
+// Load + filter
 async function loadKitchenData(fromRefresh){
   const todayKey = getTodayProductionDayKey();
-
   showLoading(fromRefresh ? "Actualizando..." : "Cargando cocina...", "Obteniendo pedidos pagados y calculando producción del día.");
   disableUIWhileLoading(true);
-
   try{
-    const out = await api({
-      action:"list_orders",
-      admin_pin: SESSION.pin,
-      payment_status:"Pagado"
-    });
+    const out = await api({ action:"list_orders", admin_pin: SESSION.pin, payment_status:"Pagado" });
 
     paidOrders = (out.orders || []).map(o => {
       o.__prod_day = computeProductionDayKeyForOrder(o.created_at);
@@ -1212,40 +988,25 @@ async function loadKitchenData(fromRefresh){
   }
 }
 
-/* =======================
-   Orders modal events
-======================= */
+// Events
 tabToday.addEventListener("click", () => setActiveTab("today"));
 tabHistory.addEventListener("click", () => setActiveTab("history"));
 btnCloseOrders.addEventListener("click", closeOrdersModal);
 btnOrders.addEventListener("click", () => openOrdersModal("today"));
 
-/* =======================
-   Login
-======================= */
+// Login
 btnLogin.addEventListener("click", async () => {
   loginErr.textContent = "";
-
   const opId = selOperator.value;
   const opLabel = profiles.find(p => p.id===opId)?.label || "";
   const pin = (inpPin.value || "").trim();
-
-  if(!opId || !opLabel || !pin){
-    loginErr.textContent = "Selecciona un perfil y escribe el PIN.";
-    return;
-  }
-
+  if(!opId || !opLabel || !pin){ loginErr.textContent = "Selecciona un perfil y escribe el PIN."; return; }
   SESSION = { operatorId: opId, operatorLabel: opLabel, pin };
   saveSession();
-
   showApp();
   await loadKitchenData(false);
 });
-
-btnRefresh.addEventListener("click", async () => {
-  await loadKitchenData(true);
-});
-
+btnRefresh.addEventListener("click", async () => { await loadKitchenData(true); });
 btnLogout.addEventListener("click", () => {
   clearSession();
   closeOrdersModal();
@@ -1253,32 +1014,32 @@ btnLogout.addEventListener("click", () => {
   showLogin();
 });
 
-/* =======================
-   Profiles management (login)
-======================= */
+// Profiles management (secure)
 btnManageProfiles.addEventListener("click", openProfilesModal);
 btnCloseProfiles.addEventListener("click", closeProfilesModal);
 
-btnProfilesUnlock.addEventListener("click", () => {
+btnProfilesUnlock.addEventListener("click", async () => {
   profilesGateErr.textContent = "";
   const code = (inpProfilesSecret.value||"").trim();
-  if(code !== PROFILES_SECRET_CODE){
+  try{
+    showLoading("Verificando...", "Validando clave con el servidor.");
+    await validateSecretWithWorker("profiles", code);
+    profilesGate.classList.add("hidden");
+    profilesEditor.classList.remove("hidden");
+    renderProfilesList();
+  } catch(e){
     profilesGateErr.textContent = "Clave secreta incorrecta.";
-    return;
+  } finally {
+    hideLoading();
   }
-  profilesGate.classList.add("hidden");
-  profilesEditor.classList.remove("hidden");
-  renderProfilesList();
 });
 
 btnAddProfile.addEventListener("click", () => {
   const name = (inpNewProfile.value||"").trim();
   if(!name) return;
-
   const id = makeIdFromLabel(name);
   if(!id) return;
 
-  // Guardar SOLO en local (no tocar defaults)
   const raw = localStorage.getItem(LS_PROFILES_KEY);
   const local = raw ? safeJsonParse(raw) : [];
   const localList = Array.isArray(local) ? local : [];
@@ -1294,26 +1055,27 @@ btnAddProfile.addEventListener("click", () => {
   profiles = loadProfiles();
   renderOperatorProfiles();
   renderProfilesList();
-
   inpNewProfile.value = "";
 });
 
-/* =======================
-   Costs management (logged in)
-======================= */
+// Costs management (secure)
 btnCosts.addEventListener("click", openCostsModal);
 btnCloseCosts.addEventListener("click", closeCostsModal);
 
-btnCostsUnlock.addEventListener("click", () => {
+btnCostsUnlock.addEventListener("click", async () => {
   costsGateErr.textContent = "";
   const code = (inpCostsSecret.value||"").trim();
-  if(code !== COSTS_SECRET_CODE){
+  try{
+    showLoading("Verificando...", "Validando clave con el servidor.");
+    await validateSecretWithWorker("costs", code);
+    costsGate.classList.add("hidden");
+    costsEditor.classList.remove("hidden");
+    renderCostsEditor();
+  } catch(e){
     costsGateErr.textContent = "Clave secreta incorrecta.";
-    return;
+  } finally {
+    hideLoading();
   }
-  costsGate.classList.add("hidden");
-  costsEditor.classList.remove("hidden");
-  renderCostsEditor();
 });
 
 btnSaveCosts.addEventListener("click", () => {
@@ -1327,27 +1089,17 @@ btnSaveCosts.addEventListener("click", () => {
   prices = next;
   savePrices(prices);
   closeCostsModal();
-
-  // Refrescar UI para ver costos estimados
   renderMain(getTodayProductionDayKey());
 });
 
-/* =======================
-   INIT
-======================= */
+// INIT
 (function init(){
   profiles = loadProfiles();
   prices = loadPrices();
-
   renderOperatorProfiles();
 
   if(loadSession()){
     showApp();
-    loadKitchenData(false).catch(() => {
-      clearSession();
-      showLogin();
-    });
-  } else {
-    showLogin();
-  }
+    loadKitchenData(false).catch(() => { clearSession(); showLogin(); });
+  } else showLogin();
 })();
