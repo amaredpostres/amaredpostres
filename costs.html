@@ -1,74 +1,88 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="es">
 <head>
-  <meta charset="utf-8"/>
-  <meta name="viewport" content="width=device-width,initial-scale=1"/>
-  <title>AMARED | Costos</title>
-  <link rel="icon" href="assets/favicon.ico" type="image/x-icon">
-  <link rel="stylesheet" href="styles.css"/>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>AMARED · Costos de ingredientes</title>
 
-  <style>
-    .wrap{max-width:980px;margin:0 auto;padding:14px;}
-    .card{background:var(--paper);border:1px solid var(--border);border-radius:22px;box-shadow:var(--shadow);padding:14px;}
-    .grid{display:grid;gap:10px;}
-    .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center;}
-    .input{padding:12px;border-radius:14px;border:1px solid var(--border);font-weight:900;background:white;flex:1;}
-    .mini{font-size:13px;opacity:.75;font-weight:900;}
-    .table{display:grid;gap:10px;margin-top:12px;}
-    .item{border:1px solid var(--border);border-radius:18px;background:white;padding:12px;}
-    .k{font-weight:950;}
-    .pill{display:inline-flex;align-items:center;border:1px solid var(--border);border-radius:999px;padding:8px 10px;font-weight:950;background:rgba(246,186,96,.14);}
-    .loading{position:fixed;inset:0;background:rgba(0,0,0,.25);display:none;align-items:center;justify-content:center;z-index:20000;padding:16px;}
-    .loading.show{display:flex;}
-    .box{background:var(--paper);border:1px solid var(--border);border-radius:18px;box-shadow:var(--shadow);padding:14px;text-align:center;max-width:520px;width:100%;}
-  </style>
+  <!-- CSS global del proyecto -->
+  <link rel="stylesheet" href="./styles.css" />
+
+  <!-- Opcional: icono -->
+  <link rel="icon" href="./favicon.ico" />
 </head>
+
 <body>
-  <div class="wrap">
-    <div class="card">
-      <div class="row" style="justify-content:space-between;">
+  <!-- Topbar -->
+  <header class="topbar">
+    <div class="wrap row topbar-inner">
+      <div class="brand">
+        <div class="logo-dot"></div>
         <div>
-          <div style="font-weight:950;font-size:18px;">Costos de ingredientes</div>
-          <div class="mini">Administra COP por g / ml / unidad. Validación segura con Worker.</div>
+          <div class="brand-title">AMARED</div>
+          <div class="brand-sub">Costos · Ingredientes</div>
         </div>
-        <a class="btn secondary" href="kitchen.html">Ir a Cocina</a>
       </div>
 
-      <div style="margin-top:12px;" class="grid">
-        <div class="mini">Clave secreta (Costos)</div>
-        <div class="row">
-          <input id="secret" class="input" type="password" placeholder="Clave de costos">
-          <button id="unlock" class="btn primary" type="button">Verificar</button>
+      <nav class="row topbar-actions">
+        <a class="btn secondary" href="./index.html">Volver</a>
+      </nav>
+    </div>
+  </header>
+
+  <!-- Page -->
+  <main class="wrap">
+    <!-- Unlock -->
+    <section class="card">
+      <div class="card-title">🔒 Acceso a Costos</div>
+      <div class="card-desc">
+        Ingresa la clave de costos para ver y editar los ingredientes. Esta clave se valida en el servidor.
+      </div>
+
+      <div class="row" style="margin-top:12px; gap:10px; flex-wrap:wrap;">
+        <input id="secret" class="input" type="password" placeholder="COSTS_SECRET" autocomplete="off" />
+        <button id="unlock" class="btn">Desbloquear</button>
+      </div>
+
+      <div id="err" class="error" style="margin-top:10px;"></div>
+    </section>
+
+    <!-- Editor (hidden until unlock) -->
+    <section id="editor" class="card" style="display:none;">
+      <div class="row" style="justify-content:space-between; align-items:flex-start; gap:12px; flex-wrap:wrap;">
+        <div>
+          <div class="card-title">📌 Tabla de costos</div>
+          <div class="card-desc">
+            Completa la información de cada ingrediente. El cálculo se actualiza en tiempo real.
+            Usa <b>Guardar en Sheets</b> para dejarlo permanente.
+          </div>
         </div>
-        <div id="err" class="mini" style="color:#b00020;"></div>
-      </div>
-    </div>
 
-    <div id="editor" class="card" style="margin-top:12px;display:none;">
-      <div class="row" style="justify-content:space-between;">
-        <div class="pill">Conversión automática</div>
-        <button id="saveAll" class="btn primary" type="button">Guardar todo</button>
+        <div class="row" style="gap:10px; flex-wrap:wrap; justify-content:flex-end;">
+          <button id="saveAll" class="btn">Guardar en Sheets</button>
+        </div>
       </div>
 
-      <div class="mini" style="margin-top:10px;">
-        Ingresa precio del empaque y cantidad neta → se calcula COP por unidad (g/ml/unidad).
-      </div>
-      
-      <div id="catalogEditor"></div>
+      <!-- Barra superior con Refrescar + Tiendas/Marcas (la pinta costs.js) -->
+      <div id="topTools" style="margin-top:14px;"></div>
 
-      <div class="table" id="list"></div>
-    </div>
-  </div>
+      <!-- Listado (acordeones) -->
+      <div id="list" style="margin-top:10px;"></div>
+    </section>
+  </main>
 
+  <!-- Loading overlay -->
   <div id="loading" class="loading">
-    <div class="box">
-      <div style="font-weight:950;font-size:18px;" id="lt">Cargando...</div>
-      <div class="mini" id="ld">Por favor espera.</div>
+    <div class="loading-card">
+      <div class="loading-title" id="lt">Cargando…</div>
+      <div class="loading-desc" id="ld">Por favor espera.</div>
     </div>
   </div>
 
-  <script src="kitchen-costs.js"></script>
-  <script src="costs.js"></script>
+  <!-- IMPORTANTE: Primero carga kitchen-costs (grupos + ingredientes canónicos) -->
+  <script src="./kitchen-costs.js"></script>
+
+  <!-- Luego costs.js (v5) -->
+  <script src="./costs.js"></script>
 </body>
 </html>
-
