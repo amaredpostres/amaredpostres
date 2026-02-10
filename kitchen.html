@@ -471,24 +471,7 @@
           <div class="stepText" id="stepText">—</div>
           <div class="stepHintBox" id="stepHint"></div>
 
-          <div class="btnRow">
-            <button id="btnPrev" class="btn secondary" type="button">Anterior</button>
-            <button id="btnNext" class="btn primary" type="button">Siguiente</button>
-          </div>
-        </div>
-
-        <div style="display:grid; gap:10px;">
-          <img id="stepImg" class="stepImg" src="assets/Logo-Isotipo-Amared.svg" alt="Paso">
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- CONFIRM 3s -->
-  <div id="confirmOverlay" class="confirmOverlay" aria-hidden="true">
-    <div class="confirmBox">
-      <div style="font-weight:950; font-size:18px;" id="confirmTitle">Confirmar</div>
-      <div class="muted small" id="confirmText" style="margin-top:6px;">—</div>
+          
       <div class="countdown" id="confirmCountdown" style="margin-top:12px;">3</div>
 
       <div class="btnRow" style="margin-top:12px;">
@@ -531,7 +514,7 @@
           <input id="inpNewProfile" class="input" placeholder="Nombre (ej: Laura)">
           <button id="btnAddProfile" class="btn primary" type="button">Agregar</button>
         </div>
-        <div class="muted small" style="margin-top:8px;">* Los perfiles se guardan en este navegador (localStorage).</div>
+        <div class="muted small" style="margin-top:8px;">* Los perfiles se guardan de forma permanente (Google Sheets).</div>
       </div>
     </div>
   </div>
@@ -542,30 +525,21 @@
       <div class="rowBetween">
         <div>
           <div style="font-weight:950; font-size:18px;">Costos de ingredientes</div>
-          <div class="muted small">Edita COP por unidad (g/ml/unidad). Requiere clave secreta.</div>
+          <div class="muted small">Solo lectura: costos tomados desde COSTOS_INGREDIENTES (Sheets).</div>
         </div>
         <button id="btnCloseCosts" class="btn secondary" type="button">Cerrar</button>
       </div>
 
       <div class="hr"></div>
 
-      <div id="costsGate">
-        <div class="muted small">Ingresa clave secreta para editar costos.</div>
-        <div class="formGrid">
-          <input id="inpCostsSecret" class="input" type="password" placeholder="Clave secreta">
-          <button id="btnCostsUnlock" class="btn primary" type="button">Verificar</button>
-          <div id="costsGateErr" class="muted small" style="color:#b00020;"></div>
-        </div>
-      </div>
-
-      <div id="costsEditor" class="hidden">
+      <div id="costsEditor">
         <div class="muted small">Precios (COP por unidad):</div>
         <div id="costsList" class="oList"></div>
 
         <div class="btnRow" style="margin-top:12px;">
           <button id="btnSaveCosts" class="btn primary" type="button">Guardar</button>
         </div>
-        <div class="muted small" style="margin-top:8px;">* Los costos se guardan en este navegador (localStorage). Más adelante los conectamos a Sheets.</div>
+        <div class="muted small" style="margin-top:8px;">* Los costos se leen desde Sheets y no se editan desde Cocina.</div>
       </div>
     </div>
   </div>
