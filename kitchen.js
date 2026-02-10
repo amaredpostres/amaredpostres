@@ -222,7 +222,9 @@ let COSTS_PUBLIC_LAST_UPDATED = null;
 let profiles = [];
 let prices = {};
 let paidOrders = [];
+let todayAllOrders = [];
 let todayProductionOrders = [];
+let todayDoneOrders = [];
 let historyOrders = [];
 let currentProductId = null;
 let currentBatchOrderIds = [];
@@ -891,9 +893,6 @@ btnNext.addEventListener("click", async () => {
             order_ids: currentBatchOrderIds,
             patch: { kitchen_status:"Listo" }
           });
-          const d = getLotDone();
-          d[currentProductId] = getTotalUnitsForProductInTodayBatch(currentProductId);
-          setLotDone(d);
           closeRecipeRaw();
           await loadKitchenData(true);
           hideLoading();
@@ -905,11 +904,17 @@ btnNext.addEventListener("click", async () => {
         "Finalizar este postre",
         "Esto guardará este postre como preparado en la vista del lote (sin cerrar el lote completo).",
         async () => {
-          const d = getLotDone();
-          d[currentProductId] = getTotalUnitsForProductInTodayBatch(currentProductId);
-          setLotDone(d);
+          showLoading("Finalizando...", "Marcando pedidos como Listo.");
+          await api({
+            action: "kitchen_bulk_update",
+            admin_pin: SESSION.pin,
+            operator: SESSION.operatorLabel,
+            order_ids: currentBatchOrderIds,
+            patch: { kitchen_status:"Listo" }
+          });
           closeRecipeRaw();
           await loadKitchenData(true);
+          hideLoading();
         }
       );
     }
@@ -925,23 +930,21 @@ function renderMain(todayKey){
   prodDateText.textContent = `Producción: ${todayKey}`;
   prodRuleText.textContent = productionRuleText(todayKey);
 
-  const { byProduct, totalUnits } = aggregateByProduct(todayProductionOrders);
-  prodPill.textContent = `${totalUnits} unidades`;
+  const aggAll = aggregateByProduct(todayAllOrders);
+  const aggPending = aggregateByProduct(todayProductionOrders);
+  const aggDone = aggregateByProduct(todayDoneOrders);
 
-  const doneMap = getLotDone();
+  prodPill.textContent = `${aggPending.totalUnits} unidades`;
+
   const cards = [];
   const doneCardsHtml = [];
 
   for(const p of PRODUCTS){
-    const qtyTotal = byProduct.get(p.id) || 0;
-    if(qtyTotal <= 0) continue;
+    const qtyAll = aggAll.byProduct.get(p.id) || 0;
+    if(qtyAll <= 0) continue;
 
-    // ✅ Ahora guardamos "cuántas unidades ya fueron preparadas" (no boolean)
-    let doneQty = 0;
-    const rawDone = doneMap[p.id];
-    doneQty = Math.max(0, Math.min(qtyTotal, Math.floor(Number(rawDone || 0))));
-
-    const pendingQty = Math.max(0, qtyTotal - doneQty);
+    const doneQty = aggDone.byProduct.get(p.id) || 0;
+    const pendingQty = aggPending.byProduct.get(p.id) || 0;
 
     function buildCard(displayQty, isDoneSection){
       const { lines, totalCost } = calcBatchIngredients(p.id, displayQty);
@@ -1064,9 +1067,13 @@ async function loadKitchenData(fromRefresh){
       return o;
     });
 
-    todayProductionOrders = paidOrders
-      .filter(o => o.__prod_day === todayKey)
+    todayAllOrders = paidOrders.filter(o => o.__prod_day === todayKey);
+
+    todayProductionOrders = todayAllOrders
       .filter(o => String(o.kitchen_status || "No iniciar") !== "Listo");
+
+    todayDoneOrders = todayAllOrders
+      .filter(o => String(o.kitchen_status || "") === "Listo");
 
     historyOrders = paidOrders
       .filter(o => String(o.kitchen_status || "") === "Listo")
