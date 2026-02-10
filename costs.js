@@ -1,12 +1,16 @@
 const API_URL = "https://amared-orders.amaredpostres.workers.dev/";
 const LS_COSTS_KEY = "AMARED_INGREDIENT_PRICES_LOCAL";
 const LS_COSTS_META_KEY = "AMARED_INGREDIENT_COSTS_META";
+const LS_CATALOG_KEY = "AMARED_COSTS_CATALOG_LOCAL";
 
 let UNLOCKED_SECRET = ""; // solo memoria
 
-// Catálogos (persistidos en Sheets)
-let STORES = ["Salsamentaria Sinai","Mercacentro","Plaza"];
-let BRANDS = ["Cowie","Mercacentro","Alpina","San Jorge","Levapan","Refisal","Ramo","Colanta","Colombina","Tostao"];
+// Defaults (se mezclan con lo que exista en Sheets/localStorage)
+const DEFAULT_STORES = ["Salsamentaria Sinai","Mercacentro","Plaza"];
+const DEFAULT_BRANDS = ["Cowie","Mercacentro","Alpina","San Jorge","Levapan","Refisal","Ramo","Colanta","Colombina","Tostao"];
+
+let STORES = [...DEFAULT_STORES];
+let BRANDS = [...DEFAULT_BRANDS];
 
 function safeJsonParse(s){ try{return JSON.parse(s);}catch{return null;} }
 
@@ -48,11 +52,25 @@ function saveMeta(meta){
   localStorage.setItem(LS_COSTS_META_KEY, JSON.stringify(meta||{}));
 }
 
+function loadCatalogLocal(){
+  const raw = localStorage.getItem(LS_CATALOG_KEY);
+  const c = raw ? safeJsonParse(raw) : null;
+  if(c && typeof c==="object"){
+    const s = Array.isArray(c.stores) ? c.stores : [];
+    const b = Array.isArray(c.brands) ? c.brands : [];
+    return { stores:s, brands:b };
+  }
+  return { stores:[], brands:[] };
+}
+function saveCatalogLocal(stores, brands){
+  localStorage.setItem(LS_CATALOG_KEY, JSON.stringify({ stores, brands }));
+}
+
 function money(n){ return Math.round(Number(n||0)).toLocaleString("es-CO"); }
 function roundCOP(n){ return Math.max(0, Math.round(Number(n||0))); }
 
-function cssEscape(s){ return String(s).replace(/"/g,'\"'); }
-function unescapeCss(s){ return String(s).replace(/\"/g,'"'); }
+function cssEscape(s){ return String(s).replace(/"/g,'\\\"'); }
+function unescapeCss(s){ return String(s).replace(/\\"/g,'"'); }
 
 function normUnit(u){
   const s = String(u||"").trim().toLowerCase();
@@ -74,7 +92,6 @@ function unitPlaceholder(u){
   if(u==="unidad") return "Ej: 6";
   return "Selecciona unidad…";
 }
-
 function perUnitLabel(u){
   if(u==="g") return "COP por g";
   if(u==="ml") return "COP por ml";
@@ -98,7 +115,6 @@ async function upsertCostToSheets(row){
     cop_per_unit: row.cop_per_unit,
     brand: row.brand || "",
     store: row.store || "",
-    // campos extra (opcionales) para unidad="unidad"
     unit_item_qty: row.unit_item_qty ?? "",
     unit_item_qty_type: row.unit_item_qty_type ?? "",
     updated_by: row.updated_by || "COSTS_UI"
@@ -106,23 +122,75 @@ async function upsertCostToSheets(row){
   return await api(payload);
 }
 
-// ===== Sheets: catálogos (tiendas/marcas) =====
+// ===== Catálogos: intenta Sheets, si no existe -> localStorage =====
 async function fetchCatalogs(){
+  // 1) Local base (defaults + local)
+  const local = loadCatalogLocal();
+  STORES = uniqSorted([...DEFAULT_STORES, ...local.stores]);
+  BRANDS = uniqSorted([...DEFAULT_BRANDS, ...local.brands]);
+
+  // 2) Intento backend (si está implementado)
   try{
     const out = await api({ action:"catalog_list", costs_secret: UNLOCKED_SECRET });
-    if(out.ok && out.catalog){
-      if(Array.isArray(out.catalog.stores) && out.catalog.stores.length) STORES = out.catalog.stores;
-      if(Array.isArray(out.catalog.brands) && out.catalog.brands.length) BRANDS = out.catalog.brands;
+    if(out && out.catalog){
+      if(Array.isArray(out.catalog.stores)) STORES = uniqSorted([...DEFAULT_STORES, ...out.catalog.stores]);
+      if(Array.isArray(out.catalog.brands)) BRANDS = uniqSorted([...DEFAULT_BRANDS, ...out.catalog.brands]);
+      // sincroniza copia local para que no se pierda
+      saveCatalogLocal(STORES, BRANDS);
     }
-  } catch {}
+  } catch {
+    // si falla, nos quedamos con local
+  }
 }
+
+function uniqSorted(arr){
+  const uniq = Array.from(new Set((arr||[]).map(s=>String(s||"").trim()).filter(Boolean)));
+  uniq.sort((a,b)=>a.localeCompare(b,"es"));
+  return uniq;
+}
+
 async function catalogAdd(type, value){
-  await api({ action:"catalog_add", costs_secret: UNLOCKED_SECRET, type, value });
-  await fetchCatalogs();
+  value = String(value||"").trim();
+  if(!value) throw new Error("empty");
+
+  // local first
+  if(type==="store"){
+    STORES = uniqSorted([...STORES, value]);
+    saveCatalogLocal(STORES, BRANDS);
+  } else {
+    BRANDS = uniqSorted([...BRANDS, value]);
+    saveCatalogLocal(STORES, BRANDS);
+  }
+
+  // try backend (si existe)
+  try{
+    await api({ action:"catalog_add", costs_secret: UNLOCKED_SECRET, type, value });
+    await fetchCatalogs();
+  } catch {
+    // backend no existe -> igual funciona local
+  }
 }
+
 async function catalogDelete(type, value){
-  await api({ action:"catalog_delete", costs_secret: UNLOCKED_SECRET, type, value });
-  await fetchCatalogs();
+  value = String(value||"").trim();
+  if(!value) throw new Error("empty");
+
+  // local first
+  if(type==="store"){
+    STORES = STORES.filter(x=>x!==value);
+    saveCatalogLocal(STORES, BRANDS);
+  } else {
+    BRANDS = BRANDS.filter(x=>x!==value);
+    saveCatalogLocal(STORES, BRANDS);
+  }
+
+  // try backend
+  try{
+    await api({ action:"catalog_delete", costs_secret: UNLOCKED_SECRET, type, value });
+    await fetchCatalogs();
+  } catch {
+    // backend no existe -> igual funciona local
+  }
 }
 
 // ===== Ingredientes (de grupos) =====
@@ -136,19 +204,18 @@ function getGroups(){
   return gs.map(g => ({...g, keys: g.keys.filter(k => all.has(k))}));
 }
 
-// ===== Cálculo en tiempo real =====
+// ===== Cálculo realtime =====
 function calcCpu(unit, packPrice, packQty, unitItemQty, unitItemQtyType){
   if(packPrice<=0) return 0;
 
   if(unit === "unidad"){
     if(packQty<=0) return 0;
-
     const cpuUnit = packPrice / packQty; // COP por unidad
 
     const q = Number(unitItemQty||0);
     const t = normUnit(unitItemQtyType);
     if(q>0 && (t==="g" || t==="ml")){
-      // COP por g/ml = COP por unidad / contenido_por_unidad
+      // COP por g/ml
       return cpuUnit / q;
     }
     return cpuUnit; // COP por unidad
@@ -167,44 +234,126 @@ function cpuDisplayLabel(unit, unitItemQtyType, unitItemQty){
 }
 
 function makeSelectOptions(arr, selected){
-  const uniq = Array.from(new Set((arr||[]).map(s=>String(s||"").trim()).filter(Boolean)));
-  uniq.sort((a,b)=>a.localeCompare(b,"es"));
+  const uniq = uniqSorted(arr);
   return uniq.map(v=>`<option ${v===selected?"selected":""} value="${cssEscape(v)}">${v}</option>`).join("");
 }
 
-function renderCatalogEditor(){
-  const host = document.getElementById("catalogEditor");
-  if(!host) return;
+// ===== UI: Modal simple (reutilizable) =====
+function ensureModal(){
+  let m = document.getElementById("am_modal");
+  if(m) return m;
 
-  host.innerHTML = `
-    <div class="item" style="margin-bottom:14px;">
-      <div class="row" style="justify-content:space-between;align-items:center;gap:10px;">
+  m = document.createElement("div");
+  m.id = "am_modal";
+  m.style.cssText = `
+    position:fixed; inset:0; background:rgba(0,0,0,.55);
+    display:none; align-items:center; justify-content:center;
+    z-index:9999; padding:16px;
+  `;
+  m.innerHTML = `
+    <div style="background:#111; border:1px solid rgba(255,255,255,.12); border-radius:14px; width:min(720px,100%); padding:14px;">
+      <div class="row" style="justify-content:space-between; align-items:center; gap:10px;">
         <div>
-          <div class="k">Catálogos</div>
-          <div class="mini">Tiendas y marcas guardadas (puedes agregar o eliminar).</div>
+          <div class="k" id="am_modal_title">Título</div>
+          <div class="mini" id="am_modal_desc" style="margin-top:4px;">Descripción</div>
+        </div>
+        <button class="btn secondary" id="am_modal_close" type="button">Cerrar</button>
+      </div>
+      <div id="am_modal_body" style="margin-top:12px;"></div>
+    </div>
+  `;
+  document.body.appendChild(m);
+  m.querySelector("#am_modal_close").onclick = ()=>{ m.style.display="none"; };
+  m.addEventListener("click",(e)=>{ if(e.target===m) m.style.display="none"; }, {passive:true});
+  return m;
+}
+
+function openModal(title, desc, html){
+  const m = ensureModal();
+  m.querySelector("#am_modal_title").textContent = title || "";
+  m.querySelector("#am_modal_desc").textContent = desc || "";
+  m.querySelector("#am_modal_body").innerHTML = html || "";
+  m.style.display = "flex";
+  return m;
+}
+
+// Confirmación con temporizador 2s
+function confirmWithTimer(title, desc){
+  return new Promise((resolve)=>{
+    let t = 2;
+    const m = openModal(title, desc, `
+      <div class="item">
+        <div class="mini" style="opacity:.9;">Espera <strong id="am_t">${t}</strong> segundo(s) para confirmar.</div>
+        <div class="row" style="margin-top:12px; gap:10px;">
+          <button class="btn secondary" id="am_cancel" type="button">Cancelar</button>
+          <button class="btn" id="am_ok" type="button" disabled>Confirmar</button>
+        </div>
+      </div>
+    `);
+
+    const okBtn = m.querySelector("#am_ok");
+    const tEl = m.querySelector("#am_t");
+
+    const int = setInterval(()=>{
+      t -= 1;
+      if(tEl) tEl.textContent = String(t);
+      if(t<=0){
+        clearInterval(int);
+        okBtn.disabled = false;
+        if(tEl) tEl.textContent = "0";
+      }
+    }, 1000);
+
+    m.querySelector("#am_cancel").onclick = ()=>{
+      clearInterval(int);
+      m.style.display="none";
+      resolve(false);
+    };
+    okBtn.onclick = ()=>{
+      clearInterval(int);
+      m.style.display="none";
+      resolve(true);
+    };
+  });
+}
+
+// ===== UI: Catálogos en modal (no visible al inicio) =====
+function openCatalogManager(){
+  const html = `
+    <div class="item">
+      <div class="row" style="justify-content:space-between; align-items:center; gap:10px;">
+        <div>
+          <div class="k">Tiendas y Marcas</div>
+          <div class="mini">Agrega o elimina opciones. (Con confirmación de 2s)</div>
         </div>
       </div>
 
-      <div class="row" style="margin-top:12px;gap:12px;flex-wrap:wrap;">
-        <div style="flex:1;min-width:280px;">
+      <div class="row" style="margin-top:12px; gap:14px; flex-wrap:wrap;">
+        <div style="flex:1; min-width:280px;">
           <div class="mini" style="margin-bottom:6px;">Tiendas</div>
           <div class="row" style="gap:8px;">
-            <select class="input" id="storePick">${makeSelectOptions(STORES,"")}</select>
+            <select class="input" id="storePick">
+              <option value="">Selecciona…</option>
+              ${makeSelectOptions(STORES,"")}
+            </select>
             <button class="btn secondary" id="delStore" type="button">Eliminar</button>
           </div>
-          <div class="row" style="gap:8px;margin-top:8px;">
+          <div class="row" style="gap:8px; margin-top:8px;">
             <input class="input" id="storeNew" placeholder="Nueva tienda…">
             <button class="btn" id="addStore" type="button">Agregar</button>
           </div>
         </div>
 
-        <div style="flex:1;min-width:280px;">
+        <div style="flex:1; min-width:280px;">
           <div class="mini" style="margin-bottom:6px;">Marcas</div>
           <div class="row" style="gap:8px;">
-            <select class="input" id="brandPick">${makeSelectOptions(BRANDS,"")}</select>
+            <select class="input" id="brandPick">
+              <option value="">Selecciona…</option>
+              ${makeSelectOptions(BRANDS,"")}
+            </select>
             <button class="btn secondary" id="delBrand" type="button">Eliminar</button>
           </div>
-          <div class="row" style="gap:8px;margin-top:8px;">
+          <div class="row" style="gap:8px; margin-top:8px;">
             <input class="input" id="brandNew" placeholder="Nueva marca…">
             <button class="btn" id="addBrand" type="button">Agregar</button>
           </div>
@@ -213,56 +362,91 @@ function renderCatalogEditor(){
     </div>
   `;
 
-  host.querySelector("#addStore").onclick = async ()=>{
-    const v = (host.querySelector("#storeNew").value||"").trim();
+  const m = openModal("⚙️ Gestionar tiendas y marcas", "Este panel está separado para evitar cambios accidentales.", html);
+
+  // Handlers
+  m.querySelector("#addStore").onclick = async ()=>{
+    const v = (m.querySelector("#storeNew").value||"").trim();
     if(!v) return alert("Escribe el nombre de la tienda.");
-    showLoading("Guardando...", "Agregando tienda al catálogo.");
-    try{ await catalogAdd("store", v); renderCatalogEditor(); render(); }
-    catch(e){ alert("No se pudo guardar la tienda. (Necesitas agregar catalog_* en Apps Script)"); }
-    finally{ hideLoading(); }
+    const ok = await confirmWithTimer("Agregar tienda", `Se agregará: "${v}"`);
+    if(!ok) return;
+    showLoading("Guardando...", "Agregando tienda...");
+    try{
+      await catalogAdd("store", v);
+      hideLoading();
+      m.style.display = "none";
+      render(); // refresca selects en ingredientes
+    } finally { hideLoading(); }
   };
 
-  host.querySelector("#addBrand").onclick = async ()=>{
-    const v = (host.querySelector("#brandNew").value||"").trim();
+  m.querySelector("#addBrand").onclick = async ()=>{
+    const v = (m.querySelector("#brandNew").value||"").trim();
     if(!v) return alert("Escribe el nombre de la marca.");
-    showLoading("Guardando...", "Agregando marca al catálogo.");
-    try{ await catalogAdd("brand", v); renderCatalogEditor(); render(); }
-    catch(e){ alert("No se pudo guardar la marca. (Necesitas agregar catalog_* en Apps Script)"); }
-    finally{ hideLoading(); }
+    const ok = await confirmWithTimer("Agregar marca", `Se agregará: "${v}"`);
+    if(!ok) return;
+    showLoading("Guardando...", "Agregando marca...");
+    try{
+      await catalogAdd("brand", v);
+      hideLoading();
+      m.style.display = "none";
+      render();
+    } finally { hideLoading(); }
   };
 
-  host.querySelector("#delStore").onclick = async ()=>{
-    const v = unescapeCss(host.querySelector("#storePick").value||"");
+  m.querySelector("#delStore").onclick = async ()=>{
+    const v = unescapeCss(m.querySelector("#storePick").value||"");
     if(!v) return alert("Selecciona una tienda para eliminar.");
-    if(!confirm(`¿Eliminar tienda "${v}"?`)) return;
-    showLoading("Guardando...", "Eliminando tienda del catálogo.");
-    try{ await catalogDelete("store", v); renderCatalogEditor(); render(); }
-    catch(e){ alert("No se pudo eliminar la tienda. (Necesitas agregar catalog_* en Apps Script)"); }
-    finally{ hideLoading(); }
+    const ok = await confirmWithTimer("Eliminar tienda", `Se eliminará: "${v}"`);
+    if(!ok) return;
+    showLoading("Guardando...", "Eliminando tienda...");
+    try{
+      await catalogDelete("store", v);
+      m.style.display = "none";
+      render();
+    } finally { hideLoading(); }
   };
 
-  host.querySelector("#delBrand").onclick = async ()=>{
-    const v = unescapeCss(host.querySelector("#brandPick").value||"");
+  m.querySelector("#delBrand").onclick = async ()=>{
+    const v = unescapeCss(m.querySelector("#brandPick").value||"");
     if(!v) return alert("Selecciona una marca para eliminar.");
-    if(!confirm(`¿Eliminar marca "${v}"?`)) return;
-    showLoading("Guardando...", "Eliminando marca del catálogo.");
-    try{ await catalogDelete("brand", v); renderCatalogEditor(); render(); }
-    catch(e){ alert("No se pudo eliminar la marca. (Necesitas agregar catalog_* en Apps Script)"); }
-    finally{ hideLoading(); }
+    const ok = await confirmWithTimer("Eliminar marca", `Se eliminará: "${v}"`);
+    if(!ok) return;
+    showLoading("Guardando...", "Eliminando marca...");
+    try{
+      await catalogDelete("brand", v);
+      m.style.display = "none";
+      render();
+    } finally { hideLoading(); }
   };
 }
 
+// ===== Render principal (acordeones cerrados + icono) =====
 function render(){
   const list = document.getElementById("list");
   const prices = loadPrices();
   const meta = loadMeta();
   const groups = getGroups();
 
+  // Barra superior con botón para catálogos
+  const top = document.getElementById("topTools");
+  if(top){
+    top.innerHTML = `
+      <div class="row" style="justify-content:space-between; align-items:center; gap:10px; margin-bottom:12px;">
+        <div class="mini" style="opacity:.9;">Tip: las secciones están en acordeón. Haz clic para desplegar.</div>
+        <button class="btn secondary" id="openCatalog" type="button">⚙️ Gestionar tiendas y marcas</button>
+      </div>
+    `;
+    top.querySelector("#openCatalog").onclick = ()=> openCatalogManager();
+  }
+
   list.innerHTML = groups.map(g=>{
     return `
-      <details class="item" open>
-        <summary class="row" style="cursor:pointer;justify-content:space-between;">
-          <div class="k">${g.title}</div>
+      <details class="item">
+        <summary class="row am_sum" style="cursor:pointer;justify-content:space-between; align-items:center;">
+          <div class="row" style="gap:10px; align-items:center;">
+            <span class="am_chev" aria-hidden="true">▶</span>
+            <div class="k">${g.title}</div>
+          </div>
           <div class="mini">${g.keys.length} ingrediente(s)</div>
         </summary>
 
@@ -277,11 +461,10 @@ function render(){
 
             const cpu = roundCOP(calcCpu(unit, packPrice, packQty, unitItemQty, unitItemQtyType));
             const cpuLbl = cpuDisplayLabel(unit, unitItemQtyType, unitItemQty);
-
             if(cpu>0) prices[k] = cpu;
 
             const qtyDisabled = !unit ? "disabled" : "";
-            const showUnidad = (unit==="unidad") ? "" : "style=\"display:none;\"";
+            const showUnidad = (unit==="unidad") ? "" : "style=\\"display:none;\\"";
             const disableUnidad = (unit==="unidad") ? "" : "disabled";
 
             return `
@@ -330,7 +513,7 @@ function render(){
                     </select>
                   </div>
                   <div class="mini" style="flex-basis:100%;opacity:.85;">
-                    Si llenas esto, el sistema calculará <strong>COP por g/ml</strong> a partir de “unidad”.
+                    Si llenas esto, el sistema calcula <strong>COP por g/ml</strong> a partir de “unidad”.
                   </div>
                 </div>
 
@@ -364,6 +547,14 @@ function render(){
 
   savePrices(prices);
 
+  // Flecha ▶ / ▼ según estado del details
+  list.querySelectorAll("details").forEach(d=>{
+    const chev = d.querySelector(".am_chev");
+    const sync = ()=>{ if(chev) chev.textContent = d.open ? "▼" : "▶"; };
+    sync();
+    d.addEventListener("toggle", sync, { passive:true });
+  });
+
   const recalcOne = (key)=>{
     const pricesNow = loadPrices();
     const metaNow = loadMeta();
@@ -395,9 +586,7 @@ function render(){
     if(qtyLabel) qtyLabel.textContent = unitLabel(unit);
 
     const wrap = list.querySelector(`[data-unidadwrap="${cssEscape(key)}"]`);
-    if(wrap){
-      wrap.style.display = (unit==="unidad") ? "" : "none";
-    }
+    if(wrap) wrap.style.display = (unit==="unidad") ? "" : "none";
     const uiq = list.querySelector(`[data-unititemqty="${cssEscape(key)}"]`);
     const uit = list.querySelector(`[data-unititemtype="${cssEscape(key)}"]`);
     if(uiq) uiq.disabled = (unit!=="unidad");
@@ -474,7 +663,7 @@ function render(){
 
       alert(`Listo ✅ Guardados en Sheets: ${saved} ingrediente(s).`);
     } catch(e){
-      alert("No se pudo guardar en Sheets. Aún falta implementar en Apps Script: campos extra (unidad) y catálogos.");
+      alert("No se pudo guardar en Sheets. Revisa el Webhook (costs_upsert) y vuelve a intentar.");
     } finally {
       hideLoading();
     }
@@ -495,6 +684,7 @@ document.getElementById("unlock").addEventListener("click", async ()=>{
     showLoading("Cargando...", "Leyendo COSTOS_INGREDIENTES desde Google Sheets.");
     const fromSheets = await fetchCostsFromSheets();
 
+    // carga catálogos (local + backend si existe)
     await fetchCatalogs();
 
     const prices = loadPrices();
@@ -528,9 +718,6 @@ document.getElementById("unlock").addEventListener("click", async ()=>{
     saveMeta(meta);
 
     document.getElementById("editor").style.display = "block";
-
-    // Requiere: <div id="catalogEditor"></div> en costs.html (arriba del listado)
-    renderCatalogEditor();
     render();
 
   } catch(e){
