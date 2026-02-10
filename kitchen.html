@@ -1,285 +1,188 @@
 <!doctype html>
 <html lang="es">
 <head>
-  <meta charset="utf-8"/>
-  <meta name="viewport" content="width=device-width,initial-scale=1"/>
-  <title>AMARED | Cocina</title>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>AMARED · Cocina</title>
 
-  <link rel="icon" href="assets/favicon.ico" type="image/x-icon">
-  <link rel="stylesheet" href="styles.css"/>
+  <link rel="icon" href="favicon.ico" />
 
   <style>
+    :root{
+      --bg:#fff7ef;
+      --paper:#fff;
+      --ink:#2a1206;
+      --muted:#6b4a3b;
+      --border:rgba(64,17,2,0.14);
+      --shadow:0 18px 40px rgba(64,17,2,0.10);
+      --brand:#f6ba60;
+      --brand2:#ffddaa;
+      --danger:#b00020;
+    }
+    html,body{height:100%;}
+    body{
+      margin:0;
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, "Helvetica Neue", Arial, "Noto Sans", "Apple Color Emoji","Segoe UI Emoji";
+      background:var(--bg);
+      color:var(--ink);
+    }
     .hidden{display:none!important;}
 
     .topbar2{
-      position: sticky; top:0; z-index:50;
-      background: var(--paper);
+      position:sticky; top:0; z-index:9000;
+      background:rgba(255,247,239,0.86);
+      backdrop-filter: blur(10px);
       border-bottom:1px solid var(--border);
-      box-shadow: 0 10px 30px rgba(64,17,2,.06);
     }
     .topbar2in{
-      max-width:1100px; margin:0 auto;
-      padding:12px 14px;
-      display:flex; align-items:center; justify-content:space-between; gap:10px;
-      flex-wrap:wrap;
-    }
-    .brandRow{display:flex; align-items:center; gap:10px;}
-    .brandLogo2{width:44px;height:44px;object-fit:contain;}
-    .ttl{font-weight:950; line-height:1;}
-    .sub{opacity:.7; font-weight:800; font-size:13px; margin-top:2px;}
-
-    .topActions{display:flex; gap:10px; align-items:center; flex-wrap:wrap;}
-    @media(max-width:520px){
-      .topbar2in{gap:8px;}
-      .topActions{width:100%; justify-content:space-between;}
-      .topActions .btn{flex:1;}
-    }
-
-    .container2{max-width:1100px;margin:0 auto;padding:14px;}
-
-    .card2{
-      background: var(--paper);
-      border:1px solid var(--border);
-      border-radius:22px;
-      box-shadow: var(--shadow);
-      padding:14px;
-    }
-
-    .row{display:flex; gap:10px; flex-wrap:wrap; align-items:center;}
-    .rowBetween{display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap;}
-
-    .muted{opacity:.72; font-weight:800;}
-    .small{font-size:13px;}
-
-    .gridCards{
-      display:grid;
-      grid-template-columns: repeat(2, 1fr);
-      gap:12px;
-      margin-top:12px;
-    }
-    @media(max-width:860px){ .gridCards{grid-template-columns:1fr;} }
-
-    .pCard{
-      background: rgba(254,246,239,.75);
-      border:1px solid var(--border);
-      border-radius:22px;
-      padding:14px;
-      box-shadow: 0 12px 30px rgba(64,17,2,.08);
-      overflow:hidden;
-    }
-    .bigNum{font-size:40px; font-weight:950; line-height:1;}
-    .pill{
-      display:inline-flex; align-items:center; gap:8px;
-      border:1px solid var(--border);
-      background: rgba(246,186,96,.15);
-      border-radius:999px;
-      padding:8px 10px;
-      font-weight:950;
-      font-size:13px;
-      white-space:nowrap;
-    }
-
-    /* Acordeón controlado por botón */
-    .accBody{
-      margin-top:12px;
-      padding-top:12px;
-      border-top:1px dashed rgba(64,17,2,.2);
-      display:none;
-    }
-    .pCard.open .accBody{display:block;}
-
-    .accGrid{display:grid; gap:10px;}
-    .line{
-      display:flex; justify-content:space-between; gap:10px;
-      border:1px solid var(--border);
-      border-radius:16px;
-      padding:10px 12px;
-      background: white;
-      font-weight:900;
-    }
-    .line span{opacity:.75; font-weight:900;}
-
-    /* Loading overlay (encima de todo) */
-    .loadingOverlay{
-      position:fixed; inset:0;
-      background: rgba(0,0,0,.26);
-      z-index:30000;
-      display:none;
+      max-width:1100px;
+      margin:0 auto;
+      padding:10px 14px;
+      display:flex;
       align-items:center;
-      justify-content:center;
-      padding:16px;
+      justify-content:space-between;
+      gap:10px;
     }
-    .loadingOverlay.show{display:flex;}
-    .loadingBox{
-      width:min(520px, 100%);
+    .brandRow{display:flex; gap:10px; align-items:center;}
+    .brandLogo2{width:36px; height:36px; object-fit:contain;}
+    .ttl{font-weight:950; letter-spacing:0.4px;}
+    .sub{font-size:12px; color:var(--muted); font-weight:800;}
+    .topActions{display:flex; gap:10px; align-items:center; flex-wrap:wrap;}
+    .iconBtn{
+      border:1px solid var(--border);
+      background:var(--paper);
+      border-radius:14px;
+      padding:10px 12px;
+      cursor:pointer;
+      box-shadow:0 8px 18px rgba(64,17,2,0.06);
+      font-weight:950;
+    }
+    .container2{
+      max-width:1100px;
+      margin:0 auto;
+      padding:14px;
+      display:grid;
+      gap:12px;
+    }
+    .card2{
       background:var(--paper);
       border:1px solid var(--border);
       border-radius:18px;
-      box-shadow: var(--shadow);
+      box-shadow:var(--shadow);
       padding:14px;
-      text-align:center;
     }
-    .spinner{
-      width:34px; height:34px;
-      border:4px solid rgba(64,17,2,.15);
-      border-top:4px solid rgba(64,17,2,.65);
-      border-radius:50%;
-      margin:0 auto 10px;
-      animation: spin 1s linear infinite;
-    }
-    @keyframes spin { to { transform: rotate(360deg); } }
-
-    /* Login */
-    .loginBox{max-width:520px;margin:40px auto;}
-    .field{display:grid; gap:6px; margin-top:10px;}
-    select.input, input.input{
-      padding:12px 12px;
-      border-radius:14px;
-      border:1px solid var(--border);
-      font-weight:900;
-      background:white;
-    }
-
-    /* Icon button */
-    .iconBtn{
-      width:44px;height:44px;
-      display:inline-flex; align-items:center; justify-content:center;
-      border-radius:16px;
-      border:1px solid var(--border);
-      background:white;
-      box-shadow: 0 10px 25px rgba(64,17,2,.08);
-      cursor:pointer;
-      font-size:18px;
-      font-weight:950;
-    }
-
-    /* Orders modal */
-    .modalOverlay{
-      position:fixed; inset:0;
-      background: rgba(0,0,0,.28);
-      z-index:12000;
-      display:none;
+    .muted{color:var(--muted);}
+    .small{font-size:12px; font-weight:800; line-height:1.25;}
+    .pill{
+      display:inline-flex;
       align-items:center;
-      justify-content:center;
-      padding:16px;
-    }
-    .modalOverlay.show{display:flex;}
-    .modalBox{
-      width:min(980px, 100%);
-      max-height: 86vh;
-      overflow:auto;
-      background: var(--paper);
-      border: 1px solid var(--border);
-      border-radius:22px;
-      box-shadow: var(--shadow);
-      padding:14px;
-    }
-    .tabs{display:flex; gap:10px; flex-wrap:wrap; margin-top:10px;}
-    .tab{
-      padding:10px 12px;
+      gap:8px;
+      border:1px solid var(--border);
       border-radius:999px;
+      padding:6px 10px;
+      font-weight:950;
+      background:rgba(0,0,0,0.03);
+      white-space:nowrap;
+    }
+
+    .btn{
       border:1px solid var(--border);
+      background:var(--paper);
+      border-radius:14px;
+      padding:10px 12px;
       font-weight:950;
       cursor:pointer;
-      background:white;
-      opacity:.85;
+      box-shadow:0 8px 18px rgba(64,17,2,0.06);
     }
-    .tab.active{background:rgba(242,91,143,.12); opacity:1;}
-    .oList{display:grid; gap:10px; margin-top:12px;}
-    .oItem{
-      border:1px solid var(--border);
-      border-radius:18px;
-      padding:12px;
-      background:white;
-      box-shadow: 0 12px 28px rgba(64,17,2,.08);
+    .btn.primary{
+      background:var(--brand);
+      border-color:rgba(64,17,2,0.18);
     }
-    .oMeta{font-size:13px; font-weight:900; opacity:.72;}
+    .btn.secondary{
+      background:rgba(255,255,255,0.92);
+    }
+    .btn:disabled{opacity:.55; cursor:not-allowed;}
 
-    /* Recipe overlay full page */
-    .recipeOverlay{
-      position:fixed; inset:0;
-      background: rgba(0,0,0,.32);
-      z-index:14000;
-      display:none;
-      padding:14px;
-      align-items:center;
-      justify-content:center;
+    .loginBox{max-width:520px; margin:18px auto 0;}
+    .field{display:grid; gap:8px; margin-top:12px;}
+    .input{
+      width:100%;
+      border:1px solid rgba(64,17,2,0.18);
+      border-radius:14px;
+      padding:12px 12px;
+      font-weight:950;
+      background:white;
+      box-sizing:border-box;
     }
-    .recipeOverlay.show{display:flex;}
-    .recipeBox{
-      width:min(1100px, 100%);
-      max-height: 92vh;
-      overflow:auto;
-      background: var(--paper);
-      border:1px solid var(--border);
-      border-radius:22px;
-      box-shadow: var(--shadow);
-    }
-    .recipeTop{
-      position: sticky; top:0;
-      background: var(--paper);
-      border-bottom:1px solid var(--border);
-      padding:12px 14px;
-      display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap;
-      z-index:2;
-    }
-    .recipeContent{
-      padding:14px;
-      display:grid;
-      grid-template-columns: 1.1fr .9fr;
+
+    .rowBetween{
+      display:flex;
+      align-items:flex-start;
+      justify-content:space-between;
       gap:12px;
     }
-    @media(max-width:900px){ .recipeContent{grid-template-columns:1fr;} }
 
-    .stepCounter{font-weight:950; opacity:.7;}
-    .stepText{
-      font-size: clamp(22px, 2.2vw, 38px);
-      font-weight: 950;
-      line-height:1.12;
-      margin: 8px 0 12px;
-      white-space: pre-wrap;
+    .gridCards{
+      display:grid;
+      grid-template-columns: repeat(12, 1fr);
+      gap:12px;
     }
-    .stepHintBox{font-weight:900; opacity:.75; font-size:13px; margin-top:6px;}
-    .stepImg{
-      width:100%;
-      max-height: 420px;
-      object-fit: contain;
-      border-radius:18px;
-      border:1px solid var(--border);
-      background:white;
-    }
-
-    /* Batch ingredients list (Paso 1) */
-    .batchBox{
+    .pCard{
+      grid-column: span 12;
       border:1px solid var(--border);
       border-radius:18px;
-      background:white;
+      background:rgba(255,255,255,0.92);
       padding:12px;
-      box-shadow: 0 10px 25px rgba(64,17,2,.06);
+      box-shadow:0 12px 26px rgba(64,17,2,0.06);
+      overflow:hidden;
     }
-    .batchRow{
-      display:flex; justify-content:space-between; gap:10px;
-      padding:10px 10px;
-      border:1px solid rgba(64,17,2,.12);
-      border-radius:14px;
-      margin-top:10px;
+    @media(min-width:860px){
+      .pCard{grid-column: span 6;}
+    }
+    .bigNum{
+      font-size:34px;
+      font-weight:950;
+      line-height:1;
+      margin-top:6px;
+    }
+
+    /* Accordion (card interno) */
+    .accBody{display:none; margin-top:10px;}
+    .pCard.open .accBody{display:block;}
+    .accGrid{display:grid; gap:10px;}
+    .line{
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:10px;
+      padding:10px 12px;
+      border:1px solid var(--border);
+      border-radius:16px;
+      background:white;
       font-weight:900;
     }
-    .batchRow .k{opacity:.75; font-weight:900;}
-    .batchTop{
-      display:flex; justify-content:space-between; gap:10px; flex-wrap:wrap;
-      align-items:center;
+    .line .k{opacity:.78; font-weight:950;}
+    .line .r{
+      display:flex;
+      gap:10px;
+      align-items:baseline;
+      justify-content:flex-end;
+      text-align:right;
+      flex-wrap:wrap;
     }
+    .line .r .u{opacity:.75; font-weight:900;}
+    .line .r .c{font-weight:950;}
+    .hr{height:1px; background:rgba(64,17,2,0.12); margin:12px 0;}
 
-    /* Timer floating (siempre visible después de iniciar) */
+    /* Timer floating */
     .timerFloat{
       position:fixed;
       right:12px; bottom:12px;
       z-index:20000;
       border:1px solid var(--border);
       border-radius:18px;
-      background: rgba(246,186,96,.14);
-      box-shadow: 0 16px 40px rgba(64,17,2,.14);
+      background: rgba(246,186,96,0.14);
+      box-shadow: 0 16px 40px rgba(64,17,2,0.14);
       padding:10px 12px;
       display:none;
       min-width: 220px;
@@ -289,12 +192,50 @@
     .timerFloat .t2{font-weight:950; font-size:22px; margin-top:4px;}
     .timerFloat .t3{font-weight:900; font-size:12px; opacity:.7; margin-top:4px;}
 
-    .btnRow{display:flex; gap:10px; flex-wrap:wrap; justify-content:flex-end; margin-top:12px;}
+    /* Modal genérico */
+    .modalOverlay{
+      position:fixed; inset:0;
+      background: rgba(0,0,0,0.26);
+      z-index:15000;
+      display:none;
+      align-items:center;
+      justify-content:center;
+      padding:16px;
+    }
+    .modalOverlay.show{display:flex;}
+    .modalBox{
+      width:min(720px,100%);
+      background:var(--paper);
+      border:1px solid var(--border);
+      border-radius:18px;
+      box-shadow:var(--shadow);
+      padding:14px;
+    }
+    .oList{display:grid; gap:10px; margin-top:10px;}
+    .oItem{
+      border:1px solid var(--border);
+      border-radius:16px;
+      padding:12px;
+      background:white;
+      box-shadow:0 10px 22px rgba(64,17,2,0.06);
+    }
+    .oMeta{font-size:12px; font-weight:900; color:var(--muted);}
+
+    .tabs{display:flex; gap:10px; margin-top:10px;}
+    .tab{
+      border:1px solid var(--border);
+      background:rgba(0,0,0,0.03);
+      border-radius:999px;
+      padding:8px 12px;
+      cursor:pointer;
+      font-weight:950;
+    }
+    .tab.active{background:var(--brand2);}
 
     /* Confirm 3s */
     .confirmOverlay{
       position:fixed; inset:0;
-      background: rgba(0,0,0,.26);
+      background: rgba(0,0,0,0.26);
       z-index:16000;
       display:none;
       align-items:center;
@@ -311,32 +252,92 @@
       padding:14px;
     }
     .countdown{font-weight:950; font-size:20px; opacity:.85;}
+    .btnRow{display:flex; gap:10px; flex-wrap:wrap; justify-content:flex-end; margin-top:12px;}
 
-    /* Preparados */
-    .doneSection{margin-top:12px;}
-    .donePill{background: rgba(0,0,0,.03);}
-
-    /* Perfiles modal + Costos modal (simple) */
-    .formGrid{display:grid; gap:10px; margin-top:10px;}
-    .miniRow{display:flex; gap:10px; align-items:center; flex-wrap:wrap;}
-    .miniRow .input{flex:1;}
-    .hr{height:1px; background:rgba(64,17,2,.12); margin:12px 0;}
-
-    .priceRow{
-      display:flex; gap:10px; align-items:center;
-      border:1px solid var(--border);
-      border-radius:16px;
-      padding:10px 12px;
-      background:white;
-      font-weight:900;
+    /* Recipe full-screen */
+    .recipeOverlay{
+      position:fixed; inset:0;
+      background: rgba(0,0,0,0.26);
+      z-index:14000;
+      display:none;
+      padding:16px;
     }
-    .priceRow .k{flex:1; opacity:.75;}
-    .priceRow input{
-      width:140px;
-      padding:10px 10px;
-      border-radius:14px;
-      border:1px solid rgba(64,17,2,.18);
+    .recipeOverlay.show{display:block;}
+    .recipeBox{
+      max-width:1100px;
+      margin:0 auto;
+      height:calc(100vh - 32px);
+      background:var(--paper);
+      border:1px solid var(--border);
+      border-radius:18px;
+      box-shadow:var(--shadow);
+      overflow:hidden;
+      display:flex;
+      flex-direction:column;
+    }
+    .recipeTop{
+      padding:14px;
+      border-bottom:1px solid var(--border);
+      display:flex;
+      align-items:flex-start;
+      justify-content:space-between;
+      gap:12px;
+    }
+    .recipeContent{
+      padding:14px;
+      display:grid;
+      grid-template-columns: 1fr;
+      gap:12px;
+      flex:1;
+      overflow:auto;
+    }
+    @media(min-width:900px){
+      .recipeContent{grid-template-columns: 1.1fr 0.9fr;}
+    }
+    .stepCounter{font-weight:950; opacity:.75;}
+    .stepText{
+      font-size:22px;
       font-weight:950;
+      line-height:1.2;
+      margin-top:10px;
+      white-space:pre-wrap;
+    }
+    .stepHintBox{
+      margin-top:12px;
+      padding:10px 12px;
+      border:1px dashed rgba(64,17,2,0.22);
+      border-radius:16px;
+      background:rgba(0,0,0,0.02);
+      font-weight:900;
+      color:var(--muted);
+      min-height: 44px;
+    }
+    .stepImg{
+      width:100%;
+      border-radius:18px;
+      border:1px solid var(--border);
+      object-fit:cover;
+      max-height: 520px;
+    }
+
+    /* Loading (siempre encima) */
+    .loading{
+      position:fixed; inset:0;
+      z-index:17000;
+      display:none;
+      align-items:center;
+      justify-content:center;
+      padding:16px;
+      background: rgba(0,0,0,0.22);
+    }
+    .loading.show{display:flex;}
+    .loadingBox{
+      width:min(520px,100%);
+      background:var(--paper);
+      border:1px solid var(--border);
+      border-radius:18px;
+      box-shadow:var(--shadow);
+      padding:14px;
     }
   </style>
 </head>
@@ -352,10 +353,8 @@
         </div>
       </div>
 
-      <!-- Acciones SOLO logueado -->
       <div id="topActions" class="topActions hidden">
         <button id="btnOrders" class="iconBtn" title="Ver pedidos">📋</button>
-        <button id="btnCosts" class="iconBtn" title="Costos">🧾</button>
         <button id="btnRefresh" class="btn secondary" type="button">Refrescar</button>
         <button id="btnLogout" class="btn secondary" type="button">Salir</button>
       </div>
@@ -367,7 +366,7 @@
     <!-- LOGIN -->
     <div id="loginView" class="loginBox card2">
       <h2 style="margin:0 0 6px;">Acceso Cocina</h2>
-      <div class="muted small">Selecciona un perfil aprobado + ingresa el PIN.</div>
+      <div class="muted small">Selecciona un perfil + ingresa el PIN.</div>
 
       <div class="field">
         <label class="muted small">Perfil</label>
@@ -382,7 +381,7 @@
       <div class="field">
         <button id="btnLogin" class="btn primary" type="button">Ingresar</button>
         <button id="btnManageProfiles" class="btn secondary" type="button">Gestionar perfiles</button>
-        <div id="loginErr" class="muted small" style="color:#b00020;"></div>
+        <div id="loginErr" class="muted small" style="color:var(--danger);"></div>
       </div>
     </div>
 
@@ -399,38 +398,54 @@
         </div>
       </div>
 
+      <!-- FUTUROS (después de 3pm) -->
+      <div id="futureSection" class="card2 hidden">
+        <div class="rowBetween">
+          <div>
+            <div style="font-weight:950; font-size:18px;">🕒 Pedidos después de las 3:00 pm (informativo)</div>
+            <div class="muted small">Estos pedidos NO se producen en el lote actual. Se muestran para planificación.</div>
+          </div>
+          <div class="pill" id="futurePill">0</div>
+        </div>
+        <div class="hr"></div>
+        <div id="futureCards" class="oList"></div>
+      </div>
+
+      <!-- CARDS PRODUCCIÓN -->
       <div class="gridCards" id="productCards"></div>
 
-      <div class="doneSection card2 hidden" id="doneSection">
+      <!-- PREPARADOS -->
+      <div class="card2 hidden" id="doneSection">
         <div class="rowBetween">
           <div>
             <div style="font-weight:950; font-size:18px;">✅ Preparados hoy</div>
             <div class="muted small">Estos postres ya fueron marcados como listos.</div>
           </div>
-          <div class="pill donePill" id="doneCount">0</div>
+          <div class="pill" id="doneCount">0</div>
         </div>
-        <div class="gridCards" id="doneCards" style="margin-top:12px;"></div>
+        <div class="hr"></div>
+        <div class="gridCards" id="doneCards"></div>
       </div>
     </div>
-  </div>
 
-  <!-- LOADING -->
-  <div id="loading" class="loadingOverlay" aria-hidden="true">
-    <div class="loadingBox">
-      <div class="spinner"></div>
-      <div style="font-weight:950; font-size:18px;" id="loadingTitle">Cargando...</div>
-      <div class="muted small" id="loadingDesc">Por favor espera.</div>
-    </div>
   </div>
 
   <!-- TIMER FLOAT -->
   <div id="timerFloat" class="timerFloat" aria-hidden="true">
     <div class="t1">Base en nevera</div>
     <div class="t2" id="timerFloatTime">No iniciado</div>
-    <div class="t3">30 min desde que confirmaste.</div>
+    <div class="t3">30 min (sin pausar)</div>
   </div>
 
-  <!-- PEDIDOS MODAL -->
+  <!-- LOADING -->
+  <div id="loading" class="loading" aria-hidden="true">
+    <div class="loadingBox">
+      <div style="font-weight:950; font-size:18px;" id="loadingTitle">Cargando...</div>
+      <div class="muted small" id="loadingDesc" style="margin-top:6px;">—</div>
+    </div>
+  </div>
+
+  <!-- MODAL: PEDIDOS -->
   <div id="ordersModal" class="modalOverlay" aria-hidden="true">
     <div class="modalBox">
       <div class="rowBetween">
@@ -442,15 +457,15 @@
       </div>
 
       <div class="tabs">
-        <button class="tab active" id="tabToday" type="button">Pedidos del día</button>
-        <button class="tab" id="tabHistory" type="button">Anteriores (Listo)</button>
+        <button class="tab active" id="tabToday" type="button">Hoy</button>
+        <button class="tab" id="tabHistory" type="button">Historial</button>
       </div>
 
-      <div id="ordersList" class="oList"></div>
+      <div class="oList" id="ordersList"></div>
     </div>
   </div>
 
-  <!-- RECIPE OVERLAY -->
+  <!-- RECIPE -->
   <div id="recipeOverlay" class="recipeOverlay" aria-hidden="true">
     <div class="recipeBox">
       <div class="recipeTop">
@@ -458,7 +473,7 @@
           <div style="font-weight:950; font-size:18px;" id="recipeTitle">Receta</div>
           <div class="muted small" id="recipeSub">—</div>
         </div>
-        <div class="row">
+        <div>
           <button id="btnRecipeClose" class="btn secondary" type="button">Cerrar</button>
         </div>
       </div>
@@ -496,13 +511,13 @@
     </div>
   </div>
 
-  <!-- MODAL: Gestionar perfiles -->
+  <!-- MODAL: GESTIONAR PERFILES -->
   <div id="profilesModal" class="modalOverlay" aria-hidden="true">
     <div class="modalBox">
       <div class="rowBetween">
         <div>
           <div style="font-weight:950; font-size:18px;">Gestionar perfiles</div>
-          <div class="muted small">Requiere clave secreta (solo para crear perfiles).</div>
+          <div class="muted small">Agregar/eliminar perfiles (se guardan en la base de datos). Requiere clave secreta.</div>
         </div>
         <button id="btnCloseProfiles" class="btn secondary" type="button">Cerrar</button>
       </div>
@@ -511,10 +526,10 @@
 
       <div id="profilesGate">
         <div class="muted small">Ingresa la clave secreta para continuar.</div>
-        <div class="formGrid">
+        <div style="display:grid; gap:10px; margin-top:10px;">
           <input id="inpProfilesSecret" class="input" type="password" placeholder="Clave secreta">
           <button id="btnProfilesUnlock" class="btn primary" type="button">Verificar</button>
-          <div id="profilesGateErr" class="muted small" style="color:#b00020;"></div>
+          <div id="profilesGateErr" class="muted small" style="color:var(--danger);"></div>
         </div>
       </div>
 
@@ -525,45 +540,11 @@
         <div class="hr"></div>
 
         <div class="muted small">Agregar nuevo perfil:</div>
-        <div class="miniRow" style="margin-top:10px;">
+        <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-top:10px;">
           <input id="inpNewProfile" class="input" placeholder="Nombre (ej: Laura)">
           <button id="btnAddProfile" class="btn primary" type="button">Agregar</button>
         </div>
-        <div class="muted small" style="margin-top:8px;">* Los perfiles se guardan en este navegador (localStorage).</div>
-      </div>
-    </div>
-  </div>
-
-  <!-- MODAL: Costos -->
-  <div id="costsModal" class="modalOverlay" aria-hidden="true">
-    <div class="modalBox">
-      <div class="rowBetween">
-        <div>
-          <div style="font-weight:950; font-size:18px;">Costos de ingredientes</div>
-          <div class="muted small">Edita COP por unidad (g/ml/unidad). Requiere clave secreta.</div>
-        </div>
-        <button id="btnCloseCosts" class="btn secondary" type="button">Cerrar</button>
-      </div>
-
-      <div class="hr"></div>
-
-      <div id="costsGate">
-        <div class="muted small">Ingresa clave secreta para editar costos.</div>
-        <div class="formGrid">
-          <input id="inpCostsSecret" class="input" type="password" placeholder="Clave secreta">
-          <button id="btnCostsUnlock" class="btn primary" type="button">Verificar</button>
-          <div id="costsGateErr" class="muted small" style="color:#b00020;"></div>
-        </div>
-      </div>
-
-      <div id="costsEditor" class="hidden">
-        <div class="muted small">Precios (COP por unidad):</div>
-        <div id="costsList" class="oList"></div>
-
-        <div class="btnRow" style="margin-top:12px;">
-          <button id="btnSaveCosts" class="btn primary" type="button">Guardar</button>
-        </div>
-        <div class="muted small" style="margin-top:8px;">* Los costos se guardan en este navegador (localStorage). Más adelante los conectamos a Sheets.</div>
+        <div class="muted small" style="margin-top:8px;">* Se guarda en Google Sheets (permanente).</div>
       </div>
     </div>
   </div>
