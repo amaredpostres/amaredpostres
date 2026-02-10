@@ -5,85 +5,75 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>AMARED · Costos de ingredientes</title>
 
-  <!-- ✅ TU CSS GLOBAL (NO LO CAMBIES) -->
+  <!-- ✅ CSS GLOBAL AMARED (el mismo de todas las páginas) -->
   <link rel="stylesheet" href="./styles.css" />
 
-  <!-- ✅ CSS SOLO PARA COSTOS (NUEVO) -->
+  <!-- ✅ Solo ajustes puntuales para costos (acordeones/modales) -->
   <link rel="stylesheet" href="./costs.css" />
 
   <link rel="icon" href="./favicon.ico" />
 </head>
 
-<body class="costs-page">
-  <!-- Header (solo para esta página; no afecta otras) -->
-  <header class="costs-topbar">
-    <div class="costs-wrap costs-row costs-topbar-inner">
-      <div class="costs-brand">
-        <div class="costs-logo-dot"></div>
-        <div>
-          <div class="costs-brand-title">AMARED</div>
-          <div class="costs-brand-sub">Costos · Ingredientes</div>
-        </div>
-      </div>
-
-      <div class="costs-row" style="gap:10px; flex-wrap:wrap;">
-        <a class="costs-btn costs-btn-secondary" href="./index.html">Volver</a>
+<body>
+  <!-- Usa la misma topbar del sitio -->
+  <header class="topbar">
+    <div class="topbarInner">
+      <div class="brand">
+        <!-- Aquí puedes poner tu logo si ya lo haces en otras páginas -->
+        <img src="./assets/logo.svg" alt="AMARED" style="height:44px; width:auto;" onerror="this.style.display='none'">
       </div>
     </div>
   </header>
 
-  <main class="costs-wrap">
-    <!-- Unlock -->
-    <section class="costs-card">
-      <div class="costs-card-title">🔒 Acceso a Costos</div>
-      <div class="costs-card-desc">
+  <main class="wrapCosts">
+    <section class="card">
+      <h2 class="hTitle">🔒 Costos de ingredientes</h2>
+      <p class="pSub">
         Ingresa la clave de costos para ver y editar los ingredientes. Esta clave se valida en el servidor.
+      </p>
+
+      <div class="rowFlex">
+        <input id="secret" class="field" type="password" placeholder="COSTS_SECRET" autocomplete="off" />
+        <button id="unlock" class="btn">Desbloquear</button>
       </div>
 
-      <div class="costs-row" style="margin-top:12px; gap:10px; flex-wrap:wrap;">
-        <input id="secret" class="costs-input" type="password" placeholder="COSTS_SECRET" autocomplete="off" />
-        <button id="unlock" class="costs-btn">Desbloquear</button>
-      </div>
-
-      <div id="err" class="costs-error" style="margin-top:10px;"></div>
+      <div id="err" class="errText"></div>
     </section>
 
-    <!-- Editor -->
-    <section id="editor" class="costs-card" style="display:none;">
-      <div class="costs-row" style="justify-content:space-between; align-items:flex-start; gap:12px; flex-wrap:wrap;">
+    <section id="editor" class="card" style="display:none;">
+      <div class="rowFlex spaceBetween">
         <div>
-          <div class="costs-card-title">📌 Tabla de costos</div>
-          <div class="costs-card-desc">
-            Completa la información de cada ingrediente. El cálculo se actualiza en tiempo real.
-            Usa <b>Guardar en Sheets</b> para dejarlo permanente.
-          </div>
+          <h2 class="hTitle">📌 Tabla de costos</h2>
+          <p class="pSub">
+            El cálculo se actualiza en tiempo real. Usa <b>Guardar en Sheets</b> para dejarlo permanente.
+          </p>
         </div>
 
-        <div class="costs-row" style="gap:10px; flex-wrap:wrap; justify-content:flex-end;">
-          <button id="saveAll" class="costs-btn">Guardar en Sheets</button>
+        <div class="rowFlex">
+          <button id="saveAll" class="btn">Guardar en Sheets</button>
         </div>
       </div>
 
-      <!-- costs.js pinta acá: Refrescar + Tiendas/Marcas -->
-      <div id="topTools" style="margin-top:14px;"></div>
+      <!-- costs.js dibuja aquí Refrescar + Tiendas/Marcas -->
+      <div id="topTools" class="mt12"></div>
 
-      <!-- listado -->
-      <div id="list" style="margin-top:10px;"></div>
+      <!-- costs.js dibuja aquí los acordeones -->
+      <div id="list" class="mt12"></div>
     </section>
   </main>
 
   <!-- Loading overlay -->
-  <div id="loading" class="costs-loading">
-    <div class="costs-loading-card">
-      <div class="costs-loading-title" id="lt">Cargando…</div>
-      <div class="costs-loading-desc" id="ld">Por favor espera.</div>
+  <div id="loading" class="loadingOverlay">
+    <div class="loadingCard">
+      <div class="loadingTitle" id="lt">Cargando…</div>
+      <div class="loadingDesc" id="ld">Por favor espera.</div>
     </div>
   </div>
 
-  <!-- 1) Ingredientes/Grupos canónicos -->
+  <!-- Ingredientes/grupos canónicos -->
   <script src="./kitchen-costs.js"></script>
 
-  <!-- 2) Lógica de costos -->
+  <!-- Lógica de costos (tu costs.v5.js renombrado a costs.js) -->
   <script src="./costs.js"></script>
 </body>
 </html>
