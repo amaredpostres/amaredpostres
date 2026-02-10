@@ -70,8 +70,10 @@ async function upsertCostToSheets(row){
 }
 async function fetchCatalogsFromSheets(){
   const out = await api({ action:"catalog_list", costs_secret: UNLOCKED_SECRET });
-  const stores = (out.stores || []).map(x=>x.value || x).filter(Boolean);
-  const brands = (out.brands || []).map(x=>x.value || x).filter(Boolean);
+  // Webhook devuelve: { ok:true, catalog:{ stores:[...], brands:[...] } }
+  const cat = out.catalog || {};
+  const stores = (cat.stores || []).map(x=>x.value || x).filter(Boolean);
+  const brands = (cat.brands || []).map(x=>x.value || x).filter(Boolean);
   STORES = uniqSorted(stores);
   BRANDS = uniqSorted(brands);
 }
