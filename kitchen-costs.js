@@ -1,50 +1,63 @@
-// kitchen-costs.js (AMARED)
-// ✅ Lista CANÓNICA de ingredientes (sin paréntesis, sin duplicados).
-// La unidad se define en la página de costos (g / ml / unidad).
+// kitchen-costs.js (CANÓNICO para Costos)
+// Ingredientes SIN paréntesis y agrupados por secciones (acordeones)
 
-window.AMARED_INGREDIENT_GROUPS = [
+window.AMARED_COSTS_SECTIONS = [
   {
-    id: "shared_all",
     title: "Ingredientes que comparten todos los postres",
-    keys: ["Leche condensada"]
+    keys: [
+      "Leche condensada"
+    ]
   },
   {
-    id: "shared_mousse_rice",
     title: "Ingredientes que comparten Mousse de maracuyá y Arroz con leche",
-    keys: ["Leche entera"]
+    keys: [
+      "Leche entera"
+    ]
   },
   {
-    id: "shared_mousse_cheesecake",
-    title: "Ingredientes que comparten Mousse y Cheesecake",
-    keys: ["Crema de leche", "Mantequilla sin sal", "Vainilla", "Gelatina sin sabor"]
+    title: "Ingredientes que comparten Mousse de maracuyá y Cheesecake de café con panela",
+    keys: [
+      "Crema de leche",
+      "Mantequilla sin sal",
+      "Vainilla",
+      "Gelatina sin sabor"
+    ]
   },
   {
-    id: "shared_cheesecake_rice",
-    title: "Ingredientes que comparten Cheesecake y Arroz con leche",
-    keys: ["Sal"]
+    title: "Ingredientes que comparten Cheesecake de café con panela y Arroz con leche",
+    keys: [
+      "Sal"
+    ]
   },
   {
-    id: "mousse",
-    title: "Postre: Mousse de maracuyá",
-    keys: ["Pulpa de maracuyá", "Galletas saladas", "Chocorramo", "Chocolate en polvo"]
+    title: "Ingredientes para Mousse de maracuyá",
+    keys: [
+      "Pulpa de maracuyá",
+      "Galletas saladas",
+      "Chocorramo",
+      "Chocolate en polvo"
+    ]
   },
   {
-    id: "rice",
-    title: "Postre: Arroz con leche (puede cambiar)",
-    keys: ["Arroz blanco", "Agua", "Azúcar", "Canela en astilla", "Queso costeño"]
+    title: "Ingredientes para Arroz con leche",
+    keys: [
+      "Arroz blanco",
+      "Agua",
+      "Azúcar",
+      "Canela en astilla",
+      "Queso costeño"
+    ]
   },
   {
-    id: "cheesecake",
-    title: "Postre: Cheesecake de café con panela",
-    keys: ["Galleta de leche", "Queso crema", "Café", "Panela", "Harina de galleta de leche"]
+    title: "Ingredientes para Cheesecake de café con panela",
+    keys: [
+      "Galleta de leche",
+      "Queso crema",
+      "Café",
+      "Panela"
+    ]
   }
 ];
 
-// Precios por unidad (COP) -> se sobreescriben con lo que venga de Sheets/localStorage.
-window.AMARED_INGREDIENT_PRICES = (function(){
-  const all = {};
-  for (const g of window.AMARED_INGREDIENT_GROUPS) {
-    for (const k of g.keys) all[k] = 0;
-  }
-  return all;
-})();
+// (Opcional) Si quieres mantener un objeto de precios legacy, lo dejamos vacío
+window.AMARED_INGREDIENT_PRICES = window.AMARED_INGREDIENT_PRICES || {};
