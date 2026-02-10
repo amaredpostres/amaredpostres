@@ -3,57 +3,39 @@ const TZ = "America/Bogota";
 const CUTOFF_HOUR = 15;
 const BASE_FRIDGE_MINUTES = 30;
 
-// ✅ Ya NO hay claves en el frontend
+async function api(payload){
+  const res = await fetch(API_URL, {
+    method:"POST",
+    headers:{ "Content-Type":"application/json" },
+    body: JSON.stringify(payload),
+  });
+  const out = await res.json().catch(async () => ({ ok:false, error: await res.text().catch(()=> "Error") }));
+  if(!out.ok) throw new Error(out.error || "Error");
+  return out;
+}
+
+function safeJsonParse(s){ try { return JSON.parse(s); } catch { return null; } }
+function money(n){ return Math.round(Number(n||0)).toLocaleString("es-CO"); }
+function fmtDateTimeCO(d){
+  return new Intl.DateTimeFormat("es-CO", { timeZone: TZ, dateStyle:"short", timeStyle:"short" }).format(d);
+}
+function formatQty(q){
+  const rounded = Math.round(Number(q||0)*10)/10;
+  return rounded.toLocaleString("es-CO");
+}
+
+// ✅ Ya NO hay claves en el frontend (solo se validan con Worker)
 async function validateSecretWithWorker(type, secret) {
   const out = await api({ action:"validate_secret", type, secret });
   if (!out?.ok) throw new Error("Clave inválida");
   return true;
 }
 
-const LS_PROFILES_KEY = "AMARED_KITCHEN_PROFILES_LOCAL";
-const LS_COSTS_KEY = "AMARED_INGREDIENT_PRICES_LOCAL";
-
 const DEFAULT_PROFILES = (window.AMARED_KITCHEN_PROFILES && Array.isArray(window.AMARED_KITCHEN_PROFILES))
   ? window.AMARED_KITCHEN_PROFILES
   : [{ id:"esperanza", label:"Esperanza" }, { id:"cristian", label:"Cristian" }];
 
-function safeJsonParse(s){ try { return JSON.parse(s); } catch { return null; } }
-
-function loadProfiles(){
-  const raw = localStorage.getItem(LS_PROFILES_KEY);
-  const local = raw ? safeJsonParse(raw) : null;
-  const merged = [...DEFAULT_PROFILES];
-  if(Array.isArray(local)){
-    for(const p of local){
-      if(!p?.id || !p?.label) continue;
-      if(!merged.some(x => x.id === p.id)) merged.push(p);
-    }
-  }
-  return merged;
-}
-function saveProfilesLocal(list){
-  localStorage.setItem(LS_PROFILES_KEY, JSON.stringify(list || []));
-}
-function makeIdFromLabel(label){
-  return String(label||"").trim().toLowerCase()
-    .replace(/[^a-z0-9áéíóúñ]+/gi, "_")
-    .replace(/_+/g,"_")
-    .replace(/^_|_$/g,"");
-}
-
-const DEFAULT_PRICES = (window.AMARED_INGREDIENT_PRICES && typeof window.AMARED_INGREDIENT_PRICES === "object")
-  ? window.AMARED_INGREDIENT_PRICES
-  : {};
-
-function loadPrices(){
-  const raw = localStorage.getItem(LS_COSTS_KEY);
-  const local = raw ? safeJsonParse(raw) : null;
-  return { ...DEFAULT_PRICES, ...(local && typeof local==="object" ? local : {}) };
-}
-function savePrices(prices){
-  localStorage.setItem(LS_COSTS_KEY, JSON.stringify(prices || {}));
-}
-
+// === Productos + recetas (igual que tenías) ===
 const PRODUCTS = [
   { id: "mousse_maracuya", name: "Mousse de Maracuyá" },
   { id: "cheesecake_cafe_panela", name: "Cheesecake de café con panela" },
@@ -145,7 +127,7 @@ const RECIPE_UNIT = {
   },
 };
 
-// DOM
+// === DOM ===
 const loginView = document.getElementById("loginView");
 const appView = document.getElementById("appView");
 const topActions = document.getElementById("topActions");
@@ -157,23 +139,30 @@ const loginErr = document.getElementById("loginErr");
 const btnRefresh = document.getElementById("btnRefresh");
 const btnLogout = document.getElementById("btnLogout");
 const btnOrders = document.getElementById("btnOrders");
-const btnCosts = document.getElementById("btnCosts");
 const prodDateText = document.getElementById("prodDateText");
 const prodRuleText = document.getElementById("prodRuleText");
 const prodPill = document.getElementById("prodPill");
 const productCards = document.getElementById("productCards");
+
+const futureSection = document.getElementById("futureSection");
+const futureCards = document.getElementById("futureCards");
+const futurePill = document.getElementById("futurePill");
+
 const doneSection = document.getElementById("doneSection");
 const doneCards = document.getElementById("doneCards");
 const doneCount = document.getElementById("doneCount");
+
 const loading = document.getElementById("loading");
 const loadingTitle = document.getElementById("loadingTitle");
 const loadingDesc = document.getElementById("loadingDesc");
+
 const ordersModal = document.getElementById("ordersModal");
 const btnCloseOrders = document.getElementById("btnCloseOrders");
 const ordersModalSub = document.getElementById("ordersModalSub");
 const tabToday = document.getElementById("tabToday");
 const tabHistory = document.getElementById("tabHistory");
 const ordersList = document.getElementById("ordersList");
+
 const recipeOverlay = document.getElementById("recipeOverlay");
 const btnRecipeClose = document.getElementById("btnRecipeClose");
 const recipeTitle = document.getElementById("recipeTitle");
@@ -184,8 +173,10 @@ const stepHint = document.getElementById("stepHint");
 const stepImg = document.getElementById("stepImg");
 const btnPrev = document.getElementById("btnPrev");
 const btnNext = document.getElementById("btnNext");
+
 const timerFloat = document.getElementById("timerFloat");
 const timerFloatTime = document.getElementById("timerFloatTime");
+
 const confirmOverlay = document.getElementById("confirmOverlay");
 const confirmTitle = document.getElementById("confirmTitle");
 const confirmText = document.getElementById("confirmText");
@@ -205,23 +196,20 @@ const profilesList = document.getElementById("profilesList");
 const inpNewProfile = document.getElementById("inpNewProfile");
 const btnAddProfile = document.getElementById("btnAddProfile");
 
-// Costs modal
-const costsModal = document.getElementById("costsModal");
-const btnCloseCosts = document.getElementById("btnCloseCosts");
-const costsGate = document.getElementById("costsGate");
-const costsEditor = document.getElementById("costsEditor");
-const inpCostsSecret = document.getElementById("inpCostsSecret");
-const btnCostsUnlock = document.getElementById("btnCostsUnlock");
-const costsGateErr = document.getElementById("costsGateErr");
-const costsList = document.getElementById("costsList");
-const btnSaveCosts = document.getElementById("btnSaveCosts");
-
+// === State ===
 let SESSION = { operatorId:null, operatorLabel:null, pin:null };
+
 let profiles = [];
-let prices = {};
+let profilesSecretUnlocked = null;
+
+let COST_META = {}; // ingredient_key -> { unit_type, cop_per_unit }
+let costMetaLoadedAt = 0;
+
 let paidOrders = [];
 let todayProductionOrders = [];
+let futureOrders = [];
 let historyOrders = [];
+
 let currentProductId = null;
 let currentBatchOrderIds = [];
 let currentSteps = [];
@@ -232,7 +220,7 @@ let confirmTimer = null;
 let confirmOnGo = null;
 let ordersTab = "today";
 
-// Utils UI
+// === UI helpers ===
 function showLoading(title, desc){
   loadingTitle.textContent = title || "Cargando...";
   loadingDesc.textContent = desc || "Por favor espera.";
@@ -246,7 +234,6 @@ function hideLoading(){
 function disableUIWhileLoading(disabled){
   if (btnRefresh) btnRefresh.disabled = disabled;
   if (btnOrders) btnOrders.disabled = disabled;
-  if (btnCosts) btnCosts.disabled = disabled;
   if (btnLogin) btnLogin.disabled = disabled;
 }
 function showLogin(){
@@ -259,85 +246,8 @@ function showApp(){
   appView.classList.remove("hidden");
   topActions.classList.remove("hidden");
 }
-function fmtDateTimeCO(d){
-  return new Intl.DateTimeFormat("es-CO", { timeZone: TZ, dateStyle:"short", timeStyle:"short" }).format(d);
-}
-function money(n){
-  return Math.round(Number(n||0)).toLocaleString("es-CO");
-}
-function formatQty(q){
-  const rounded = Math.round(q*10)/10;
-  return rounded.toLocaleString("es-CO");
-}
 
-// API
-async function api(payload){
-  const res = await fetch(API_URL, {
-    method:"POST",
-    headers:{ "Content-Type":"application/json" },
-    body: JSON.stringify(payload),
-  });
-  const out = await res.json().catch(async () => ({ ok:false, error: await res.text().catch(()=> "Error") }));
-  if(!out.ok) throw new Error(out.error || "Error");
-  return out;
-}
-
-// =================== COSTOS (desde Sheets) ===================
-// En Kitchen NO se expone COSTS_SECRET. Se leen costos desde Sheets usando ADMIN_PIN vía Worker (action: kitchen_costs_list).
-let COSTS_MAP = null; // { canonicalKey: { cop_per_unit, unit_type } }
-let COSTS_LOADED = false;
-
-function normalizeIngredientKeyForCosts(label){
-  if(!label) return "";
-  let s = String(label).trim();
-
-  // Quita prefijos tipo "Decoración:"
-  s = s.replace(/^decoraci[oó]n:\s*/i, "");
-
-  // Elimina paréntesis "(g)", "(ml, opcional)"...
-  s = s.replace(/\([^)]*\)/g, "");
-
-  // Si trae ", opcional" o ", decorativo", toma solo la primera parte
-  s = s.split(",")[0];
-
-  return s.trim().replace(/\s+/g, " ");
-}
-
-function buildPricesByRecipeKeyFromCosts(){
-  // Para compatibilidad con UI existente (costs modal / cálculos antiguos),
-  // construimos prices[recipeKey] a partir de COSTS_MAP.
-  const next = { ...prices };
-  for(const pid of Object.keys(RECIPE_UNIT)){
-    for(const ing of (RECIPE_UNIT[pid].unitIngredients || [])){
-      const recipeKey = String(ing.key || "").trim();
-      const canonical = normalizeIngredientKeyForCosts(recipeKey);
-      const cpu = Number(COSTS_MAP?.[canonical]?.cop_per_unit || 0);
-      if(cpu > 0) next[recipeKey] = cpu;
-    }
-  }
-  prices = next;
-  savePrices(prices);
-}
-
-async function fetchCostsForKitchen(){
-  // Puede fallar si aún no has desplegado el Worker con kitchen_costs_list. No debe tumbar la cocina.
-  const out = await api({ action: "kitchen_costs_list", admin_pin: SESSION.pin });
-  const items = Array.isArray(out.items) ? out.items : (Array.isArray(out.costs) ? out.costs : []);
-  const map = {};
-  for(const row of items){
-    const k = normalizeIngredientKeyForCosts(row.ingredient_key);
-    if(!k) continue;
-    map[k] = {
-      cop_per_unit: Number(row.cop_per_unit || 0),
-      unit_type: String(row.unit_type || "").trim().toLowerCase()
-    };
-  }
-  COSTS_MAP = map;
-  COSTS_LOADED = true;
-  buildPricesByRecipeKeyFromCosts();
-}
-
-// Time rules
+// === Time rules (Bogotá) ===
 function getBogotaParts(date){
   const fmt = new Intl.DateTimeFormat("en-CA", {
     timeZone: TZ,
@@ -361,50 +271,18 @@ function getWeekdayBogota(date){
   const map = { Sun:0, Mon:1, Tue:2, Wed:3, Thu:4, Fri:5, Sat:6 };
   return map[wd] ?? 0;
 }
-
-function parseOrderCreatedAt(createdAt){
-  // Acepta Date, timestamp o string.
-  if(!createdAt) return null;
-  if(createdAt instanceof Date) return createdAt;
-  if(typeof createdAt === "number") return new Date(createdAt);
-
-  const s = String(createdAt).trim();
-  if(!s) return null;
-
-  // ISO / RFC
-  if(s.includes("T")){
-    const d = new Date(s);
-    return Number.isNaN(d.getTime()) ? null : d;
-  }
-
-  // Apps Script típico: "YYYY-MM-DD HH:mm:ss"
-  const m = s.match(/^(\d{4})-(\d{2})-(\d{2})\s+(\d{2}):(\d{2})(?::(\d{2}))?$/);
-  if(m){
-    const Y = Number(m[1]), Mo = Number(m[2]) - 1, D = Number(m[3]);
-    const hh = Number(m[4]), mm = Number(m[5]), ss = Number(m[6]||"0");
-    // Bogotá = UTC-05. Convertimos a instante UTC sumando 5 horas.
-    const utcMs = Date.UTC(Y, Mo, D, hh + 5, mm, ss);
-    const d = new Date(utcMs);
-    return Number.isNaN(d.getTime()) ? null : d;
-  }
-
-  const d = new Date(s);
-  return Number.isNaN(d.getTime()) ? null : d;
-}
-
 function computeProductionDayKeyForOrder(createdAt){
-  const dt = parseOrderCreatedAt(createdAt);
-  if (!dt) return null;
-
+  const dt = new Date(createdAt);
+  if (Number.isNaN(dt.getTime())) return null;
   const p = getBogotaParts(dt);
   const orderDayKey = p.key;
   const weekday = getWeekdayBogota(dt);
 
   if (weekday === 6) return addDaysBogotaKey(orderDayKey, 2); // sábado -> lunes
   if (weekday === 0) return addDaysBogotaKey(orderDayKey, 1); // domingo -> lunes
-  if (weekday === 5 && p.hh >= CUTOFF_HOUR) return addDaysBogotaKey(orderDayKey, 3); // viernes > 3pm -> lunes
-  if (p.hh >= CUTOFF_HOUR) return addDaysBogotaKey(orderDayKey, 1); // después de 3pm -> siguiente día
-  return orderDayKey; // antes de 3pm -> mismo día
+  if (weekday === 5 && p.hh >= CUTOFF_HOUR) return addDaysBogotaKey(orderDayKey, 3); // viernes>3 -> lunes
+  if (p.hh >= CUTOFF_HOUR) return addDaysBogotaKey(orderDayKey, 1); // >3 -> siguiente día hábil
+  return orderDayKey;
 }
 function getTodayProductionDayKey(){
   const now = new Date();
@@ -420,7 +298,7 @@ function productionRuleText(todayKey){
   return `Regla: pedidos del día hasta las 3:00 pm → se producen HOY (${todayKey}) para entregar mañana 3:30–4:00 pm. Pedidos después de 3:00 pm pasan al siguiente día hábil (viernes > 3pm → lunes).`;
 }
 
-// Items
+// === Items ===
 function normalizeItemsFromOrder(order){
   const raw = order.items_json;
   if (raw) {
@@ -448,35 +326,88 @@ function aggregateByProduct(orders){
   return { byProduct: map, totalUnits };
 }
 
-// Costs calc
+// === Ingredient key normalization (para conectar receta -> COSTOS_INGREDIENTES) ===
+function normalizeIngredientKey(raw){
+  let k = String(raw||"").trim();
+  // quita prefijos tipo "Decoración:"
+  k = k.replace(/^decoración:\s*/i, "");
+  // quita ", opcional"
+  k = k.replace(/,\s*opcional\)?$/i, "");
+  // quita paréntesis final "(g)" "(ml)" "(aprox)" etc.
+  k = k.replace(/\s*\([^)]*\)\s*$/g, "");
+  // compacta espacios
+  k = k.replace(/\s+/g, " ").trim();
+  return k;
+}
+function inferUnitFromRawKey(raw){
+  const s = String(raw||"").toLowerCase();
+  if (s.includes("(g")) return "g";
+  if (s.includes("(ml")) return "ml";
+  if (s.includes("unidad") || s.includes("topping") || s.includes("logo") || s.includes("decorativo")) return "unidad";
+  return "";
+}
+
+// === COSTOS (solo lectura desde Sheets) ===
+async function fetchCostsMetaIfNeeded(){
+  // cache 4 minutos
+  const now = Date.now();
+  if (now - costMetaLoadedAt < 4*60*1000 && COST_META && Object.keys(COST_META).length) return;
+
+  // Nota: usamos admin_pin (ya estás logueado). No hay COSTS_SECRET en cocina.
+  const out = await api({ action:"kitchen_costs_list", admin_pin: SESSION.pin });
+  const rows = Array.isArray(out.costs) ? out.costs : [];
+  const map = {};
+  for(const r of rows){
+    const key = String(r.ingredient_key || "").trim();
+    if(!key) continue;
+    map[key] = {
+      unit_type: String(r.unit_type || "").trim(), // g|ml|unidad
+      cop_per_unit: Number(r.cop_per_unit || 0)
+    };
+  }
+  COST_META = map;
+  costMetaLoadedAt = now;
+}
+
+// === Cost calc ===
 function calcBatchIngredients(productId, units){
   const recipe = RECIPE_UNIT[productId];
-  if (!recipe) return { lines:[], totalCost:0 };
+  if (!recipe) return { lines:[], perUnitCost:0, totalCost:0 };
+
+  let perUnitCost = 0;
   let totalCost = 0;
 
   const lines = (recipe.unitIngredients || []).map(ing => {
-    const totalQty = (Number(ing.qty || 0) * Number(units || 0));
+    const dispKey = String(ing.key || "");
+    const canonical = normalizeIngredientKey(dispKey);
 
-    // ✅ costo por unidad desde COSTOS_INGREDIENTES (canonical key)
-    const canonical = normalizeIngredientKeyForCosts(ing.key);
-    const cpu = Number(COSTS_MAP?.[canonical]?.cop_per_unit || prices[ing.key] || 0);
+    const meta = COST_META[canonical] || null;
+    const unitType = meta?.unit_type || inferUnitFromRawKey(dispKey) || "";
+    const pricePerUnit = Number(meta?.cop_per_unit || 0);
 
-    const cost = cpu > 0 ? (totalQty * cpu) : 0;
+    const perUnitQty = Number(ing.qty || 0);
+    const totalQty = perUnitQty * Number(units || 0);
+
+    const costPerUnit = perUnitQty * pricePerUnit;
+    const cost = totalQty * pricePerUnit;
+
+    perUnitCost += costPerUnit;
     totalCost += cost;
 
     return {
-      key: ing.key,
+      display: dispKey,
       canonical,
+      unitType,
       qty: totalQty,
-      pricePerUnit: cpu,
+      pricePerUnit,
       cost
     };
   });
 
-  return { lines, totalCost };
+  return { lines, perUnitCost, totalCost };
 }
 
-// Session
+// === Session ===
 function saveSession(){ sessionStorage.setItem("AMARED_KITCHEN_SESSION", JSON.stringify(SESSION)); }
 function loadSession(){
   const raw = sessionStorage.getItem("AMARED_KITCHEN_SESSION");
@@ -490,30 +421,38 @@ function clearSession(){
   SESSION = { operatorId:null, operatorLabel:null, pin:null };
 }
 
-// Lot done state
+// === Lot done state (cuántas unidades ya preparadas) ===
 function lotKey(){ return `AMARED_LOT_DONE_${getTodayProductionDayKey()}`; }
 function getLotDone(){
   const raw = localStorage.getItem(lotKey());
   const obj = raw ? safeJsonParse(raw) : null;
   if(!obj || typeof obj !== "object") return {};
-  // ✅ Migración: versiones viejas guardaban true/false
   const out = {};
   for(const [k,v] of Object.entries(obj)){
-    if(v === true) out[k] = 0; // migración: antes era boolean, ahora se recalcula
-    else if(v === false || v == null) out[k] = 0;
-    else {
-      const n = Number(v);
-      out[k] = Number.isFinite(n) && n > 0 ? n : 0;
-    }
+    const n = Number(v);
+    out[k] = Number.isFinite(n) && n > 0 ? n : 0;
   }
   return out;
 }
 function setLotDone(obj){ localStorage.setItem(lotKey(), JSON.stringify(obj || {})); }
 
-// Profiles UI
+// === Profiles (persistente en Sheets) ===
+async function fetchProfiles(){
+  const out = await api({ action:"profiles_list" });
+  const list = Array.isArray(out.profiles) ? out.profiles : [];
+  // mezcla con defaults (por si la sheet está vacía)
+  const merged = [...DEFAULT_PROFILES];
+  for(const p of list){
+    if(!p?.id || !p?.label) continue;
+    if(!merged.some(x => x.id === p.id)) merged.push({ id:String(p.id), label:String(p.label) });
+  }
+  profiles = merged;
+}
 function renderOperatorProfiles(){
   selOperator.innerHTML = profiles.map(p => `<option value="${p.id}">${p.label}</option>`).join("");
 }
+
+// === Profiles modal ===
 function openProfilesModal(){
   profilesGate.classList.remove("hidden");
   profilesEditor.classList.add("hidden");
@@ -526,73 +465,70 @@ function closeProfilesModal(){
   profilesModal.classList.remove("show");
   profilesModal.setAttribute("aria-hidden","true");
 }
-function renderProfilesList(){
-  const localRaw = localStorage.getItem(LS_PROFILES_KEY);
-  const local = localRaw ? safeJsonParse(localRaw) : [];
-  const localList = Array.isArray(local) ? local : [];
+async function renderProfilesList(){
+  // Re-lee de Sheets para ver cambios
+  const out = await api({ action:"profiles_list" });
+  const list = Array.isArray(out.profiles) ? out.profiles : [];
 
-  const html = profiles.map(p => {
+  const merged = [...DEFAULT_PROFILES];
+  for(const p of list){
+    if(!p?.id || !p?.label) continue;
+    if(!merged.some(x => x.id === p.id)) merged.push({ id:String(p.id), label:String(p.label) });
+  }
+
+  // Solo los “no default” se pueden eliminar
+  const html = merged.map(p => {
     const isDefault = DEFAULT_PROFILES.some(d => d.id === p.id);
     return `
       <div class="oItem">
         <div class="rowBetween">
           <div style="font-weight:950;">${p.label}</div>
-          <div class="pill">${isDefault ? "Base" : "Local"}</div>
+          <div class="pill">${isDefault ? "Base" : "DB"}</div>
         </div>
-        ${isDefault ? `<div class="muted small">Este perfil viene de kitchen-profiles.js</div>`
-          : `<button class="btn secondary" data-del="${p.id}" type="button" style="margin-top:10px;">Eliminar</button>`}
+        ${isDefault
+          ? `<div class="muted small">Perfil base (no se elimina).</div>`
+          : `<button class="btn secondary" data-del="${p.id}" type="button" style="margin-top:10px;">Eliminar</button>`
+        }
       </div>
     `;
   }).join("");
 
   profilesList.innerHTML = html || `<div class="muted small" style="text-align:center; padding:14px;">No hay perfiles.</div>`;
 
-  profilesList.onclick = (e) => {
+  profilesList.onclick = async (e) => {
     const btn = e.target.closest("button[data-del]");
     if(!btn) return;
     const id = btn.dataset.del;
-    const next = localList.filter(x => x.id !== id);
-    saveProfilesLocal(next);
-    profiles = loadProfiles();
-    renderOperatorProfiles();
-    renderProfilesList();
+
+    if(!profilesSecretUnlocked){
+      alert("Primero verifica la clave.");
+      return;
+    }
+
+    await confirm3s(
+      "Eliminar perfil",
+      "Esto lo eliminará de la base de datos (permanente).",
+      async () => {
+        showLoading("Eliminando...", "Actualizando perfiles.");
+        await api({ action:"profiles_delete", profiles_secret: profilesSecretUnlocked, id });
+        await fetchProfiles();
+        renderOperatorProfiles();
+        await renderProfilesList();
+        hideLoading();
+      }
+    );
   };
-}
 
-// Costs UI
-function openCostsModal(){
-  costsGate.classList.remove("hidden");
-  costsEditor.classList.add("hidden");
-  costsGateErr.textContent = "";
-  inpCostsSecret.value = "";
-  costsModal.classList.add("show");
-  costsModal.setAttribute("aria-hidden","false");
+  profiles = merged;
+  renderOperatorProfiles();
 }
-function closeCostsModal(){
-  costsModal.classList.remove("show");
-  costsModal.setAttribute("aria-hidden","true");
+function makeIdFromLabel(label){
+  return String(label||"").trim().toLowerCase()
+    .replace(/[^a-z0-9áéíóúñ]+/gi, "_")
+    .replace(/_+/g,"_")
+    .replace(/^_|_$/g,"");
 }
-function getAllIngredientKeys(){
-  const set = new Set();
-  for(const pid of Object.keys(RECIPE_UNIT)){
-    for(const ing of (RECIPE_UNIT[pid].unitIngredients || [])) set.add(ing.key);
-  }
-  return Array.from(set).sort((a,b)=>a.localeCompare(b,"es"));
-}
-function renderCostsEditor(){
-  const keys = getAllIngredientKeys();
-  costsList.innerHTML = keys.map(k => {
-    const v = Number(prices[k] || 0);
-    return `
-      <div class="priceRow">
-        <div class="k">${k}</div>
-        <input data-key="${k}" type="number" min="0" step="1" value="${v}">
-      </div>
-    `;
-  }).join("");
-}
-
-// Orders modal
+// === Orders modal ===
 function setActiveTab(which){
   ordersTab = which;
   tabToday.classList.toggle("active", which==="today");
@@ -618,7 +554,7 @@ function renderOrdersModalList(){
     ordersList.innerHTML = `<div class="muted small" style="text-align:center; padding:14px;">No hay pedidos para mostrar.</div>`;
     return;
   }
-  const sorted = [...list].sort((a,b) => (parseOrderCreatedAt(a.created_at)?.getTime()||0) - (parseOrderCreatedAt(b.created_at)?.getTime()||0));
+  const sorted = [...list].sort((a,b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
   ordersList.innerHTML = sorted.map(o => {
     const items = normalizeItemsFromOrder(o);
     const units = items.reduce((s,it)=>s+it.qty,0);
@@ -628,14 +564,14 @@ function renderOrdersModalList(){
           <div style="font-weight:950;">${o.order_id}</div>
           <div class="pill">${units} u</div>
         </div>
-        <div class="oMeta">${o.customer_name || ""} · ${fmtDateTimeCO(parseOrderCreatedAt(o.created_at) || new Date())}</div>
+        <div class="oMeta">${o.customer_name || ""} · ${fmtDateTimeCO(new Date(o.created_at))}</div>
         <div class="oMeta" style="margin-top:6px;">${items.map(it => `${it.name} x${it.qty}`).join(" · ")}</div>
       </div>
     `;
   }).join("");
 }
 
-// Confirm 3s (cierra aviso y deja loader)
+// === Confirm 3s ===
 function openConfirm(){ confirmOverlay.classList.add("show"); confirmOverlay.setAttribute("aria-hidden","false"); }
 function closeConfirm(){ confirmOverlay.classList.remove("show"); confirmOverlay.setAttribute("aria-hidden","true"); }
 
@@ -674,14 +610,15 @@ function confirm3s(title, text, onGo){
     btnConfirmGo.onclick = async () => {
       if(btnConfirmGo.disabled) return;
       btnConfirmGo.disabled = true;
-      closeConfirm(); // ✅ se cierra el aviso al confirmar
+      closeConfirm();
       try{ await confirmOnGo?.(); resolve(true); }
       catch(e){ alert(String(e.message||e)); resolve(false); }
       finally{ confirmOnGo = null; }
     };
   });
 }
-// Batch helpers
+
+// === Batch helpers ===
 function getBatchOrderIdsForProduct(productId){
   const ids = [];
   for(const o of todayProductionOrders){
@@ -708,7 +645,7 @@ function getProductsNeededToday(){
   return needed;
 }
 
-// Bulk update
+// === Bulk update ===
 async function bulkUpdate(orderIds, patch){
   if(!orderIds.length) return;
   showLoading("Actualizando...", "Aplicando cambios.");
@@ -728,7 +665,7 @@ async function bulkUpdate(orderIds, patch){
   }
 }
 
-// Recipe overlay
+// === Recipe overlay ===
 let currentStepsTotal = 0;
 
 function renderBatchIngredientsHTML(productId){
@@ -736,33 +673,30 @@ function renderBatchIngredientsHTML(productId){
   const { lines, totalCost } = calcBatchIngredients(productId, qty);
   const costText = totalCost > 0 ? `$${money(totalCost)}` : "—";
 
-  const rows = lines.map(li => {
-    const cpu = li.pricePerUnit > 0 ? `$${money(li.pricePerUnit)}/u` : "—";
-    const lc = li.cost > 0 ? `$${money(li.cost)}` : "—";
-    return `
-      <div class="batchRow" style="align-items:flex-start;">
-        <div style="min-width:0;">
-          <div class="k">${li.key}</div>
-          <div class="muted small">Costo/u: ${cpu} · Total: ${lc}</div>
-        </div>
-        <div style="text-align:right; font-weight:950;">${formatQty(li.qty)}</div>
+  const rows = lines.map(li => `
+    <div class="line">
+      <div class="k">${li.display}</div>
+      <div class="r">
+        <span class="u">${formatQty(li.qty)} ${li.unitType || ""}</span>
       </div>
-    `;
-  }).join("");
+    </div>
+  `).join("");
 
   return `
-    <div class="batchBox">
-      <div class="batchTop">
+    <div>
+      <div class="rowBetween">
         <div style="font-weight:950;">Ingredientes del lote</div>
         <div class="pill">Unidades: ${qty} · Costo: ${costText}</div>
       </div>
       <div class="muted small" style="margin-top:6px;">Verifica insumos antes de continuar.</div>
-      ${rows || `<div class="muted small" style="margin-top:10px;">Sin receta configurada.</div>`}
+      <div style="display:grid; gap:10px; margin-top:10px;">
+        ${rows || `<div class="muted small">Sin receta configurada.</div>`}
+      </div>
     </div>
   `;
 }
 
-// Timer float
+// === Timer float ===
 function showTimerFloat(){ timerFloat.classList.add("show"); timerFloat.setAttribute("aria-hidden","false"); }
 function stopBaseTimer(){
   if(baseTimerInterval) clearInterval(baseTimerInterval);
@@ -808,7 +742,7 @@ function openRecipe(productId){
   recipeOverlay.setAttribute("aria-hidden","false");
 
   renderRecipeStep();
-  hideLoading(); // ✅ loader se quita cuando ya se ve la receta
+  hideLoading();
 }
 function closeRecipeRaw(){
   recipeOverlay.classList.remove("show");
@@ -941,7 +875,7 @@ btnNext.addEventListener("click", async () => {
           closeRecipeRaw();
           await loadKitchenData(true);
           hideLoading();
-          location.reload(); // ✅ refresca al finalizar lote
+          location.reload();
         }
       );
     } else {
@@ -964,13 +898,65 @@ btnNext.addEventListener("click", async () => {
   renderRecipeStep();
 });
 
-// Main render
+// === Render FUTUROS (informativo) ===
+function renderFutureSection(todayKey){
+  const future = (futureOrders || []).filter(o => String(o.__prod_day || "") > todayKey);
+
+  if(!future.length){
+    futureSection.classList.add("hidden");
+    futurePill.textContent = "0";
+    futureCards.innerHTML = "";
+    return;
+  }
+
+  // agrupar por __prod_day
+  const map = new Map();
+  for(const o of future){
+    const k = String(o.__prod_day || "—");
+    if(!map.has(k)) map.set(k, []);
+    map.get(k).push(o);
+  }
+  const days = Array.from(map.keys()).sort((a,b)=>a.localeCompare(b,"es"));
+
+  futurePill.textContent = String(future.length);
+  futureSection.classList.remove("hidden");
+
+  futureCards.innerHTML = days.map(dayKey => {
+    const orders = map.get(dayKey) || [];
+    const { byProduct, totalUnits } = aggregateByProduct(orders);
+
+    const lines = PRODUCTS
+      .map(p => ({ id:p.id, name:p.name, qty: byProduct.get(p.id)||0 }))
+      .filter(x => x.qty > 0)
+      .map(x => `<div class="line"><div class="k">${x.name}</div><div class="r"><span class="c">${x.qty} u</span></div></div>`)
+      .join("");
+
+    return `
+      <div class="oItem">
+        <div class="rowBetween">
+          <div>
+            <div style="font-weight:950;">Producción estimada: ${dayKey}</div>
+            <div class="oMeta">${orders.length} pedido(s) · ${totalUnits} unidad(es)</div>
+          </div>
+          <div class="pill">Futuro</div>
+        </div>
+        <div style="display:grid; gap:10px; margin-top:10px;">
+          ${lines || `<div class="muted small">Sin items.</div>`}
+        </div>
+      </div>
+    `;
+  }).join("");
+}
+
+// === Main render (incluye acordeón de costos) ===
 function renderMain(todayKey){
   prodDateText.textContent = `Producción: ${todayKey}`;
   prodRuleText.textContent = productionRuleText(todayKey);
 
   const { byProduct, totalUnits } = aggregateByProduct(todayProductionOrders);
   prodPill.textContent = `${totalUnits} unidades`;
+
+  renderFutureSection(todayKey);
 
   const doneMap = getLotDone();
   const cards = [];
@@ -980,29 +966,24 @@ function renderMain(todayKey){
     const qtyTotal = byProduct.get(p.id) || 0;
     if(qtyTotal <= 0) continue;
 
-    // ✅ Ahora guardamos "cuántas unidades ya fueron preparadas" (no boolean)
-    let doneQty = 0;
-    const rawDone = doneMap[p.id];
-    doneQty = Math.max(0, Math.min(qtyTotal, Math.floor(Number(rawDone || 0))));
-
+    let doneQty = Math.max(0, Math.min(qtyTotal, Math.floor(Number(doneMap[p.id] || 0))));
     const pendingQty = Math.max(0, qtyTotal - doneQty);
 
     function buildCard(displayQty, isDoneSection){
-      const { lines, totalCost } = calcBatchIngredients(p.id, displayQty);
-      const costText = totalCost > 0 ? `$${money(totalCost)}` : "—";
-      const ingHtml = lines.map(li => {
-        const cpu = li.pricePerUnit > 0 ? `$${money(li.pricePerUnit)}/u` : "—";
-        const lc  = li.cost > 0 ? `$${money(li.cost)}` : "—";
-        return `
-          <div class="line" style="align-items:flex-start;">
-            <div style="min-width:0;">
-              <div>${li.key}</div>
-              <div class="muted small">Costo/u: ${cpu} · Total: ${lc}</div>
-            </div>
-            <div style="text-align:right; font-weight:950;">${formatQty(li.qty)}</div>
+      const { lines, perUnitCost, totalCost } = calcBatchIngredients(p.id, displayQty);
+      const unitCostText = perUnitCost > 0 ? `$${money(perUnitCost)}` : "—";
+      const totalCostText = totalCost > 0 ? `$${money(totalCost)}` : "—";
+
+      const ingHtml = lines.map(li => `
+        <div class="line">
+          <div class="k">${li.display}</div>
+          <div class="r">
+            <span class="u">${formatQty(li.qty)} ${li.unitType || ""}</span>
+            <span class="u">@ $${money(li.pricePerUnit)} / ${li.unitType || "u"}</span>
+            <span class="c">$${money(li.cost)}</span>
           </div>
-        `;
-      }).join("");
+        </div>
+      `).join("");
 
       return `
         <div class="pCard" data-pid="${p.id}">
@@ -1010,20 +991,24 @@ function renderMain(todayKey){
             <div>
               <div class="muted small">${p.name}${isDoneSection ? " · Preparados" : ""}</div>
               <div class="bigNum">${displayQty}</div>
+              <div class="muted small" style="margin-top:8px;">
+                Costo unitario (estimado): <b>$${unitCostText.replace("$","")}</b> ·
+                Costo lote (este postre): <b>$${totalCostText.replace("$","")}</b>
+              </div>
             </div>
-            <button class="btn secondary" type="button" data-act="toggle" data-pid="${p.id}">Insumos + receta</button>
+            <button class="btn secondary" type="button" data-act="toggle" data-pid="${p.id}">Costos + receta</button>
           </div>
 
           <div class="accBody">
             <div class="rowBetween" style="margin-bottom:10px;">
-              <div class="pill">Insumos</div>
+              <div class="pill">Costos por ingrediente (lote)</div>
               <button class="btn secondary" type="button" data-act="toggle" data-pid="${p.id}">Cerrar</button>
             </div>
 
             <div class="accGrid">
               <div class="rowBetween">
-                <div class="muted small">Ingredientes totales (lote)</div>
-                <div class="pill">Costo estimado: ${costText}</div>
+                <div class="muted small">Detalle del lote</div>
+                <div class="pill">Unitario: ${unitCostText} · Total: ${totalCostText}</div>
               </div>
 
               ${ingHtml || `<div class="muted small">Sin receta configurada.</div>`}
@@ -1038,7 +1023,6 @@ function renderMain(todayKey){
       `;
     }
 
-    // ✅ Si entran pedidos nuevos después, solo la diferencia queda como pendiente
     if(pendingQty > 0) cards.push(buildCard(pendingQty, false));
     if(doneQty > 0) doneCardsHtml.push(buildCard(doneQty, true));
   }
@@ -1056,6 +1040,8 @@ function renderMain(todayKey){
     doneCards.innerHTML = doneCardsHtml.join("");
   } else {
     doneSection.classList.add("hidden");
+    doneCards.innerHTML = "";
+    doneCount.textContent = "0";
   }
 
   function bindCardsClick(container){
@@ -1075,7 +1061,6 @@ function renderMain(todayKey){
         openOrdersModal("today");
         return;
       }
-
       if(act === "start"){
         const pname = PRODUCTS.find(p=>p.id===pid)?.name || pid;
         const orderIds = getBatchOrderIdsForProduct(pid);
@@ -1100,17 +1085,19 @@ function renderMain(todayKey){
     };
   }
 
-  // ⬇️ Delegación de eventos en AMBAS columnas
   bindCardsClick(productCards);
   bindCardsClick(doneCards);
 }
 
- // Load + filter
+// === Load kitchen data ===
 async function loadKitchenData(fromRefresh){
   const todayKey = getTodayProductionDayKey();
-  showLoading(fromRefresh ? "Actualizando..." : "Cargando cocina...", "Obteniendo pedidos pagados y calculando producción del día.");
+  showLoading(fromRefresh ? "Actualizando..." : "Cargando cocina...", "Obteniendo pedidos pagados, costos y calculando producción del día.");
   disableUIWhileLoading(true);
+
   try{
+    await fetchCostsMetaIfNeeded();
+
     const out = await api({ action:"list_orders", admin_pin: SESSION.pin, payment_status:"Pagado" });
 
     paidOrders = (out.orders || []).map(o => {
@@ -1122,19 +1109,12 @@ async function loadKitchenData(fromRefresh){
       .filter(o => o.__prod_day === todayKey)
       .filter(o => String(o.kitchen_status || "No iniciar") !== "Listo");
 
+    futureOrders = paidOrders.filter(o => String(o.__prod_day||"") > todayKey);
+
     historyOrders = paidOrders
       .filter(o => String(o.kitchen_status || "") === "Listo")
-      .sort((a,b) => (parseOrderCreatedAt(b.created_at)?.getTime()||0) - (parseOrderCreatedAt(a.created_at)?.getTime()||0))
+      .sort((a,b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
       .slice(0, 200);
-
-    // ✅ Cargar costos desde Sheets (COSTOS_INGREDIENTES) una vez por sesión
-    if(!COSTS_LOADED){
-      try{ await fetchCostsForKitchen(); }
-      catch(e){
-        // fallback: si falla, se mantiene prices local (último guardado) y la cocina sigue funcionando sin costos.
-        COSTS_LOADED = false;
-      }
-    }
 
     renderMain(todayKey);
   } finally {
@@ -1143,7 +1123,7 @@ async function loadKitchenData(fromRefresh){
   }
 }
 
-// Events
+// === Events ===
 tabToday.addEventListener("click", () => setActiveTab("today"));
 tabHistory.addEventListener("click", () => setActiveTab("history"));
 btnCloseOrders.addEventListener("click", closeOrdersModal);
@@ -1155,7 +1135,10 @@ btnLogin.addEventListener("click", async () => {
   const opId = selOperator.value;
   const opLabel = profiles.find(p => p.id===opId)?.label || "";
   const pin = (inpPin.value || "").trim();
-  if(!opId || !opLabel || !pin){ loginErr.textContent = "Selecciona un perfil y escribe el PIN."; return; }
+  if(!opId || !opLabel || !pin){
+    loginErr.textContent = "Selecciona un perfil y escribe el PIN.";
+    return;
+  }
   SESSION = { operatorId: opId, operatorLabel: opLabel, pin };
   saveSession();
   showApp();
@@ -1169,7 +1152,7 @@ btnLogout.addEventListener("click", () => {
   showLogin();
 });
 
-// Profiles management (secure)
+// Profiles management
 btnManageProfiles.addEventListener("click", openProfilesModal);
 btnCloseProfiles.addEventListener("click", closeProfilesModal);
 
@@ -1179,9 +1162,12 @@ btnProfilesUnlock.addEventListener("click", async () => {
   try{
     showLoading("Verificando...", "Validando clave con el servidor.");
     await validateSecretWithWorker("profiles", code);
+    profilesSecretUnlocked = code;
+
     profilesGate.classList.add("hidden");
     profilesEditor.classList.remove("hidden");
-    renderProfilesList();
+
+    await renderProfilesList();
   } catch(e){
     profilesGateErr.textContent = "Clave secreta incorrecta.";
   } finally {
@@ -1189,72 +1175,48 @@ btnProfilesUnlock.addEventListener("click", async () => {
   }
 });
 
-btnAddProfile.addEventListener("click", () => {
+btnAddProfile.addEventListener("click", async () => {
   const name = (inpNewProfile.value||"").trim();
   if(!name) return;
-  const id = makeIdFromLabel(name);
-  if(!id) return;
 
-  const raw = localStorage.getItem(LS_PROFILES_KEY);
-  const local = raw ? safeJsonParse(raw) : [];
-  const localList = Array.isArray(local) ? local : [];
-
-  if(DEFAULT_PROFILES.some(d => d.id === id) || localList.some(x => x.id === id)){
-    alert("Ya existe un perfil con ese nombre.");
+  if(!profilesSecretUnlocked){
+    alert("Primero verifica la clave.");
     return;
   }
 
-  localList.push({ id, label: name });
-  saveProfilesLocal(localList);
+  const id = makeIdFromLabel(name);
+  if(!id) return;
 
-  profiles = loadProfiles();
-  renderOperatorProfiles();
-  renderProfilesList();
-  inpNewProfile.value = "";
+  await confirm3s(
+    "Agregar perfil",
+    `Se agregará "${name}" a la base de datos (permanente).`,
+    async () => {
+      showLoading("Guardando...", "Creando perfil en la base de datos.");
+      await api({ action:"profiles_add", profiles_secret: profilesSecretUnlocked, id, label: name });
+      await fetchProfiles();
+      renderOperatorProfiles();
+      await renderProfilesList();
+      inpNewProfile.value = "";
+      hideLoading();
+    }
+  );
 });
 
-// Costs management (secure)
-btnCosts.addEventListener("click", openCostsModal);
-btnCloseCosts.addEventListener("click", closeCostsModal);
-
-btnCostsUnlock.addEventListener("click", async () => {
-  costsGateErr.textContent = "";
-  const code = (inpCostsSecret.value||"").trim();
+// === INIT ===
+(async function init(){
   try{
-    showLoading("Verificando...", "Validando clave con el servidor.");
-    await validateSecretWithWorker("costs", code);
-    costsGate.classList.add("hidden");
-    costsEditor.classList.remove("hidden");
-    renderCostsEditor();
-  } catch(e){
-    costsGateErr.textContent = "Clave secreta incorrecta.";
-  } finally {
-    hideLoading();
+    // carga perfiles desde DB (sin pin)
+    await fetchProfiles();
+    renderOperatorProfiles();
+  } catch {
+    profiles = [...DEFAULT_PROFILES];
+    renderOperatorProfiles();
   }
-});
-
-btnSaveCosts.addEventListener("click", () => {
-  const inputs = costsList.querySelectorAll("input[data-key]");
-  const next = { ...prices };
-  inputs.forEach(inp => {
-    const k = inp.dataset.key;
-    const v = Number(inp.value || 0);
-    next[k] = Number.isFinite(v) ? Math.max(0, v) : 0;
-  });
-  prices = next;
-  savePrices(prices);
-  closeCostsModal();
-  renderMain(getTodayProductionDayKey());
-});
-
-// INIT
-(function init(){
-  profiles = loadProfiles();
-  prices = loadPrices();
-  renderOperatorProfiles();
 
   if(loadSession()){
     showApp();
     loadKitchenData(false).catch(() => { clearSession(); showLogin(); });
-  } else showLogin();
+  } else {
+    showLogin();
+  }
 })();
