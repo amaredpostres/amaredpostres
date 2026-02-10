@@ -511,7 +511,7 @@ function renderProfilesList(){
 
     try{
       showLoading("Eliminando…","Actualizando perfiles en la base de datos.");
-      await api({ action:"profiles_delete", profiles_secret: PROFILES_UNLOCKED_SECRET, id });
+      await api({ action:"profiles_delete", profiles_secret: PROFILES_UNLOCKED_SECRET, profile_id: id, id });
       profiles = await fetchProfilesPublic();
       renderOperatorProfiles();
       renderProfilesList();
@@ -836,7 +836,7 @@ function renderRecipeStep(){
   if(step.type === "timer_base"){
     btnNext.textContent = "Iniciar temporizador";
   } else if(atLastStep){
-    btnNext.textContent = isLastProduct ? "Finalizar lote" : "Finalizar este postre";
+    btnNext.textContent = "Finalizar este postre";
   } else {
     btnNext.textContent = "Siguiente";
   }
@@ -877,47 +877,23 @@ btnNext.addEventListener("click", async () => {
   }
 
   if(atLastStep){
-    const { remaining } = getNeededAndRemaining();
-    const isLastProduct = (remaining.length === 1 && remaining[0] === currentProductId);
-
-    if(isLastProduct){
-      await confirm3s(
-        "Finalizar lote",
-        "Esto marcará el último postre como “Listo” y actualizará la producción del día.",
-        async () => {
-          showLoading("Finalizando lote...", "Guardando estado y actualizando vista.");
-          await api({
-            action: "kitchen_bulk_update",
-            admin_pin: SESSION.pin,
-            operator: SESSION.operatorLabel,
-            order_ids: currentBatchOrderIds,
-            patch: { kitchen_status:"Listo" }
-          });
-          closeRecipeRaw();
-          await loadKitchenData(true);
-          hideLoading();
-          location.reload(); // ✅ refresca al finalizar lote
-        }
-      );
-    } else {
-      await confirm3s(
-        "Finalizar este postre",
-        "Esto guardará este postre como preparado en la vista del lote (sin cerrar el lote completo).",
-        async () => {
-          showLoading("Finalizando...", "Marcando pedidos como Listo.");
-          await api({
-            action: "kitchen_bulk_update",
-            admin_pin: SESSION.pin,
-            operator: SESSION.operatorLabel,
-            order_ids: currentBatchOrderIds,
-            patch: { kitchen_status:"Listo" }
-          });
-          closeRecipeRaw();
-          await loadKitchenData(true);
-          hideLoading();
-        }
-      );
-    }
+    await confirm3s(
+      "Finalizar este postre",
+      "Esto marcará este postre como “Listo”. El lote solo se finaliza cuando todos los postres estén listos.",
+      async () => {
+        showLoading("Finalizando…","Guardando estado en la base de datos.");
+        await api({
+          action: "kitchen_bulk_update",
+          admin_pin: SESSION.pin,
+          operator: SESSION.operatorLabel,
+          order_ids: currentBatchOrderIds,
+          patch: { kitchen_status:"Listo" }
+        });
+        closeRecipeRaw();
+        await loadKitchenData(true);
+        hideLoading();
+      }
+    );
     return;
   }
 
@@ -1157,7 +1133,7 @@ btnAddProfile.addEventListener("click", async () => {
 
   try{
     showLoading("Guardando…","Creando el perfil en la base de datos.");
-    await api({ action:"profiles_add", profiles_secret: PROFILES_UNLOCKED_SECRET, id, label: name });
+    await api({ action:"profiles_add", profiles_secret: PROFILES_UNLOCKED_SECRET, profile_id: id, id, label: name });
     profiles = await fetchProfilesPublic();
     renderOperatorProfiles();
     renderProfilesList();
@@ -1173,21 +1149,7 @@ btnAddProfile.addEventListener("click", async () => {
 btnCosts.addEventListener("click", openCostsModal);
 btnCloseCosts.addEventListener("click", closeCostsModal);
 
-btnCostsUnlock.addEventListener("click", async () => {
-  costsGateErr.textContent = "";
-  const code = (inpCostsSecret.value||"").trim();
-  try{
-    showLoading("Verificando...", "Validando clave con el servidor.");
-    await validateSecretWithWorker("costs", code);
-    costsGate.classList.add("hidden");
-    costsEditor.classList.remove("hidden");
-    renderCostsEditor();
-  } catch(e){
-    costsGateErr.textContent = "Clave secreta incorrecta.";
-  } finally {
-    hideLoading();
-  }
-});
+btnCostsUnlock && btnCostsUnlock.addEventListener("click", async () => { await openCostsModal(); });
 
 btnSaveCosts.addEventListener("click", () => {
   const inputs = costsList.querySelectorAll("input[data-key]");
