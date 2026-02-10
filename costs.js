@@ -70,9 +70,8 @@ async function upsertCostToSheets(row){
 }
 async function fetchCatalogsFromSheets(){
   const out = await api({ action:"catalog_list", costs_secret: UNLOCKED_SECRET });
-  const cat = out.catalog || out;
-  const stores = (cat.stores || []).map(x=>x.value || x).filter(Boolean);
-  const brands = (cat.brands || []).map(x=>x.value || x).filter(Boolean);
+  const stores = (out.stores || []).map(x=>x.value || x).filter(Boolean);
+  const brands = (out.brands || []).map(x=>x.value || x).filter(Boolean);
   STORES = uniqSorted(stores);
   BRANDS = uniqSorted(brands);
 }
@@ -355,6 +354,7 @@ function computeCopPerUnit(u, packQty, packPrice){
 }
 
 function setRowField(key, field, value){
+  if(field==="cop_per_unit") return; // Auto calculado, no editable
   UI[key][field] = value;
 
   const r = UI[key];
@@ -412,8 +412,11 @@ function renderTopTools(){
   };
 
   document.getElementById("catalogBtn").onclick = async ()=>{
-    try{ await openCatalogManager(); }catch(e){ alert(e.message||"Error"); }
-  };
+  showLoading("Cargando…","Abriendo Tiendas/Marcas.");
+  try{ await openCatalogManager(); }
+  catch(e){ alert(e.message||"Error"); }
+  finally{ hideLoading(); }
+};
 }
 
 function renderIngredientRow(key, sectionIndex){
@@ -459,7 +462,7 @@ function renderIngredientRow(key, sectionIndex){
 
       <div style="grid-column: span 3;">
         <div class="mini" style="font-weight:900;">COP por unidad</div>
-        <input class="input" data-k="${cssEscape(key)}" data-f="cop_per_unit" placeholder="Auto" value="${r.cop_per_unit||""}" readonly disabled>
+        <input class="input" data-k="${cssEscape(key)}" data-f="cop_per_unit" placeholder="Auto" value="${r.cop_per_unit||""}" readonly style="background:#f7f7f7; cursor:not-allowed;" title="Auto calculado">
       </div>
 
       <div style="grid-column: span 6; ${u==="unidad" ? "" : "display:none;"}">
