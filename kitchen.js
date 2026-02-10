@@ -491,7 +491,8 @@ function setLotDone(obj){ localStorage.setItem(lotKey(), JSON.stringify(obj || {
 
 // Profiles UI
 function renderOperatorProfiles(){
-  selOperator.innerHTML = profiles.map(p => `<option value="${p.id}">${p.label}</option>`).join("");
+  const list = (Array.isArray(profiles) && profiles.length) ? profiles : DEFAULT_PROFILES;
+  selOperator.innerHTML = `<option value="">Seleccionar…</option>` + list.map(p => `<option value="${p.id}">${p.label}</option>`).join("");
 }
 function openProfilesModal(){
   profilesGate.classList.remove("hidden");
@@ -551,12 +552,15 @@ function renderProfilesList(){
 
 // Costs UI
 function openCostsModal(){
-  costsGate.classList.remove("hidden");
-  costsEditor.classList.add("hidden");
-  costsGateErr.textContent = "";
-  inpCostsSecret.value = "";
-  costsModal.classList.add("show");
+  costsModal.style.display = "flex";
   costsModal.setAttribute("aria-hidden","false");
+  // Solo lectura: no pedimos claves
+  if(costsGate) costsGate.classList.add("hidden");
+  if(costsEditor) costsEditor.classList.remove("hidden");
+  loadCostsIntoModal().catch(err => {
+    console.error(err);
+    if(costsGateErr) costsGateErr.textContent = err?.message || String(err);
+  });
 }
 function closeCostsModal(){
   costsModal.classList.remove("show");
