@@ -1,1 +1,92 @@
+/* Solo afecta la página de costos (no pisa el resto) */
+.wrapCosts{
+  max-width:1100px;
+  margin: 0 auto;
+  padding: 18px 18px 36px;
+}
+
+/* Tipos básicos en la misma línea */
+.hTitle{ margin: 0; font-size: 20px; font-weight: 950; }
+.pSub{ margin: 8px 0 0; color: rgba(64,17,2,.72); }
+
+.rowFlex{ display:flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+.spaceBetween{ justify-content: space-between; align-items: flex-start; }
+.mt12{ margin-top: 12px; }
+
+.field{
+  flex: 1;
+  min-width: 240px;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 12px 12px;
+  background: rgba(255,255,255,.65);
+  color: var(--choco);
+  outline: none;
+}
+
+.field:focus{ border-color: rgba(242,91,143,.45); }
+
+.errText{
+  margin-top: 10px;
+  color: rgba(180, 20, 20, .9);
+  font-weight: 700;
+}
+
+/* Lo que costs.js genera: item / mini / k / pill */
+.item{
+  background: var(--paper);
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  padding: 12px;
+  box-shadow: 0 12px 30px rgba(64,17,2,.06);
+}
+
+.k{ font-weight: 950; color: var(--choco); }
+.mini{ font-size: 12.5px; color: rgba(64,17,2,.72); }
+
+.pill{
+  font-size: 12.5px;
+  font-weight: 900;
+  color: var(--choco);
+  background: rgba(246,186,96,.22);
+  border: 1px solid rgba(64,17,2,.10);
+  padding: 7px 10px;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+
+/* Acordeón: quitamos el marcador nativo para usar ▶/▼ del JS */
+summary::-webkit-details-marker{ display:none; }
+summary::marker{ content:""; }
+.am_sum{ user-select: none; }
+
+/* Loading overlay */
+.loadingOverlay{
+  position: fixed;
+  inset: 0;
+  background: rgba(64,17,2,.20);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  z-index: 9998;
+  padding: 16px;
+}
+.loadingOverlay.show{ display:flex; }
+
+.loadingCard{
+  width: min(460px, 100%);
+  background: var(--paper);
+  border: 1px solid var(--border);
+  border-radius: 22px;
+  padding: 16px;
+  box-shadow: var(--shadow);
+}
+.loadingTitle{ font-weight: 950; font-size: 16px; }
+.loadingDesc{ margin-top: 6px; color: rgba(64,17,2,.72); }
+
+/* Responsive */
+@media (max-width: 560px){
+  .btn{ width: 100%; }
+  .field{ width: 100%; min-width: unset; }
+}
 
