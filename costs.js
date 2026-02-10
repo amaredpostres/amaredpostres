@@ -55,8 +55,8 @@ function saveMeta(meta){
 function money(n){ return Math.round(Number(n||0)).toLocaleString("es-CO"); }
 function roundCOP(n){ return Math.max(0, Math.round(Number(n||0))); }
 
-function cssEscape(s){ return String(s).replace(/"/g,'\\\"'); }
-function unescapeCss(s){ return String(s).replace(/\\"/g,'"'); }
+function cssEscape(s){ return String(s).replace(/"/g,'\\\\"'); }
+function unescapeCss(s){ return String(s).replace(/\\\\"/g,'"'); }
 
 function uniqSorted(arr){
   const uniq = Array.from(new Set((arr||[]).map(s=>String(s||"").trim()).filter(Boolean)));
@@ -117,98 +117,64 @@ async function upsertCostToSheets(row){
 // ===== Sheets: catálogos (tiendas/marcas) =====
 async function fetchCatalogsFromSheets(){
   const out = await api({ action:"catalog_list", costs_secret: UNLOCKED_SECRET });
-  const stores = Array.isArray(out.catalog?.stores) ? out.catalog.stores : [];
-  const brands = Array.isArray(out.catalog?.brands) ? out.catalog.brands : [];
+  const stores = (out.stores || []).map(x=>x.value || x).filter(Boolean);
+  const brands = (out.brands || []).map(x=>x.value || x).filter(Boolean);
 
+  // ✅ SOLO desde Sheets (los defaults ya se “seedearon” en la hoja)
   STORES = uniqSorted(stores);
   BRANDS = uniqSorted(brands);
+
+  return out;
 }
-
-async function catalogAdd(type, value){
-  value = String(value||"").trim();
-  if(!value) throw new Error("empty");
-  await api({ action:"catalog_add", costs_secret: UNLOCKED_SECRET, type, value });
-  await fetchCatalogsFromSheets();
+async function addCatalogValue(type, value){
+  const v = String(value||"").trim();
+  if(!v) throw new Error("Valor vacío.");
+  return await api({ action:"catalog_add", costs_secret: UNLOCKED_SECRET, type, value: v });
 }
-async function catalogDelete(type, value){
-  value = String(value||"").trim();
-  if(!value) throw new Error("empty");
-  await api({ action:"catalog_delete", costs_secret: UNLOCKED_SECRET, type, value });
-  await fetchCatalogsFromSheets();
-}
-
-// ===== Ingredientes (de grupos) =====
-function getAllKeys(){
-  const base = (window.AMARED_INGREDIENT_PRICES && typeof window.AMARED_INGREDIENT_PRICES==="object") ? window.AMARED_INGREDIENT_PRICES : {};
-  return Array.from(new Set(Object.keys(base))).sort((a,b)=>a.localeCompare(b,"es"));
-}
-function getGroups(){
-  const gs = Array.isArray(window.AMARED_INGREDIENT_GROUPS) ? window.AMARED_INGREDIENT_GROUPS : [];
-  const all = new Set(getAllKeys());
-  return gs.map(g => ({...g, keys: g.keys.filter(k => all.has(k))}));
-}
-
-// ===== Cálculo realtime =====
-function calcCpu(unit, packPrice, packQty, unitItemQty, unitItemQtyType){
-  if(packPrice<=0) return 0;
-
-  if(unit === "unidad"){
-    if(packQty<=0) return 0;
-    const cpuUnit = packPrice / packQty; // COP por unidad
-
-    const q = Number(unitItemQty||0);
-    const t = normUnit(unitItemQtyType);
-    if(q>0 && (t==="g" || t==="ml")){
-      // COP por g/ml
-      return cpuUnit / q;
-    }
-    return cpuUnit; // COP por unidad
-  }
-
-  if(packQty<=0) return 0;
-  return packPrice / packQty; // COP por g o ml
-}
-
-function cpuDisplayLabel(unit, unitItemQtyType, unitItemQty){
-  if(unit !== "unidad") return perUnitLabel(unit);
-  const q = Number(unitItemQty||0);
-  const t = normUnit(unitItemQtyType);
-  if(q>0 && (t==="g" || t==="ml")) return `COP por ${t} (desde unidad)`;
-  return "COP por unidad";
+async function deleteCatalogValue(type, value){
+  const v = String(value||"").trim();
+  if(!v) throw new Error("Selecciona un valor.");
+  return await api({ action:"catalog_delete", costs_secret: UNLOCKED_SECRET, type, value: v });
 }
 
 function makeSelectOptions(arr, selected){
-  const uniq = uniqSorted(arr);
-  return uniq.map(v=>`<option ${v===selected?"selected":""} value="${cssEscape(v)}">${v}</option>`).join("");
+  const s = String(selected||"");
+  return (arr||[]).map(v=>{
+    const vv = String(v);
+    const sel = (vv===s) ? "selected" : "";
+    return `<option value="${cssEscape(vv)}" ${sel}>${vv}</option>`;
+  }).join("");
 }
 
-// ===== UI Modal + confirmación 2s =====
+// ===== Modal (AMARED) =====
 function ensureModal(){
   let m = document.getElementById("am_modal");
   if(m) return m;
 
   m = document.createElement("div");
   m.id = "am_modal";
-  m.style.cssText = `
-    position:fixed; inset:0; background:rgba(0,0,0,.55);
-    display:none; align-items:center; justify-content:center;
-    z-index:9999; padding:16px;
-  `;
+  m.className = "amModal";
   m.innerHTML = `
-    <div style="background:#111; border:1px solid rgba(255,255,255,.12); border-radius:14px; width:min(720px,100%); padding:14px;">
-      <div class="row" style="justify-content:space-between; align-items:center; gap:10px;">
+    <div class="amModalCard">
+      <div class="amModalHeader">
         <div>
-          <div class="k" id="am_modal_title">Título</div>
-          <div class="mini" id="am_modal_desc" style="margin-top:4px;">Descripción</div>
+          <div class="amModalTitle" id="am_modal_title">Título</div>
+          <div class="amModalDesc" id="am_modal_desc">Descripción</div>
         </div>
-        <button class="btn secondary" id="am_modal_close" type="button">Cerrar</button>
+        <button class="amBtn amBtnSecondary" id="am_modal_close" type="button">Cerrar</button>
       </div>
-      <div id="am_modal_body" style="margin-top:12px;"></div>
+      <div class="amModalBody" id="am_modal_body"></div>
     </div>
   `;
+
   document.body.appendChild(m);
-  m.querySelector("#am_modal_close").onclick = ()=>{ m.style.display="none"; };
-  m.addEventListener("click",(e)=>{ if(e.target===m) m.style.display="none"; }, {passive:true});
+
+  m.querySelector("#am_modal_close").onclick = ()=>{ m.classList.remove("isOpen"); };
+
+  m.addEventListener("click",(e)=>{
+    if(e.target===m) m.classList.remove("isOpen");
+  }, {passive:true});
+
   return m;
 }
 
@@ -217,560 +183,616 @@ function openModal(title, desc, html){
   m.querySelector("#am_modal_title").textContent = title || "";
   m.querySelector("#am_modal_desc").textContent = desc || "";
   m.querySelector("#am_modal_body").innerHTML = html || "";
-  m.style.display = "flex";
+  m.classList.add("isOpen");
   return m;
 }
 
-function confirmWithTimer(title, desc){
+function confirmWithTimer(m, seconds){
   return new Promise((resolve)=>{
-    let t = 2;
-    const m = openModal(title, desc, `
-      <div class="item">
-        <div class="mini" style="opacity:.9;">Espera <strong id="am_t">${t}</strong> segundo(s) para confirmar.</div>
-        <div class="row" style="margin-top:12px; gap:10px;">
-          <button class="btn secondary" id="am_cancel" type="button">Cancelar</button>
-          <button class="btn" id="am_ok" type="button" disabled>Confirmar</button>
-        </div>
-      </div>
-    `);
+    const body = m.querySelector("#am_modal_body");
+    const okBtn = body.querySelector("#am_ok");
+    const cancelBtn = body.querySelector("#am_cancel");
 
-    const okBtn = m.querySelector("#am_ok");
-    const tEl = m.querySelector("#am_t");
+    let t = Number(seconds||2);
+    okBtn.disabled = true;
+    okBtn.textContent = `Confirmar (${t})`;
 
     const int = setInterval(()=>{
-      t -= 1;
-      if(tEl) tEl.textContent = String(t);
+      t--;
       if(t<=0){
         clearInterval(int);
         okBtn.disabled = false;
-        if(tEl) tEl.textContent = "0";
+        okBtn.textContent = "Confirmar";
+      }else{
+        okBtn.textContent = `Confirmar (${t})`;
       }
     }, 1000);
 
-    m.querySelector("#am_cancel").onclick = ()=>{
+    cancelBtn.onclick = ()=>{
       clearInterval(int);
-      m.style.display="none";
+      m.classList.remove("isOpen");
       resolve(false);
     };
     okBtn.onclick = ()=>{
       clearInterval(int);
-      m.style.display="none";
+      m.classList.remove("isOpen");
       resolve(true);
     };
   });
 }
 
-// ===== Catálogo en modal (se abre por botón, no visible al inicio) =====
-function openCatalogManager(){
+// ===== UI: panel Tiendas/Marcas =====
+async function openCatalogManager(){
+  await fetchCatalogsFromSheets();
+
   const html = `
-    <div class="item">
-      <div class="row" style="justify-content:space-between; align-items:center; gap:10px;">
-        <div>
-          <div class="k">Tiendas y Marcas</div>
-          <div class="mini">Agrega o elimina opciones. (Con confirmación de 2s)</div>
+  <div class="item">
+    <div class="k">Tiendas y Marcas</div>
+    <div class="mini" style="margin-top:6px;">Agrega o elimina opciones (con confirmación de 2s).</div>
+
+    <div class="amModalGrid" style="margin-top:14px;">
+      <div class="amCol">
+        <div class="amLabel">Tiendas</div>
+        <div class="amRow">
+          <select class="amSelect" id="storePick">
+            <option value="">Selecciona…</option>
+            ${makeSelectOptions(STORES,"")}
+          </select>
+          <button class="amBtn amBtnDanger" id="delStore" type="button">Eliminar</button>
+        </div>
+        <div class="amRow" style="margin-top:10px;">
+          <input class="amInput" id="storeNew" placeholder="Nueva tienda…">
+          <button class="amBtn" id="addStore" type="button">Agregar</button>
         </div>
       </div>
 
-      <div class="row" style="margin-top:12px; gap:14px; flex-wrap:wrap;">
-        <div style="flex:1; min-width:280px;">
-          <div class="mini" style="margin-bottom:6px;">Tiendas</div>
-          <div class="row" style="gap:8px;">
-            <select class="input" id="storePick">
-              <option value="">Selecciona…</option>
-              ${makeSelectOptions(STORES,"")}
-            </select>
-            <button class="btn secondary" id="delStore" type="button">Eliminar</button>
-          </div>
-          <div class="row" style="gap:8px; margin-top:8px;">
-            <input class="input" id="storeNew" placeholder="Nueva tienda…">
-            <button class="btn" id="addStore" type="button">Agregar</button>
-          </div>
+      <div class="amCol">
+        <div class="amLabel">Marcas</div>
+        <div class="amRow">
+          <select class="amSelect" id="brandPick">
+            <option value="">Selecciona…</option>
+            ${makeSelectOptions(BRANDS,"")}
+          </select>
+          <button class="amBtn amBtnDanger" id="delBrand" type="button">Eliminar</button>
         </div>
+        <div class="amRow" style="margin-top:10px;">
+          <input class="amInput" id="brandNew" placeholder="Nueva marca…">
+          <button class="amBtn" id="addBrand" type="button">Agregar</button>
+        </div>
+      </div>
+    </div>
+  </div>
+`;
 
-        <div style="flex:1; min-width:280px;">
-          <div class="mini" style="margin-bottom:6px;">Marcas</div>
-          <div class="row" style="gap:8px;">
-            <select class="input" id="brandPick">
-              <option value="">Selecciona…</option>
-              ${makeSelectOptions(BRANDS,"")}
-            </select>
-            <button class="btn secondary" id="delBrand" type="button">Eliminar</button>
-          </div>
-          <div class="row" style="gap:8px; margin-top:8px;">
-            <input class="input" id="brandNew" placeholder="Nueva marca…">
-            <button class="btn" id="addBrand" type="button">Agregar</button>
+  const m = openModal("⚙️ Gestionar tiendas y marcas", "Este panel está separado para evitar cambios accidentales.", html);
+
+  const storePick = m.querySelector("#storePick");
+  const brandPick = m.querySelector("#brandPick");
+  const storeNew = m.querySelector("#storeNew");
+  const brandNew = m.querySelector("#brandNew");
+
+  m.querySelector("#addStore").onclick = async ()=>{
+    const v = storeNew.value.trim();
+    if(!v) return alert("Escribe una tienda.");
+    const ok = await confirm2s("¿Agregar tienda?", `Se agregará: ${v}`);
+    if(!ok) return;
+    showLoading("Agregando…","Guardando tienda en la base de datos.");
+    try{
+      await addCatalogValue("store", v);
+      storeNew.value = "";
+      await fetchCatalogsFromSheets();
+      storePick.innerHTML = `<option value="">Selecciona…</option>${makeSelectOptions(STORES,"")}`;
+      render(); // refresca selects en filas
+    }catch(e){ alert(e.message||"Error"); }
+    finally{ hideLoading(); }
+  };
+
+  m.querySelector("#addBrand").onclick = async ()=>{
+    const v = brandNew.value.trim();
+    if(!v) return alert("Escribe una marca.");
+    const ok = await confirm2s("¿Agregar marca?", `Se agregará: ${v}`);
+    if(!ok) return;
+    showLoading("Agregando…","Guardando marca en la base de datos.");
+    try{
+      await addCatalogValue("brand", v);
+      brandNew.value = "";
+      await fetchCatalogsFromSheets();
+      brandPick.innerHTML = `<option value="">Selecciona…</option>${makeSelectOptions(BRANDS,"")}`;
+      render();
+    }catch(e){ alert(e.message||"Error"); }
+    finally{ hideLoading(); }
+  };
+
+  m.querySelector("#delStore").onclick = async ()=>{
+    const v = unescapeCss(storePick.value||"").trim();
+    if(!v) return alert("Selecciona una tienda.");
+    const ok = await confirm2s("¿Eliminar tienda?", `Se eliminará: ${v}`);
+    if(!ok) return;
+    showLoading("Eliminando…","Quitando tienda de la base de datos.");
+    try{
+      await deleteCatalogValue("store", v);
+      await fetchCatalogsFromSheets();
+      storePick.innerHTML = `<option value="">Selecciona…</option>${makeSelectOptions(STORES,"")}`;
+      render();
+    }catch(e){ alert(e.message||"Error"); }
+    finally{ hideLoading(); }
+  };
+
+  m.querySelector("#delBrand").onclick = async ()=>{
+    const v = unescapeCss(brandPick.value||"").trim();
+    if(!v) return alert("Selecciona una marca.");
+    const ok = await confirm2s("¿Eliminar marca?", `Se eliminará: ${v}`);
+    if(!ok) return;
+    showLoading("Eliminando…","Quitando marca de la base de datos.");
+    try{
+      await deleteCatalogValue("brand", v);
+      await fetchCatalogsFromSheets();
+      brandPick.innerHTML = `<option value="">Selecciona…</option>${makeSelectOptions(BRANDS,"")}`;
+      render();
+    }catch(e){ alert(e.message||"Error"); }
+    finally{ hideLoading(); }
+  };
+}
+
+async function confirm2s(title, desc){
+  const html = `
+    <div class="item">
+      <div class="k">${title}</div>
+      <div class="mini" style="margin-top:6px;">${desc}</div>
+      <div class="amRow" style="margin-top:12px; justify-content:flex-end;">
+        <button class="amBtn amBtnSecondary" id="am_cancel" type="button">Cancelar</button>
+        <button class="amBtn" id="am_ok" type="button">Confirmar</button>
+      </div>
+    </div>
+  `;
+  const m = openModal("Confirmación", "Espera 2 segundos para confirmar.", html);
+  return await confirmWithTimer(m, 2);
+}
+
+// ===== Modelo de datos UI =====
+let CANON = [];       // lista de ingredientes canónicos (kitchen-costs.js)
+let GROUPS = [];      // secciones/acordeones (kitchen-costs.js)
+let SHEETS_ROWS = []; // items desde Sheets (COSTOS_INGREDIENTES)
+let PRICES = {};      // precios cache local (solo para fallback)
+let UI = {};          // estado editable por ingrediente_key
+
+function getCanonFromKitchenCosts(){
+  const canon = [];
+  const groups = [];
+
+  // Espera: window.AMARED_COSTS_SECTIONS = [{title, keys:[]}, ...]
+  if(Array.isArray(window.AMARED_COSTS_SECTIONS)){
+    window.AMARED_COSTS_SECTIONS.forEach(sec=>{
+      groups.push({ title: sec.title, keys: (sec.keys||[]).map(String) });
+      (sec.keys||[]).forEach(k=>canon.push(String(k)));
+    });
+  }else{
+    // fallback: intenta leer window.AMARED_INGREDIENTS
+    if(Array.isArray(window.AMARED_INGREDIENTS)){
+      groups.push({ title:"Ingredientes", keys: window.AMARED_INGREDIENTS.map(String) });
+      window.AMARED_INGREDIENTS.forEach(k=>canon.push(String(k)));
+    }
+  }
+
+  // uniq
+  const uniq = Array.from(new Set(canon));
+  return { canon: uniq, groups };
+}
+
+function buildUIFromSheets(items){
+  const map = {};
+  (items||[]).forEach(r=>{
+    const k = String(r.ingredient_key||"").trim();
+    if(!k) return;
+    map[k] = {
+      ingredient_key: k,
+      unit_type: normUnit(r.unit_type),
+      pack_qty: String(r.pack_qty||""),
+      pack_price: String(r.pack_price||""),
+      cop_per_unit: String(r.cop_per_unit||""),
+      brand: String(r.brand||""),
+      store: String(r.store||""),
+      unit_item_qty: String(r.unit_item_qty||""),
+      unit_item_qty_type: String(r.unit_item_qty_type||""),
+      updated_at: r.updated_at || "",
+      updated_by: r.updated_by || ""
+    };
+  });
+
+  // Para cada ingrediente canónico crea base si no existe
+  const ui = {};
+  CANON.forEach(k=>{
+    ui[k] = map[k] || {
+      ingredient_key: k,
+      unit_type: "",
+      pack_qty: "",
+      pack_price: "",
+      cop_per_unit: "",
+      brand: "",
+      store: "",
+      unit_item_qty: "",
+      unit_item_qty_type: "",
+      updated_at: "",
+      updated_by: ""
+    };
+  });
+
+  UI = ui;
+}
+
+function isCompleteRow(r){
+  const u = normUnit(r.unit_type);
+  const qty = Number(r.pack_qty||0);
+  const price = Number(r.pack_price||0);
+  const cpu = Number(r.cop_per_unit||0);
+
+  if(!u) return false;
+  if(!(qty>0) || !(price>0)) return false;
+  if(!(cpu>0)) return false;
+
+  // Si unidad → exige cantidad por unidad (contenido de 1 unidad)
+  if(u==="unidad"){
+    const itemQty = Number(r.unit_item_qty||0);
+    if(!(itemQty>0)) return false;
+  }
+  return true;
+}
+
+function computeCopPerUnit(u, packQty, packPrice, unitItemQty){
+  const qty = Number(packQty||0);
+  const price = Number(packPrice||0);
+  if(!(qty>0) || !(price>0)) return 0;
+
+  // g/ml: cop_per_unit = price / qty
+  if(u==="g" || u==="ml") return price / qty;
+
+  // unidad: pack_qty = unidades por empaque
+  // cop_por_unidad = price / qty
+  // si unit_item_qty existe, lo dejamos para cálculo de costo por “cantidad” (p.ej gramos por unidad)
+  return price / qty;
+}
+
+function computeEstimatedCost(r){
+  // Esto se usa si quieres estimar “costo por unidad” y mostrarlo.
+  // Para g/ml: cop_per_unit ya es directo.
+  // Para unidad: cop_per_unit es COP por unidad (pieza).
+  const cpu = Number(r.cop_per_unit||0);
+  return roundCOP(cpu);
+}
+
+function setRowField(key, field, value){
+  UI[key][field] = value;
+
+  // Auto cálculo cop_per_unit si cambia unidad/qty/price
+  const r = UI[key];
+  const u = normUnit(r.unit_type);
+  const qty = Number(r.pack_qty||0);
+  const price = Number(r.pack_price||0);
+  const itemQty = Number(r.unit_item_qty||0);
+
+  const cpu = computeCopPerUnit(u, qty, price, itemQty);
+  if(cpu>0) UI[key].cop_per_unit = String(roundCOP(cpu));
+
+  // Si cambia a unidad, por defecto unit_item_qty_type = "g" (se puede ajustar)
+  if(u==="unidad" && !r.unit_item_qty_type) r.unit_item_qty_type = "g";
+
+  // Si NO es unidad, limpiar campos extra
+  if(u!=="unidad"){
+    r.unit_item_qty = "";
+    r.unit_item_qty_type = "";
+  }
+}
+
+// ===== Render =====
+function render(){
+  const root = document.getElementById("list");
+  root.innerHTML = "";
+
+  // Top tools (Refrescar + Catálogos)
+  renderTopTools();
+
+  GROUPS.forEach((g,idx)=>{
+    const keys = (g.keys||[]).filter(k=>UI[k]);
+    const complete = keys.filter(k=>isCompleteRow(UI[k]));
+    const pending = keys.filter(k=>!isCompleteRow(UI[k]));
+
+    const det = document.createElement("details");
+    det.className = "item";
+    det.open = false; // ✅ cerrado por defecto
+
+    det.innerHTML = `
+      <summary class="am_sum" style="display:flex; align-items:center; justify-content:space-between; gap:10px; cursor:pointer;">
+        <div style="display:flex; align-items:center; gap:10px;">
+          <span class="am_chev">▶</span>
+          <div>
+            <div class="k">${g.title}</div>
+            <div class="mini">${pending.length} pendiente(s) · ${complete.length} completo(s)</div>
           </div>
         </div>
+        <span class="pill">${keys.length} ingrediente(s)</span>
+      </summary>
+
+      <div style="margin-top:12px;" data-sec="${idx}"></div>
+    `;
+
+    // Flecha ▶/▼
+    det.addEventListener("toggle",()=>{
+      det.querySelector(".am_chev").textContent = det.open ? "▼" : "▶";
+    });
+
+    const box = det.querySelector(`[data-sec="${idx}"]`);
+
+    // Pendientes primero
+    if(pending.length){
+      const sub = document.createElement("details");
+      sub.className = "item";
+      sub.open = false;
+      sub.innerHTML = `
+        <summary class="am_sum" style="display:flex; align-items:center; justify-content:space-between; gap:10px; cursor:pointer;">
+          <div style="display:flex; align-items:center; gap:10px;">
+            <span class="am_chev">▶</span>
+            <div>
+              <div class="k">🟡 Pendientes</div>
+              <div class="mini">${pending.length} pendiente(s)</div>
+            </div>
+          </div>
+        </summary>
+        <div style="margin-top:12px;" data-sub="p"></div>
+      `;
+      sub.addEventListener("toggle",()=>{
+        sub.querySelector(".am_chev").textContent = sub.open ? "▼" : "▶";
+      });
+      box.appendChild(sub);
+      const subBox = sub.querySelector(`[data-sub="p"]`);
+      pending.forEach(k=> subBox.appendChild(renderIngredientRow(k)) );
+    }
+
+    // Completos
+    if(complete.length){
+      const sub = document.createElement("details");
+      sub.className = "item";
+      sub.open = false;
+      sub.style.marginTop = "12px";
+      sub.innerHTML = `
+        <summary class="am_sum" style="display:flex; align-items:center; justify-content:space-between; gap:10px; cursor:pointer;">
+          <div style="display:flex; align-items:center; gap:10px;">
+            <span class="am_chev">▶</span>
+            <div>
+              <div class="k">✅ Completos</div>
+              <div class="mini">${complete.length} completo(s)</div>
+            </div>
+          </div>
+        </summary>
+        <div style="margin-top:12px;" data-sub="c"></div>
+      `;
+      sub.addEventListener("toggle",()=>{
+        sub.querySelector(".am_chev").textContent = sub.open ? "▼" : "▶";
+      });
+      box.appendChild(sub);
+      const subBox = sub.querySelector(`[data-sub="c"]`);
+      complete.forEach(k=> subBox.appendChild(renderIngredientRow(k)) );
+    }
+
+    root.appendChild(det);
+  });
+}
+
+function renderTopTools(){
+  const el = document.getElementById("topTools");
+  if(!el) return;
+
+  el.innerHTML = `
+    <div class="row" style="gap:10px; flex-wrap:wrap;">
+      <button class="btn secondary" id="refreshBtn">⟳ Refrescar</button>
+      <button class="btn secondary" id="catalogBtn">⚙️ Tiendas/Marcas</button>
+      <span class="pill">Secciones cerradas por defecto</span>
+    </div>
+  `;
+
+  document.getElementById("refreshBtn").onclick = async ()=>{
+    showLoading("Refrescando…","Leyendo datos actualizados desde la base de datos.");
+    try{
+      await fetchCatalogsFromSheets();
+      SHEETS_ROWS = await fetchCostsFromSheets();
+      buildUIFromSheets(SHEETS_ROWS);
+      render();
+    }catch(e){
+      alert(e.message||"Error");
+    }finally{
+      hideLoading();
+    }
+  };
+
+  document.getElementById("catalogBtn").onclick = async ()=>{
+    try{ await openCatalogManager(); }catch(e){ alert(e.message||"Error"); }
+  };
+}
+
+function renderIngredientRow(key){
+  const r = UI[key];
+
+  const wrap = document.createElement("div");
+  wrap.className = "item";
+  wrap.style.marginTop = "12px";
+
+  const u = normUnit(r.unit_type);
+  const cpuLabel = perUnitLabel(u);
+  const est = computeEstimatedCost(r);
+
+  // select de tiendas/marcas
+  const storeOpts = `<option value="">—</option>${makeSelectOptions(STORES, r.store)}`;
+  const brandOpts = `<option value="">—</option>${makeSelectOptions(BRANDS, r.brand)}`;
+
+  wrap.innerHTML = `
+    <div class="row" style="justify-content:space-between; align-items:flex-start; gap:10px; flex-wrap:wrap;">
+      <div>
+        <div class="k">${key}</div>
+        <div class="mini" style="margin-top:4px;">${isCompleteRow(r) ? "✅ Completo" : "🟡 Pendiente"} · Estimado: <b>$${money(est)}</b></div>
+      </div>
+      <span class="pill">${u ? u : "sin unidad"}</span>
+    </div>
+
+    <div style="margin-top:12px; display:grid; grid-template-columns: repeat(12, 1fr); gap:10px;">
+      <div style="grid-column: span 3;">
+        <div class="mini" style="font-weight:900;">Unidad</div>
+        <select class="input" data-k="${cssEscape(key)}" data-f="unit_type">
+          <option value="">Selecciona…</option>
+          <option value="g" ${u==="g"?"selected":""}>g</option>
+          <option value="ml" ${u==="ml"?"selected":""}>ml</option>
+          <option value="unidad" ${u==="unidad"?"selected":""}>unidad</option>
+        </select>
+      </div>
+
+      <div style="grid-column: span 3;">
+        <div class="mini" style="font-weight:900;">${unitLabel(u)}</div>
+        <input class="input" data-k="${cssEscape(key)}" data-f="pack_qty" placeholder="${unitPlaceholder(u)}" value="${r.pack_qty||""}">
+      </div>
+
+      <div style="grid-column: span 3;">
+        <div class="mini" style="font-weight:900;">Precio empaque (COP)</div>
+        <input class="input" data-k="${cssEscape(key)}" data-f="pack_price" placeholder="Ej: 12000" value="${r.pack_price||""}">
+      </div>
+
+      <div style="grid-column: span 3;">
+        <div class="mini" style="font-weight:900;">${cpuLabel}</div>
+        <input class="input" data-k="${cssEscape(key)}" data-f="cop_per_unit" placeholder="Auto" value="${r.cop_per_unit||""}">
+      </div>
+
+      <div style="grid-column: span 6;" class="unitExtra ${u==="unidad"?"":"hide"}">
+        <div class="mini" style="font-weight:900;">Cantidad por unidad (contenido)</div>
+        <div class="row" style="gap:10px; flex-wrap:wrap;">
+          <input class="input" style="flex:1; min-width:160px;" data-k="${cssEscape(key)}" data-f="unit_item_qty" placeholder="Ej: 200" value="${r.unit_item_qty||""}">
+          <select class="input" style="width:140px;" data-k="${cssEscape(key)}" data-f="unit_item_qty_type">
+            <option value="g" ${(r.unit_item_qty_type||"")==="g"?"selected":""}>g</option>
+            <option value="ml" ${(r.unit_item_qty_type||"")==="ml"?"selected":""}>ml</option>
+          </select>
+        </div>
+        <div class="mini" style="margin-top:6px;">Ejemplo: si 1 unidad trae 200g, escribe 200 y elige “g”.</div>
+      </div>
+
+      <div style="grid-column: span 3;">
+        <div class="mini" style="font-weight:900;">Tienda</div>
+        <select class="input" data-k="${cssEscape(key)}" data-f="store">
+          ${storeOpts}
+        </select>
+      </div>
+
+      <div style="grid-column: span 3;">
+        <div class="mini" style="font-weight:900;">Marca</div>
+        <select class="input" data-k="${cssEscape(key)}" data-f="brand">
+          ${brandOpts}
+        </select>
+      </div>
+
+      <div style="grid-column: span 6;">
+        <div class="mini" style="font-weight:900;">Última actualización</div>
+        <input class="input" disabled value="${r.updated_at ? String(r.updated_at) : ""}" placeholder="—">
       </div>
     </div>
   `;
 
-  const m = openModal("⚙️ Gestionar tiendas y marcas", "Este panel está separado para evitar cambios accidentales.", html);
-
-  // Handlers (SIN fallback local: todo va a Sheets)
-  m.querySelector("#addStore").onclick = async ()=>{
-    const v = (m.querySelector("#storeNew").value||"").trim();
-    if(!v) return alert("Escribe el nombre de la tienda.");
-    const ok = await confirmWithTimer("Agregar tienda", `Se agregará: "${v}"`);
-    if(!ok) return;
-    showLoading("Guardando...", "Agregando tienda en Google Sheets...");
-    try{
-      await catalogAdd("store", v);
-      m.style.display = "none";
-      await reloadAndRender(true);
-    } catch(e){
-      alert("No se pudo agregar. Revisa que el backend tenga catalog_add.");
-    } finally { hideLoading(); }
-  };
-
-  m.querySelector("#addBrand").onclick = async ()=>{
-    const v = (m.querySelector("#brandNew").value||"").trim();
-    if(!v) return alert("Escribe el nombre de la marca.");
-    const ok = await confirmWithTimer("Agregar marca", `Se agregará: "${v}"`);
-    if(!ok) return;
-    showLoading("Guardando...", "Agregando marca en Google Sheets...");
-    try{
-      await catalogAdd("brand", v);
-      m.style.display = "none";
-      await reloadAndRender(true);
-    } catch(e){
-      alert("No se pudo agregar. Revisa que el backend tenga catalog_add.");
-    } finally { hideLoading(); }
-  };
-
-  m.querySelector("#delStore").onclick = async ()=>{
-    const v = unescapeCss(m.querySelector("#storePick").value||"");
-    if(!v) return alert("Selecciona una tienda para eliminar.");
-    const ok = await confirmWithTimer("Eliminar tienda", `Se eliminará: "${v}"`);
-    if(!ok) return;
-    showLoading("Guardando...", "Eliminando tienda en Google Sheets...");
-    try{
-      await catalogDelete("store", v);
-      m.style.display = "none";
-      await reloadAndRender(true);
-    } catch(e){
-      alert("No se pudo eliminar. Revisa que el backend tenga catalog_delete.");
-    } finally { hideLoading(); }
-  };
-
-  m.querySelector("#delBrand").onclick = async ()=>{
-    const v = unescapeCss(m.querySelector("#brandPick").value||"");
-    if(!v) return alert("Selecciona una marca para eliminar.");
-    const ok = await confirmWithTimer("Eliminar marca", `Se eliminará: "${v}"`);
-    if(!ok) return;
-    showLoading("Guardando...", "Eliminando marca en Google Sheets...");
-    try{
-      await catalogDelete("brand", v);
-      m.style.display = "none";
-      await reloadAndRender(true);
-    } catch(e){
-      alert("No se pudo eliminar. Revisa que el backend tenga catalog_delete.");
-    } finally { hideLoading(); }
-  };
-}
-
-// ===== Estado: para separar pendientes vs completos =====
-function isComplete(metaRow){
-  if(!metaRow) return false;
-  const unit = normUnit(metaRow.unit);
-  const packPrice = Number(metaRow.packPrice||0);
-  const packQty = Number(metaRow.packQty||0);
-  return !!unit && packPrice>0 && packQty>0;
-}
-
-// ===== Render principal (acordeones cerrados + icono + pendientes arriba) =====
-function render(){
-  const list = document.getElementById("list");
-  const prices = loadPrices();
-  const meta = loadMeta();
-  const groups = getGroups();
-
-  // Barra superior: herramientas
-  const top = document.getElementById("topTools");
-  if(top){
-    top.innerHTML = `
-      <div class="row" style="justify-content:space-between; align-items:center; gap:10px; margin-bottom:12px;">
-        <div class="mini" style="opacity:.9;">Las secciones están en acordeón. Haz clic para desplegar.</div>
-        <div class="row" style="gap:10px; flex-wrap:wrap; justify-content:flex-end;">
-          <button class="btn secondary" id="refreshData" type="button">⟳ Refrescar</button>
-          <button class="btn secondary" id="openCatalog" type="button">⚙️ Tiendas/Marcas</button>
-        </div>
-      </div>
-    `;
-    top.querySelector("#openCatalog").onclick = ()=> openCatalogManager();
-    top.querySelector("#refreshData").onclick = async ()=>{ await reloadAndRender(true); };
+  // esconder/mostrar extra unidad
+  const extra = wrap.querySelector(".unitExtra");
+  if(extra){
+    extra.style.display = (u==="unidad") ? "block" : "none";
   }
 
-  // Construir resumen global pendientes/completos
-  const allKeys = getAllKeys();
-  const pendingAll = allKeys.filter(k => !isComplete(meta[k]));
-  const completeAll = allKeys.filter(k => isComplete(meta[k]));
+  // listeners
+  wrap.querySelectorAll("[data-k]").forEach(inp=>{
+    inp.addEventListener("input", ()=>{
+      const k = unescapeCss(inp.getAttribute("data-k"));
+      const f = inp.getAttribute("data-f");
+      const v = inp.value;
 
-  const pendingBlock = `
-    <details class="item">
-      <summary class="row am_sum" style="cursor:pointer;justify-content:space-between; align-items:center;">
-        <div class="row" style="gap:10px; align-items:center;">
-          <span class="am_chev" aria-hidden="true">▶</span>
-          <div class="k">🟡 Ingredientes pendientes por completar</div>
-        </div>
-        <div class="mini">${pendingAll.length} pendiente(s)</div>
-      </summary>
-      <div class="mini" style="margin-top:10px;opacity:.9;">
-        Aquí aparecen los ingredientes que NO tienen unidad, precio y cantidad del empaque completos.
-      </div>
-      <div style="margin-top:10px;">
-        ${pendingAll.map(k=>ingredientCard(k, prices, meta, true)).join("")}
-      </div>
-    </details>
-  `;
+      setRowField(k, f, v);
 
-  const completeBlock = `
-    <details class="item">
-      <summary class="row am_sum" style="cursor:pointer;justify-content:space-between; align-items:center;">
-        <div class="row" style="gap:10px; align-items:center;">
-          <span class="am_chev" aria-hidden="true">▶</span>
-          <div class="k">✅ Ingredientes con información</div>
-        </div>
-        <div class="mini">${completeAll.length} completo(s)</div>
-      </summary>
-      <div class="mini" style="margin-top:10px;opacity:.9;">
-        Ingredientes que ya tienen unidad, precio y cantidad configurados.
-      </div>
-      <div style="margin-top:10px;">
-        ${completeAll.map(k=>ingredientCard(k, prices, meta, false)).join("")}
-      </div>
-    </details>
-  `;
-
-  // Bloques por categorías (manteniendo tu orden)
-  const groupedBlocks = groups.map(g=>{
-    // separa por estado dentro de la categoría
-    const pending = g.keys.filter(k => !isComplete(meta[k]));
-    const complete = g.keys.filter(k => isComplete(meta[k]));
-
-    return `
-      <details class="item">
-        <summary class="row am_sum" style="cursor:pointer;justify-content:space-between; align-items:center;">
-          <div class="row" style="gap:10px; align-items:center;">
-            <span class="am_chev" aria-hidden="true">▶</span>
-            <div class="k">${g.title}</div>
-          </div>
-          <div class="mini">${g.keys.length} ingrediente(s)</div>
-        </summary>
-
-        <div style="margin-top:10px;">
-          ${pending.length ? `<div class="mini" style="opacity:.9;margin-bottom:8px;">🟡 Pendientes (${pending.length})</div>` : ``}
-          ${pending.map(k=>ingredientCard(k, prices, meta, true)).join("")}
-
-          ${complete.length ? `
-            <details class="item" style="margin-top:12px;">
-              <summary class="row am_sum" style="cursor:pointer;justify-content:space-between; align-items:center;">
-                <div class="row" style="gap:10px; align-items:center;">
-                  <span class="am_chev" aria-hidden="true">▶</span>
-                  <div class="k">✅ Con información</div>
-                </div>
-                <div class="mini">${complete.length}</div>
-              </summary>
-              <div style="margin-top:10px;">
-                ${complete.map(k=>ingredientCard(k, prices, meta, false)).join("")}
-              </div>
-            </details>
-          ` : ``}
-        </div>
-      </details>
-    `;
-  }).join("");
-
-  list.innerHTML = pendingBlock + completeBlock + groupedBlocks;
-
-  // Guardar cache de prices calculados
-  savePrices(prices);
-
-  // Flecha ▶ / ▼ según estado del details
-  list.querySelectorAll("details").forEach(d=>{
-    const chev = d.querySelector(".am_chev");
-    const sync = ()=>{ if(chev) chev.textContent = d.open ? "▼" : "▶"; };
-    sync();
-    d.addEventListener("toggle", sync, { passive:true });
+      // si cambia unidad, re-render para mostrar/ocultar extra
+      if(f==="unit_type"){
+        render();
+      }else{
+        // actualiza "estimado" de esta fila
+        const mini = wrap.querySelector(".mini b");
+        if(mini) mini.textContent = `$${money(computeEstimatedCost(UI[k]))}`;
+      }
+    }, {passive:true});
+    inp.addEventListener("change", ()=>{
+      const k = unescapeCss(inp.getAttribute("data-k"));
+      const f = inp.getAttribute("data-f");
+      const v = inp.value;
+      setRowField(k, f, v);
+      if(f==="unit_type") render();
+    }, {passive:true});
   });
 
-  // Realtime input/change
-  const recalcOne = (key)=>{
-    const pricesNow = loadPrices();
-    const metaNow = loadMeta();
+  return wrap;
+}
 
-    const packPrice = Number(list.querySelector(`[data-packprice="${cssEscape(key)}"]`)?.value||0);
-    const unit = normUnit(list.querySelector(`[data-unit="${cssEscape(key)}"]`)?.value||"");
-    const packQty = Number(list.querySelector(`[data-packqty="${cssEscape(key)}"]`)?.value||0);
-
-    const unitItemQty = Number(list.querySelector(`[data-unititemqty="${cssEscape(key)}"]`)?.value||0);
-    const unitItemQtyType = normUnit(list.querySelector(`[data-unititemtype="${cssEscape(key)}"]`)?.value||"");
-
-    const store = unescapeCss(list.querySelector(`[data-store="${cssEscape(key)}"]`)?.value||"");
-    const brand = unescapeCss(list.querySelector(`[data-brand="${cssEscape(key)}"]`)?.value||"");
-
-    const cpu = roundCOP(calcCpu(unit, packPrice, packQty, unitItemQty, unitItemQtyType));
-    const cpuLbl = cpuDisplayLabel(unit, unitItemQtyType, unitItemQty);
-
-    const out = list.querySelector(`[data-out="${cssEscape(key)}"]`);
-    if(out) out.textContent = money(cpu);
-    const lbl = list.querySelector(`[data-cpulbl="${cssEscape(key)}"]`);
-    if(lbl) lbl.textContent = cpuLbl;
-
-    const qtyInput = list.querySelector(`[data-packqty="${cssEscape(key)}"]`);
-    const qtyLabel = list.querySelector(`[data-qtylabel="${cssEscape(key)}"]`);
-    if(qtyInput){
-      qtyInput.disabled = !unit;
-      qtyInput.placeholder = unitPlaceholder(unit);
+// ===== Guardado =====
+async function saveAllToSheets(){
+  const keys = Object.keys(UI||{});
+  showLoading("Guardando…","Actualizando información en la base de datos.");
+  try{
+    for(const k of keys){
+      const r = UI[k];
+      // Solo guarda si tiene algo (o si está completo)
+      const hasAny = String(r.unit_type||"").trim() || String(r.pack_qty||"").trim() || String(r.pack_price||"").trim() || String(r.cop_per_unit||"").trim() || String(r.brand||"").trim() || String(r.store||"").trim();
+      if(!hasAny) continue;
+      await upsertCostToSheets(r);
     }
-    if(qtyLabel) qtyLabel.textContent = unitLabel(unit);
+  }finally{
+    hideLoading();
+  }
+}
 
-    const wrap = list.querySelector(`[data-unidadwrap="${cssEscape(key)}"]`);
-    if(wrap) wrap.style.display = (unit==="unidad") ? "" : "none";
-    const uiq = list.querySelector(`[data-unititemqty="${cssEscape(key)}"]`);
-    const uit = list.querySelector(`[data-unititemtype="${cssEscape(key)}"]`);
-    if(uiq) uiq.disabled = (unit!=="unidad");
-    if(uit) uit.disabled = (unit!=="unidad");
+async function bootstrap(){
+  // Unlock
+  document.getElementById("unlock").onclick = async ()=>{
+    const s = document.getElementById("secret").value.trim();
+    if(!s){
+      document.getElementById("err").textContent = "Ingresa la clave.";
+      return;
+    }
+    document.getElementById("err").textContent = "";
+    UNLOCKED_SECRET = s;
 
-    if(cpu>0) pricesNow[key] = cpu;
-    metaNow[key] = {
-      ...(metaNow[key]||{}),
-      packPrice: packPrice || "",
-      packQty: packQty || "",
-      unit,
-      unitItemQty: unitItemQty || "",
-      unitItemQtyType: unitItemQtyType || "",
-      store,
-      brand
-    };
-    savePrices(pricesNow);
-    saveMeta(metaNow);
+    showLoading("Verificando…","Validando acceso y cargando datos.");
+    try{
+      // Carga canon
+      const k = getCanonFromKitchenCosts();
+      CANON = k.canon;
+      GROUPS = k.groups;
+
+      // Catálogos + costos
+      await fetchCatalogsFromSheets();
+      SHEETS_ROWS = await fetchCostsFromSheets();
+      buildUIFromSheets(SHEETS_ROWS);
+
+      document.getElementById("editor").style.display = "block";
+      render();
+    }catch(e){
+      document.getElementById("err").textContent = (e && e.message) ? e.message : "Error";
+      UNLOCKED_SECRET = "";
+    }finally{
+      hideLoading();
+    }
   };
 
-  list.addEventListener("input", (e)=>{
-    const el = e.target.closest("[data-packprice],[data-packqty],[data-unititemqty]");
-    if(!el) return;
-    const key = el.dataset.packprice || el.dataset.packqty || el.dataset.unititemqty;
-    if(!key) return;
-    recalcOne(unescapeCss(key));
-  }, { passive:true });
-
-  list.addEventListener("change", (e)=>{
-    const el = e.target.closest("select[data-unit],select[data-store],select[data-brand],select[data-unititemtype]");
-    if(!el) return;
-    const key = el.dataset.unit || el.dataset.store || el.dataset.brand || el.dataset.unititemtype;
-    if(!key) return;
-    recalcOne(unescapeCss(key));
-  }, { passive:true });
-
-  // Guardar todo a Sheets
+  // Save
   document.getElementById("saveAll").onclick = async ()=>{
     try{
-      showLoading("Guardando...", "Actualizando ingredientes en Google Sheets (COSTOS_INGREDIENTES).");
-
-      const metaNow = loadMeta();
-      const keysNow = getAllKeys();
-
-      let saved = 0;
-      for(const k of keysNow){
-        const m = metaNow[k] || {};
-        const unit = normUnit(m.unit);
-        const packPrice = Number(m.packPrice||0);
-        const packQty = Number(m.packQty||0);
-
-        const unitItemQty = Number(m.unitItemQty||0);
-        const unitItemQtyType = normUnit(m.unitItemQtyType);
-
-        const cpu = roundCOP(calcCpu(unit, packPrice, packQty, unitItemQty, unitItemQtyType));
-
-        if(!unit) continue;
-        if(packPrice<=0 || packQty<=0) continue;
-
-        await upsertCostToSheets({
-          ingredient_key: k,
-          unit_type: unit,
-          pack_qty: packQty,
-          pack_price: packPrice,
-          cop_per_unit: cpu,
-          unit_item_qty: (unit==="unidad" ? unitItemQty : ""),
-          unit_item_qty_type: (unit==="unidad" ? unitItemQtyType : ""),
-          brand: m.brand || "",
-          store: m.store || "",
-          updated_by: "COSTS_UI"
-        });
-
-        saved++;
-      }
-
-      alert(`Listo ✅ Guardados en Sheets: ${saved} ingrediente(s).`);
-
-      // recarga para reflejar updated_at y reordenar pendientes/completos
-      await reloadAndRender(true);
-
-    } catch(e){
-      alert("No se pudo guardar en Sheets. Revisa backend (costs_upsert) y vuelve a intentar.");
-    } finally {
+      await saveAllToSheets();
+      // refresca todo después de guardar
+      showLoading("Refrescando…","Cargando cambios desde la base de datos.");
+      await fetchCatalogsFromSheets();
+      SHEETS_ROWS = await fetchCostsFromSheets();
+      buildUIFromSheets(SHEETS_ROWS);
+      render();
+    }catch(e){
+      alert(e.message||"Error");
+    }finally{
       hideLoading();
     }
   };
 }
 
-function ingredientCard(k, prices, meta, highlightPending){
-  const m = meta[k] || { packPrice:"", packQty:"", unit:"", brand:"", store:"", unitItemQty:"", unitItemQtyType:"", updated_at:"" };
-  const unit = normUnit(m.unit);
-  const packPrice = Number(m.packPrice||0);
-  const packQty = Number(m.packQty||0);
-  const unitItemQty = Number(m.unitItemQty||0);
-  const unitItemQtyType = normUnit(m.unitItemQtyType);
-
-  const cpu = roundCOP(calcCpu(unit, packPrice, packQty, unitItemQty, unitItemQtyType));
-  const cpuLbl = cpuDisplayLabel(unit, unitItemQtyType, unitItemQty);
-
-  if(cpu>0) prices[k] = cpu;
-
-  const qtyDisabled = !unit ? "disabled" : "";
-  const showUnidad = (unit==="unidad") ? "" : "style=\"display:none;\"";
-  const disableUnidad = (unit==="unidad") ? "" : "disabled";
-  const border = highlightPending ? "border:1px solid rgba(255,193,7,.35);" : "";
-
-  return `
-    <div class="item" style="margin-top:12px; ${border}">
-      <div class="row" style="justify-content:space-between;gap:10px;align-items:center;">
-        <div class="k">${k}</div>
-        <div class="pill"><span data-cpulbl="${cssEscape(k)}">${cpuLbl}</span>: <span data-out="${cssEscape(k)}">${money(cpu)}</span></div>
-      </div>
-
-      <div class="row" style="margin-top:10px;align-items:flex-end;gap:12px;flex-wrap:wrap;">
-        <div style="flex:1;min-width:220px;">
-          <div class="mini" style="margin-bottom:6px;">Precio del empaque (COP)</div>
-          <input class="input" data-packprice="${cssEscape(k)}" type="number" min="0" step="1"
-            value="${m.packPrice||""}" placeholder="Ej: 15000">
-        </div>
-
-        <div style="flex:1;min-width:170px;max-width:220px;">
-          <div class="mini" style="margin-bottom:6px;">Unidad</div>
-          <select class="input" data-unit="${cssEscape(k)}">
-            <option value="" ${!unit?"selected":""}>Selecciona…</option>
-            <option value="g" ${unit==="g"?"selected":""}>g</option>
-            <option value="ml" ${unit==="ml"?"selected":""}>ml</option>
-            <option value="unidad" ${unit==="unidad"?"selected":""}>unidad</option>
-          </select>
-        </div>
-
-        <div style="flex:1;min-width:220px;">
-          <div class="mini" style="margin-bottom:6px;" data-qtylabel="${cssEscape(k)}">${unitLabel(unit)}</div>
-          <input class="input" data-packqty="${cssEscape(k)}" type="number" min="0" step="0.01" ${qtyDisabled}
-            value="${m.packQty||""}" placeholder="${unitPlaceholder(unit)}">
-        </div>
-      </div>
-
-      <div class="row" data-unidadwrap="${cssEscape(k)}" ${showUnidad} style="margin-top:10px;gap:12px;flex-wrap:wrap;">
-        <div style="flex:1;min-width:240px;">
-          <div class="mini" style="margin-bottom:6px;">Contenido por unidad (opcional)</div>
-          <input class="input" data-unititemqty="${cssEscape(k)}" type="number" min="0" step="0.01" ${disableUnidad}
-            value="${m.unitItemQty||""}" placeholder="Ej: 200">
-        </div>
-        <div style="min-width:180px;max-width:220px;">
-          <div class="mini" style="margin-bottom:6px;">Medida del contenido</div>
-          <select class="input" data-unititemtype="${cssEscape(k)}" ${disableUnidad}>
-            <option value="" ${!unitItemQtyType?"selected":""}>Selecciona…</option>
-            <option value="g" ${unitItemQtyType==="g"?"selected":""}>g</option>
-            <option value="ml" ${unitItemQtyType==="ml"?"selected":""}>ml</option>
-          </select>
-        </div>
-        <div class="mini" style="flex-basis:100%;opacity:.85;">
-          Si llenas esto, el sistema calcula <strong>COP por g/ml</strong> a partir de “unidad”.
-        </div>
-      </div>
-
-      <div class="row" style="margin-top:10px;gap:12px;flex-wrap:wrap;">
-        <div style="flex:1;min-width:240px;">
-          <div class="mini" style="margin-bottom:6px;">Tienda</div>
-          <select class="input" data-store="${cssEscape(k)}">
-            <option value="">Selecciona…</option>
-            ${makeSelectOptions(STORES, m.store || "")}
-          </select>
-        </div>
-        <div style="flex:1;min-width:240px;">
-          <div class="mini" style="margin-bottom:6px;">Marca</div>
-          <select class="input" data-brand="${cssEscape(k)}">
-            <option value="">Selecciona…</option>
-            ${makeSelectOptions(BRANDS, m.brand || "")}
-          </select>
-        </div>
-      </div>
-
-      <div class="mini" style="margin-top:8px;">
-        Última actualización: <span data-updated="${cssEscape(k)}">${m.updated_at ? String(m.updated_at) : "—"}</span>
-      </div>
-    </div>
-  `;
-}
-
-// ===== Reload from Sheets and render =====
-async function reloadAndRender(showToast){
-  try{
-    showLoading("Refrescando...", "Actualizando datos desde Google Sheets...");
-    const fromSheets = await fetchCostsFromSheets();
-    await fetchCatalogsFromSheets();
-
-    const prices = loadPrices();
-    const meta = loadMeta();
-
-    // reconstruir meta a partir de Sheets (mantiene también campos locales sin romper)
-    for(const it of fromSheets){
-      const k = String(it.ingredient_key||"").trim();
-      if(!k) continue;
-
-      const unit = normUnit(it.unit_type);
-      const packQty = Number(it.pack_qty||0);
-      const packPrice = Number(it.pack_price||0);
-      const cpu = roundCOP(it.cop_per_unit||0);
-
-      if(cpu>0) prices[k] = cpu;
-
-      meta[k] = {
-        ...(meta[k]||{}),
-        packPrice,
-        packQty,
-        unit,
-        unitItemQty: Number(it.unit_item_qty||0) || "",
-        unitItemQtyType: normUnit(it.unit_item_qty_type),
-        brand: String(it.brand||""),
-        store: String(it.store||""),
-        updated_at: String(it.updated_at||"")
-      };
-    }
-
-    savePrices(prices);
-    saveMeta(meta);
-
-    render();
-
-    if(showToast) alert("✅ Datos refrescados.");
-  } catch(e){
-    alert("No se pudo refrescar. Revisa backend (costs_list / catalog_list).");
-  } finally {
-    hideLoading();
-  }
-}
-
-// ===== Unlock inicial =====
-document.getElementById("unlock").addEventListener("click", async ()=>{
-  const secret = (document.getElementById("secret").value||"").trim();
-  const err = document.getElementById("err");
-  err.textContent = "";
-
-  try{
-    showLoading("Verificando...", "Validando clave con el servidor.");
-    await api({ action:"validate_secret", type:"costs", secret });
-    UNLOCKED_SECRET = secret;
-
-    document.getElementById("editor").style.display = "block";
-    await reloadAndRender(false);
-
-  } catch(e){
-    err.textContent = "Clave inválida.";
-    hideLoading();
-  }
-});
+document.addEventListener("DOMContentLoaded", bootstrap);
