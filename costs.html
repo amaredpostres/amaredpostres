@@ -5,19 +5,18 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>AMARED · Costos</title>
 
-  <!-- ✅ MISMO favicon que el resto del sitio -->
+  <!-- ✅ favicon igual al resto -->
   <link rel="icon" href="assets/favicon.ico" type="image/x-icon">
 
-  <!-- ✅ MISMO styles.css global (NO lo cambies) -->
+  <!-- ✅ estilos globales AMARED -->
   <link rel="stylesheet" href="styles.css" />
 
-  <!-- ✅ CSS solo para Costos (no rompe otras páginas) -->
+  <!-- ✅ estilos SOLO de costos -->
   <link rel="stylesheet" href="costs.css" />
 </head>
 
-<body>
-  <div class="page costsPage">
-    <!-- ✅ MISMA topbar + logo -->
+<body class="costsPage">
+  <div class="page">
     <header class="topbar">
       <div class="topbarInner">
         <div class="brand">
@@ -53,20 +52,16 @@
           </div>
 
           <div class="costsActions">
-            <!-- ✅ Cambiado: “Guardar en Sheets” → “Guardar” -->
             <button id="saveAll" class="btn">Guardar</button>
           </div>
         </div>
 
-        <!-- costs.js pinta aquí: Refrescar + Tiendas/Marcas -->
         <div id="topTools" class="costsTopTools"></div>
-
-        <!-- costs.js pinta aquí los acordeones -->
         <div id="list" class="costsList"></div>
       </section>
     </main>
 
-    <!-- Loading overlay (solo costos) -->
+    <!-- Loading -->
     <div id="loading" class="costsLoading">
       <div class="costsLoadingCard">
         <div class="costsLoadingTitle" id="lt">Cargando…</div>
@@ -74,10 +69,10 @@
       </div>
     </div>
 
-    <!-- Ingredientes/grupos canónicos -->
+    <!-- ✅ SECCIONES CANÓNICAS -->
     <script src="kitchen-costs.js"></script>
 
-    <!-- costs.js (v6) -->
+    <!-- ✅ LÓGICA COSTOS -->
     <script src="costs.js"></script>
   </div>
 </body>
