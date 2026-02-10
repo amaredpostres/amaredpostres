@@ -163,10 +163,6 @@ const prodRuleText = document.getElementById("prodRuleText");
 const prodPill = document.getElementById("prodPill");
 const productCards = document.getElementById("productCards");
 const doneSection = document.getElementById("doneSection");
-const lateSection = document.getElementById("lateSection");
-const lateCards = document.getElementById("lateCards");
-const lateCount = document.getElementById("lateCount");
-const lateSub = document.getElementById("lateSub");
 const doneCards = document.getElementById("doneCards");
 const doneCount = document.getElementById("doneCount");
 const loading = document.getElementById("loading");
@@ -221,12 +217,12 @@ const costsList = document.getElementById("costsList");
 const btnSaveCosts = document.getElementById("btnSaveCosts");
 
 let SESSION = { operatorId:null, operatorLabel:null, pin:null };
-let profiles = [];
 let PROFILES_UNLOCKED_SECRET = null;
+let COSTS_PUBLIC_LAST_UPDATED = null;
+let profiles = [];
 let prices = {};
 let paidOrders = [];
 let todayProductionOrders = [];
-let lateOrdersToday = [];
 let historyOrders = [];
 let currentProductId = null;
 let currentBatchOrderIds = [];
@@ -288,14 +284,30 @@ async function api(payload){
   return out;
 }
 
-// =================== COSTOS (solo lectura, desde Sheets) ===================
+
+// =================== PERFIL + COSTOS desde Sheets (solo lectura en Cocina) ===================
 function normalizeIngredientKey(s){
   return String(s||"")
-    .replace(/\([^\)]*\)/g,"")     // quitar ( ... )
+    .replace(/\([^\)]*\)/g,"")  // quitar ( ... )
     .replace(/\s{2,}/g," ")
     .trim();
 }
+
+async function fetchProfilesPublic(){
+  try{
+    const out = await api({ action:"profiles_list" });
+    if(out?.ok && Array.isArray(out.profiles) && out.profiles.length){
+      return out.profiles;
+    }
+  }catch(e){
+    console.warn("No se pudieron cargar perfiles:", e);
+  }
+  // Fallback: perfiles base del frontend
+  return DEFAULT_PROFILES;
+}
+
 async function fetchCostsPublic(){
+  // Devuelve { map: {ingredient_key_normalizado: cop_per_unit}, lastUpdated }
   try{
     const out = await api({ action:"costs_public_list" });
     const items = out.items || out.costs || [];
@@ -312,24 +324,11 @@ async function fetchCostsPublic(){
       if(u && (!lastUpdated || String(u) > String(lastUpdated))) lastUpdated = u;
     }
     return { map, lastUpdated };
-  } catch (e){
+  }catch(e){
     console.warn("No se pudieron cargar costos públicos:", e);
     return { map:{}, lastUpdated:null };
   }
 }
-
-async function fetchProfilesPublic(){
-  try{
-    const out = await api({ action:"profiles_list" });
-    if(out?.ok && Array.isArray(out.profiles) && out.profiles.length){
-      return out.profiles;
-    }
-  } catch(e){
-    console.warn("No se pudieron cargar perfiles:", e);
-  }
-  return DEFAULT_PROFILES;
-}
-
 
 
 // Time rules
@@ -356,74 +355,31 @@ function getWeekdayBogota(date){
   const map = { Sun:0, Mon:1, Tue:2, Wed:3, Thu:4, Fri:5, Sat:6 };
   return map[wd] ?? 0;
 }
-function weekdayFromKey_(key){
-  // key: YYYY-MM-DD (Bogotá). Usamos mediodía UTC para evitar cambios por zona.
-  const d = new Date(key + "T12:00:00Z");
-  return d.getUTCDay(); // 0=Dom, 6=Sáb
-}
-function addBusinessDaysKey(key, n){
-  let out = key;
-  let left = Math.max(0, Number(n||0));
-  while(left > 0){
-    out = addDaysBogotaKey(out, 1);
-    const wd = weekdayFromKey_(out);
-    if (wd === 0 || wd === 6) continue; // saltar fin de semana
-    left--;
-  }
-  return out;
-}
-
-/**
- * Regla AMARED:
- * - Pedidos se reciben hasta 3:00 pm (hora Bogotá).
- * - Producción es AL SIGUIENTE DÍA HÁBIL de “recepción”.
- * - Si el pedido entra después de 3:00 pm, su “recepción” pasa al siguiente día hábil.
- *
- * Ejemplos:
- * - Mar 2:00 pm → recepción Mar → producción Mié
- * - Mar 4:00 pm → recepción Mié → producción Jue
- * - Vie 2:00 pm → recepción Vie → producción Lun
- * - Vie 4:00 pm → recepción Lun → producción Mar
- */
 function computeProductionDayKeyForOrder(createdAt){
   const dt = new Date(createdAt);
   if (Number.isNaN(dt.getTime())) return null;
-
   const p = getBogotaParts(dt);
   const orderDayKey = p.key;
-  const afterCutoff = p.hh >= CUTOFF_HOUR;
+  const weekday = getWeekdayBogota(dt);
 
-  const acceptanceDayKey = afterCutoff ? addBusinessDaysKey(orderDayKey, 1) : orderDayKey;
-  const productionDayKey = addBusinessDaysKey(acceptanceDayKey, 1);
-
-  return productionDayKey;
+  if (weekday === 6) return addDaysBogotaKey(orderDayKey, 2);
+  if (weekday === 0) return addDaysBogotaKey(orderDayKey, 1);
+  if (weekday === 5 && p.hh >= CUTOFF_HOUR) return addDaysBogotaKey(orderDayKey, 3);
+  if (p.hh >= CUTOFF_HOUR) return addDaysBogotaKey(orderDayKey, 1);
+  return orderDayKey;
 }
-function computeAcceptanceDayKeyForOrder(createdAt){
-  const dt = new Date(createdAt);
-  if (Number.isNaN(dt.getTime())) return null;
-  const p = getBogotaParts(dt);
-  const orderDayKey = p.key;
-  const afterCutoff = p.hh >= CUTOFF_HOUR;
-  return afterCutoff ? addBusinessDaysKey(orderDayKey, 1) : orderDayKey;
-}
-function isAfterCutoffBogota(createdAt){
-  const dt = new Date(createdAt);
-  if (Number.isNaN(dt.getTime())) return false;
-  const p = getBogotaParts(dt);
-  return p.hh >= CUTOFF_HOUR;
-}
-
 function getTodayProductionDayKey(){
   const now = new Date();
   const p = getBogotaParts(now);
-  const wd = weekdayFromKey_(p.key);
-  // Si es fin de semana, la “producción del día” se mueve al lunes.
-  if (wd === 6) return addBusinessDaysKey(p.key, 1); // Sábado → Lunes
-  if (wd === 0) return addBusinessDaysKey(p.key, 1); // Domingo → Lunes
+  const weekday = getWeekdayBogota(now);
+
+  if (weekday === 6) return addDaysBogotaKey(p.key, 2);
+  if (weekday === 0) return addDaysBogotaKey(p.key, 1);
+  if (weekday === 5 && p.hh >= CUTOFF_HOUR) return addDaysBogotaKey(p.key, 3);
   return p.key;
 }
 function productionRuleText(todayKey){
-  return `Regla: pedidos hasta las 3:00 pm → se producen el siguiente día hábil. Pedidos después de 3:00 pm pasan a “recepción” del siguiente día hábil y se producen al día hábil siguiente.`;
+  return `Regla: pedidos del día hasta las 3:00 pm → se producen HOY (${todayKey}) para entregar mañana 3:30–4:00 pm. Pedidos después de 3:00 pm pasan al siguiente día hábil (viernes > 3pm → lunes).`;
 }
 
 // Items
@@ -462,11 +418,10 @@ function calcBatchIngredients(productId, units){
 
   const lines = recipe.unitIngredients.map(ing => {
     const totalQty = (Number(ing.qty || 0) * Number(units || 0));
-    const displayKey = normalizeIngredientKey(ing.key);
-    const pricePerUnit = Number(prices[displayKey] || 0);
+    const pricePerUnit = Number(prices[ing.key] || 0);
     const cost = totalQty * pricePerUnit;
     totalCost += cost;
-    return { key: displayKey, qty: totalQty, pricePerUnit, cost };
+    return { key: ing.key, qty: totalQty, pricePerUnit, cost };
   });
 
   return { lines, totalCost };
@@ -522,21 +477,48 @@ function closeProfilesModal(){
   profilesModal.classList.remove("show");
   profilesModal.setAttribute("aria-hidden","true");
 }
+
 function renderProfilesList(){
-  // Lista que viene de Sheets (público). Eliminar/agregar requiere clave.
   const list = Array.isArray(profiles) ? profiles : [];
   profilesList.innerHTML = list.map(p => {
-    const canDelete = !["esperanza","cristian"].includes(String(p.id));
+    const isBase = ["esperanza","cristian"].includes(String(p.id));
+    const canDelete = !isBase;
     return `
-      <div class="rowBetween" style="padding:10px; border:1px solid var(--border); border-radius:14px; background:var(--paper); margin-bottom:8px;">
-        <div>
-          <div style="font-weight:900;">${p.label}</div>
-          <div class="muted small">${p.id}</div>
+      <div class="oItem">
+        <div class="rowBetween">
+          <div>
+            <div style="font-weight:950;">${p.label}</div>
+            <div class="muted small">${p.id}</div>
+          </div>
+          <div class="pill">${isBase ? "Base" : "Guardado"}</div>
         </div>
-        ${canDelete ? `<button class="btn secondary" data-act="delProfile" data-id="${p.id}">Eliminar</button>` : `<div class="pill">Base</div>`}
+        ${canDelete ? `<button class="btn secondary" data-del="${p.id}" type="button" style="margin-top:10px;">Eliminar</button>` : ``}
       </div>
     `;
-  }).join("") || `<div class="muted small">No hay perfiles.</div>`;
+  }).join("") || `<div class="muted small" style="text-align:center; padding:14px;">No hay perfiles.</div>`;
+
+  profilesList.onclick = async (e) => {
+    const btn = e.target.closest("button[data-del]");
+    if(!btn) return;
+    const id = btn.dataset.del;
+    if(!PROFILES_UNLOCKED_SECRET){
+      alert("Primero debes desbloquear con la clave secreta.");
+      return;
+    }
+    if(!confirm("¿Eliminar este perfil?")) return;
+
+    try{
+      showLoading("Eliminando…","Actualizando perfiles en la base de datos.");
+      await api({ action:"profiles_delete", profiles_secret: PROFILES_UNLOCKED_SECRET, id });
+      profiles = await fetchProfilesPublic();
+      renderOperatorProfiles();
+      renderProfilesList();
+    }catch(err){
+      alert(err?.message || "No se pudo eliminar.");
+    }finally{
+      hideLoading();
+    }
+  };
 }
 
 // Costs UI
@@ -965,12 +947,7 @@ function renderMain(todayKey){
       const { lines, totalCost } = calcBatchIngredients(p.id, displayQty);
       const costText = totalCost > 0 ? `$${money(totalCost)}` : "—";
       const ingHtml = lines.map(li =>
-        `<div class="line" style="grid-template-columns:1fr auto auto;">
-          <span>${li.key}</span>
-          <div class="muted small">$${money(li.pricePerUnit)}/u</div>
-          <div style="font-weight:900;">$${money(li.cost)}</div>
-        </div>
-        <div class="muted small" style="grid-column:1/-1; margin-top:-6px;">Cantidad: ${formatQty(li.qty)}</div>`
+        `<div class="line"><span>${li.key}</span><div>${formatQty(li.qty)}</div></div>`
       ).join("");
 
       return `
@@ -979,7 +956,6 @@ function renderMain(todayKey){
             <div>
               <div class="muted small">${p.name}${isDoneSection ? " · Preparados" : ""}</div>
               <div class="bigNum">${displayQty}</div>
-              <div class="muted small" style="margin-top:4px;">Costo estimado: $${money(Math.round(totalCost/Math.max(1,displayQty)))} c/u • Lote: ${costText}</div>
             </div>
             <button class="btn secondary" type="button" data-act="toggle" data-pid="${p.id}">Insumos + receta</button>
           </div>
@@ -1070,45 +1046,6 @@ function renderMain(todayKey){
   };
 }
 
-function renderCostAccordions(){
-  // Recorre los acordeones y pinta costos por postre según qty del lote
-  for(const p of PRODUCTS){
-    const sumEl = document.querySelector(`[data-cost-summary="${p.id}"]`);
-    const bodyEl = document.querySelector(`[data-cost-body="${p.id}"]`);
-    if(!sumEl || !bodyEl) continue;
-
-    const qtyEl = document.querySelector(`[data-qty="${p.id}"]`);
-    const lotQty = qtyEl ? Number(qtyEl.textContent || 0) : (currentLotTotals?.[p.id] || 0);
-
-    const c = computeCostForProductLot(p.id, lotQty);
-    sumEl.textContent = `$${fmtCOP(c.perUnit)} c/u • Lote: $${fmtCOP(c.total)}`;
-
-    const recipe = RECIPE_UNIT[p.id];
-    if(!recipe){
-      bodyEl.textContent = "Sin receta.";
-      continue;
-    }
-
-    const rows = [];
-    for(const it of (recipe.unitIngredients || [])){
-      const nk = normalizeIngredientKey(it.key);
-      const qty = Number(it.qty||0) * Number(lotQty||0);
-      const cpu = Number(prices[nk] || 0);
-      const subtotal = Math.round(qty * cpu);
-      rows.push(`<div class="rowBetween" style="padding:6px 0; border-bottom:1px solid var(--border);">
-        <div>
-          <div style="font-weight:800;">${nk}</div>
-          <div class="muted small">${qty.toFixed(2)} × $${fmtCOP(cpu)}</div>
-        </div>
-        <div style="font-weight:900;">$${fmtCOP(subtotal)}</div>
-      </div>`);
-    }
-
-    bodyEl.innerHTML = rows.join("") + (c.missing.length ? `<div class="muted small" style="margin-top:10px;">⚠️ Sin costo registrado: ${c.missing.join(", ")}</div>` : "");
-  }
-}
-
-
   // ⬇️ Delegación de eventos en AMBAS columnas
   bindCardsClick(productCards);
   bindCardsClick(doneCards);
@@ -1116,45 +1053,32 @@ function renderCostAccordions(){
 
  // Load + filter
 async function loadKitchenData(fromRefresh){
-  const productionKey = getTodayProductionDayKey();
+  const todayKey = getTodayProductionDayKey();
   showLoading(fromRefresh ? "Actualizando..." : "Cargando cocina...", "Obteniendo pedidos pagados y calculando producción del día.");
   disableUIWhileLoading(true);
-
   try{
     const out = await api({ action:"list_orders", admin_pin: SESSION.pin, payment_status:"Pagado" });
 
     paidOrders = (out.orders || []).map(o => {
-      o.__after_cutoff = isAfterCutoffBogota(o.created_at);
-      o.__accept_day  = computeAcceptanceDayKeyForOrder(o.created_at);
-      o.__prod_day    = computeProductionDayKeyForOrder(o.created_at);
+      o.__prod_day = computeProductionDayKeyForOrder(o.created_at);
       return o;
     });
 
-    // ✅ Producción del día (solo lo NO listo)
     todayProductionOrders = paidOrders
-      .filter(o => o.__prod_day === productionKey)
+      .filter(o => o.__prod_day === todayKey)
       .filter(o => String(o.kitchen_status || "No iniciar") !== "Listo");
 
-    // ✅ Historial (ya listo)
     historyOrders = paidOrders
       .filter(o => String(o.kitchen_status || "") === "Listo")
       .sort((a,b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
       .slice(0, 200);
 
-    // ✅ Informativo: pedidos creados HOY después de 3pm
-    const todayKey = getBogotaParts(new Date()).key;
-    lateOrdersToday = paidOrders.filter(o => {
-      const k = getBogotaParts(new Date(o.created_at)).key;
-      return k === todayKey && o.__after_cutoff;
-    });
-
-    renderMain(productionKey);
+    renderMain(todayKey);
   } finally {
     disableUIWhileLoading(false);
     hideLoading();
   }
 }
-
 
 // Events
 tabToday.addEventListener("click", () => setActiveTab("today"));
@@ -1190,46 +1114,18 @@ btnProfilesUnlock.addEventListener("click", async () => {
   profilesGateErr.textContent = "";
   const code = (inpProfilesSecret.value||"").trim();
   try{
-    showLoading("Verificando...", "Validando clave con el servidor.");
+    showLoading("Verificando…", "Validando clave con el servidor.");
     await validateSecretWithWorker("profiles", code);
     PROFILES_UNLOCKED_SECRET = code;
     profilesGate.classList.add("hidden");
     profilesEditor.classList.remove("hidden");
-    renderProfilesList();
-  } catch(e){
-    profilesGateErr.textContent = "Clave secreta incorrecta.";
-  } finally {
-    hideLoading();
-  }
-});
-
-
-profilesList.addEventListener("click", async (e) => {
-  const btn = e.target.closest('button[data-act="delProfile"]');
-  if(!btn) return;
-  const id = btn.dataset.id;
-  if(!id) return;
-
-  if(!PROFILES_UNLOCKED_SECRET){
-    alert("Primero debes desbloquear la gestión de perfiles.");
-    return;
-  }
-  if(!confirm("¿Eliminar este perfil?")) return;
-
-  try{
-    showLoading("Eliminando...", "Actualizando perfiles en la base de datos.");
-    await api({
-      action:"profiles_delete",
-      profiles_secret: PROFILES_UNLOCKED_SECRET,
-      profile_id: id,
-      operator: SESSION.operatorLabel || "PROFILES_UI"
-    });
+    // refrescar perfiles desde Sheets
     profiles = await fetchProfilesPublic();
     renderOperatorProfiles();
     renderProfilesList();
-  } catch(err){
-    alert("No se pudo eliminar. Revisa consola.");
-    console.error(err);
+  } catch(e){
+    PROFILES_UNLOCKED_SECRET = null;
+    profilesGateErr.textContent = "Clave secreta incorrecta.";
   } finally {
     hideLoading();
   }
@@ -1242,42 +1138,28 @@ btnAddProfile.addEventListener("click", async () => {
   if(!id) return;
 
   if(!PROFILES_UNLOCKED_SECRET){
-    alert("Primero debes desbloquear la gestión de perfiles.");
+    alert("Primero debes desbloquear con la clave secreta.");
     return;
   }
 
-  // evitar duplicados en UI
+  // evitar duplicados en UI actual
   if((profiles||[]).some(p => p.id === id)){
     alert("Ya existe un perfil con ese nombre.");
     return;
   }
 
   try{
-    showLoading("Guardando...", "Creando perfil en la base de datos.");
-    await api({
-      action:"profiles_add",
-      profiles_secret: PROFILES_UNLOCKED_SECRET,
-      profile_id: id,
-      label: name,
-      operator: SESSION.operatorLabel || "PROFILES_UI"
-    });
+    showLoading("Guardando…","Creando el perfil en la base de datos.");
+    await api({ action:"profiles_add", profiles_secret: PROFILES_UNLOCKED_SECRET, id, label: name });
     profiles = await fetchProfilesPublic();
     renderOperatorProfiles();
     renderProfilesList();
     inpNewProfile.value = "";
-  } catch(err){
-    alert("No se pudo guardar. Revisa consola.");
-    console.error(err);
-  } finally {
+  }catch(err){
+    alert(err?.message || "No se pudo agregar el perfil.");
+  }finally{
     hideLoading();
   }
-});
-  saveProfilesLocal(localList);
-
-  profiles = loadProfiles();
-  renderOperatorProfiles();
-  renderProfilesList();
-  inpNewProfile.value = "";
 });
 
 // Costs management (secure)
@@ -1316,72 +1198,36 @@ btnSaveCosts.addEventListener("click", () => {
 
 // INIT
 (async function init(){
-  profiles = await fetchProfilesPublic();
-  // costos públicos para cálculos (solo lectura)
-  const c = await fetchCostsPublic();
-  prices = c.map || {};
-  renderOperatorProfiles();
+  // Cargar perfiles y costos (solo lectura) desde Sheets vía Worker.
+  showLoading("Cargando…", "Preparando perfiles y costos.");
+  try{
+    profiles = await fetchProfilesPublic();
+
+    const c = await fetchCostsPublic();
+    COSTS_PUBLIC_LAST_UPDATED = c.lastUpdated || null;
+
+    // Mantener compatibilidad: prices usa llaves normalizadas
+    const baseLocal = loadPrices();
+    prices = { ...baseLocal };
+    for(const k of Object.keys(c.map || {})){
+      prices[k] = c.map[k];
+    }
+
+    renderOperatorProfiles();
+  }catch(e){
+    console.warn(e);
+    profiles = loadProfiles();
+    prices = loadPrices();
+    renderOperatorProfiles();
+  }finally{
+    hideLoading();
+  }
 
   if(loadSession()){
     showApp();
     loadKitchenData(false).catch(() => { clearSession(); showLogin(); });
-  } else showLogin();
+  } else {
+    showLogin();
+  }
 })();
-function renderLateSection(){
-  if(!lateSection) return;
-  const items = Array.isArray(lateOrdersToday) ? lateOrdersToday : [];
-  if(!items.length){
-    lateSection.classList.add("hidden");
-    return;
-  }
-
-  // Agrupar por producto
-  const by = {};
-  for(const o of items){
-    const pid = String(o.product_id || o.product || o.productId || "").trim();
-    if(!pid) continue;
-    by[pid] = (by[pid] || 0) + Number(o.qty || o.quantity || 0);
-  }
-
-  const cards = [];
-  let totalUnits = 0;
-  for(const p of PRODUCTS){
-    const q = by[p.id] || 0;
-    if(q<=0) continue;
-    totalUnits += q;
-    cards.push(`
-      <div class="card2">
-        <div style="font-weight:950;">${p.name}</div>
-        <div class="muted small">${q} unidades</div>
-      </div>
-    `);
-  }
-
-  lateCards.innerHTML = cards.join("") || `<div class="muted small">No hay postres en esta sección.</div>`;
-  lateCount.textContent = `${totalUnits} u`;
-  lateSub.textContent = `Estos pedidos se producirán en un día posterior (según regla).`;
-  lateSection.classList.remove("hidden");
-}
-
-
-function computeCostForProductLot(productId, lotQty){
-  const recipe = RECIPE_UNIT[productId];
-  if(!recipe) return { perUnit:0, total:0, missing:[] };
-
-  const missing = [];
-  let perUnit = 0;
-
-  for(const it of (recipe.unitIngredients || [])){
-    const k = normalizeIngredientKey(it.key);
-    const qty = Number(it.qty || 0);
-    const cpu = Number(prices[k] || 0);
-    if(!cpu) missing.push(k);
-    perUnit += qty * cpu;
-  }
-
-  perUnit = Math.round(perUnit);
-  const total = Math.round(perUnit * Number(lotQty||0));
-  return { perUnit, total, missing };
-}
-
 
