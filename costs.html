@@ -1,79 +1,84 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="es">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>AMARED · Costos de ingredientes</title>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>AMARED · Costos</title>
 
-  <!-- ✅ CSS GLOBAL AMARED (el mismo de todas las páginas) -->
-  <link rel="stylesheet" href="./styles.css" />
+  <!-- ✅ MISMO favicon que el resto del sitio -->
+  <link rel="icon" href="assets/favicon.ico" type="image/x-icon">
 
-  <!-- ✅ Solo ajustes puntuales para costos (acordeones/modales) -->
-  <link rel="stylesheet" href="./costs.css" />
+  <!-- ✅ MISMO styles.css global (NO lo cambies) -->
+  <link rel="stylesheet" href="styles.css" />
 
-  <link rel="icon" href="./favicon.ico" />
+  <!-- ✅ CSS solo para Costos (no rompe otras páginas) -->
+  <link rel="stylesheet" href="costs.css" />
 </head>
 
 <body>
-  <!-- Usa la misma topbar del sitio -->
-  <header class="topbar">
-    <div class="topbarInner">
-      <div class="brand">
-        <!-- Aquí puedes poner tu logo si ya lo haces en otras páginas -->
-        <img src="./assets/logo.svg" alt="AMARED" style="height:44px; width:auto;" onerror="this.style.display='none'">
-      </div>
-    </div>
-  </header>
-
-  <main class="wrapCosts">
-    <section class="card">
-      <h2 class="hTitle">🔒 Costos de ingredientes</h2>
-      <p class="pSub">
-        Ingresa la clave de costos para ver y editar los ingredientes. Esta clave se valida en el servidor.
-      </p>
-
-      <div class="rowFlex">
-        <input id="secret" class="field" type="password" placeholder="COSTS_SECRET" autocomplete="off" />
-        <button id="unlock" class="btn">Desbloquear</button>
-      </div>
-
-      <div id="err" class="errText"></div>
-    </section>
-
-    <section id="editor" class="card" style="display:none;">
-      <div class="rowFlex spaceBetween">
-        <div>
-          <h2 class="hTitle">📌 Tabla de costos</h2>
-          <p class="pSub">
-            El cálculo se actualiza en tiempo real. Usa <b>Guardar en Sheets</b> para dejarlo permanente.
-          </p>
-        </div>
-
-        <div class="rowFlex">
-          <button id="saveAll" class="btn">Guardar en Sheets</button>
+  <div class="page costsPage">
+    <!-- ✅ MISMA topbar + logo -->
+    <header class="topbar">
+      <div class="topbarInner">
+        <div class="brand">
+          <img class="brandLogo" src="assets/Logo-Amared.svg" alt="AMARED Postres" />
         </div>
       </div>
+    </header>
 
-      <!-- costs.js dibuja aquí Refrescar + Tiendas/Marcas -->
-      <div id="topTools" class="mt12"></div>
+    <main class="container">
+      <!-- Unlock -->
+      <section class="card">
+        <h2 class="cardTitle">🔒 Costos de ingredientes</h2>
+        <p class="cardSubtitle">
+          Ingresa la clave de costos para ver y editar ingredientes. Esta clave se valida en el servidor.
+        </p>
 
-      <!-- costs.js dibuja aquí los acordeones -->
-      <div id="list" class="mt12"></div>
-    </section>
-  </main>
+        <div class="costsRow">
+          <input id="secret" class="costsField" type="password" placeholder="COSTS_SECRET" autocomplete="off" />
+          <button id="unlock" class="btn">Desbloquear</button>
+        </div>
 
-  <!-- Loading overlay -->
-  <div id="loading" class="loadingOverlay">
-    <div class="loadingCard">
-      <div class="loadingTitle" id="lt">Cargando…</div>
-      <div class="loadingDesc" id="ld">Por favor espera.</div>
+        <div id="err" class="costsErr"></div>
+      </section>
+
+      <!-- Editor -->
+      <section id="editor" class="card" style="display:none;">
+        <div class="costsHeaderRow">
+          <div>
+            <h2 class="cardTitle">📌 Tabla de costos</h2>
+            <p class="cardSubtitle">
+              El cálculo se actualiza en tiempo real. Usa <b>Guardar</b> para dejarlo permanente en la base de datos.
+            </p>
+          </div>
+
+          <!-- ✅ Cambiado: “Guardar en Sheets” → “Guardar” -->
+          <div class="costsActions">
+            <button id="saveAll" class="btn">Guardar</button>
+          </div>
+        </div>
+
+        <!-- costs.js pinta aquí: Refrescar + Tiendas/Marcas -->
+        <div id="topTools" class="costsTopTools"></div>
+
+        <!-- costs.js pinta aquí los acordeones -->
+        <div id="list" class="costsList"></div>
+      </section>
+    </main>
+
+    <!-- Loading overlay (solo costos) -->
+    <div id="loading" class="costsLoading">
+      <div class="costsLoadingCard">
+        <div class="costsLoadingTitle" id="lt">Cargando…</div>
+        <div class="costsLoadingDesc" id="ld">Por favor espera.</div>
+      </div>
     </div>
+
+    <!-- Ingredientes/grupos canónicos -->
+    <script src="kitchen-costs.js"></script>
+
+    <!-- costs.js (v5) -->
+    <script src="costs.js"></script>
   </div>
-
-  <!-- Ingredientes/grupos canónicos -->
-  <script src="./kitchen-costs.js"></script>
-
-  <!-- Lógica de costos (tu costs.v5.js renombrado a costs.js) -->
-  <script src="./costs.js"></script>
 </body>
 </html>
