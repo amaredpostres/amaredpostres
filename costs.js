@@ -370,6 +370,24 @@ function setRowField(key, field, value){
   if(cpu>0) r.cop_per_unit = String(roundCOP(cpu));
 }
 
+// ====== Mantener acordeones abiertos ======
+function getOpenAccordionsState(){
+  const open = new Set();
+  document.querySelectorAll("#list details.item[data-idx]").forEach(det=>{
+    if(det.open) open.add(String(det.getAttribute("data-idx")));
+  });
+  return open;
+}
+
+function restoreOpenAccordionsState(openSet){
+  document.querySelectorAll("#list details.item[data-idx]").forEach(det=>{
+    const idx = String(det.getAttribute("data-idx"));
+    det.open = openSet.has(idx);
+    const chev = det.querySelector(".am_chev");
+    if(chev) chev.textContent = det.open ? "▼" : "▶";
+  });
+}
+
 // ===== Render =====
 function renderTopTools(){
   const el = document.getElementById("topTools");
@@ -397,7 +415,7 @@ function renderTopTools(){
   };
 }
 
-function renderIngredientRow(key){
+function renderIngredientRow(key, sectionIndex){
   const r = UI[key];
   const u = normUnit(r.unit_type);
 
@@ -473,21 +491,40 @@ function renderIngredientRow(key){
   `;
 
   wrap.querySelectorAll("[data-k]").forEach(inp=>{
-    const handler = ()=>{
+    // Cuando cambia unidad: re-render pero manteniendo acordeones abiertos
+    const onChange = ()=>{
       const k = unescapeCss(inp.getAttribute("data-k"));
       const f = inp.getAttribute("data-f");
       const v = inp.value;
       setRowField(k,f,v);
-      if(f==="unit_type") render();
+
+      if(f==="unit_type"){
+        const openState = getOpenAccordionsState();
+        openState.add(String(sectionIndex)); // fuerza abierta la sección donde estás
+        render();
+        restoreOpenAccordionsState(openState);
+      }
     };
-    inp.addEventListener("input", handler, {passive:true});
-    inp.addEventListener("change", handler, {passive:true});
+
+    // Para input normal: solo actualiza datos (no re-render)
+    const onInput = ()=>{
+      const k = unescapeCss(inp.getAttribute("data-k"));
+      const f = inp.getAttribute("data-f");
+      const v = inp.value;
+      setRowField(k,f,v);
+    };
+
+    inp.addEventListener("change", onChange, {passive:true});
+    inp.addEventListener("input", onInput, {passive:true});
   });
 
   return wrap;
 }
 
 function render(){
+  // ✅ guardar cuáles estaban abiertos antes
+  const openState = getOpenAccordionsState();
+
   renderTopTools();
 
   const root = document.getElementById("list");
@@ -507,6 +544,7 @@ function render(){
 
     const det = document.createElement("details");
     det.className = "item";
+    det.setAttribute("data-idx", String(idx));
     det.open = false;
 
     det.innerHTML = `
@@ -524,13 +562,17 @@ function render(){
     `;
 
     det.addEventListener("toggle",()=>{
-      det.querySelector(".am_chev").textContent = det.open ? "▼" : "▶";
+      const chev = det.querySelector(".am_chev");
+      if(chev) chev.textContent = det.open ? "▼" : "▶";
     });
 
     const box = det.querySelector(`[data-sec="${idx}"]`);
-    keys.forEach(k=> box.appendChild(renderIngredientRow(k)));
+    keys.forEach(k=> box.appendChild(renderIngredientRow(k, idx)));
     root.appendChild(det);
   });
+
+  // ✅ restaurar acordeones abiertos
+  restoreOpenAccordionsState(openState);
 }
 
 // ===== Guardar =====
