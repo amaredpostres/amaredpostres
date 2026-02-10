@@ -70,8 +70,9 @@ async function upsertCostToSheets(row){
 }
 async function fetchCatalogsFromSheets(){
   const out = await api({ action:"catalog_list", costs_secret: UNLOCKED_SECRET });
-  const stores = (out.stores || []).map(x=>x.value || x).filter(Boolean);
-  const brands = (out.brands || []).map(x=>x.value || x).filter(Boolean);
+  const cat = out.catalog || out;
+  const stores = (cat.stores || []).map(x=>x.value || x).filter(Boolean);
+  const brands = (cat.brands || []).map(x=>x.value || x).filter(Boolean);
   STORES = uniqSorted(stores);
   BRANDS = uniqSorted(brands);
 }
@@ -458,7 +459,7 @@ function renderIngredientRow(key, sectionIndex){
 
       <div style="grid-column: span 3;">
         <div class="mini" style="font-weight:900;">COP por unidad</div>
-        <input class="input" data-k="${cssEscape(key)}" data-f="cop_per_unit" placeholder="Auto" value="${r.cop_per_unit||""}">
+        <input class="input" data-k="${cssEscape(key)}" data-f="cop_per_unit" placeholder="Auto" value="${r.cop_per_unit||""}" readonly disabled>
       </div>
 
       <div style="grid-column: span 6; ${u==="unidad" ? "" : "display:none;"}">
