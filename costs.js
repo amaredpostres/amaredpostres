@@ -5,11 +5,11 @@ const LS_COSTS_META_KEY = "AMARED_INGREDIENT_COSTS_META";
 let UNLOCKED_SECRET = ""; // solo memoria
 
 // Defaults visibles incluso si el catálogo está vacío en Sheets
-const DEFAULT_STORES = ["Salsamentaria Sinai","Mercacentro","Plaza"];
-const DEFAULT_BRANDS = ["Cowie","Mercacentro","Alpina","San Jorge","Levapan","Refisal","Ramo","Colanta","Colombina","Tostao"];
+const DEFAULT_STORES = []; // Se cargan desde Google Sheets (COSTOS_CATALOGOS)
+const DEFAULT_BRANDS = []; // Se cargan desde Google Sheets (COSTOS_CATALOGOS)
 
-let STORES = [...DEFAULT_STORES];
-let BRANDS = [...DEFAULT_BRANDS];
+let STORES = [];
+let BRANDS = [];
 
 // ===== Helpers base =====
 function safeJsonParse(s){ try{return JSON.parse(s);}catch{return null;} }
@@ -120,8 +120,8 @@ async function fetchCatalogsFromSheets(){
   const stores = Array.isArray(out.catalog?.stores) ? out.catalog.stores : [];
   const brands = Array.isArray(out.catalog?.brands) ? out.catalog.brands : [];
 
-  STORES = uniqSorted([...DEFAULT_STORES, ...stores]);
-  BRANDS = uniqSorted([...DEFAULT_BRANDS, ...brands]);
+  STORES = uniqSorted(stores);
+  BRANDS = uniqSorted(brands);
 }
 
 async function catalogAdd(type, value){
