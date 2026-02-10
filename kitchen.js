@@ -282,6 +282,61 @@ async function api(payload){
   return out;
 }
 
+// =================== COSTOS (desde Sheets) ===================
+// En Kitchen NO se expone COSTS_SECRET. Se leen costos desde Sheets usando ADMIN_PIN vía Worker (action: kitchen_costs_list).
+let COSTS_MAP = null; // { canonicalKey: { cop_per_unit, unit_type } }
+let COSTS_LOADED = false;
+
+function normalizeIngredientKeyForCosts(label){
+  if(!label) return "";
+  let s = String(label).trim();
+
+  // Quita prefijos tipo "Decoración:"
+  s = s.replace(/^decoraci[oó]n:\s*/i, "");
+
+  // Elimina paréntesis "(g)", "(ml, opcional)"...
+  s = s.replace(/\([^)]*\)/g, "");
+
+  // Si trae ", opcional" o ", decorativo", toma solo la primera parte
+  s = s.split(",")[0];
+
+  return s.trim().replace(/\s+/g, " ");
+}
+
+function buildPricesByRecipeKeyFromCosts(){
+  // Para compatibilidad con UI existente (costs modal / cálculos antiguos),
+  // construimos prices[recipeKey] a partir de COSTS_MAP.
+  const next = { ...prices };
+  for(const pid of Object.keys(RECIPE_UNIT)){
+    for(const ing of (RECIPE_UNIT[pid].unitIngredients || [])){
+      const recipeKey = String(ing.key || "").trim();
+      const canonical = normalizeIngredientKeyForCosts(recipeKey);
+      const cpu = Number(COSTS_MAP?.[canonical]?.cop_per_unit || 0);
+      if(cpu > 0) next[recipeKey] = cpu;
+    }
+  }
+  prices = next;
+  savePrices(prices);
+}
+
+async function fetchCostsForKitchen(){
+  // Puede fallar si aún no has desplegado el Worker con kitchen_costs_list. No debe tumbar la cocina.
+  const out = await api({ action: "kitchen_costs_list", admin_pin: SESSION.pin });
+  const items = Array.isArray(out.items) ? out.items : (Array.isArray(out.costs) ? out.costs : []);
+  const map = {};
+  for(const row of items){
+    const k = normalizeIngredientKeyForCosts(row.ingredient_key);
+    if(!k) continue;
+    map[k] = {
+      cop_per_unit: Number(row.cop_per_unit || 0),
+      unit_type: String(row.unit_type || "").trim().toLowerCase()
+    };
+  }
+  COSTS_MAP = map;
+  COSTS_LOADED = true;
+  buildPricesByRecipeKeyFromCosts();
+}
+
 // Time rules
 function getBogotaParts(date){
   const fmt = new Intl.DateTimeFormat("en-CA", {
@@ -306,18 +361,50 @@ function getWeekdayBogota(date){
   const map = { Sun:0, Mon:1, Tue:2, Wed:3, Thu:4, Fri:5, Sat:6 };
   return map[wd] ?? 0;
 }
+
+function parseOrderCreatedAt(createdAt){
+  // Acepta Date, timestamp o string.
+  if(!createdAt) return null;
+  if(createdAt instanceof Date) return createdAt;
+  if(typeof createdAt === "number") return new Date(createdAt);
+
+  const s = String(createdAt).trim();
+  if(!s) return null;
+
+  // ISO / RFC
+  if(s.includes("T")){
+    const d = new Date(s);
+    return Number.isNaN(d.getTime()) ? null : d;
+  }
+
+  // Apps Script típico: "YYYY-MM-DD HH:mm:ss"
+  const m = s.match(/^(\d{4})-(\d{2})-(\d{2})\s+(\d{2}):(\d{2})(?::(\d{2}))?$/);
+  if(m){
+    const Y = Number(m[1]), Mo = Number(m[2]) - 1, D = Number(m[3]);
+    const hh = Number(m[4]), mm = Number(m[5]), ss = Number(m[6]||"0");
+    // Bogotá = UTC-05. Convertimos a instante UTC sumando 5 horas.
+    const utcMs = Date.UTC(Y, Mo, D, hh + 5, mm, ss);
+    const d = new Date(utcMs);
+    return Number.isNaN(d.getTime()) ? null : d;
+  }
+
+  const d = new Date(s);
+  return Number.isNaN(d.getTime()) ? null : d;
+}
+
 function computeProductionDayKeyForOrder(createdAt){
-  const dt = new Date(createdAt);
-  if (Number.isNaN(dt.getTime())) return null;
+  const dt = parseOrderCreatedAt(createdAt);
+  if (!dt) return null;
+
   const p = getBogotaParts(dt);
   const orderDayKey = p.key;
   const weekday = getWeekdayBogota(dt);
 
-  if (weekday === 6) return addDaysBogotaKey(orderDayKey, 2);
-  if (weekday === 0) return addDaysBogotaKey(orderDayKey, 1);
-  if (weekday === 5 && p.hh >= CUTOFF_HOUR) return addDaysBogotaKey(orderDayKey, 3);
-  if (p.hh >= CUTOFF_HOUR) return addDaysBogotaKey(orderDayKey, 1);
-  return orderDayKey;
+  if (weekday === 6) return addDaysBogotaKey(orderDayKey, 2); // sábado -> lunes
+  if (weekday === 0) return addDaysBogotaKey(orderDayKey, 1); // domingo -> lunes
+  if (weekday === 5 && p.hh >= CUTOFF_HOUR) return addDaysBogotaKey(orderDayKey, 3); // viernes > 3pm -> lunes
+  if (p.hh >= CUTOFF_HOUR) return addDaysBogotaKey(orderDayKey, 1); // después de 3pm -> siguiente día
+  return orderDayKey; // antes de 3pm -> mismo día
 }
 function getTodayProductionDayKey(){
   const now = new Date();
@@ -367,12 +454,23 @@ function calcBatchIngredients(productId, units){
   if (!recipe) return { lines:[], totalCost:0 };
   let totalCost = 0;
 
-  const lines = recipe.unitIngredients.map(ing => {
+  const lines = (recipe.unitIngredients || []).map(ing => {
     const totalQty = (Number(ing.qty || 0) * Number(units || 0));
-    const pricePerUnit = Number(prices[ing.key] || 0);
-    const cost = totalQty * pricePerUnit;
+
+    // ✅ costo por unidad desde COSTOS_INGREDIENTES (canonical key)
+    const canonical = normalizeIngredientKeyForCosts(ing.key);
+    const cpu = Number(COSTS_MAP?.[canonical]?.cop_per_unit || prices[ing.key] || 0);
+
+    const cost = cpu > 0 ? (totalQty * cpu) : 0;
     totalCost += cost;
-    return { key: ing.key, qty: totalQty, pricePerUnit, cost };
+
+    return {
+      key: ing.key,
+      canonical,
+      qty: totalQty,
+      pricePerUnit: cpu,
+      cost
+    };
   });
 
   return { lines, totalCost };
@@ -520,7 +618,7 @@ function renderOrdersModalList(){
     ordersList.innerHTML = `<div class="muted small" style="text-align:center; padding:14px;">No hay pedidos para mostrar.</div>`;
     return;
   }
-  const sorted = [...list].sort((a,b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+  const sorted = [...list].sort((a,b) => (parseOrderCreatedAt(a.created_at)?.getTime()||0) - (parseOrderCreatedAt(b.created_at)?.getTime()||0));
   ordersList.innerHTML = sorted.map(o => {
     const items = normalizeItemsFromOrder(o);
     const units = items.reduce((s,it)=>s+it.qty,0);
@@ -530,7 +628,7 @@ function renderOrdersModalList(){
           <div style="font-weight:950;">${o.order_id}</div>
           <div class="pill">${units} u</div>
         </div>
-        <div class="oMeta">${o.customer_name || ""} · ${fmtDateTimeCO(new Date(o.created_at))}</div>
+        <div class="oMeta">${o.customer_name || ""} · ${fmtDateTimeCO(parseOrderCreatedAt(o.created_at) || new Date())}</div>
         <div class="oMeta" style="margin-top:6px;">${items.map(it => `${it.name} x${it.qty}`).join(" · ")}</div>
       </div>
     `;
@@ -583,7 +681,6 @@ function confirm3s(title, text, onGo){
     };
   });
 }
-
 // Batch helpers
 function getBatchOrderIdsForProduct(productId){
   const ids = [];
@@ -639,12 +736,19 @@ function renderBatchIngredientsHTML(productId){
   const { lines, totalCost } = calcBatchIngredients(productId, qty);
   const costText = totalCost > 0 ? `$${money(totalCost)}` : "—";
 
-  const rows = lines.map(li => `
-    <div class="batchRow">
-      <div class="k">${li.key}</div>
-      <div>${formatQty(li.qty)}</div>
-    </div>
-  `).join("");
+  const rows = lines.map(li => {
+    const cpu = li.pricePerUnit > 0 ? `$${money(li.pricePerUnit)}/u` : "—";
+    const lc = li.cost > 0 ? `$${money(li.cost)}` : "—";
+    return `
+      <div class="batchRow" style="align-items:flex-start;">
+        <div style="min-width:0;">
+          <div class="k">${li.key}</div>
+          <div class="muted small">Costo/u: ${cpu} · Total: ${lc}</div>
+        </div>
+        <div style="text-align:right; font-weight:950;">${formatQty(li.qty)}</div>
+      </div>
+    `;
+  }).join("");
 
   return `
     <div class="batchBox">
@@ -886,9 +990,19 @@ function renderMain(todayKey){
     function buildCard(displayQty, isDoneSection){
       const { lines, totalCost } = calcBatchIngredients(p.id, displayQty);
       const costText = totalCost > 0 ? `$${money(totalCost)}` : "—";
-      const ingHtml = lines.map(li =>
-        `<div class="line"><span>${li.key}</span><div>${formatQty(li.qty)}</div></div>`
-      ).join("");
+      const ingHtml = lines.map(li => {
+        const cpu = li.pricePerUnit > 0 ? `$${money(li.pricePerUnit)}/u` : "—";
+        const lc  = li.cost > 0 ? `$${money(li.cost)}` : "—";
+        return `
+          <div class="line" style="align-items:flex-start;">
+            <div style="min-width:0;">
+              <div>${li.key}</div>
+              <div class="muted small">Costo/u: ${cpu} · Total: ${lc}</div>
+            </div>
+            <div style="text-align:right; font-weight:950;">${formatQty(li.qty)}</div>
+          </div>
+        `;
+      }).join("");
 
       return `
         <div class="pCard" data-pid="${p.id}">
@@ -945,46 +1059,46 @@ function renderMain(todayKey){
   }
 
   function bindCardsClick(container){
-  if(!container) return;
-  container.onclick = async (e) => {
-    const btn = e.target.closest("button[data-act]");
-    if(!btn) return;
-    const act = btn.dataset.act;
-    const pid = btn.dataset.pid;
-    const card = btn.closest(".pCard");
+    if(!container) return;
+    container.onclick = async (e) => {
+      const btn = e.target.closest("button[data-act]");
+      if(!btn) return;
+      const act = btn.dataset.act;
+      const pid = btn.dataset.pid;
+      const card = btn.closest(".pCard");
 
-    if(act === "toggle"){ 
-      if(card) card.classList.toggle("open"); 
-      return; 
-    }
-    if(act === "viewOrders"){ 
-      openOrdersModal("today"); 
-      return; 
-    }
+      if(act === "toggle"){
+        if(card) card.classList.toggle("open");
+        return;
+      }
+      if(act === "viewOrders"){
+        openOrdersModal("today");
+        return;
+      }
 
-    if(act === "start"){
-      const pname = PRODUCTS.find(p=>p.id===pid)?.name || pid;
-      const orderIds = getBatchOrderIdsForProduct(pid);
-      if(!orderIds.length){ alert("No hay pedidos para este postre hoy."); return; }
+      if(act === "start"){
+        const pname = PRODUCTS.find(p=>p.id===pid)?.name || pid;
+        const orderIds = getBatchOrderIdsForProduct(pid);
+        if(!orderIds.length){ alert("No hay pedidos para este postre hoy."); return; }
 
-      await confirm3s(
-        "Iniciar paso a paso",
-        `¿Iniciar la elaboración de ${pname}? Esto marcará los pedidos como “En proceso”.`,
-        async () => {
-          showLoading("Iniciando...", "Cargando receta y marcando estado en proceso.");
-          await api({
-            action: "kitchen_bulk_update",
-            admin_pin: SESSION.pin,
-            operator: SESSION.operatorLabel,
-            order_ids: orderIds,
-            patch: { kitchen_status:"En proceso" }
-          });
-          openRecipe(pid);
-        }
-      );
-    }
-  };
-}
+        await confirm3s(
+          "Iniciar paso a paso",
+          `¿Iniciar la elaboración de ${pname}? Esto marcará los pedidos como “En proceso”.`,
+          async () => {
+            showLoading("Iniciando...", "Cargando receta y marcando estado en proceso.");
+            await api({
+              action: "kitchen_bulk_update",
+              admin_pin: SESSION.pin,
+              operator: SESSION.operatorLabel,
+              order_ids: orderIds,
+              patch: { kitchen_status:"En proceso" }
+            });
+            openRecipe(pid);
+          }
+        );
+      }
+    };
+  }
 
   // ⬇️ Delegación de eventos en AMBAS columnas
   bindCardsClick(productCards);
@@ -1010,8 +1124,17 @@ async function loadKitchenData(fromRefresh){
 
     historyOrders = paidOrders
       .filter(o => String(o.kitchen_status || "") === "Listo")
-      .sort((a,b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+      .sort((a,b) => (parseOrderCreatedAt(b.created_at)?.getTime()||0) - (parseOrderCreatedAt(a.created_at)?.getTime()||0))
       .slice(0, 200);
+
+    // ✅ Cargar costos desde Sheets (COSTOS_INGREDIENTES) una vez por sesión
+    if(!COSTS_LOADED){
+      try{ await fetchCostsForKitchen(); }
+      catch(e){
+        // fallback: si falla, se mantiene prices local (último guardado) y la cocina sigue funcionando sin costos.
+        COSTS_LOADED = false;
+      }
+    }
 
     renderMain(todayKey);
   } finally {
