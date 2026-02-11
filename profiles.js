@@ -1,94 +1,152 @@
-// profiles.js
-// ✅ Usa el mismo Worker (API_URL) que ya usas en kitchen.js
-// IMPORTANTE: pega aquí tu URL real del Worker si no es la misma.
-const API_URL = window.AMARED_API_URL || "https://amared-orders.amaredpostres.workers.dev/";
+/* =========================
+   AMARED · Gestión de perfiles
+   ========================= */
+
+const API_BASE = "https://amared-orders.amaredpostres.workers.dev/"; // ✅ Worker real (NO GitHub Pages)
 
 const $ = (id) => document.getElementById(id);
 
-const loader = $("loader");
-const loaderTitle = $("loaderTitle");
-const loaderText = $("loaderText");
+const btnBack = $("btnBack");
 
 const inpSecret = $("inpSecret");
-const secretMsg = $("secretMsg");
-const btnValidate = $("btnValidate");
-const btnLock = $("btnLock");
+const btnUnlock = $("btnUnlock");
+const gateErr = $("gateErr");
 
-const statePill = $("statePill");
+const pillState = $("pillState");
+const btnLogout = $("btnLogout");
+
+const mgrCard = $("mgrCard");
+const btnReload = $("btnReload");
+const pillCount = $("pillCount");
 const tbody = $("tbody");
 const listMsg = $("listMsg");
 
+const inpName = $("inpName");
 const inpId = $("inpId");
-const inpLabel = $("inpLabel");
 const btnAdd = $("btnAdd");
-const addMsg = $("addMsg");
+const mgrErr = $("mgrErr");
 
-const btnReload = $("btnReload");
+const loading = $("loading");
+const loadingTitle = $("loadingTitle");
+const loadingMsg = $("loadingMsg");
 
+let PROFILES_SECRET = sessionStorage.getItem("amared_profiles_secret") || "";
 let UNLOCKED = false;
-let SECRET = "";
 
-// ---------- helpers ----------
-function showLoading(title="Cargando…", text="Por favor espera."){
-  loaderTitle.textContent = title;
-  loaderText.textContent = text;
-  loader.classList.add("show");
-  loader.setAttribute("aria-hidden","false");
+// ---------- UI helpers ----------
+function showLoading(title, msg){
+  loadingTitle.textContent = title || "Cargando…";
+  loadingMsg.textContent = msg || "Procesando";
+  loading.style.display = "flex";
+  loading.setAttribute("aria-hidden","false");
 }
 function hideLoading(){
-  loader.classList.remove("show");
-  loader.setAttribute("aria-hidden","true");
+  loading.style.display = "none";
+  loading.setAttribute("aria-hidden","true");
 }
-async function api(payload){
-  const res = await fetch(API_URL, {
-    method:"POST",
-    headers:{ "Content-Type":"application/json" },
-    body: JSON.stringify(payload),
-  });
-  const out = await res.json().catch(async () => ({
-    ok:false,
-    error: await res.text().catch(()=> "Error")
-  }));
-  if(!out.ok) throw new Error(out.error || "Error");
-  return out;
+function setGateError(msg){ gateErr.textContent = msg || ""; }
+function setMgrError(msg){ mgrErr.textContent = msg || ""; }
+function setListMsg(msg, color){
+  listMsg.textContent = msg || "";
+  listMsg.style.color = color || "";
+}
+function esc(s){
+  return String(s||"").replace(/[&<>"']/g, (c)=>({
+    "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"
+  }[c]));
 }
 
 function setState(unlocked){
   UNLOCKED = !!unlocked;
-  statePill.textContent = UNLOCKED ? "🔓 Desbloqueado" : "🔒 Bloqueado";
+  pillState.textContent = UNLOCKED ? "🔓 Desbloqueado" : "🔒 Bloqueado";
+  btnLogout.disabled = !UNLOCKED;
   btnAdd.disabled = !UNLOCKED;
-  btnAdd.style.opacity = UNLOCKED ? "1" : ".6";
-  addMsg.textContent = UNLOCKED ? "" : "Desbloquea para agregar o eliminar.";
+  btnAdd.style.opacity = UNLOCKED ? "1" : ".65";
 }
 
-function normalizeId(s){
-  return String(s||"")
+// ---------- API ----------
+async function api(action, payload){
+  const res = await fetch(API_BASE, {
+    method: "POST",
+    headers: { "Content-Type":"application/json" },
+    body: JSON.stringify(Object.assign({ action }, payload || {}))
+  });
+
+  // Leemos como texto para poder mostrar el snippet si no es JSON
+  const text = await res.text();
+
+  let data;
+  try {
+    data = JSON.parse(text);
+  } catch (e) {
+    console.error("NON-JSON response (first 500 chars):", text.slice(0, 500));
+    throw new Error("Apps Script returned non-JSON");
+  }
+
+  if (!res.ok || data.ok === false) {
+    console.error("Worker error object:", data);
+    console.error("raw_snippet:", data.raw_snippet);
+    console.error("debug:", data.debug);
+
+    const err = new Error(data.error || ("HTTP " + res.status));
+    err.data = data;
+    throw err;
+  }
+
+  return data;
+}
+
+
+// ---------- ID automático ----------
+function slugifyId(label){
+  return String(label||"")
     .trim()
     .toLowerCase()
-    .replace(/\s+/g,"-")
-    .replace(/[^a-z0-9-_]/g,"");
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")   // quitar tildes
+    .replace(/[^a-z0-9]+/g, "_")        // no permitido -> _
+    .replace(/^_+|_+$/g, "");
 }
 
-function renderRows(profiles){
+function getSelectedCategories(){
+  const arr = Array.from(document.querySelectorAll('.chips input[type="checkbox"]:checked'))
+    .map(i => String(i.value||"").trim().toLowerCase())
+    .filter(Boolean);
+
+  const seen = {};
+  return arr.filter(x => (seen[x] ? false : (seen[x]=1)));
+}
+
+// ---------- Render ----------
+function renderList(profiles){
   const list = Array.isArray(profiles) ? profiles : [];
+
+  pillCount.textContent = `${list.length} perfil${list.length === 1 ? "" : "es"}`;
+
   if(!list.length){
-    tbody.innerHTML = `<tr><td colspan="3" class="muted">No hay perfiles.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="4" class="muted small" style="padding:12px;">No hay perfiles activos.</td></tr>`;
     return;
   }
 
   tbody.innerHTML = list.map(p => {
-    const id = String(p.id||"").trim();
-    const label = String(p.label||"").trim();
-    const canDelete = UNLOCKED; // si quieres bloquear algunos ids base, aquí lo haces
+    const id = esc(p.id);
+    const label = esc(p.label);
+    const cats = Array.isArray(p.categories) ? p.categories : [];
+    const catTxt = cats.length ? esc(cats.join(", ")) : "—";
+
+    const delDisabled = UNLOCKED ? "" : "disabled";
+    const delStyle = UNLOCKED ? "" : "opacity:.55; cursor:not-allowed;";
+
     return `
       <tr>
-        <td><span class="pill">${id}</span></td>
+        <td><span class="badge">${id}</span></td>
         <td>${label}</td>
+        <td>${catTxt}</td>
         <td>
-          <button class="btn danger" type="button"
+          <button class="btn secondary" type="button"
             data-del="${id}"
-            ${canDelete ? "" : "disabled"}
-            style="padding:8px 10px;border-radius:12px;${canDelete ? "" : "opacity:.5;cursor:not-allowed"}"
+            ${delDisabled}
+            style="padding:10px 12px; border-radius: 14px; background: linear-gradient(180deg, rgba(242,91,143,.12), rgba(242,91,143,.06)); border-color: rgba(242,91,143,.25); ${delStyle}"
           >Eliminar</button>
         </td>
       </tr>
@@ -96,132 +154,154 @@ function renderRows(profiles){
   }).join("");
 }
 
-// ---------- data ----------
-async function fetchProfiles(){
-  const out = await api({ action:"profiles_list" });
-  return out.profiles || [];
-}
-
 async function refresh(){
+  setListMsg("", "");
   showLoading("Cargando…","Leyendo perfiles desde la base de datos.");
-  listMsg.textContent = "";
   try{
-    const profiles = await fetchProfiles();
-    renderRows(profiles);
-    listMsg.textContent = `Total: ${profiles.length}`;
+    const out = await api("profiles_list", {});
+    renderList(out.profiles || []);
+    setListMsg("Lista actualizada.", "rgba(64,17,2,.7)");
   }catch(e){
-    listMsg.textContent = "";
-    tbody.innerHTML = `<tr><td colspan="3" class="err">${e.message || String(e)}</td></tr>`;
+    setListMsg(e.message || String(e), "#b00020");
   }finally{
     hideLoading();
   }
 }
 
-// ---------- unlock ----------
-async function validateSecret(){
-  secretMsg.textContent = "";
-  const s = String(inpSecret.value||"").trim();
-  if(!s){
-    secretMsg.className = "err";
-    secretMsg.textContent = "Ingresa la clave.";
+// ---------- Login / Logout ----------
+async function unlock(){
+  setGateError("");
+  setMgrError("");
+  setListMsg("");
+
+  const secret = String(inpSecret.value||"").trim();
+  if(!secret){
+    setGateError("Ingresa la clave.");
     return;
   }
 
-  showLoading("Verificando…","Validando clave de perfiles.");
+  showLoading("Ingresando…","Validando clave de perfiles.");
   try{
-    // ✅ Worker soporta validate_secret con type="profiles"
-    await api({ action:"validate_secret", type:"profiles", secret:s });
-    SECRET = s;
+    // ✅ type:"profiles" (así lo exige tu Worker)
+    await api("validate_secret", { type:"profiles", secret });
+
+    PROFILES_SECRET = secret;
+    sessionStorage.setItem("amared_profiles_secret", secret);
+
     setState(true);
-    secretMsg.className = "ok";
-    secretMsg.textContent = "Clave válida. Edición desbloqueada.";
-  }catch(e){
-    setState(false);
-    secretMsg.className = "err";
-    secretMsg.textContent = e.message || String(e);
-  }finally{
-    hideLoading();
-  }
-}
-
-function lock(){
-  SECRET = "";
-  inpSecret.value = "";
-  secretMsg.className = "muted";
-  secretMsg.textContent = "";
-  setState(false);
-}
-
-// ---------- actions ----------
-async function addProfile(){
-  addMsg.textContent = "";
-  if(!UNLOCKED || !SECRET){
-    addMsg.className = "err";
-    addMsg.textContent = "Primero desbloquea con la clave.";
-    return;
-  }
-
-  const id = normalizeId(inpId.value);
-  const label = String(inpLabel.value||"").trim();
-
-  if(!id || !label){
-    addMsg.className = "err";
-    addMsg.textContent = "Completa ID y Nombre.";
-    return;
-  }
-
-  showLoading("Guardando…","Agregando perfil.");
-  try{
-    await api({
-      action:"profiles_add",
-      profiles_secret: SECRET,
-      profile: { id, label }
-    });
-    inpId.value = "";
-    inpLabel.value = "";
-    addMsg.className = "ok";
-    addMsg.textContent = "Perfil agregado.";
+    mgrCard.style.display = "block";
     await refresh();
   }catch(e){
-    addMsg.className = "err";
-    addMsg.textContent = e.message || String(e);
+    setState(false);
+    mgrCard.style.display = "none";
+    setGateError("Clave incorrecta o no autorizada.");
+  }finally{
+    hideLoading();
+  }
+}
+
+function logout(){
+  PROFILES_SECRET = "";
+  sessionStorage.removeItem("amared_profiles_secret");
+  inpSecret.value = "";
+  setState(false);
+  mgrCard.style.display = "none";
+  setGateError("Sesión bloqueada.");
+}
+
+// ---------- Add / Delete ----------
+async function addProfile(){
+  setMgrError("");
+  if(!UNLOCKED || !PROFILES_SECRET){
+    setMgrError("Primero debes ingresar la clave.");
+    return;
+  }
+
+  const name = String(inpName.value||"").trim();
+  const id = slugifyId(name);
+  const cats = getSelectedCategories();
+
+  if(!name){
+    setMgrError("Escribe el nombre del perfil.");
+    return;
+  }
+  if(!id){
+    setMgrError("No se pudo generar el ID. Cambia el nombre.");
+    return;
+  }
+  if(!cats.length){
+    setMgrError("Selecciona al menos una categoría.");
+    return;
+  }
+
+  showLoading("Guardando…","Creando/actualizando perfil.");
+  try{
+    await api("profiles_add", {
+      profiles_secret: PROFILES_SECRET,
+      profile_id: id,
+      label: name,
+      categories: cats.join(","), // string
+      created_by: "PROFILES_PAGE",
+      is_active: true
+    });
+
+    inpName.value = "";
+    inpId.value = "";
+    await refresh();
+  }catch(e){
+    setMgrError(e.message || String(e));
   }finally{
     hideLoading();
   }
 }
 
 async function deleteProfile(id){
-  if(!UNLOCKED || !SECRET) return;
+  setMgrError("");
+  if(!UNLOCKED || !PROFILES_SECRET) return;
 
   const ok = confirm(`¿Eliminar el perfil "${id}"?`);
   if(!ok) return;
 
-  showLoading("Guardando…","Eliminando perfil.");
+  showLoading("Eliminando…","Actualizando en la base de datos.");
   try{
-    await api({
-      action:"profiles_delete",
-      profiles_secret: SECRET,
-      id: String(id)
+    // Soft delete: marca is_active=false
+    await api("profiles_delete", {
+      profiles_secret: PROFILES_SECRET,
+      profile_id: String(id)
     });
     await refresh();
   }catch(e){
-    alert(e.message || String(e));
+    setMgrError(e.message || String(e));
   }finally{
     hideLoading();
   }
 }
 
-// ---------- events ----------
-btnValidate.addEventListener("click", validateSecret);
-btnLock.addEventListener("click", lock);
-btnAdd.addEventListener("click", addProfile);
+// ---------- Events ----------
+btnBack.addEventListener("click", ()=> history.back());
+
+btnUnlock.addEventListener("click", unlock);
+inpSecret.addEventListener("keydown", (e)=>{ if(e.key === "Enter") unlock(); });
+
+btnLogout.addEventListener("click", logout);
 btnReload.addEventListener("click", refresh);
 
-document.addEventListener("click", (e) => {
+inpName.addEventListener("input", ()=>{
+  inpId.value = slugifyId(inpName.value);
+});
+
+btnAdd.addEventListener("click", addProfile);
+
+document.addEventListener("click", (e)=>{
   const del = e.target?.getAttribute?.("data-del");
   if(del) deleteProfile(del);
 });
 
+// Bootstrap
 setState(false);
-refresh();
+if(PROFILES_SECRET){
+  inpSecret.value = PROFILES_SECRET;
+  unlock(); // auto-login
+}
+
 
