@@ -72,12 +72,21 @@ async function api(action, payload){
     body: JSON.stringify({ action, ...(payload||{}) })
   });
 
-  const data = await res.json().catch(()=> ({}));
-  if(!res.ok || data?.ok === false){
-    throw new Error(data?.error || `HTTP ${res.status}`);
+  let data;
+  try{
+    data = await res.json();
+  }catch(e){
+    console.error("❌ Apps Script no devolvió JSON válido");
+    throw new Error("Apps Script returned non-JSON");
   }
-  return data;
-}
+
+  if(!res.ok || data?.ok === false){
+    const err = new Error(data?.error || `HTTP ${res.status}`);
+    err.data = data; // 👈 guardamos respuesta completa del Worker
+    console.error("❌ Error Worker:", err);
+    console.error("📦 Detalle completo:", data);
+    console.error("
+
 
 // ---------- ID automático ----------
 function slugifyId(label){
@@ -285,3 +294,4 @@ if(PROFILES_SECRET){
   inpSecret.value = PROFILES_SECRET;
   unlock(); // auto-login
 }
+
