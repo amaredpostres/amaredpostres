@@ -463,16 +463,6 @@
     if(btnLogout) btnLogout.style.display = "inline-flex";
     if(btnRefresh) btnRefresh.style.display = "inline-flex";
   }
-
-  async function validatePinBestEffort(pin){
-    try{
-      await api({ action:"validate_admin_pin", admin_pin: pin });
-      return true;
-    }catch(e){
-      const msg = String(e?.message || "");
-      if (msg.toLowerCase().includes("unknown action")) return true;
-      throw e;
-    }
   }
 
   // =========================
@@ -544,12 +534,20 @@
   // Data load + buckets
   // =========================
   async function loadData(){
+    if(!state.session.pin){
+      // Sin sesión: no pedimos pedidos (evita 401 al abrir la página)
+      state.paidOrders = [];
+      state.todayKey = getTodayProductionDayKey();
+      state.nextKey = getNextProductionDayKey(state.todayKey);
+      state.buckets = { today:[], infoTomorrow:[], inProgress:[], done:[] };
+      return;
+    }
     state.todayKey = getTodayProductionDayKey();
     state.nextKey = getNextProductionDayKey(state.todayKey);
 
     showLoading("Cargando cocina…", "Obteniendo pedidos y preparando producción.");
     try{
-      const out = await api({ action:"list_orders", payment_status:"Pagado" });
+      const out = await api({ action:"list_orders", admin_pin: state.session.pin, payment_status:"Pagado" });
       const paid = (out.orders || []).map(o => {
         o.__prod_day = computeProductionDayKeyForOrder(o.created_at);
         return o;
@@ -1136,10 +1134,9 @@
       return;
     }
 
-    showLoading("Validando…", "Verificando acceso.");
+    showLoading("Validando…", "Verificando acceso y cargando pedidos.");
     try{
-      await validatePinBestEffort(pin);
-
+      // Guardar sesión provisional
       state.session = { operatorId: opId, operatorLabel: opLabel, pin };
       saveSession();
 
@@ -1149,8 +1146,13 @@
       const btnCostsRO = document.getElementById("btnCostsRO");
       if(btnCostsRO) btnCostsRO.style.display = "inline-flex";
 
+      // ✅ Validación real: si el PIN no sirve, list_orders fallará con 401
       await refresh();
+
     } catch(e){
+      // rollback sesión
+      clearSession();
+      showLogin();
       loginErr.textContent = "PIN inválido o no autorizado.";
     } finally {
       hideLoading();
@@ -1158,6 +1160,7 @@
   }
 
   function onLogout(){
+    loginErr.textContent = "";
     clearSession();
     closeRecipe();
     closeCostsModal();
