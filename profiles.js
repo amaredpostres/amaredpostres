@@ -1,7 +1,7 @@
 // profiles.js
 // ✅ Usa el mismo Worker (API_URL) que ya usas en kitchen.js
 // IMPORTANTE: pega aquí tu URL real del Worker si no es la misma.
-const API_URL = window.AMARED_API_URL || "PEGA_AQUI_TU_WORKER_URL";
+const API_URL = window.AMARED_API_URL || "https://amared-orders.amaredpostres.workers.dev/";
 
 const $ = (id) => document.getElementById(id);
 
@@ -224,3 +224,4 @@ document.addEventListener("click", (e) => {
 
 setState(false);
 refresh();
+
