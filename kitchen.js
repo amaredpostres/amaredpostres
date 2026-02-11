@@ -553,7 +553,7 @@ function renderProfilesList(){
 
 // Costs UI
 function openCostsModal(){
-  // ✅ Abrir modal (consistente con perfiles)
+  costsModal.style.display = "flex";
   costsModal.classList.add("show");
   costsModal.setAttribute("aria-hidden","false");
 
@@ -567,12 +567,13 @@ function openCostsModal(){
   });
 }
 
+
 function closeCostsModal(){
-  // ✅ Cerrar modal (remover show y limpiar display inline si existiera)
   costsModal.classList.remove("show");
-  costsModal.style.display = ""; // por si quedó seteado en versiones anteriores
+  costsModal.style.display = "none";
   costsModal.setAttribute("aria-hidden","true");
 }
+
 
 function getAllIngredientKeys(){
   const set = new Set();
@@ -713,23 +714,25 @@ function getProductsNeededToday(){
 
 // Bulk update
 async function bulkUpdate(orderIds, patch){
-  if(!orderIds.length) return;
+  if(!Array.isArray(orderIds) || orderIds.length === 0) return null;
+
   showLoading("Actualizando...", "Aplicando cambios.");
   disableUIWhileLoading(true);
-  try{
-    markProductDoneForDay(todayKey, currentProductId);
-          closeRecipeRaw();
-          renderMain(todayKey);
-          renderLateOrders();
-          hideLoading();
-      }
-    );
-    return;
-  }
 
-  currentStepIdx++;
-  renderRecipeStep();
-});
+  try{
+    const out = await api({
+      action: "kitchen_bulk_update",
+      operator: SESSION?.operatorLabel || "COCINA",
+      order_ids: orderIds.map(String),
+      patch: patch || {}
+    });
+    return out;
+  } finally {
+    disableUIWhileLoading(false);
+    hideLoading();
+  }
+}
+
 
 // Main render
 function renderMain(todayKey){
@@ -1066,4 +1069,5 @@ function renderLateOrders(){
     list.appendChild(div);
   }
 }
+
 
