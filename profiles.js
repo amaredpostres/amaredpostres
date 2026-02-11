@@ -69,23 +69,32 @@ async function api(action, payload){
   const res = await fetch(API_BASE, {
     method: "POST",
     headers: { "Content-Type":"application/json" },
-    body: JSON.stringify({ action, ...(payload||{}) })
+    body: JSON.stringify(Object.assign({ action }, payload || {}))
   });
 
+  // Leemos como texto para poder mostrar el snippet si no es JSON
+  const text = await res.text();
+
   let data;
-  try{
-    data = await res.json();
-  }catch(e){
-    console.error("❌ Apps Script no devolvió JSON válido");
+  try {
+    data = JSON.parse(text);
+  } catch (e) {
+    console.error("NON-JSON response (first 500 chars):", text.slice(0, 500));
     throw new Error("Apps Script returned non-JSON");
   }
 
-  if(!res.ok || data?.ok === false){
-    const err = new Error(data?.error || `HTTP ${res.status}`);
-    err.data = data; // 👈 guardamos respuesta completa del Worker
-    console.error("❌ Error Worker:", err);
-    console.error("📦 Detalle completo:", data);
-    console.error("
+  if (!res.ok || data.ok === false) {
+    console.error("Worker error object:", data);
+    console.error("raw_snippet:", data.raw_snippet);
+    console.error("debug:", data.debug);
+
+    const err = new Error(data.error || ("HTTP " + res.status));
+    err.data = data;
+    throw err;
+  }
+
+  return data;
+}
 
 
 // ---------- ID automático ----------
@@ -294,4 +303,5 @@ if(PROFILES_SECRET){
   inpSecret.value = PROFILES_SECRET;
   unlock(); // auto-login
 }
+
 
