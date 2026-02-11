@@ -1,152 +1,94 @@
-/* =========================
-   AMARED · Gestión de perfiles
-   ========================= */
-
-const API_BASE = "https://amared-orders.amaredpostres.workers.dev/"; // ✅ Worker real (NO GitHub Pages)
+// profiles.js
+// ✅ Usa el mismo Worker (API_URL) que ya usas en kitchen.js
+// IMPORTANTE: pega aquí tu URL real del Worker si no es la misma.
+const API_URL = window.AMARED_API_URL || "PEGA_AQUI_TU_WORKER_URL";
 
 const $ = (id) => document.getElementById(id);
 
-const btnBack = $("btnBack");
+const loader = $("loader");
+const loaderTitle = $("loaderTitle");
+const loaderText = $("loaderText");
 
 const inpSecret = $("inpSecret");
-const btnUnlock = $("btnUnlock");
-const gateErr = $("gateErr");
+const secretMsg = $("secretMsg");
+const btnValidate = $("btnValidate");
+const btnLock = $("btnLock");
 
-const pillState = $("pillState");
-const btnLogout = $("btnLogout");
-
-const mgrCard = $("mgrCard");
-const btnReload = $("btnReload");
-const pillCount = $("pillCount");
+const statePill = $("statePill");
 const tbody = $("tbody");
 const listMsg = $("listMsg");
 
-const inpName = $("inpName");
 const inpId = $("inpId");
+const inpLabel = $("inpLabel");
 const btnAdd = $("btnAdd");
-const mgrErr = $("mgrErr");
+const addMsg = $("addMsg");
 
-const loading = $("loading");
-const loadingTitle = $("loadingTitle");
-const loadingMsg = $("loadingMsg");
+const btnReload = $("btnReload");
 
-let PROFILES_SECRET = sessionStorage.getItem("amared_profiles_secret") || "";
 let UNLOCKED = false;
+let SECRET = "";
 
-// ---------- UI helpers ----------
-function showLoading(title, msg){
-  loadingTitle.textContent = title || "Cargando…";
-  loadingMsg.textContent = msg || "Procesando";
-  loading.style.display = "flex";
-  loading.setAttribute("aria-hidden","false");
+// ---------- helpers ----------
+function showLoading(title="Cargando…", text="Por favor espera."){
+  loaderTitle.textContent = title;
+  loaderText.textContent = text;
+  loader.classList.add("show");
+  loader.setAttribute("aria-hidden","false");
 }
 function hideLoading(){
-  loading.style.display = "none";
-  loading.setAttribute("aria-hidden","true");
+  loader.classList.remove("show");
+  loader.setAttribute("aria-hidden","true");
 }
-function setGateError(msg){ gateErr.textContent = msg || ""; }
-function setMgrError(msg){ mgrErr.textContent = msg || ""; }
-function setListMsg(msg, color){
-  listMsg.textContent = msg || "";
-  listMsg.style.color = color || "";
-}
-function esc(s){
-  return String(s||"").replace(/[&<>"']/g, (c)=>({
-    "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"
-  }[c]));
+async function api(payload){
+  const res = await fetch(API_URL, {
+    method:"POST",
+    headers:{ "Content-Type":"application/json" },
+    body: JSON.stringify(payload),
+  });
+  const out = await res.json().catch(async () => ({
+    ok:false,
+    error: await res.text().catch(()=> "Error")
+  }));
+  if(!out.ok) throw new Error(out.error || "Error");
+  return out;
 }
 
 function setState(unlocked){
   UNLOCKED = !!unlocked;
-  pillState.textContent = UNLOCKED ? "🔓 Desbloqueado" : "🔒 Bloqueado";
-  btnLogout.disabled = !UNLOCKED;
+  statePill.textContent = UNLOCKED ? "🔓 Desbloqueado" : "🔒 Bloqueado";
   btnAdd.disabled = !UNLOCKED;
-  btnAdd.style.opacity = UNLOCKED ? "1" : ".65";
+  btnAdd.style.opacity = UNLOCKED ? "1" : ".6";
+  addMsg.textContent = UNLOCKED ? "" : "Desbloquea para agregar o eliminar.";
 }
 
-// ---------- API ----------
-async function api(action, payload){
-  const res = await fetch(API_BASE, {
-    method: "POST",
-    headers: { "Content-Type":"application/json" },
-    body: JSON.stringify(Object.assign({ action }, payload || {}))
-  });
-
-  // Leemos como texto para poder mostrar el snippet si no es JSON
-  const text = await res.text();
-
-  let data;
-  try {
-    data = JSON.parse(text);
-  } catch (e) {
-    console.error("NON-JSON response (first 500 chars):", text.slice(0, 500));
-    throw new Error("Apps Script returned non-JSON");
-  }
-
-  if (!res.ok || data.ok === false) {
-    console.error("Worker error object:", data);
-    console.error("raw_snippet:", data.raw_snippet);
-    console.error("debug:", data.debug);
-
-    const err = new Error(data.error || ("HTTP " + res.status));
-    err.data = data;
-    throw err;
-  }
-
-  return data;
-}
-
-
-// ---------- ID automático ----------
-function slugifyId(label){
-  return String(label||"")
+function normalizeId(s){
+  return String(s||"")
     .trim()
     .toLowerCase()
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")   // quitar tildes
-    .replace(/[^a-z0-9]+/g, "_")        // no permitido -> _
-    .replace(/^_+|_+$/g, "");
+    .replace(/\s+/g,"-")
+    .replace(/[^a-z0-9-_]/g,"");
 }
 
-function getSelectedCategories(){
-  const arr = Array.from(document.querySelectorAll('.chips input[type="checkbox"]:checked'))
-    .map(i => String(i.value||"").trim().toLowerCase())
-    .filter(Boolean);
-
-  const seen = {};
-  return arr.filter(x => (seen[x] ? false : (seen[x]=1)));
-}
-
-// ---------- Render ----------
-function renderList(profiles){
+function renderRows(profiles){
   const list = Array.isArray(profiles) ? profiles : [];
-
-  pillCount.textContent = `${list.length} perfil${list.length === 1 ? "" : "es"}`;
-
   if(!list.length){
-    tbody.innerHTML = `<tr><td colspan="4" class="muted small" style="padding:12px;">No hay perfiles activos.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="3" class="muted">No hay perfiles.</td></tr>`;
     return;
   }
 
   tbody.innerHTML = list.map(p => {
-    const id = esc(p.id);
-    const label = esc(p.label);
-    const cats = Array.isArray(p.categories) ? p.categories : [];
-    const catTxt = cats.length ? esc(cats.join(", ")) : "—";
-
-    const delDisabled = UNLOCKED ? "" : "disabled";
-    const delStyle = UNLOCKED ? "" : "opacity:.55; cursor:not-allowed;";
-
+    const id = String(p.id||"").trim();
+    const label = String(p.label||"").trim();
+    const canDelete = UNLOCKED; // si quieres bloquear algunos ids base, aquí lo haces
     return `
       <tr>
-        <td><span class="badge">${id}</span></td>
+        <td><span class="pill">${id}</span></td>
         <td>${label}</td>
-        <td>${catTxt}</td>
         <td>
-          <button class="btn secondary" type="button"
+          <button class="btn danger" type="button"
             data-del="${id}"
-            ${delDisabled}
-            style="padding:10px 12px; border-radius: 14px; background: linear-gradient(180deg, rgba(242,91,143,.12), rgba(242,91,143,.06)); border-color: rgba(242,91,143,.25); ${delStyle}"
+            ${canDelete ? "" : "disabled"}
+            style="padding:8px 10px;border-radius:12px;${canDelete ? "" : "opacity:.5;cursor:not-allowed"}"
           >Eliminar</button>
         </td>
       </tr>
@@ -154,154 +96,131 @@ function renderList(profiles){
   }).join("");
 }
 
+// ---------- data ----------
+async function fetchProfiles(){
+  const out = await api({ action:"profiles_list" });
+  return out.profiles || [];
+}
+
 async function refresh(){
-  setListMsg("", "");
   showLoading("Cargando…","Leyendo perfiles desde la base de datos.");
+  listMsg.textContent = "";
   try{
-    const out = await api("profiles_list", {});
-    renderList(out.profiles || []);
-    setListMsg("Lista actualizada.", "rgba(64,17,2,.7)");
+    const profiles = await fetchProfiles();
+    renderRows(profiles);
+    listMsg.textContent = `Total: ${profiles.length}`;
   }catch(e){
-    setListMsg(e.message || String(e), "#b00020");
+    listMsg.textContent = "";
+    tbody.innerHTML = `<tr><td colspan="3" class="err">${e.message || String(e)}</td></tr>`;
   }finally{
     hideLoading();
   }
 }
 
-// ---------- Login / Logout ----------
-async function unlock(){
-  setGateError("");
-  setMgrError("");
-  setListMsg("");
-
-  const secret = String(inpSecret.value||"").trim();
-  if(!secret){
-    setGateError("Ingresa la clave.");
+// ---------- unlock ----------
+async function validateSecret(){
+  secretMsg.textContent = "";
+  const s = String(inpSecret.value||"").trim();
+  if(!s){
+    secretMsg.className = "err";
+    secretMsg.textContent = "Ingresa la clave.";
     return;
   }
 
-  showLoading("Ingresando…","Validando clave de perfiles.");
+  showLoading("Verificando…","Validando clave de perfiles.");
   try{
-    // ✅ type:"profiles" (así lo exige tu Worker)
-    await api("validate_secret", { type:"profiles", secret });
-
-    PROFILES_SECRET = secret;
-    sessionStorage.setItem("amared_profiles_secret", secret);
-
+    // ✅ Worker soporta validate_secret con type="profiles"
+    await api({ action:"validate_secret", type:"profiles", secret:s });
+    SECRET = s;
     setState(true);
-    mgrCard.style.display = "block";
-    await refresh();
+    secretMsg.className = "ok";
+    secretMsg.textContent = "Clave válida. Edición desbloqueada.";
   }catch(e){
     setState(false);
-    mgrCard.style.display = "none";
-    setGateError("Clave incorrecta o no autorizada.");
+    secretMsg.className = "err";
+    secretMsg.textContent = e.message || String(e);
   }finally{
     hideLoading();
   }
 }
 
-function logout(){
-  PROFILES_SECRET = "";
-  sessionStorage.removeItem("amared_profiles_secret");
+function lock(){
+  SECRET = "";
   inpSecret.value = "";
+  secretMsg.className = "muted";
+  secretMsg.textContent = "";
   setState(false);
-  mgrCard.style.display = "none";
-  setGateError("Sesión bloqueada.");
 }
 
-// ---------- Add / Delete ----------
+// ---------- actions ----------
 async function addProfile(){
-  setMgrError("");
-  if(!UNLOCKED || !PROFILES_SECRET){
-    setMgrError("Primero debes ingresar la clave.");
+  addMsg.textContent = "";
+  if(!UNLOCKED || !SECRET){
+    addMsg.className = "err";
+    addMsg.textContent = "Primero desbloquea con la clave.";
     return;
   }
 
-  const name = String(inpName.value||"").trim();
-  const id = slugifyId(name);
-  const cats = getSelectedCategories();
+  const id = normalizeId(inpId.value);
+  const label = String(inpLabel.value||"").trim();
 
-  if(!name){
-    setMgrError("Escribe el nombre del perfil.");
-    return;
-  }
-  if(!id){
-    setMgrError("No se pudo generar el ID. Cambia el nombre.");
-    return;
-  }
-  if(!cats.length){
-    setMgrError("Selecciona al menos una categoría.");
+  if(!id || !label){
+    addMsg.className = "err";
+    addMsg.textContent = "Completa ID y Nombre.";
     return;
   }
 
-  showLoading("Guardando…","Creando/actualizando perfil.");
+  showLoading("Guardando…","Agregando perfil.");
   try{
-    await api("profiles_add", {
-      profiles_secret: PROFILES_SECRET,
-      profile_id: id,
-      label: name,
-      categories: cats.join(","), // string
-      created_by: "PROFILES_PAGE",
-      is_active: true
+    await api({
+      action:"profiles_add",
+      profiles_secret: SECRET,
+      profile: { id, label }
     });
-
-    inpName.value = "";
     inpId.value = "";
+    inpLabel.value = "";
+    addMsg.className = "ok";
+    addMsg.textContent = "Perfil agregado.";
     await refresh();
   }catch(e){
-    setMgrError(e.message || String(e));
+    addMsg.className = "err";
+    addMsg.textContent = e.message || String(e);
   }finally{
     hideLoading();
   }
 }
 
 async function deleteProfile(id){
-  setMgrError("");
-  if(!UNLOCKED || !PROFILES_SECRET) return;
+  if(!UNLOCKED || !SECRET) return;
 
   const ok = confirm(`¿Eliminar el perfil "${id}"?`);
   if(!ok) return;
 
-  showLoading("Eliminando…","Actualizando en la base de datos.");
+  showLoading("Guardando…","Eliminando perfil.");
   try{
-    // Soft delete: marca is_active=false
-    await api("profiles_delete", {
-      profiles_secret: PROFILES_SECRET,
-      profile_id: String(id)
+    await api({
+      action:"profiles_delete",
+      profiles_secret: SECRET,
+      id: String(id)
     });
     await refresh();
   }catch(e){
-    setMgrError(e.message || String(e));
+    alert(e.message || String(e));
   }finally{
     hideLoading();
   }
 }
 
-// ---------- Events ----------
-btnBack.addEventListener("click", ()=> history.back());
-
-btnUnlock.addEventListener("click", unlock);
-inpSecret.addEventListener("keydown", (e)=>{ if(e.key === "Enter") unlock(); });
-
-btnLogout.addEventListener("click", logout);
+// ---------- events ----------
+btnValidate.addEventListener("click", validateSecret);
+btnLock.addEventListener("click", lock);
+btnAdd.addEventListener("click", addProfile);
 btnReload.addEventListener("click", refresh);
 
-inpName.addEventListener("input", ()=>{
-  inpId.value = slugifyId(inpName.value);
-});
-
-btnAdd.addEventListener("click", addProfile);
-
-document.addEventListener("click", (e)=>{
+document.addEventListener("click", (e) => {
   const del = e.target?.getAttribute?.("data-del");
   if(del) deleteProfile(del);
 });
 
-// Bootstrap
 setState(false);
-if(PROFILES_SECRET){
-  inpSecret.value = PROFILES_SECRET;
-  unlock(); // auto-login
-}
-
-
+refresh();
