@@ -1,10 +1,21 @@
-/* kitchen.js (REFactor V3) — AMARED Cocina
-   V3:
-   ✅ Loader centrado (usa modalOverlay existente) + soporte para spinner si existe en HTML/CSS
-   ✅ Perfiles: reintenta profiles_list (sin admin_pin) y luego (con admin_pin)
-   ✅ Costos: reintenta costs_public_list (con admin_pin) y luego (sin admin_pin)
-   ✅ Costos NO más $0 por mismatch: normalización sin tildes + alias comunes
-   ✅ Acordeón por producto: solo muestra nombre + cantidad; al abrir carga ingredientes/costo
+/* kitchen.js (REFactor V4) — AMARED Cocina
+   V4 (lo que pediste):
+   ✅ En pasos con temporizador: se REEMPLAZA “Siguiente →” por “Iniciar temporizador”
+      y NO deja avanzar hasta iniciarlo.
+   ✅ Widget de temporizador global (overlay fijo) mostrando tiempo restante en vivo.
+   ✅ Último paso: botones “Finalizar postre” y “Finalizar lote”.
+      - Finalizar postre: marca el producto como hecho (local) y lo mueve a “Finalizados” en UI
+        (NO cambia kitchen_status a Listo; queda En proceso hasta el lote).
+      - Finalizar lote: confirma con cuenta regresiva de 2s y hace bulk update a “Listo”.
+   ✅ Si cierras el paso a paso SIN finalizar: revierte pedidos a “no iniciado”
+      (patch kitchen_status vacío) para que no quede trazabilidad errónea.
+   ✅ Confirmaciones con cuenta regresiva 2s para finalizar postre / finalizar lote / revertir.
+   ✅ Costos: usa action "costs_public_list" (hoja Costos_Ingredientes en backend).
+      (Si el backend no soporta, se muestra “—” sin romper la UI).
+   ✅ Trazabilidad: intenta registrar en hoja cocina_lotes mediante action "kitchen_lot_log"
+      (best-effort, si no existe no falla).
+
+   Nota: NO modifica Worker ni Apps Script; solo hace llamadas opcionales (best-effort).
 */
 
 (() => {
@@ -18,23 +29,20 @@
   const CUTOFF_HOUR = 15; // 3pm
   const BASE_FRIDGE_MINUTES = 30;
 
-  // Storage keys
-  const SS_KEY = "AMARED_KITCHEN_SESSION_V3";
+  const SS_KEY = "AMARED_KITCHEN_SESSION_V4";
   const LS_TIMER_KEY = "AMARED_KITCHEN_TIMERS_V1";
   const LS_DONE_KEY  = "AMARED_KITCHEN_DONE_V1";
 
-  // Fallback profiles (kitchen-profiles.js)
   const DEFAULT_PROFILES = (window.AMARED_KITCHEN_PROFILES && Array.isArray(window.AMARED_KITCHEN_PROFILES))
     ? window.AMARED_KITCHEN_PROFILES
     : [{ id: "esperanza", label: "Esperanza" }, { id: "cristian", label: "Cristian" }];
 
-  // Costs canonical sections (kitchen-costs.js)
   const COSTS_SECTIONS = (window.AMARED_COSTS_SECTIONS && Array.isArray(window.AMARED_COSTS_SECTIONS))
     ? window.AMARED_COSTS_SECTIONS
     : [];
 
   // =========================
-  // Products + Recipes (unitarias)
+  // Products + Recipes
   // =========================
   const PRODUCTS = [
     { id: "mousse_maracuya", name: "Mousse de Maracuyá" },
@@ -68,7 +76,7 @@
         { type:"normal", text:"Tritura las galletas (textura arenosa).", img:"assets/steps/mousse/step01.webp" },
         { type:"normal", text:"Mezcla galleta + mantequilla derretida hasta que compacte.", img:"assets/steps/mousse/step02.webp" },
         { type:"normal", text:"Porciona y compacta 25 g de base en cada vasito.", img:"assets/steps/mousse/step03.webp" },
-        { type:"timer_base", text:"Ingresa los vasitos con la base a la nevera (30 min). Presiona “Iniciar temporizador” cuando ya estén adentro.", img:"assets/steps/mousse/step04.webp" },
+        { type:"timer_base", text:"Ingresa los vasitos con la base a la nevera (30 min). Debes iniciar el temporizador para continuar.", img:"assets/steps/mousse/step04.webp" },
         { type:"normal", text:"En licuadora mezcla TODO junto: pulpa, leche condensada, crema, leche entera y vainilla (opcional).", img:"assets/steps/mousse/step05.webp" },
         { type:"normal", text:"En olla: calienta agua hasta tibia (sin hervir).", img:"assets/steps/mousse/step06.webp" },
         { type:"normal", text:"Agrega gelatina sin sabor y revuelve hasta disolver homogéneo.", img:"assets/steps/mousse/step07.webp" },
@@ -77,6 +85,7 @@
         { type:"normal", text:"Refrigera mínimo 8 horas o toda la noche.", img:"assets/steps/mousse/step10.webp" },
         { type:"normal", text:"Agregar chocorramo (20 g por postre).", img:"assets/steps/mousse/step11.webp" },
         { type:"normal", text:"Espolvorea chocolate con la forma del logo.", img:"assets/steps/mousse/step12.webp" },
+        { type:"final", text:"¡Listo! Verifica presentación y limpieza del área.", img:"assets/steps/mousse/step13.webp" },
       ],
     },
 
@@ -99,13 +108,14 @@
         { type:"normal", text:"Tritura galletas (textura arenosa).", img:"assets/steps/cheesecake/step01.webp" },
         { type:"normal", text:"Mezcla galleta + mantequilla derretida.", img:"assets/steps/cheesecake/step02.webp" },
         { type:"normal", text:"Porciona y compacta 25 g de base en cada vasito.", img:"assets/steps/cheesecake/step03.webp" },
-        { type:"timer_base", text:"Ingresa los vasitos con la base a la nevera (30 min). Presiona “Iniciar temporizador” cuando ya estén adentro.", img:"assets/steps/cheesecake/step04.webp" },
+        { type:"timer_base", text:"Ingresa los vasitos con la base a la nevera (30 min). Debes iniciar el temporizador para continuar.", img:"assets/steps/cheesecake/step04.webp" },
         { type:"normal", text:"Mezcla queso crema + crema + leche condensada + vainilla hasta homogéneo.", img:"assets/steps/cheesecake/step06.webp" },
         { type:"normal", text:"En olla: calienta agua tibia (sin hervir).", img:"assets/steps/cheesecake/step07.webp" },
         { type:"normal", text:"Agrega gelatina y revuelve hasta disolver homogéneo.", img:"assets/steps/cheesecake/step08.webp" },
         { type:"normal", text:"Integra la gelatina disuelta lentamente mientras mezclas.", img:"assets/steps/cheesecake/step09.webp" },
         { type:"normal", text:"Sirve sobre la base y refrigera.", img:"assets/steps/cheesecake/step10.webp" },
-        { type:"normal", text:"Decora espolvoreando harina de la galleta de leche (decoración).", img:"assets/steps/cheesecake/step11.webp" },
+        { type:"normal", text:"Decora espolvoreando harina de galleta de leche.", img:"assets/steps/cheesecake/step11.webp" },
+        { type:"final", text:"¡Listo! Verifica presentación y limpieza del área.", img:"assets/steps/cheesecake/step12.webp" },
       ],
     },
 
@@ -128,7 +138,7 @@
         { type:"normal", text:"Cocina y revuelve cada 3–4 min.", img:"assets/steps/arroz/step05.webp" },
         { type:"normal", text:"Agrega leche condensada cuando esté cremoso y cocina 5 min más.", img:"assets/steps/arroz/step06.webp" },
         { type:"normal", text:"Retira canela, reposa 10 min y sirve.", img:"assets/steps/arroz/step07.webp" },
-        { type:"normal", text:"Refrigera 2–3 horas. Queso solo al servir.", img:"assets/steps/arroz/step08.webp" },
+        { type:"final", text:"¡Listo! Enfría y refrigera. Queso solo al servir.", img:"assets/steps/arroz/step08.webp" },
       ],
     },
   };
@@ -156,7 +166,7 @@
   const loading = $("loading");
   const loadingTitle = $("loadingTitle");
   const loadingMsg = $("loadingMsg");
-  const loadingSpin = $("loadingSpin"); // opcional si lo agregas en HTML
+  const loadingSpin = $("loadingSpin"); // opcional si lo agregaste en HTML
 
   const costsModal = $("costsModal");
   const btnCloseCosts = $("btnCloseCosts");
@@ -169,7 +179,7 @@
   const state = {
     session: { operatorId: null, operatorLabel: null, pin: null },
     profiles: [],
-    pricesMap: {},            // normalizedKey2 -> cop_per_unit
+    pricesMap: {},
     costsLastUpdated: null,
 
     paidOrders: [],
@@ -178,10 +188,15 @@
 
     buckets: { today: [], infoTomorrow: [], inProgress: [], done: [] },
 
-    recipe: { open:false, productId:null, orderIds:[], units:0, stepIdx:0 },
+    recipe: {
+      open:false, productId:null, orderIds:[], units:0, stepIdx:0,
+      timerStarted: false,
+      startedAtIso: null,
+    },
 
-    timerTick: null,
+    widgetTick: null,
     refreshNonce: 0,
+    lastTimerProductId: null,
   };
 
   // =========================
@@ -195,12 +210,12 @@
     loadingTitle.textContent = title || "Cargando…";
     loadingMsg.textContent = msg || "Procesando";
     loading.style.display = "flex";
-    loading.setAttribute("aria-hidden", "false");
+    loading.setAttribute("aria-hidden","false");
   }
   function hideLoading(){
     if(!loading) return;
     loading.style.display = "none";
-    loading.setAttribute("aria-hidden", "true");
+    loading.setAttribute("aria-hidden","true");
   }
 
   function money(n){ return Math.round(Number(n||0)).toLocaleString("es-CO"); }
@@ -208,7 +223,6 @@
     const v = Math.round(Number(q||0) * 10) / 10;
     return v.toLocaleString("es-CO");
   }
-
   function escapeHtml(s){
     return String(s ?? "")
       .replaceAll("&","&amp;")
@@ -220,59 +234,49 @@
 
   async function api(payload){
     const res = await fetch(API_URL, {
-      method: "POST",
+      method:"POST",
       headers: {"Content-Type":"application/json"},
       body: JSON.stringify(payload || {}),
     });
 
     const out = await res.json().catch(async () => ({
-      ok: false,
+      ok:false,
       error: await res.text().catch(() => "Error"),
     }));
 
-    if(!out || out.ok !== true){
-      throw new Error(out?.error || "Error");
-    }
+    if(!out || out.ok !== true) throw new Error(out?.error || "Error");
     return out;
   }
-
   async function apiTry(payload){
-    try{ return await api(payload); }catch(e){ return { ok:false, error:String(e?.message||e) }; }
+    try { return await api(payload); } catch(e){ return { ok:false, error:String(e?.message||e) }; }
   }
 
   // =========================
-  // Normalización para match de costos
+  // Normalización costos
   // =========================
   function stripAccents(s){
     return String(s||"").normalize("NFD").replace(/[\u0300-\u036f]/g, "");
   }
   function normalizeKey1(s){
-    // quita paréntesis (unidades), baja a base
-    return String(s||"")
-      .replace(/\([^\)]*\)/g,"")
-      .replace(/\s{2,}/g," ")
-      .trim();
+    return String(s||"").replace(/\([^\)]*\)/g,"").replace(/\s{2,}/g," ").trim();
   }
   function normalizeKey2(s){
-    // sin tildes, solo letras/números, sin palabras irrelevantes
     const base = stripAccents(normalizeKey1(s)).toLowerCase();
-    const cleaned = base.replace(/[^a-z0-9\s]/g, " ").replace(/\s{2,}/g," ").trim();
+    const cleaned = base.replace(/[^a-z0-9\s]/g," ").replace(/\s{2,}/g," ").trim();
     const tokens = cleaned.split(" ").filter(t => t && !["de","del","la","el","sin","con","para","y","opcional","logo","decorativo","topping","harina"].includes(t));
     return tokens.join(" ");
   }
-
-  // Alias comunes: receta -> hoja costos
   const COST_ALIASES = {
     "pulpa maracuya": ["pulpa de maracuya","pulpa maracuya"],
     "galletas trituradas": ["galletas saladas","galletas","galletas trituradas"],
     "mantequilla": ["mantequilla sin sal","mantequilla"],
-    "leche condensada": ["leche condensada","leche condensada (ml)","leche condensada (g)"],
-    "crema de leche": ["crema de leche","crema de leche (ml)"],
+    "leche condensada": ["leche condensada"],
+    "crema de leche": ["crema de leche"],
     "gelatina sin sabor": ["gelatina sin sabor"],
-    "agua gelatina": ["agua","agua gelatina"],
+    "agua gelatina": ["agua gelatina","agua"],
     "chocolate en polvo": ["chocolate en polvo","chocolate"],
     "chocorramo": ["chocorramo"],
-    "queso crema": ["queso crema","queso crema (g)"],
+    "queso crema": ["queso crema"],
     "cafe preparado": ["cafe preparado","cafe"],
     "panela": ["panela"],
     "azucar": ["azucar"],
@@ -281,12 +285,10 @@
     "canela": ["canela"],
     "vainilla": ["vainilla"],
   };
-
   function priceLookup(recipeKey){
     const k2 = normalizeKey2(recipeKey);
     if(state.pricesMap[k2] != null) return Number(state.pricesMap[k2] || 0);
 
-    // intenta alias
     for(const [needle, alts] of Object.entries(COST_ALIASES)){
       if(k2.includes(needle) || needle.includes(k2)){
         for(const a of alts){
@@ -295,24 +297,19 @@
         }
       }
     }
-
-    // fallback: match parcial (contiene)
     const keys = Object.keys(state.pricesMap || {});
     const hit = keys.find(k => k && (k.includes(k2) || k2.includes(k)));
     if(hit) return Number(state.pricesMap[hit] || 0);
-
     return 0;
   }
 
   // =========================
-  // Time / reglas
+  // Time helpers
   // =========================
   function getBogotaParts(date){
     const fmt = new Intl.DateTimeFormat("en-CA", {
-      timeZone: TZ,
-      year:"numeric", month:"2-digit", day:"2-digit",
-      hour:"2-digit", minute:"2-digit", second:"2-digit",
-      hour12:false
+      timeZone: TZ, year:"numeric", month:"2-digit", day:"2-digit",
+      hour:"2-digit", minute:"2-digit", second:"2-digit", hour12:false
     });
     const parts = fmt.formatToParts(date);
     const get = (t) => parts.find(p => p.type === t)?.value;
@@ -329,7 +326,6 @@
     dt.setUTCDate(dt.getUTCDate() + days);
     return getBogotaParts(dt).key;
   }
-
   function computeProductionDayKeyForOrder(createdAt){
     const dt = new Date(createdAt);
     if (Number.isNaN(dt.getTime())) return null;
@@ -344,7 +340,6 @@
     if (p.hh >= CUTOFF_HOUR) return addDaysBogotaKey(orderDayKey, 1);
     return orderDayKey;
   }
-
   function getTodayProductionDayKey(){
     const now = new Date();
     const p = getBogotaParts(now);
@@ -353,7 +348,6 @@
     if (weekday === 0) return addDaysBogotaKey(p.key, 1);
     return p.key;
   }
-
   function getNextProductionDayKey(todayKey){
     const [Y,M,D] = todayKey.split("-").map(Number);
     const dt = new Date(Date.UTC(Y, M-1, D, 12, 0, 0));
@@ -363,13 +357,12 @@
     if (wd === 0) return addDaysBogotaKey(todayKey, 1);
     return addDaysBogotaKey(todayKey, 1);
   }
-
   function isSameBogotaDay(date, yyyy_mm_dd){
     return getBogotaParts(date).key === yyyy_mm_dd;
   }
 
   // =========================
-  // Orders: items + agregación
+  // Orders helpers
   // =========================
   function normalizeItemsFromOrder(order){
     const raw = order?.items_json;
@@ -383,7 +376,6 @@
     }
     return [];
   }
-
   function aggregateByProduct(orders){
     const map = new Map();
     for(const o of (orders || [])){
@@ -394,39 +386,28 @@
     }
     return { byProduct: map };
   }
-
   function getOrderIdsThatContainProduct(orders, productId){
     const ids = [];
     for(const o of (orders || [])){
       const items = normalizeItemsFromOrder(o);
-      if(items.some(it => it.id === productId && it.qty > 0)){
-        ids.push(String(o.order_id));
-      }
+      if(items.some(it => it.id === productId && it.qty > 0)) ids.push(String(o.order_id));
     }
     return ids;
   }
 
   // =========================
-  // Costs fetch (robusto)
+  // Costs fetch (Costos_Ingredientes via backend)
   // =========================
   async function fetchCostsPublic(){
     const pin = state.session.pin || "";
-
-    // 1) intenta con admin_pin
     let out = await apiTry({ action:"costs_public_list", admin_pin: pin });
-    if(out.ok === true){
-      return parseCosts(out);
-    }
+    if(out.ok === true) return parseCosts(out);
 
-    // 2) intenta sin admin_pin (por si el worker lo deja público)
     out = await apiTry({ action:"costs_public_list" });
-    if(out.ok === true){
-      return parseCosts(out);
-    }
+    if(out.ok === true) return parseCosts(out);
 
     return { map:{}, lastUpdated:null };
   }
-
   function parseCosts(out){
     const items = out.items || out.costs || [];
     const map = {};
@@ -446,53 +427,27 @@
     return { map, lastUpdated };
   }
 
-  function calcBatchIngredients(productId, units){
-    const recipe = RECIPE_UNIT[productId];
-    if (!recipe) return { lines:[], totalCost:0 };
-
-    let totalCost = 0;
-    const lines = (recipe.unitIngredients || []).map(ing => {
-      const totalQty = Number(ing.qty || 0) * Number(units || 0);
-      const pricePerUnit = priceLookup(ing.key);
-      const cost = totalQty * pricePerUnit;
-      totalCost += cost;
-
-      return { key: ing.key, qty: totalQty, pricePerUnit, cost };
-    });
-
-    return { lines, totalCost };
-  }
-
   // =========================
-  // Profiles fetch (robusto)
+  // Profiles fetch (kitchen only)
   // =========================
   async function fetchKitchenProfiles(){
     const pin = state.session.pin || "";
 
-    // 1) intenta sin pin (si worker lo deja público)
     let out = await apiTry({ action:"profiles_list", category:"kitchen" });
-    if(out.ok === true){
-      return parseProfiles(out);
-    }
+    if(out.ok === true) return parseProfiles(out);
 
-    // 2) intenta con admin_pin
     out = await apiTry({ action:"profiles_list", category:"kitchen", admin_pin: pin });
-    if(out.ok === true){
-      return parseProfiles(out);
-    }
+    if(out.ok === true) return parseProfiles(out);
 
     return DEFAULT_PROFILES.slice();
   }
-
   function parseProfiles(out){
     const arr = out.profiles || out.items || [];
     if(!Array.isArray(arr) || !arr.length) return DEFAULT_PROFILES.slice();
-
     return arr
       .filter(p => p && (p.id || p.profile_id) && p.label)
       .map(p => ({ id: String(p.id || p.profile_id), label: String(p.label) }));
   }
-
   function renderProfilesSelect(selectedId){
     const list = (Array.isArray(state.profiles) && state.profiles.length) ? state.profiles : DEFAULT_PROFILES;
     selOperator.innerHTML = `<option value="">Seleccionar…</option>` +
@@ -514,7 +469,6 @@
     sessionStorage.removeItem(SS_KEY);
     state.session = { operatorId:null, operatorLabel:null, pin:null };
   }
-
   function showLogin(){
     if(loginBox) loginBox.style.display = "block";
     if(app) app.style.display = "none";
@@ -529,7 +483,6 @@
   }
 
   async function validatePinBestEffort(pin){
-    // Si no existe la acción, list_orders lo validará
     const out = await apiTry({ action:"validate_admin_pin", admin_pin: pin });
     if(out.ok === true) return true;
     if(String(out.error||"").toLowerCase().includes("unknown action")) return true;
@@ -537,7 +490,7 @@
   }
 
   // =========================
-  // Done + timers
+  // Local done + timers
   // =========================
   function getDoneMap(){
     const raw = localStorage.getItem(LS_DONE_KEY);
@@ -563,7 +516,8 @@
   function setTimersMap(obj){ localStorage.setItem(LS_TIMER_KEY, JSON.stringify(obj || {})); }
   function setTimerEnd(dayKey, productId, endMs){
     const m = getTimersMap(); if(!m[dayKey]) m[dayKey] = {};
-    m[dayKey][productId] = Number(endMs || 0); setTimersMap(m);
+    m[dayKey][productId] = Number(endMs || 0);
+    setTimersMap(m);
   }
   function getTimerEnd(dayKey, productId){
     const m = getTimersMap(); return Number(m?.[dayKey]?.[productId] || 0);
@@ -574,11 +528,27 @@
   }
 
   // =========================
+  // Trazabilidad (best-effort) — cocina_lotes
+  // =========================
+  async function logLotEvent(eventType, extra){
+    const payload = {
+      action: "kitchen_lot_log",
+      admin_pin: state.session.pin || "",
+      operator: state.session.operatorLabel || "COCINA",
+      day_key: state.todayKey || "",
+      event: eventType || "",
+      product_id: state.recipe.productId || "",
+      order_ids: (state.recipe.orderIds || []).map(String),
+      extra: extra || {},
+    };
+    await apiTry(payload);
+  }
+
+  // =========================
   // Bulk update
   // =========================
   async function kitchenBulkUpdate(orderIds, patch){
     if(!Array.isArray(orderIds) || orderIds.length === 0) return;
-
     await api({
       action: "kitchen_bulk_update",
       admin_pin: state.session.pin || "",
@@ -586,6 +556,25 @@
       order_ids: orderIds.map(String),
       patch: patch || {},
     });
+  }
+
+  // =========================
+  // Costs calculation
+  // =========================
+  function calcBatchIngredients(productId, units){
+    const recipe = RECIPE_UNIT[productId];
+    if (!recipe) return { lines:[], totalCost:0 };
+
+    let totalCost = 0;
+    const lines = (recipe.unitIngredients || []).map(ing => {
+      const totalQty = Number(ing.qty || 0) * Number(units || 0);
+      const pricePerUnit = priceLookup(ing.key);
+      const cost = totalQty * pricePerUnit;
+      totalCost += cost;
+      return { key: ing.key, qty: totalQty, pricePerUnit, cost };
+    });
+
+    return { lines, totalCost };
   }
 
   // =========================
@@ -602,7 +591,7 @@
     const out = await api({
       action: "list_orders",
       payment_status: "Pagado",
-      admin_pin: state.session.pin, // importante
+      admin_pin: state.session.pin,
     });
 
     if(myNonce !== state.refreshNonce) return;
@@ -637,11 +626,88 @@
   }
 
   // =========================
+  // Confirm modal con cuenta regresiva (2s)
+  // =========================
+  function ensureConfirmOverlay(){
+    if(document.getElementById("amConfirmOverlay")) return;
+
+    const el = document.createElement("div");
+    el.innerHTML = `
+      <div id="amConfirmOverlay" class="modalOverlay" style="display:none;" aria-hidden="true">
+        <div class="modalBox" style="max-width:520px;">
+          <div style="font-weight:950; font-size:18px;" id="amConfTitle">Confirmar</div>
+          <div class="muted small" id="amConfMsg" style="margin-top:8px;"></div>
+
+          <div class="pill" id="amConfCountdown" style="margin-top:12px; display:inline-flex;">2</div>
+
+          <div class="rowBetween" style="margin-top:14px;">
+            <button id="amConfCancel" class="btn secondary" type="button">Cancelar</button>
+            <button id="amConfOk" class="btn primary" type="button" disabled>Confirmar</button>
+          </div>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(el);
+  }
+
+  function confirmWithDelay({ title, message, seconds=2, okText="Confirmar" }){
+    ensureConfirmOverlay();
+
+    const ov = document.getElementById("amConfirmOverlay");
+    const t = document.getElementById("amConfTitle");
+    const m = document.getElementById("amConfMsg");
+    const cd = document.getElementById("amConfCountdown");
+    const bCancel = document.getElementById("amConfCancel");
+    const bOk = document.getElementById("amConfOk");
+
+    t.textContent = title || "Confirmar";
+    m.textContent = message || "";
+    bOk.textContent = okText || "Confirmar";
+
+    ov.style.display = "flex";
+    ov.setAttribute("aria-hidden","false");
+
+    let remaining = Math.max(0, Number(seconds||0));
+    cd.textContent = String(remaining);
+    bOk.disabled = true;
+
+    let interval = null;
+
+    const close = (val) => {
+      if(interval) clearInterval(interval);
+      ov.style.display = "none";
+      ov.setAttribute("aria-hidden","true");
+      bCancel.onclick = null;
+      bOk.onclick = null;
+      resolve(val);
+    };
+
+    let resolve;
+    const p = new Promise((res) => { resolve = res; });
+
+    bCancel.onclick = () => close(false);
+    bOk.onclick = () => close(true);
+
+    interval = setInterval(() => {
+      remaining -= 1;
+      cd.textContent = String(Math.max(0, remaining));
+      if(remaining <= 0){
+        bOk.disabled = false;
+        clearInterval(interval);
+        interval = null;
+        cd.textContent = "Listo";
+      }
+    }, 1000);
+
+    return p;
+  }
+
+  // =========================
   // UI: acordeón por producto
   // =========================
   function renderProductAccordions(container, orders, opts){
     if(!container) return;
-    const { titlePill, showActions } = opts || {};
+    const { titlePill, showActions, showInformative } = opts || {};
 
     const agg = aggregateByProduct(orders);
     const cards = [];
@@ -652,12 +718,10 @@
 
       const doneLocal = isProductDone(state.todayKey, p.id);
       const orderIds = getOrderIdsThatContainProduct(orders, p.id);
-
       const hero = HERO_IMG[p.id] || "";
 
-      // Body se carga "lazy": dejamos placeholder y cuando se abre calculamos ingredientes/costo
       cards.push(`
-        <div class="pCard" data-pid="${escapeHtml(p.id)}" data-units="${qty}">
+        <div class="pCard ${doneLocal ? "open" : ""}" data-pid="${escapeHtml(p.id)}" data-units="${qty}">
           <div class="pHead" style="cursor:pointer;">
             <div style="display:flex; gap:12px; align-items:center; min-width:0;">
               ${hero ? `<img src="${escapeHtml(hero)}" alt="" style="width:56px;height:56px;object-fit:cover;border-radius:14px;border:1px solid rgba(64,17,2,.10);" />` : ""}
@@ -669,7 +733,7 @@
             </div>
 
             <div class="row" style="gap:10px; align-items:center;">
-              ${doneLocal ? `<div class="pill">✅ Listo</div>` : ``}
+              ${doneLocal ? `<div class="pill">✅ Hecho</div>` : ``}
               <div class="pill">Ver</div>
             </div>
           </div>
@@ -680,16 +744,18 @@
 
           ${showActions ? `
             <div class="rowBetween" style="margin-top:10px;">
-              <button class="btn secondary" type="button" data-act="start" ${doneLocal ? "disabled" : ""}>Iniciar</button>
+              <button class="btn secondary" type="button" data-act="start" ${doneLocal ? "disabled" : ""}>Iniciar paso a paso</button>
               <div class="row" style="gap:10px;">
                 <button class="btn secondary" type="button" data-act="timer">⏱️ 30 min</button>
-                <button class="btn secondary" type="button" data-act="done" ${doneLocal ? "disabled" : ""}>✅ Marcar listo</button>
+                <button class="btn secondary" type="button" data-act="done" ${doneLocal ? "disabled" : ""}>Finalizar postre</button>
               </div>
             </div>
             <div class="muted small" style="margin-top:8px;">
               Pedido(s) asociados: <b>${orderIds.length}</b>
             </div>
           ` : ``}
+
+          ${showInformative ? `<div class="muted small" style="margin-top:10px;">* Informativo: no se inicia producción en esta vista.</div>` : ``}
         </div>
       `);
     }
@@ -708,16 +774,14 @@
       const pid = card.getAttribute("data-pid");
       const units = Number(card.getAttribute("data-units") || 0);
 
-      // click en botones
       const btn = e.target.closest("button[data-act]");
       if(btn){
         const act = btn.getAttribute("data-act");
         if(act === "start"){ await startRecipeFlow(pid, orders); return; }
         if(act === "timer"){ startBaseTimer(pid); return; }
-        if(act === "done"){ await markProductAsDone(pid, orders); return; }
+        if(act === "done"){ await finalizePostre(pid, orders); return; }
       }
 
-      // click en header => toggle y lazy load
       const head = e.target.closest(".pHead");
       if(!head) return;
 
@@ -754,60 +818,105 @@
     renderProductAccordions(todayWrap, state.buckets.today, {
       titlePill: `Producción ${state.todayKey}`,
       showActions: true,
+      showInformative: false,
     });
 
     renderProductAccordions(tomorrowWrap, state.buckets.infoTomorrow, {
       titlePill: `Informativo (${state.nextKey})`,
       showActions: false,
+      showInformative: true,
     });
 
     renderProductAccordions(inProgressWrap, state.buckets.inProgress, {
       titlePill: "En proceso",
       showActions: true,
+      showInformative: false,
     });
 
     renderProductAccordions(doneWrap, state.buckets.done, {
-      titlePill: "Finalizados",
+      titlePill: "Finalizados (DB)",
       showActions: false,
+      showInformative: false,
     });
 
     renderFinalizeLotButton();
   }
 
   // =========================
-  // Receta overlay (igual que antes, mantenido)
+  // Overlay: Receta UX mejorada + Timer lock
   // =========================
-  function ensureOverlays(){
+  function injectRecipeStyles(){
+    if(document.getElementById("amRecipeStylesV4")) return;
+    const st = document.createElement("style");
+    st.id = "amRecipeStylesV4";
+    st.textContent = `
+      .amRecipeGrid{ display:grid; grid-template-columns: 1.1fr .9fr; gap:14px; margin-top:12px; }
+      .amRecipeCard{ background: rgba(255,255,255,.88); border:1px solid rgba(64,17,2,.12); border-radius: 18px; padding:14px; }
+      .amProgress{ height:8px; border-radius:999px; background: rgba(64,17,2,.08); overflow:hidden; margin-top:10px; }
+      .amProgress > div{ height:100%; width:0%; background: rgba(245,110,150,.9); border-radius:999px; }
+      .amStepTitle{ font-weight: 950; font-size: 18px; }
+      .amStepText{ margin-top:10px; font-weight: 900; font-size: 16px; }
+      .amStepHint{ margin-top:8px; }
+      .amRecipeImg{ width:100%; height:auto; border-radius: 16px; border:1px solid rgba(64,17,2,.10); display:none; }
+      .amStickyTimer{ position: fixed; right: 18px; top: 78px; z-index: 99997; display:none; }
+      .amStickyTimer .pill{ box-shadow: var(--shadow); display:flex; gap:10px; align-items:center; }
+      .amStickyTimer .tbig{ font-weight: 950; font-size: 14px; }
+      @media (max-width: 900px){
+        .amRecipeGrid{ grid-template-columns: 1fr; }
+        .amStickyTimer{ top: 68px; }
+      }
+    `;
+    document.head.appendChild(st);
+  }
+
+  function ensureRecipeOverlay(){
+    injectRecipeStyles();
+
     if(document.getElementById("amaredRecipeOverlay")) return;
 
     const wrap = document.createElement("div");
     wrap.innerHTML = `
       <div id="amaredRecipeOverlay" class="modalOverlay" aria-hidden="true" style="display:none;">
-        <div class="modalBox" style="max-width:900px;">
+        <div class="modalBox" style="max-width:980px;">
           <div class="rowBetween">
             <div>
-              <div style="font-weight:950; font-size:18px;" id="amRecipeTitle">Receta</div>
+              <div class="amStepTitle" id="amRecipeTitle">Receta</div>
               <div class="muted small" id="amRecipeSub" style="margin-top:6px;"></div>
+              <div class="amProgress"><div id="amProgBar"></div></div>
             </div>
             <button id="amRecipeClose" class="btn secondary" type="button">Cerrar</button>
           </div>
 
-          <div style="margin-top:12px;">
-            <div class="rowBetween">
-              <div class="pill" id="amStepCounter">Paso</div>
-              <div class="pill" id="amTimerPill" style="display:none;">⏱️ <span id="amTimerTxt"></span></div>
+          <div class="amRecipeGrid">
+            <div class="amRecipeCard">
+              <div class="rowBetween">
+                <div class="pill" id="amStepCounter">Paso</div>
+                <div class="pill" id="amTimerInline" style="display:none;">⏱️ <span id="amTimerTxt"></span></div>
+              </div>
+
+              <div id="amStepText" class="amStepText"></div>
+              <div id="amStepHint" class="muted small amStepHint"></div>
+
+              <div class="rowBetween" style="margin-top:14px;">
+                <button id="amPrev" class="btn secondary" type="button">← Anterior</button>
+                <div class="row" style="gap:10px;">
+                  <button id="amNextOrTimer" class="btn primary" type="button">Siguiente →</button>
+                </div>
+              </div>
             </div>
 
-            <div id="amStepText" style="margin-top:10px; font-weight:900;"></div>
-            <div class="muted small" id="amStepHint" style="margin-top:6px;"></div>
+            <div class="amRecipeCard">
+              <img id="amStepImg" class="amRecipeImg" alt="" />
+              <div id="amImgFallback" class="muted small" style="display:none;">Sin imagen para este paso.</div>
 
-            <img id="amStepImg" alt="" style="width:100%; height:auto; border-radius:16px; border:1px solid rgba(64,17,2,0.10); margin-top:10px; display:none;" />
-
-            <div class="rowBetween" style="margin-top:12px;">
-              <button id="amPrev" class="btn secondary" type="button">← Anterior</button>
-              <div class="row" style="gap:10px;">
-                <button id="amStartTimer" class="btn secondary" type="button" style="display:none;">Iniciar temporizador</button>
-                <button id="amNext" class="btn primary" type="button">Siguiente →</button>
+              <div id="amFinalActions" style="display:none; margin-top:14px;">
+                <div class="rowBetween">
+                  <button id="amFinishPostre" class="btn secondary" type="button">Finalizar postre</button>
+                  <button id="amFinishLote" class="btn primary" type="button">Finalizar lote</button>
+                </div>
+                <div class="muted small" style="margin-top:10px;">
+                  * “Finalizar postre” lo marca como hecho (UI). “Finalizar lote” actualiza la base de datos a <b>Listo</b>.
+                </div>
               </div>
             </div>
           </div>
@@ -815,13 +924,24 @@
       </div>
 
       <div id="amaredToast" class="pill" style="position:fixed; left:50%; transform:translateX(-50%); bottom:18px; z-index:99999; display:none;"></div>
+
+      <div id="amStickyTimer" class="amStickyTimer">
+        <div class="pill">
+          <span>⏱️</span>
+          <div style="display:flex; flex-direction:column; line-height:1.15;">
+            <span class="tbig" id="amStickyLabel">Temporizador</span>
+            <span class="muted small" id="amStickyTime">00:00</span>
+          </div>
+        </div>
+      </div>
     `;
     document.body.appendChild(wrap);
 
-    document.getElementById("amRecipeClose").onclick = closeRecipe;
+    document.getElementById("amRecipeClose").onclick = onRecipeClose;
     document.getElementById("amPrev").onclick = () => stepMove(-1);
-    document.getElementById("amNext").onclick = () => stepMove(1);
-    document.getElementById("amStartTimer").onclick = () => { if(state.recipe.productId) startBaseTimer(state.recipe.productId); };
+    document.getElementById("amNextOrTimer").onclick = onNextOrTimer;
+    document.getElementById("amFinishPostre").onclick = () => finalizePostreFromOverlay();
+    document.getElementById("amFinishLote").onclick = () => finalizeLoteFromOverlay();
   }
 
   function toast(msg){
@@ -834,7 +954,7 @@
   }
 
   function openRecipe(productId, orderIds, units){
-    ensureOverlays();
+    ensureRecipeOverlay();
     const overlay = document.getElementById("amaredRecipeOverlay");
     overlay.style.display = "flex";
     overlay.setAttribute("aria-hidden","false");
@@ -844,6 +964,8 @@
     state.recipe.orderIds = orderIds || [];
     state.recipe.units = Number(units || 0);
     state.recipe.stepIdx = 0;
+    state.recipe.timerStarted = false;
+    state.recipe.startedAtIso = new Date().toISOString();
 
     renderRecipeStep();
   }
@@ -859,6 +981,8 @@
     state.recipe.orderIds = [];
     state.recipe.units = 0;
     state.recipe.stepIdx = 0;
+    state.recipe.timerStarted = false;
+    state.recipe.startedAtIso = null;
   }
 
   function stepMove(delta){
@@ -868,7 +992,29 @@
     const steps = RECIPE_UNIT[pid]?.steps || [];
     const next = Math.max(0, Math.min(steps.length - 1, state.recipe.stepIdx + delta));
     state.recipe.stepIdx = next;
+
+    state.recipe.timerStarted = false;
     renderRecipeStep();
+  }
+
+  function onNextOrTimer(){
+    const pid = state.recipe.productId;
+    if(!pid) return;
+
+    const steps = RECIPE_UNIT[pid]?.steps || [];
+    const st = steps[state.recipe.stepIdx] || null;
+
+    if(st?.type === "timer_base"){
+      if(!state.recipe.timerStarted){
+        startBaseTimer(pid);
+        state.recipe.timerStarted = true;
+        toast("⏱️ Temporizador iniciado. Ya puedes continuar.");
+        renderRecipeStep();
+        return;
+      }
+    }
+
+    stepMove(1);
   }
 
   function renderRecipeStep(){
@@ -885,11 +1031,26 @@
     const text = document.getElementById("amStepText");
     const hint = document.getElementById("amStepHint");
     const img = document.getElementById("amStepImg");
-    const btnTimer = document.getElementById("amStartTimer");
+    const imgFallback = document.getElementById("amImgFallback");
+    const btn = document.getElementById("amNextOrTimer");
+    const finalActions = document.getElementById("amFinalActions");
 
     title.textContent = `Receta · ${prod ? prod.name : pid}`;
     sub.textContent = `Lote: ${state.recipe.units} unidades · Operador: ${state.session.operatorLabel || "—"}`;
+
     counter.textContent = `Paso ${state.recipe.stepIdx + 1} / ${steps.length}`;
+
+    const prog = document.getElementById("amProgBar");
+    if(prog){
+      const pct = Math.round(((state.recipe.stepIdx + 1) / Math.max(1, steps.length)) * 100);
+      prog.style.width = pct + "%";
+    }
+
+    if(finalActions){
+      finalActions.style.display = (st?.type === "final") ? "block" : "none";
+    }
+
+    renderInlineTimer(pid);
 
     if(st && st.type === "batch_ingredients"){
       const { lines, totalCost } = calcBatchIngredients(pid, state.recipe.units);
@@ -908,41 +1069,85 @@
           </div>
         `).join("")}
       `;
-      if(img){ img.style.display = "none"; img.src = ""; }
-      if(btnTimer){ btnTimer.style.display = "none"; }
+
+      setRecipeImage("", img, imgFallback);
+      btn.style.display = "inline-flex";
+      btn.disabled = false;
+      btn.textContent = "Siguiente →";
       return;
     }
 
     text.textContent = st?.text || "";
-    hint.textContent = (st?.type === "timer_base")
-      ? "Este paso tiene temporizador. Inícialo cuando la base ya esté en la nevera."
-      : "";
 
-    if(img){
-      img.onerror = () => { img.style.display = "none"; img.src = ""; };
-      const fallback = HERO_IMG[pid] || "";
-      const src = st?.img || fallback;
-      if(src){
-        img.src = src;
-        img.style.display = "block";
+    if(st?.type === "timer_base"){
+      if(!state.recipe.timerStarted){
+        btn.textContent = "Iniciar temporizador";
+        btn.disabled = false;
       }else{
-        img.style.display = "none";
-        img.src = "";
+        btn.textContent = "Siguiente →";
+        btn.disabled = false;
       }
+      hint.textContent = "Este paso exige temporizador. Inícialo para poder continuar.";
+    } else if(st?.type === "final"){
+      btn.textContent = "Siguiente →";
+      btn.disabled = true;
+      hint.textContent = "Finaliza el postre o el lote con los botones de la derecha.";
+    } else {
+      btn.textContent = "Siguiente →";
+      btn.disabled = false;
+      hint.textContent = "";
     }
 
-    if(btnTimer){
-      btnTimer.style.display = (st?.type === "timer_base") ? "inline-flex" : "none";
-    }
+    setRecipeImage(st?.img || HERO_IMG[pid] || "", img, imgFallback);
+  }
 
-    renderTimerPill(pid);
+  function setRecipeImage(src, imgEl, fallbackEl){
+    if(!imgEl) return;
+    imgEl.onerror = () => {
+      imgEl.style.display = "none";
+      if(fallbackEl) fallbackEl.style.display = "block";
+      imgEl.src = "";
+    };
+    if(src){
+      imgEl.src = src;
+      imgEl.style.display = "block";
+      if(fallbackEl) fallbackEl.style.display = "none";
+    }else{
+      imgEl.style.display = "none";
+      if(fallbackEl) fallbackEl.style.display = "block";
+      imgEl.src = "";
+    }
   }
 
   // =========================
-  // Timer
+  // Timer + global widget
   // =========================
-  function renderTimerPill(productId){
-    const pill = document.getElementById("amTimerPill");
+  function msToMMSS(ms){
+    const s = Math.max(0, Math.floor(ms / 1000));
+    const mm = String(Math.floor(s / 60)).padStart(2,"0");
+    const ss = String(s % 60).padStart(2,"0");
+    return `${mm}:${ss}`;
+  }
+
+  function startBaseTimer(productId){
+    const existing = getTimerEnd(state.todayKey, productId);
+    const now = Date.now();
+    if(existing && existing > now){
+      toast("⏱️ Ya hay un temporizador activo para este postre.");
+      startWidgetTicker();
+      return;
+    }
+
+    const end = Date.now() + BASE_FRIDGE_MINUTES * 60 * 1000;
+    setTimerEnd(state.todayKey, productId, end);
+    state.lastTimerProductId = productId;
+    toast(`⏱️ Temporizador iniciado: ${BASE_FRIDGE_MINUTES} min`);
+
+    startWidgetTicker();
+  }
+
+  function renderInlineTimer(productId){
+    const pill = document.getElementById("amTimerInline");
     const txt = document.getElementById("amTimerTxt");
     if(!pill || !txt) return;
 
@@ -958,32 +1163,84 @@
     }
   }
 
-  function msToMMSS(ms){
-    const s = Math.max(0, Math.floor(ms / 1000));
-    const mm = String(Math.floor(s / 60)).padStart(2,"0");
-    const ss = String(s % 60).padStart(2,"0");
-    return `${mm}:${ss}`;
+  function startWidgetTicker(){
+    const widget = document.getElementById("amStickyTimer");
+    const label = document.getElementById("amStickyLabel");
+    const time = document.getElementById("amStickyTime");
+    if(!widget || !label || !time) return;
+
+    if(state.widgetTick) return;
+
+    state.widgetTick = setInterval(() => {
+      const now = Date.now();
+      const m = getTimersMap();
+      const day = m?.[state.todayKey] || {};
+      const entries = Object.entries(day)
+        .map(([pid, end]) => ({ pid, end: Number(end||0) }))
+        .filter(x => x.end > now)
+        .sort((a,b) => a.end - b.end);
+
+      if(entries.length === 0){
+        widget.style.display = "none";
+        clearInterval(state.widgetTick);
+        state.widgetTick = null;
+        return;
+      }
+
+      const top = entries[0];
+      const prod = PRODUCTS.find(p => p.id === top.pid);
+      label.textContent = prod ? prod.name : "Temporizador";
+      time.textContent = msToMMSS(top.end - now);
+      widget.style.display = "block";
+
+      if(state.recipe.open && state.recipe.productId){
+        renderInlineTimer(state.recipe.productId);
+      }
+    }, 250);
   }
 
-  function startBaseTimer(productId){
-    const end = Date.now() + BASE_FRIDGE_MINUTES * 60 * 1000;
-    setTimerEnd(state.todayKey, productId, end);
-    toast(`⏱️ Temporizador iniciado: ${BASE_FRIDGE_MINUTES} min`);
+  // =========================
+  // Close behavior (revert if not finalized)
+  // =========================
+  async function onRecipeClose(){
+    const pid = state.recipe.productId;
+    const ids = (state.recipe.orderIds || []).slice();
 
-    if(state.timerTick) clearInterval(state.timerTick);
-    state.timerTick = setInterval(() => {
-      if(state.recipe.open && state.recipe.productId){
-        renderTimerPill(state.recipe.productId);
-      }
-    }, 500);
+    if(!pid || ids.length === 0){
+      closeRecipe();
+      return;
+    }
 
-    if(state.recipe.open && state.recipe.productId === productId){
-      renderTimerPill(productId);
+    if(isProductDone(state.todayKey, pid)){
+      closeRecipe();
+      return;
+    }
+
+    const ok = await confirmWithDelay({
+      title: "Salir del paso a paso",
+      message: "Esto revertirá el estado para que no aparezca como iniciado. ¿Deseas salir?",
+      seconds: 2,
+      okText: "Salir y revertir"
+    });
+
+    if(!ok) return;
+
+    showLoading("Revirtiendo…", "Sincronizando estado.");
+    try{
+      await kitchenBulkUpdate(ids, { kitchen_status: "" });
+      await logLotEvent("cancel_step_by_step", { product_id: pid });
+      await refresh();
+      closeRecipe();
+      toast("Revertido: no iniciado.");
+    } catch(e){
+      alert(e?.message || String(e));
+    } finally {
+      hideLoading();
     }
   }
 
   // =========================
-  // Actions
+  // Start flow
   // =========================
   async function startRecipeFlow(productId, baseOrders){
     const orders = baseOrders || [];
@@ -996,6 +1253,7 @@
     showLoading("Iniciando…", "Marcando pedidos en proceso…");
     try{
       await kitchenBulkUpdate(orderIds, { kitchen_status:"En proceso" });
+      await logLotEvent("start_product", { product_id: productId, units });
       await refresh();
       openRecipe(productId, orderIds, units);
     } catch(e){
@@ -1005,26 +1263,50 @@
     }
   }
 
-  async function markProductAsDone(productId, baseOrders){
+  // =========================
+  // Finalizar postre (UI local) / Finalizar lote (DB)
+  // =========================
+  async function finalizePostre(productId, baseOrders){
     const orders = baseOrders || [];
-    const orderIds = getOrderIdsThatContainProduct(orders, productId);
-    if(orderIds.length === 0){ toast("No hay pedidos para este producto."); return; }
+    const ids = getOrderIdsThatContainProduct(orders, productId);
+    if(ids.length === 0){ toast("No hay pedidos para este producto."); return; }
 
-    const ok = confirm("¿Marcar este producto como LISTO para todos sus pedidos?");
+    const ok = await confirmWithDelay({
+      title: "Finalizar postre",
+      message: "Esto marcará este postre como HECHO en la vista. (El lote se finaliza al final).",
+      seconds: 2,
+      okText: "Finalizar postre"
+    });
     if(!ok) return;
 
-    showLoading("Finalizando…", "Guardando estado…");
-    try{
-      await kitchenBulkUpdate(orderIds, { kitchen_status:"Listo" });
-      markProductDone(state.todayKey, productId, true);
-      clearTimer(state.todayKey, productId);
-      toast("✅ Producto marcado como listo.");
-      await refresh();
-    } catch(e){
-      alert(e?.message || String(e));
-    } finally {
-      hideLoading();
-    }
+    markProductDone(state.todayKey, productId, true);
+    clearTimer(state.todayKey, productId);
+    await logLotEvent("finish_product", { product_id: productId });
+    toast("✅ Postre marcado como hecho.");
+    renderAll();
+    renderFinalizeLotButton();
+  }
+
+  async function finalizePostreFromOverlay(){
+    const pid = state.recipe.productId;
+    if(!pid) return;
+
+    const ok = await confirmWithDelay({
+      title: "Finalizar postre",
+      message: "Marcarás este postre como HECHO en la vista. (El lote se finaliza al final).",
+      seconds: 2,
+      okText: "Finalizar postre"
+    });
+    if(!ok) return;
+
+    markProductDone(state.todayKey, pid, true);
+    clearTimer(state.todayKey, pid);
+    await logLotEvent("finish_product", { product_id: pid });
+
+    toast("✅ Postre marcado como hecho.");
+    closeRecipe();
+    renderAll();
+    renderFinalizeLotButton();
   }
 
   function allProductsDoneForToday(){
@@ -1035,9 +1317,15 @@
     return needed.every(pid => isProductDone(state.todayKey, pid));
   }
 
+  function getTodayOrderIds(){
+    const todayAll = state.paidOrders.filter(o => o.__prod_day === state.todayKey);
+    return todayAll.map(o => String(o.order_id));
+  }
+
   function renderFinalizeLotButton(){
     const existing = document.getElementById("amFinalizeLot");
     if(existing) existing.remove();
+
     if(!allProductsDoneForToday()) return;
 
     const btn = document.createElement("button");
@@ -1052,36 +1340,47 @@
     btn.style.boxShadow = "var(--shadow)";
 
     btn.onclick = async () => {
-      const ok = confirm("¿Finalizar lote? Esto dejará todo en 'Listo' (si apareció algo nuevo).");
-      if(!ok) return;
-
-      const todayAll = state.paidOrders.filter(o => o.__prod_day === state.todayKey);
-      const stillNotDone = todayAll.filter(o => String(o.kitchen_status || "") !== "Listo");
-      const ids = stillNotDone.map(o => String(o.order_id));
-
-      showLoading("Finalizando lote…", "Aplicando cambios…");
-      try{
-        if(ids.length){
-          await kitchenBulkUpdate(ids, { kitchen_status:"Listo" });
-        }
-        toast("✅ Lote finalizado.");
-        await refresh();
-      } catch(e){
-        alert(e?.message || String(e));
-      } finally {
-        hideLoading();
-      }
+      await finalizeLote();
     };
 
     document.body.appendChild(btn);
   }
 
+  async function finalizeLoteFromOverlay(){
+    await finalizeLote();
+  }
+
+  async function finalizeLote(){
+    const ids = getTodayOrderIds();
+    if(ids.length === 0){ toast("No hay pedidos para finalizar."); return; }
+
+    const ok = await confirmWithDelay({
+      title: "Finalizar lote",
+      message: "Esto actualizará la base de datos y pasará los pedidos de En proceso a Listo.",
+      seconds: 2,
+      okText: "Finalizar lote"
+    });
+    if(!ok) return;
+
+    showLoading("Finalizando lote…", "Actualizando base de datos.");
+    try{
+      await kitchenBulkUpdate(ids, { kitchen_status:"Listo" });
+      await logLotEvent("finish_lot", { day_key: state.todayKey });
+      toast("✅ Lote finalizado. Base de datos actualizada.");
+      closeRecipe();
+      await refresh();
+    } catch(e){
+      alert(e?.message || String(e));
+    } finally {
+      hideLoading();
+    }
+  }
+
   // =========================
-  // Costs modal (read-only) — más agradable
+  // Costs modal (read-only)
   // =========================
   function ensureCostsButton(){
     if(document.getElementById("btnCostsRO")) return;
-
     const headerBtns = btnRefresh?.parentElement;
     if(!headerBtns) return;
 
@@ -1094,10 +1393,8 @@
     btn.onclick = openCostsModal;
 
     headerBtns.insertBefore(btn, btnRefresh);
-
     if(btnCloseCosts) btnCloseCosts.onclick = closeCostsModal;
   }
-
   function openCostsModal(){
     if(!costsModal) return;
     costsGateErr.textContent = "";
@@ -1105,19 +1402,16 @@
     costsModal.setAttribute("aria-hidden","false");
     renderCostsReadOnly();
   }
-
   function closeCostsModal(){
     if(!costsModal) return;
     costsModal.style.display = "none";
     costsModal.setAttribute("aria-hidden","true");
   }
-
   function renderCostsReadOnly(){
     if(!costsEditor) return;
 
-    const keys = Object.keys(state.pricesMap || {});
-    const list = keys
-      .map(k => ({ k, v: Number(state.pricesMap[k]||0) }))
+    const keys = Object.keys(state.pricesMap || {}).sort((a,b)=>a.localeCompare(b,"es"));
+    const list = keys.map(k => ({ k, v: Number(state.pricesMap[k]||0) }))
       .sort((a,b)=> (b.v-a.v) || a.k.localeCompare(b.k,"es"));
 
     const htmlList = list.map(it => `
@@ -1134,7 +1428,7 @@
     costsEditor.innerHTML = meta + `
       <div class="pCard open">
         <div class="rowBetween">
-          <div style="font-weight:950;">Costos por unidad (normalizados)</div>
+          <div style="font-weight:950;">Costos por unidad</div>
           <div class="pill">${keys.length} items</div>
         </div>
         <div class="accBody" style="margin-top:10px; max-height:55vh; overflow:auto;">
@@ -1173,11 +1467,9 @@
     }
 
     showLoading("Validando…", "Verificando acceso…");
-
     try{
       await validatePinBestEffort(pin);
 
-      // sesión inicial
       const labelFallback = (state.profiles.find(p => p.id === selectedId)?.label) || selectedId;
       state.session = { operatorId: selectedId, operatorLabel: labelFallback, pin };
       saveSession();
@@ -1185,7 +1477,6 @@
       showApp();
       ensureCostsButton();
 
-      // cargar perfiles reales de cocina
       state.profiles = await fetchKitchenProfiles();
       renderProfilesSelect(state.session.operatorId);
 
@@ -1195,7 +1486,6 @@
         saveSession();
       }
 
-      // cargar costos reales
       const c = await fetchCostsPublic();
       state.pricesMap = c.map || {};
       state.costsLastUpdated = c.lastUpdated || null;
@@ -1204,6 +1494,7 @@
       if(btnCostsRO) btnCostsRO.style.display = "inline-flex";
 
       await refresh();
+      startWidgetTicker();
 
     } catch(e){
       clearSession();
@@ -1234,16 +1525,14 @@
   // Init
   // =========================
   async function init(){
-    ensureOverlays();
+    ensureRecipeOverlay();
+    ensureConfirmOverlay();
     ensureCostsButton();
 
-    // antes de login: solo fallback, sin llamadas al worker
     state.profiles = DEFAULT_PROFILES.slice();
     renderProfilesSelect();
-
     showLogin();
 
-    // autologin si existe sesión
     if(loadSession()){
       renderProfilesSelect(state.session.operatorId);
       inpPin.value = state.session.pin || "";
@@ -1253,7 +1542,6 @@
       if(btnCostsRO) btnCostsRO.style.display = "inline-flex";
 
       try{
-        // perfiles + costos + refresh (con reintentos)
         state.profiles = await fetchKitchenProfiles();
         renderProfilesSelect(state.session.operatorId);
 
@@ -1268,7 +1556,8 @@
         state.costsLastUpdated = c.lastUpdated || null;
 
         await refresh();
-      }catch(_e){
+        startWidgetTicker();
+      } catch(_e){
         onLogout();
       }
     }
@@ -1276,6 +1565,7 @@
     if(btnLogin) btnLogin.onclick = onLogin;
     if(btnRefresh) btnRefresh.onclick = () => refresh().catch(e => alert(e?.message || String(e)));
     if(btnLogout) btnLogout.onclick = onLogout;
+
     if(inpPin){
       inpPin.addEventListener("keydown", (e) => { if(e.key === "Enter") onLogin(); });
     }
