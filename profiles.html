@@ -3,179 +3,92 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>AMARED — Gestión de perfiles</title>
+  <title>AMARED · Gestión de perfiles</title>
 
-  <style>
-    :root{
-      --paper:#fff;
-      --bg:#fff7f1;
-      --ink:#2b1b14;
-      --muted:#6b5b55;
-      --border: rgba(43,27,20,.14);
-      --shadow: 0 18px 40px rgba(0,0,0,.10);
-      --accent:#ff5a8a;
-      --accent2:#ff7aa3;
-      --danger:#c23a3a;
-      --ok:#1f8a4c;
-    }
-    *{box-sizing:border-box}
-    body{
-      margin:0;
-      font-family: Arial, sans-serif;
-      background: radial-gradient(circle at 15% 10%, #ffe1e8 0%, var(--bg) 45%, #fff 100%);
-      color:var(--ink);
-    }
-    .wrap{max-width:980px;margin:0 auto;padding:18px}
-    .top{
-      display:flex; align-items:center; gap:12px;
-      background:var(--paper);
-      border:1px solid var(--border);
-      border-radius:18px;
-      padding:12px 14px;
-      box-shadow: var(--shadow);
-    }
-    .logo{display:flex;align-items:center;gap:10px}
-    .logo img{width:44px;height:44px;border-radius:12px;object-fit:contain;background:#fff}
-    .title{display:flex;flex-direction:column;line-height:1.1}
-    .title b{font-size:16px}
-    .title span{font-size:12px;color:var(--muted)}
-    .sp{flex:1}
-    .btn{
-      border:none; border-radius:14px;
-      padding:10px 12px;
-      font-weight:700;
-      cursor:pointer;
-    }
-    .btn.primary{background:linear-gradient(135deg,var(--accent),var(--accent2));color:#fff}
-    .btn.secondary{background:#fff;border:1px solid var(--border);color:var(--ink)}
-    .btn.danger{background:var(--danger);color:#fff}
-    .card{
-      margin-top:14px;
-      background:var(--paper);
-      border:1px solid var(--border);
-      border-radius:18px;
-      padding:14px;
-      box-shadow: var(--shadow);
-    }
-    .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
-    .field{display:flex;flex-direction:column;gap:6px;min-width:240px;flex:1}
-    .field label{font-size:12px;color:var(--muted)}
-    .field input{
-      padding:12px;
-      border-radius:14px;
-      border:1px solid var(--border);
-      outline:none;
-    }
-    .muted{color:var(--muted);font-size:12px}
-    .err{color:var(--danger);font-size:12px}
-    .ok{color:var(--ok);font-size:12px}
-    table{width:100%;border-collapse:collapse;margin-top:10px}
-    th,td{padding:10px;border-bottom:1px solid rgba(0,0,0,.06);text-align:left}
-    th{font-size:12px;color:var(--muted);font-weight:700}
-    .pill{display:inline-block;padding:6px 10px;border:1px solid var(--border);border-radius:999px;font-size:12px;background:#fff}
-    .loader{
-      position:fixed; inset:0;
-      display:none; align-items:center; justify-content:center;
-      background: rgba(0,0,0,.25);
-      z-index:99999;
-      padding:16px;
-    }
-    .loader.show{display:flex}
-    .loaderBox{
-      width:min(520px,100%);
-      background:var(--paper);
-      border:1px solid var(--border);
-      border-radius:18px;
-      padding:14px;
-      box-shadow: var(--shadow);
-    }
-  </style>
+  <!-- Favicon -->
+  <link rel="icon" href="favicon.ico" />
+
+  <!-- Reusa tu CSS general si ya lo usas en otras páginas -->
+  <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
-  <div class="wrap">
-    <div class="top">
-      <div class="logo">
-        <!-- Usa el mismo logo que ya tienes en tu repo -->
-        <img src="logo.svg" alt="AMARED" onerror="this.style.display='none'">
-        <div class="title">
-          <b>AMARED</b>
-          <span>Gestión de perfiles (Cocina)</span>
-        </div>
-      </div>
-      <div class="sp"></div>
-      <button class="btn secondary" type="button" onclick="history.back()">Volver</button>
-      <button class="btn primary" id="btnReload" type="button">Actualizar</button>
-    </div>
-
-    <div class="card">
-      <b>Desbloquear edición</b>
-      <div class="muted" style="margin-top:6px">
-        Para <b>agregar</b> o <b>eliminar</b> perfiles, debes ingresar la clave de administración de perfiles.
-      </div>
-
-      <div class="row" style="margin-top:12px">
-        <div class="field">
-          <label>Clave de perfiles</label>
-          <input id="inpSecret" type="password" placeholder="••••••••" autocomplete="off" />
-          <div id="secretMsg" class="muted"></div>
-        </div>
-        <div style="display:flex;gap:10px;align-items:flex-end">
-          <button id="btnValidate" class="btn primary" type="button">Verificar</button>
-          <button id="btnLock" class="btn secondary" type="button">Bloquear</button>
-        </div>
+  <header class="topbar">
+    <div class="brand">
+      <img src="logo.svg" alt="AMARED" class="brandLogo" />
+      <div>
+        <div class="brandTitle">AMARED</div>
+        <div class="muted small">Gestión de perfiles</div>
       </div>
     </div>
+    <a class="btn secondary" href="kitchen.html">Volver a cocina</a>
+  </header>
 
-    <div class="card">
-      <div class="row">
-        <div style="flex:1">
-          <b>Perfiles actuales</b>
-          <div class="muted">Estos perfiles se leen desde Google Sheets (vía Worker). “Eliminar” solo estará habilitado al desbloquear.</div>
-        </div>
-        <span id="statePill" class="pill">🔒 Bloqueado</span>
-      </div>
-
-      <table>
-        <thead>
-          <tr>
-            <th>ID</th>
-            <th>Nombre</th>
-            <th style="width:140px">Acción</th>
-          </tr>
-        </thead>
-        <tbody id="tbody"></tbody>
-      </table>
-      <div id="listMsg" class="muted" style="margin-top:10px"></div>
-    </div>
-
-    <div class="card">
-      <b>Agregar perfil</b>
-      <div class="muted">Solo disponible cuando esté desbloqueado.</div>
-
-      <div class="row" style="margin-top:12px">
-        <div class="field">
-          <label>ID (sin espacios, minúsculas)</label>
-          <input id="inpId" placeholder="ej: paola" />
-        </div>
-        <div class="field">
-          <label>Nombre visible</label>
-          <input id="inpLabel" placeholder="Ej: Paola" />
-        </div>
-        <div style="display:flex;gap:10px;align-items:flex-end">
-          <button id="btnAdd" class="btn primary" type="button">Agregar</button>
-        </div>
-      </div>
-      <div id="addMsg" class="muted" style="margin-top:10px"></div>
+  <!-- Loading overlay (igual idea que ya manejas) -->
+  <div id="loading" class="loadingOverlay" style="display:none;">
+    <div class="loadingCard">
+      <div class="loadingTitle" id="loadingTitle">Cargando…</div>
+      <div class="muted small" id="loadingMsg">Procesando</div>
     </div>
   </div>
 
-  <div id="loader" class="loader" aria-hidden="true">
-    <div class="loaderBox">
-      <b id="loaderTitle">Cargando…</b>
-      <div id="loaderText" class="muted" style="margin-top:6px">Por favor espera.</div>
-    </div>
-  </div>
+  <main class="container">
+    <!-- Gate / Login -->
+    <section class="card">
+      <h2>Acceso</h2>
+      <p class="muted small">Ingresa la clave para administrar perfiles.</p>
 
-  <script src="profiles.js?v=1"></script>
+      <div class="field">
+        <label>Clave de perfiles</label>
+        <input id="inpSecret" type="password" placeholder="Clave" autocomplete="current-password" />
+      </div>
+
+      <div class="rowBetween" style="margin-top:12px;">
+        <button id="btnUnlock" class="btn primary" type="button">Ingresar</button>
+        <button id="btnLock" class="btn secondary" type="button">Bloquear</button>
+      </div>
+
+      <div id="gateErr" class="muted small" style="margin-top:10px; color:#b00020;"></div>
+    </section>
+
+    <!-- Manager -->
+    <section class="card" id="mgr" style="display:none;">
+      <div class="rowBetween">
+        <h2>Perfiles</h2>
+        <div class="pill">PERFILES (Sheets)</div>
+      </div>
+
+      <div id="list" class="stack" style="margin-top:12px;"></div>
+
+      <hr style="margin:16px 0; opacity:.2;" />
+
+      <h3>Agregar perfil</h3>
+
+      <div class="field">
+        <label>Nombre</label>
+        <input id="inpName" type="text" placeholder="Ej: Juan Pérez" />
+      </div>
+
+      <div class="field">
+        <label>ID (automático)</label>
+        <input id="inpId" type="text" disabled />
+        <div class="muted small">Se genera desde el nombre (sin tildes, espacios → guiones bajos).</div>
+      </div>
+
+      <div class="field">
+        <label>Categorías</label>
+        <div class="chipGroup">
+          <label class="chip"><input type="checkbox" value="kitchen" checked> Cocina</label>
+          <label class="chip"><input type="checkbox" value="payments"> Pagos</label>
+          <label class="chip"><input type="checkbox" value="admin"> Admin</label>
+        </div>
+        <div class="muted small">Un perfil puede estar en varias categorías.</div>
+      </div>
+
+      <button id="btnAdd" class="btn primary" type="button">Agregar</button>
+      <div id="mgrErr" class="muted small" style="margin-top:10px; color:#b00020;"></div>
+    </section>
+  </main>
+
+  <script src="profiles.js"></script>
 </body>
 </html>
