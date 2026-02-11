@@ -321,7 +321,18 @@ function normalizeIngredientKey(s){
     .trim();
 }
 
-const out = await api({ action:"profiles_list", category: "kitchen" });
+async function fetchProfilesPublic(){
+  try{
+    const out = await api({ action:"profiles_list", category: "kitchen" });
+    if(out?.ok && Array.isArray(out.profiles) && out.profiles.length){
+      return out.profiles;
+    }
+  }catch(e){
+    console.warn("No se pudieron cargar perfiles:", e);
+  }
+  // Fallback: perfiles base del frontend
+  return DEFAULT_PROFILES;
+}
 
 
 async function fetchCostsPublic(){
@@ -1111,6 +1122,7 @@ function renderLateOrders(){
     list.appendChild(div);
   }
 }
+
 
 
 
