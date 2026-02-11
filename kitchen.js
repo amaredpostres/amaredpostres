@@ -522,6 +522,30 @@ function closeProfilesModal(){
   profilesModal.style.display = "none";
 }
 
+// ✅ Plan B: delegación global (captura) para asegurar que el click llegue
+document.addEventListener("click", (e) => {
+  const manageBtn = e.target.closest("#btnManageProfiles");
+  const closeBtn  = e.target.closest("#btnCloseProfiles");
+
+  if (manageBtn) {
+    e.preventDefault();
+    e.stopPropagation();
+
+    // Evitar doble apertura si ya está abierto
+    if (profilesModal && profilesModal.getAttribute("aria-hidden") === "false") return;
+
+    openProfilesModal();
+    return;
+  }
+
+  if (closeBtn) {
+    e.preventDefault();
+    e.stopPropagation();
+    closeProfilesModal();
+    return;
+  }
+}, true); // 👈 true = captura (gana sobre overlays/listeners)
+
 function renderProfilesList(){
   const list = Array.isArray(profiles) ? profiles : [];
   profilesList.innerHTML = list.map(p => {
@@ -947,7 +971,7 @@ btnLogout.addEventListener("click", () => {
 });
 
 // Profiles management (secure)
-btnManageProfiles.addEventListener("click", openProfilesModal);
+//btnManageProfiles.addEventListener("click", openProfilesModal);
 btnCloseProfiles.addEventListener("click", closeProfilesModal);
 
 btnProfilesUnlock.addEventListener("click", async () => {
@@ -1083,6 +1107,7 @@ function renderLateOrders(){
     list.appendChild(div);
   }
 }
+
 
 
 
