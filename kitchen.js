@@ -716,6 +716,19 @@ function closeConfirm(){ confirmOverlay.classList.remove("show"); confirmOverlay
 
 function confirm3s(title, text, onGo){
   return new Promise((resolve) => {
+    // Si el modal de confirmación no existe en tu HTML, hacemos fallback a confirm() nativo
+    const hasUi = !!(confirmOverlay && confirmTitle && confirmText && confirmCountdown && btnConfirmGo && btnConfirmBack);
+    if(!hasUi){
+      const msg = (title ? (title + "\n\n") : "") + (text || "");
+      const ok = window.confirm(msg || "¿Confirmar?");
+      if(!ok){ resolve(false); return; }
+      Promise.resolve()
+        .then(() => (typeof onGo === "function" ? onGo() : null))
+        .then(() => resolve(true))
+        .catch((e) => { console.error(e); resolve(false); });
+      return;
+    }
+
     if(confirmTimer) clearInterval(confirmTimer);
     btnConfirmGo.disabled = true;
 
@@ -748,11 +761,17 @@ function confirm3s(title, text, onGo){
 
     btnConfirmGo.onclick = async () => {
       if(btnConfirmGo.disabled) return;
-      btnConfirmGo.disabled = true;
-      closeConfirm(); // ✅ se cierra el aviso al confirmar
-      try{ await confirmOnGo?.(); resolve(true); }
-      catch(e){ alert(String(e.message||e)); resolve(false); }
-      finally{ confirmOnGo = null; }
+      try{
+        btnConfirmGo.disabled = true;
+        if(confirmOnGo) await confirmOnGo();
+        closeConfirm();
+        resolve(true);
+      }catch(e){
+        console.error(e);
+        if(confirmText) confirmText.textContent = (e?.message || String(e));
+        btnConfirmGo.disabled = false;
+        resolve(false);
+      }
     };
   });
 }
