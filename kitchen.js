@@ -505,3 +505,268 @@ if(btnLogout) btnLogout.addEventListener("click", handleLogout);
   });
 })();
 
+/* === FIX DEFINITIVO: Modal "Gestionar perfiles" visible + loading + fuera de contenedores ocultos === */
+(function () {
+  const API_BASE =
+    window.API_BASE ||
+    window.API_URL ||
+    window.WORKER_URL ||
+    "https://amared-orders.amaredpostres.workers.dev";
+
+  const $ = (id) => document.getElementById(id);
+
+  function forceAttachToBody(el) {
+    if (!el) return;
+    if (el.parentElement !== document.body) {
+      document.body.appendChild(el); // ✅ evita que un padre con display:none lo oculte
+    }
+  }
+
+  function forceOverlayVisible(el) {
+    // overlay full-screen, encima de todo
+    el.style.display = "flex";
+    el.style.position = "fixed";
+    el.style.left = "0";
+    el.style.top = "0";
+    el.style.width = "100vw";
+    el.style.height = "100vh";
+    el.style.zIndex = "99999";
+    el.style.alignItems = "center";
+    el.style.justifyContent = "center";
+    el.style.background = "rgba(0,0,0,0.55)";
+    el.style.opacity = "1";
+    el.style.visibility = "visible";
+    el.style.pointerEvents = "auto";
+    el.setAttribute("aria-hidden", "false");
+    el.classList.add("show");
+  }
+
+  function forceOverlayHidden(el) {
+    el.setAttribute("aria-hidden", "true");
+    el.classList.remove("show");
+    el.style.display = "none";
+    el.style.pointerEvents = "none";
+  }
+
+  function ensureInnerCard(modal) {
+    // Si el modal no tiene contenido visible, creamos un "card" mínimo respetando tu UI
+    let card = modal.querySelector(".modalCard");
+    if (!card) {
+      card = document.createElement("div");
+      card.className = "modalCard";
+      card.style.width = "min(520px, 92vw)";
+      card.style.borderRadius = "18px";
+      card.style.background = "#fff";
+      card.style.boxShadow = "0 14px 40px rgba(0,0,0,.25)";
+      card.style.padding = "18px";
+      card.innerHTML = `
+        <div style="display:flex; align-items:center; justify-content:space-between; gap:12px;">
+          <div style="font-weight:800; font-size:18px;">Gestionar perfiles</div>
+          <button id="btnCloseProfiles" class="btn secondary" style="padding:10px 12px; border-radius:12px;">Cerrar</button>
+        </div>
+
+        <div id="profilesStatus" style="margin-top:10px; font-size:14px; color:#6b7280;">
+          Cargando...
+        </div>
+
+        <div style="margin-top:12px;">
+          <label style="display:block; font-size:12px; color:#6b7280; margin-bottom:6px;">Clave de perfiles</label>
+          <input id="profilesSecretInput" type="password" placeholder="Ingresa la clave" style="width:100%; padding:12px; border-radius:12px; border:1px solid #e5e7eb;" />
+          <button id="btnUnlockProfiles" class="btn primary" style="margin-top:10px; width:100%; padding:12px; border-radius:14px;">Desbloquear</button>
+        </div>
+
+        <div id="profilesEditor" style="display:none; margin-top:14px;">
+          <div style="font-weight:700; margin-bottom:10px;">Perfiles activos</div>
+          <div id="profilesList" style="display:flex; flex-direction:column; gap:10px;"></div>
+
+          <div style="margin-top:14px; padding-top:14px; border-top:1px solid #eee;">
+            <div style="font-weight:700; margin-bottom:8px;">Agregar perfil</div>
+            <input id="newProfileLabel" type="text" placeholder="Nombre (ej: Juan)" style="width:100%; padding:12px; border-radius:12px; border:1px solid #e5e7eb;" />
+            <button id="btnAddProfile" class="btn primary" style="margin-top:10px; width:100%; padding:12px; border-radius:14px;">Agregar</button>
+          </div>
+        </div>
+      `;
+      modal.appendChild(card);
+    }
+    return card;
+  }
+
+  async function post(action, payload) {
+    const res = await fetch(API_BASE, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action, ...payload }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      const msg = data?.error || `HTTP ${res.status}`;
+      const err = new Error(msg);
+      err.status = res.status;
+      err.data = data;
+      throw err;
+    }
+    return data;
+  }
+
+  function slugifyId(label) {
+    return String(label || "")
+      .trim()
+      .toLowerCase()
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/[^a-z0-9]+/g, "_")
+      .replace(/^_+|_+$/g, "");
+  }
+
+  function nowIso() {
+    return new Date().toISOString();
+  }
+
+  function renderProfiles(listEl, profiles, secret) {
+    listEl.innerHTML = "";
+    profiles.forEach((p) => {
+      const row = document.createElement("div");
+      row.style.display = "flex";
+      row.style.alignItems = "center";
+      row.style.justifyContent = "space-between";
+      row.style.gap = "10px";
+      row.style.padding = "12px";
+      row.style.border = "1px solid #eee";
+      row.style.borderRadius = "14px";
+      row.innerHTML = `
+        <div style="display:flex; flex-direction:column;">
+          <div style="font-weight:700;">${p.label}</div>
+          <div style="font-size:12px; color:#6b7280;">${p.id}</div>
+        </div>
+        <button class="btn secondary" style="padding:10px 12px; border-radius:12px;">Eliminar</button>
+      `;
+      const btnDel = row.querySelector("button");
+      btnDel.addEventListener("click", async () => {
+        if (!confirm(`¿Eliminar el perfil "${p.label}"?`)) return;
+        btnDel.disabled = true;
+        try {
+          await post("profiles_delete", { profiles_secret: secret, profile_id: p.id });
+          // Recargar lista
+          const out = await post("profiles_list", {});
+          renderProfiles(listEl, out.profiles || [], secret);
+          // Actualizar selector del login si existe
+          if (typeof window.loadProfiles === "function") window.loadProfiles();
+        } catch (e) {
+          alert("No se pudo eliminar: " + e.message);
+        } finally {
+          btnDel.disabled = false;
+        }
+      });
+      listEl.appendChild(row);
+    });
+  }
+
+  async function openProfilesManager() {
+    let modal = $("profilesModal");
+
+    // Si no existe, lo creamos desde cero
+    if (!modal) {
+      modal = document.createElement("div");
+      modal.id = "profilesModal";
+      modal.className = "modalOverlay";
+      modal.setAttribute("aria-hidden", "true");
+      document.body.appendChild(modal);
+    }
+
+    // ✅ Lo sacamos de cualquier contenedor oculto
+    forceAttachToBody(modal);
+    ensureInnerCard(modal);
+    forceOverlayVisible(modal);
+
+    // Validación de tamaño real (tu caso era 0x0)
+    const rect = modal.getBoundingClientRect();
+    if (rect.width === 0 || rect.height === 0) {
+      // fuerza otra vez (por si un CSS lo pisa)
+      forceOverlayVisible(modal);
+    }
+
+    const statusEl = $("profilesStatus");
+    const btnClose = $("btnCloseProfiles");
+    const btnUnlock = $("btnUnlockProfiles");
+    const secretInput = $("profilesSecretInput");
+    const editor = $("profilesEditor");
+    const listEl = $("profilesList");
+    const newLabel = $("newProfileLabel");
+    const btnAdd = $("btnAddProfile");
+
+    if (statusEl) statusEl.textContent = "Cargando perfiles...";
+    try {
+      const out = await post("profiles_list", {});
+      const profiles = out.profiles || [];
+      if (statusEl) statusEl.textContent = profiles.length ? "Listo. Desbloquea para editar." : "No hay perfiles activos. Desbloquea para crear.";
+    } catch (e) {
+      if (statusEl) statusEl.textContent = "No se pudo cargar. Revisa conexión.";
+    }
+
+    if (btnClose) {
+      btnClose.onclick = () => forceOverlayHidden(modal);
+    }
+
+    if (btnUnlock) {
+      btnUnlock.onclick = async () => {
+        const secret = String(secretInput?.value || "").trim();
+        if (!secret) return alert("Ingresa la clave de perfiles");
+
+        btnUnlock.disabled = true;
+        if (statusEl) statusEl.textContent = "Validando clave...";
+        try {
+          await post("validate_secret", { type: "profiles", secret });
+          if (statusEl) statusEl.textContent = "Clave correcta. Puedes editar.";
+          if (editor) editor.style.display = "block";
+
+          // cargar lista
+          const out = await post("profiles_list", {});
+          renderProfiles(listEl, out.profiles || [], secret);
+
+          // Agregar
+          btnAdd.onclick = async () => {
+            const label = String(newLabel?.value || "").trim();
+            if (!label) return alert("Escribe un nombre de perfil");
+            const profile_id = slugifyId(label);
+            btnAdd.disabled = true;
+            try {
+              await post("profiles_add", {
+                profiles_secret: secret,
+                profile_id,
+                label,
+                created_at: nowIso(),
+                created_by: "kitchen",
+                is_active: true
+              });
+              newLabel.value = "";
+              const out2 = await post("profiles_list", {});
+              renderProfiles(listEl, out2.profiles || [], secret);
+              if (typeof window.loadProfiles === "function") window.loadProfiles();
+            } catch (e) {
+              alert("No se pudo agregar: " + e.message);
+            } finally {
+              btnAdd.disabled = false;
+            }
+          };
+        } catch (e) {
+          if (statusEl) statusEl.textContent = "Clave incorrecta.";
+          alert("Clave incorrecta o no autorizada.");
+        } finally {
+          btnUnlock.disabled = false;
+        }
+      };
+    }
+  }
+
+  // ✅ Conectar botón (por delegación, por si cambia el DOM)
+  document.addEventListener("click", (e) => {
+    const btn = e.target.closest("#btnManageProfiles");
+    if (!btn) return;
+    e.preventDefault();
+    e.stopPropagation();
+    console.log("[profiles] abrir gestor (modal + loading)");
+    openProfilesManager();
+  }, true);
+})();
+
+
