@@ -1,8 +1,7 @@
-
-/* =====================================================
-   AMARED – GESTIÓN DE PERFILES (VERSIÓN ESTABLE LIMPIA)
-   Usa el modal original del HTML (NO crea modales nuevos)
-   ===================================================== */
+/* ======================================================
+   AMARED – Kitchen.js Limpio y Estable
+   Gestión completa de perfiles
+   ====================================================== */
 
 (function () {
 
@@ -24,11 +23,16 @@
   const btnAdd = $("btnAddProfile");
   const newLabel = $("newProfileLabel");
   const statusEl = $("profilesStatus");
+  const profileSelect = $("profileSelect");
 
   if (!btnManage || !modal) {
-    console.warn("[profiles] No se encontraron elementos necesarios en el HTML.");
+    console.warn("No se encontraron elementos necesarios en el HTML.");
     return;
   }
+
+  /* =============================
+     UTILIDADES
+  ============================== */
 
   function showModal() {
     modal.style.display = "flex";
@@ -52,8 +56,13 @@
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ action, ...payload }),
     });
+
     const data = await res.json().catch(() => ({}));
-    if (!res.ok) throw new Error(data?.error || "Error servidor");
+
+    if (!res.ok) {
+      throw new Error(data?.error || "Error del servidor");
+    }
+
     return data;
   }
 
@@ -66,14 +75,46 @@
       .replace(/^_+|_+$/g, "");
   }
 
+  /* =============================
+     CARGAR PERFILES EN LOGIN
+  ============================== */
+
+  async function loadProfiles() {
+    try {
+      const out = await post("profiles_list", {});
+      const profiles = out.profiles || [];
+
+      if (!profileSelect) return;
+
+      profileSelect.innerHTML = `<option value="">Seleccionar...</option>`;
+
+      profiles.forEach(p => {
+        const opt = document.createElement("option");
+        opt.value = p.id;
+        opt.textContent = p.label;
+        profileSelect.appendChild(opt);
+      });
+
+    } catch (err) {
+      console.error("No se pudieron cargar perfiles", err);
+    }
+  }
+
+  window.loadProfiles = loadProfiles;
+
+  /* =============================
+     REFRESH LISTA EDITOR
+  ============================== */
+
   async function refreshProfiles(secret) {
     const out = await post("profiles_list", {});
     const profiles = out.profiles || [];
+
     listEl.innerHTML = "";
 
     profiles.forEach(p => {
+
       const row = document.createElement("div");
-      row.className = "profileRow";
       row.style.display = "flex";
       row.style.justifyContent = "space-between";
       row.style.alignItems = "center";
@@ -85,16 +126,19 @@
       `;
 
       const btnDel = row.querySelector("button");
+
       btnDel.onclick = async () => {
         try {
-          showStatus("Eliminando...");
+          showStatus("Eliminando perfil...");
           await post("profiles_delete", {
             profiles_secret: secret,
             profile_id: p.id
           });
+
           showStatus("Perfil eliminado correctamente.");
           await refreshProfiles(secret);
-          if (typeof window.loadProfiles === "function") window.loadProfiles();
+          await loadProfiles();
+
         } catch (err) {
           showStatus("No se pudo eliminar.", true);
         }
@@ -104,6 +148,10 @@
     });
   }
 
+  /* =============================
+     EVENTOS
+  ============================== */
+
   btnManage.addEventListener("click", () => {
     showModal();
     showStatus("Ingresa la clave para continuar.");
@@ -112,24 +160,36 @@
   btnClose?.addEventListener("click", hideModal);
 
   btnVerify?.addEventListener("click", async () => {
+
     const secret = secretInput?.value.trim();
-    if (!secret) return showStatus("Ingresa la clave.", true);
+
+    if (!secret) {
+      showStatus("Ingresa la clave.", true);
+      return;
+    }
 
     try {
+
       showStatus("Validando clave...");
       await post("validate_secret", { type: "profiles", secret });
 
       showStatus("Clave correcta.");
-      if (editor) editor.style.display = "block";
+      editor.style.display = "block";
 
       await refreshProfiles(secret);
 
       btnAdd.onclick = async () => {
+
         const label = newLabel?.value.trim();
-        if (!label) return showStatus("Escribe un nombre.", true);
+        if (!label) {
+          showStatus("Escribe un nombre.", true);
+          return;
+        }
 
         try {
+
           showStatus("Guardando perfil...");
+
           await post("profiles_add", {
             profiles_secret: secret,
             profile_id: slugify(label),
@@ -141,12 +201,12 @@
 
           newLabel.value = "";
           showStatus("Perfil guardado correctamente.");
-          await refreshProfiles(secret);
 
-          if (typeof window.loadProfiles === "function") window.loadProfiles();
+          await refreshProfiles(secret);
+          await loadProfiles();
 
         } catch (err) {
-          showStatus("No se pudo guardar el perfil.", true);
+          showStatus("No se pudo guardar.", true);
         }
       };
 
@@ -154,5 +214,11 @@
       showStatus("Clave incorrecta.", true);
     }
   });
+
+  /* =============================
+     INICIALIZAR
+  ============================== */
+
+  document.addEventListener("DOMContentLoaded", loadProfiles);
 
 })();
