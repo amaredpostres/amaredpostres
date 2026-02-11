@@ -321,18 +321,8 @@ function normalizeIngredientKey(s){
     .trim();
 }
 
-async function fetchProfilesPublic(){
-  try{
-    const out = await api({ action:"profiles_list" });
-    if(out?.ok && Array.isArray(out.profiles) && out.profiles.length){
-      return out.profiles;
-    }
-  }catch(e){
-    console.warn("No se pudieron cargar perfiles:", e);
-  }
-  // Fallback: perfiles base del frontend
-  return DEFAULT_PROFILES;
-}
+const out = await api({ action:"profiles_list", category: "kitchen" });
+
 
 async function fetchCostsPublic(){
   // Devuelve { map: {ingredient_key_normalizado: cop_per_unit}, lastUpdated }
@@ -1121,6 +1111,7 @@ function renderLateOrders(){
     list.appendChild(div);
   }
 }
+
 
 
 
