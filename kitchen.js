@@ -845,23 +845,30 @@ function getProductsNeededToday(){
 
 // Bulk update
 async function bulkUpdate(orderIds, patch){
-  if(!orderIds.length) return;
+  if(!orderIds || !orderIds.length) return;
   showLoading("Actualizando...", "Aplicando cambios.");
   disableUIWhileLoading(true);
   try{
-    markProductDoneForDay(todayKey, currentProductId);
-          closeRecipeRaw();
-          renderMain(todayKey);
-          renderLateOrders();
-          hideLoading();
-      }
-    );
-    return;
-  }
+    // Requiere PIN (ADMIN_PIN) para acciones protegidas
+    const out = await api({
+      action: "kitchen_bulk_update",
+      operator: SESSION?.operatorLabel || "",
+      admin_pin: SESSION?.pin || "",
+      order_ids: orderIds,
+      patch
+    });
 
-  currentStepIdx++;
-  renderRecipeStep();
-});
+    // Actualiza cache local si aplica
+    // (La fuente de verdad es Sheets; luego recargamos datos)
+    await loadKitchenData();
+    renderMain(todayKey);
+    renderLateOrders();
+    return out;
+  }finally{
+    hideLoading();
+    disableUIWhileLoading(false);
+  }
+}
 
 // Main render
 function renderMain(todayKey){
