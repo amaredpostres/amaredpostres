@@ -2,6 +2,8 @@
    - Sin gestión/creación/eliminación de perfiles (eso vive en profiles.html)
    - Solo carga perfiles filtrados por category:"kitchen"
    - Enfoque: producción diaria + receta + temporizador + kitchen_bulk_update
+
+   Nota: si no existen imágenes de pasos (assets/steps/...), el visor las ocultará automáticamente.
 */
 
 (() => {
@@ -31,14 +33,20 @@
     : [];
 
   // =========================
-  // Recipes (unitarias)
-  // (Tomadas de tu kitchen.js actual; se mantienen)
+  // Products + Recipes (unitarias)
   // =========================
   const PRODUCTS = [
     { id: "mousse_maracuya", name: "Mousse de Maracuyá" },
     { id: "cheesecake_cafe_panela", name: "Cheesecake de café con panela" },
     { id: "arroz_con_leche", name: "Arroz con leche (no activo)" },
   ];
+
+  // Helper: product hero image (exists in your repo)
+  const HERO_IMG = {
+    mousse_maracuya: "assets/mousse.webp",
+    cheesecake_cafe_panela: "assets/cheesecake.webp",
+    arroz_con_leche: "assets/arroz.webp",
+  };
 
   const RECIPE_UNIT = {
     mousse_maracuya: {
@@ -126,7 +134,7 @@
   };
 
   // =========================
-  // DOM (según tu kitchen.html actual)
+  // DOM (según kitchen.html actual)
   // =========================
   const $ = (id) => document.getElementById(id);
 
@@ -138,7 +146,6 @@
   const btnLogin = $("btnLogin");
   const btnLogout = $("btnLogout");
   const btnRefresh = $("btnRefresh");
-  const btnManageProfiles = $("btnManageProfiles"); // link a profiles.html (no se toca)
   const loginErr = $("loginErr");
 
   const todayWrap = $("todayWrap");
@@ -151,7 +158,7 @@
   const loadingTitle = $("loadingTitle");
   const loadingMsg = $("loadingMsg");
 
-  // Costs modal (solo lectura) según kitchen.html actual
+  // Costs modal (solo lectura)
   const costsModal = $("costsModal");
   const btnCloseCosts = $("btnCloseCosts");
   const costsEditor = $("costsEditor");
@@ -171,13 +178,12 @@
     nextKey: null,
 
     buckets: {
-      today: [],        // produce hoy (según regla)
-      infoTomorrow: [], // informativo (creados hoy después 3pm)
+      today: [],
+      infoTomorrow: [],
       inProgress: [],
       done: [],
     },
 
-    // step-by-step
     recipe: {
       open: false,
       productId: null,
@@ -186,7 +192,6 @@
       stepIdx: 0,
     },
 
-    // timers
     timerTick: null,
   };
 
@@ -265,13 +270,11 @@
   }
   function addDaysBogotaKey(yyyy_mm_dd, days){
     const [Y,M,D] = yyyy_mm_dd.split("-").map(Number);
-    // mediodía UTC para evitar saltos raros
     const dt = new Date(Date.UTC(Y, M-1, D, 12, 0, 0));
     dt.setUTCDate(dt.getUTCDate() + days);
     return getBogotaParts(dt).key;
   }
 
-  // Producción real del pedido (incluye viernes>3pm => lunes)
   function computeProductionDayKeyForOrder(createdAt){
     const dt = new Date(createdAt);
     if (Number.isNaN(dt.getTime())) return null;
@@ -280,15 +283,10 @@
     const weekday = getWeekdayBogota(dt);
     const orderDayKey = p.key;
 
-    // Sábado => lunes
-    if (weekday === 6) return addDaysBogotaKey(orderDayKey, 2);
-    // Domingo => lunes
-    if (weekday === 0) return addDaysBogotaKey(orderDayKey, 1);
-    // Viernes >= 3pm => lunes
-    if (weekday === 5 && p.hh >= CUTOFF_HOUR) return addDaysBogotaKey(orderDayKey, 3);
-    // Entre semana >= 3pm => mañana
-    if (p.hh >= CUTOFF_HOUR) return addDaysBogotaKey(orderDayKey, 1);
-
+    if (weekday === 6) return addDaysBogotaKey(orderDayKey, 2); // sáb
+    if (weekday === 0) return addDaysBogotaKey(orderDayKey, 1); // dom
+    if (weekday === 5 && p.hh >= CUTOFF_HOUR) return addDaysBogotaKey(orderDayKey, 3); // vie >=3pm => lun
+    if (p.hh >= CUTOFF_HOUR) return addDaysBogotaKey(orderDayKey, 1); // >=3pm => mañana
     return orderDayKey;
   }
 
@@ -296,24 +294,18 @@
     const now = new Date();
     const p = getBogotaParts(now);
     const weekday = getWeekdayBogota(now);
-
-    // si hoy es sábado/domingo, producción apunta a lunes
     if (weekday === 6) return addDaysBogotaKey(p.key, 2);
     if (weekday === 0) return addDaysBogotaKey(p.key, 1);
-
-    // viernes después de 3pm => producción “hoyKey” sigue siendo viernes (para UI), pero lo que entra después se va a lunes.
-    // Aquí devolvemos el día de producción vigente “hoy” (fecha actual bogotá)
     return p.key;
   }
 
   function getNextProductionDayKey(todayKey){
-    // Calcula el siguiente día hábil de producción partiendo del todayKey
     const [Y,M,D] = todayKey.split("-").map(Number);
     const dt = new Date(Date.UTC(Y, M-1, D, 12, 0, 0));
     const wd = getWeekdayBogota(dt);
-    if (wd === 5) return addDaysBogotaKey(todayKey, 3); // viernes => lunes
-    if (wd === 6) return addDaysBogotaKey(todayKey, 2); // sábado => lunes
-    if (wd === 0) return addDaysBogotaKey(todayKey, 1); // domingo => lunes
+    if (wd === 5) return addDaysBogotaKey(todayKey, 3);
+    if (wd === 6) return addDaysBogotaKey(todayKey, 2);
+    if (wd === 0) return addDaysBogotaKey(todayKey, 1);
     return addDaysBogotaKey(todayKey, 1);
   }
 
@@ -371,13 +363,12 @@
   // =========================
   function normalizeIngredientKey(s){
     return String(s||"")
-      .replace(/\([^\)]*\)/g,"")  // quita ( ... )
+      .replace(/\([^\)]*\)/g,"")
       .replace(/\s{2,}/g," ")
       .trim();
   }
 
   async function fetchCostsPublic(){
-    // Intenta endpoint público. Si no existe, fallback vacío.
     try{
       const out = await api({ action:"costs_public_list" });
       const items = out.items || out.costs || [];
@@ -406,8 +397,6 @@
     let totalCost = 0;
     const lines = (recipe.unitIngredients || []).map(ing => {
       const totalQty = Number(ing.qty || 0) * Number(units || 0);
-
-      // clave normalizada para empatar con la tabla pública
       const keyNorm = normalizeIngredientKey(ing.key);
       const pricePerUnit = Number(state.pricesMap[keyNorm] || 0);
       const cost = totalQty * pricePerUnit;
@@ -475,19 +464,13 @@
     if(btnRefresh) btnRefresh.style.display = "inline-flex";
   }
 
-  // Intento “best-effort” de validación de PIN con Worker:
-  // Si tu backend no tiene acción validate_admin_pin, no bloqueamos el login:
-  // el PIN quedará validado “de facto” cuando hagas kitchen_bulk_update.
   async function validatePinBestEffort(pin){
     try{
       await api({ action:"validate_admin_pin", admin_pin: pin });
       return true;
     }catch(e){
       const msg = String(e?.message || "");
-      if (msg.toLowerCase().includes("unknown action") || msg.toLowerCase().includes("acción") || msg.toLowerCase().includes("action")) {
-        return true; // backend no soporta esta acción, seguimos
-      }
-      // si fue otro error, sí lo consideramos inválido
+      if (msg.toLowerCase().includes("unknown action")) return true;
       throw e;
     }
   }
@@ -574,10 +557,8 @@
 
       state.paidOrders = paid;
 
-      // “Producción hoy” = todo lo que tiene __prod_day === todayKey y NO está Listo
       const todayAll = paid.filter(o => o.__prod_day === state.todayKey);
 
-      // “Informativo mañana” = pedidos creados HOY después de 3pm (sin importar prod_day real)
       const lateToday = paid.filter(o => {
         const d = new Date(o.created_at);
         if(Number.isNaN(d.getTime())) return false;
@@ -632,13 +613,18 @@
 
       const disabledStart = (!showActions || doneLocal || orderIds.length === 0);
 
+      const hero = HERO_IMG[p.id] || "";
+
       cards.push(`
         <div class="pCard" data-pid="${escapeHtml(p.id)}">
           <div class="rowBetween">
-            <div>
-              <div class="muted small">${escapeHtml(p.name)}</div>
-              <div class="bigNum">${qty}</div>
-              ${titlePill ? `<div class="pill" style="margin-top:8px;">${escapeHtml(titlePill)}</div>` : ""}
+            <div style="display:flex; gap:12px; align-items:center; min-width:0;">
+              ${hero ? `<img src="${escapeHtml(hero)}" alt="" style="width:56px;height:56px;object-fit:cover;border-radius:14px;border:1px solid rgba(64,17,2,.10);" />` : ""}
+              <div style="min-width:0;">
+                <div class="muted small">${escapeHtml(p.name)}</div>
+                <div class="bigNum">${qty}</div>
+                ${titlePill ? `<div class="pill" style="margin-top:8px;">${escapeHtml(titlePill)}</div>` : ""}
+              </div>
             </div>
 
             <div class="row" style="gap:10px;">
@@ -676,7 +662,6 @@
 
     container.innerHTML = cards.join("");
 
-    // Delegación eventos
     container.onclick = async (e) => {
       const card = e.target.closest(".pCard");
       const btn = e.target.closest("button[data-act]");
@@ -852,7 +837,6 @@
 
     counter.textContent = `Paso ${state.recipe.stepIdx + 1} / ${steps.length}`;
 
-    // Paso especial: ingredientes
     if(st && st.type === "batch_ingredients"){
       const { lines, totalCost } = calcBatchIngredients(pid, state.recipe.units);
       const costText = totalCost > 0 ? `$${money(totalCost)}` : "—";
@@ -878,8 +862,11 @@
       : "";
 
     if(img){
-      if(st?.img){
-        img.src = st.img;
+      img.onerror = () => { img.style.display = "none"; img.src = ""; };
+      const fallback = HERO_IMG[pid] || "";
+      const src = st?.img || fallback;
+      if(src){
+        img.src = src;
         img.style.display = "block";
       }else{
         img.style.display = "none";
@@ -928,13 +915,11 @@
 
     if(state.timerTick) clearInterval(state.timerTick);
     state.timerTick = setInterval(() => {
-      // actualiza overlay si está abierto
       if(state.recipe.open && state.recipe.productId){
         renderTimerPill(state.recipe.productId);
       }
     }, 500);
 
-    // refresca pill en overlay si aplica
     if(state.recipe.open && state.recipe.productId === productId){
       renderTimerPill(productId);
     }
@@ -1020,10 +1005,9 @@
     btn.style.boxShadow = "var(--shadow)";
 
     btn.onclick = async () => {
-      const ok = confirm("¿Finalizar lote? Esto cerrará la sesión de trabajo de hoy (local) y dejará todo en 'Listo'.");
+      const ok = confirm("¿Finalizar lote? Esto dejará todo en 'Listo' (si apareció algo nuevo).");
       if(!ok) return;
 
-      // Si todavía quedara algo sin Listo (por ejemplo: pedidos nuevos), intentamos dejarlo listo:
       const todayAll = state.paidOrders.filter(o => o.__prod_day === state.todayKey);
       const stillNotDone = todayAll.filter(o => String(o.kitchen_status || "") !== "Listo");
       const ids = stillNotDone.map(o => String(o.order_id));
@@ -1051,7 +1035,6 @@
   function ensureCostsButton(){
     if(document.getElementById("btnCostsRO")) return;
 
-    // Inserta botón “Costos” junto a Refresh/Logout (sin tocar HTML)
     const headerBtns = btnRefresh?.parentElement;
     if(!headerBtns) return;
 
@@ -1065,7 +1048,6 @@
     btn.onclick = openCostsModal;
     headerBtns.insertBefore(btn, btnRefresh);
 
-    // cerrar modal
     if(btnCloseCosts){
       btnCloseCosts.onclick = closeCostsModal;
     }
@@ -1077,8 +1059,6 @@
 
     costsModal.style.display = "flex";
     costsModal.setAttribute("aria-hidden","false");
-
-    // Render secciones canónicas + precios (solo lectura)
     renderCostsReadOnly();
   }
 
@@ -1166,7 +1146,6 @@
       showApp();
       ensureCostsButton();
 
-      // habilita botón costos
       const btnCostsRO = document.getElementById("btnCostsRO");
       if(btnCostsRO) btnCostsRO.style.display = "inline-flex";
 
@@ -1210,7 +1189,6 @@
     }
 
     if(loadSession()){
-      // Rehidrata select
       if(state.session.operatorId){
         selOperator.value = state.session.operatorId;
       }
@@ -1227,19 +1205,16 @@
       showLogin();
     }
 
-    // listeners
     if(btnLogin) btnLogin.onclick = onLogin;
     if(btnRefresh) btnRefresh.onclick = () => refresh().catch(e => alert(e?.message || String(e)));
     if(btnLogout) btnLogout.onclick = onLogout;
 
-    // Enter en PIN
     if(inpPin){
       inpPin.addEventListener("keydown", (e) => {
         if(e.key === "Enter") onLogin();
       });
     }
 
-    // Close costs (si existe)
     if(btnCloseCosts){
       btnCloseCosts.onclick = closeCostsModal;
     }
