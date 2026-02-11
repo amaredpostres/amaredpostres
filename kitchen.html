@@ -22,6 +22,28 @@
     .ttl{font-weight:950; line-height:1;}
     .sub{opacity:.7; font-weight:850; font-size:12px;}
     .btnLinkLike{ text-decoration:none; display:inline-flex; align-items:center; justify-content:center; }
+    <style>
+  
+  /* ✅ FIX visual: Loading/modal siempre centrado */
+  .modalOverlay{
+    position: fixed !important;
+    inset: 0 !important;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 18px;
+    background: rgba(0,0,0,.25);
+    z-index: 99999;
+  }
+  .modalBox{
+    width: 100%;
+    background: rgba(255,255,255,.92);
+    border: 1px solid rgba(64,17,2,.10);
+    border-radius: 18px;
+    padding: 14px 16px;
+    box-shadow: 0 14px 40px rgba(0,0,0,.18);
+    backdrop-filter: blur(6px);
+  }
   </style>
 </head>
 
@@ -137,3 +159,4 @@
   <script src="kitchen.js?v=20260211"></script>
 </body>
 </html>
+
