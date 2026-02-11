@@ -685,7 +685,6 @@ function openCostsModal(){
     costsBody.innerHTML = `<div class="muted">No se pudieron cargar costos.</div>`;
   });
 }
-);
 }
 function closeCostsModal(){
   costsModal.classList.remove("show");
