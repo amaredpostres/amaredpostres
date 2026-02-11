@@ -14,6 +14,48 @@ const LS_LOT_PROGRESS = "AMARED_KITCHEN_LOT_PROGRESS_V1";
 const LS_PROFILES_KEY = "AMARED_KITCHEN_PROFILES_LOCAL";
 const LS_COSTS_KEY = "AMARED_INGREDIENT_PRICES_LOCAL";
 
+/* =========================================================
+   ✅ Helpers: fechas Bogotá / día producción / parseo seguro
+   (Necesarios para filtros de pedidos y sección informativa)
+========================================================= */
+function bogotaYMD(dateLike){
+  const d = (dateLike instanceof Date) ? dateLike : new Date(dateLike);
+  if (Number.isNaN(d.getTime())) return null;
+  // Formato YYYY-MM-DD en hora local de Bogotá
+  const parts = new Intl.DateTimeFormat("en-CA", { timeZone:"America/Bogota", year:"numeric", month:"2-digit", day:"2-digit" }).formatToParts(d);
+  const y = parts.find(p=>p.type==="year")?.value;
+  const m = parts.find(p=>p.type==="month")?.value;
+  const da = parts.find(p=>p.type==="day")?.value;
+  return (y && m && da) ? `${y}-${m}-${da}` : null;
+}
+
+function isSameBogotaDay(a,b){
+  const ya = bogotaYMD(a);
+  const yb = bogotaYMD(b);
+  return !!ya && ya === yb;
+}
+
+// Acepta ISO, timestamps, o strings tipo "YYYY-MM-DD HH:mm:ss"
+function parseBogotaDateTime(input){
+  if (!input) return null;
+  if (input instanceof Date) return input;
+  if (typeof input === "number") return new Date(input);
+  const s = String(input).trim();
+  // ISO / RFC
+  const dIso = new Date(s);
+  if (!Number.isNaN(dIso.getTime())) return dIso;
+
+  // "YYYY-MM-DD HH:mm:ss"
+  const m = s.match(/^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})(?::(\d{2}))?$/);
+  if (m){
+    const [_,Y,Mo,D,H,Mi,Ss] = m;
+    // Interpretar como hora Bogotá (sin DST). Construimos Date en UTC ajustando -05:00.
+    const utcMs = Date.UTC(+Y, +Mo-1, +D, +H+5, +Mi, +(Ss||0));
+    return new Date(utcMs);
+  }
+  return null;
+}
+
 const DEFAULT_PROFILES = (window.AMARED_KITCHEN_PROFILES && Array.isArray(window.AMARED_KITCHEN_PROFILES))
   ? window.AMARED_KITCHEN_PROFILES
   : [{ id:"esperanza", label:"Esperanza" }, { id:"cristian", label:"Cristian" }];
@@ -169,6 +211,9 @@ const RECIPE_UNIT = {
     ],
   },
 };
+// Alias canónico usado por el flujo de receta
+const RECIPES = RECIPE_UNIT;
+
 
 // DOM
 const loginView = document.getElementById("loginView");
@@ -260,29 +305,6 @@ let baseTimerInterval = null;
 let baseTimerEndMs = null;
 let confirmTimer = null;
 let confirmOnGo = null;
-// ✅ Confirm overlay: esta versión crea el overlay si el HTML no lo incluye (evita errores por elementos null)
-function ensureConfirmOverlay(createIfMissing = true){
-  let el = document.getElementById("confirmOverlay");
-  if(!el && createIfMissing){
-    el = document.createElement("div");
-    el.id = "confirmOverlay";
-    el.className = "confirmOverlay";
-    el.setAttribute("aria-hidden","true");
-    el.innerHTML = `
-      <div class="confirmBox">
-        <div style="font-weight:950; font-size:16px;" data-confirm-title>Confirmar</div>
-        <div class="muted small" style="margin-top:6px;" data-confirm-text></div>
-        <div class="countdown" data-confirm-countdown style="margin-top:12px;">3</div>
-        <div class="btnRow" style="margin-top:12px;">
-          <button class="btn secondary" type="button" data-confirm-back>Volver</button>
-          <button class="btn primary" type="button" data-confirm-go disabled>Confirmar</button>
-        </div>
-      </div>
-    `;
-    document.body.appendChild(el);
-  }
-  return el;
-}
 let ordersTab = "today";
 
 // Utils UI
@@ -343,10 +365,6 @@ function normalizeIngredientKey(s){
     .replace(/\s{2,}/g," ")
     .trim();
 }
-function escapeHtml(str){
-  return String(str).replace(/[&<>"']/g, (m) => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[m]));
-}
-
 
 async function fetchProfilesPublic(){
   try{
@@ -383,34 +401,6 @@ async function fetchCostsPublic(){
     console.warn("No se pudieron cargar costos públicos:", e);
     return { map:{}, lastUpdated:null };
   }
-}
-
-async function loadCostsIntoModal(){
-  // Renderiza costos (solo lectura) dentro del modal de cocina
-  const list = document.getElementById("costsList");
-  if(!list) return;
-
-  list.innerHTML = "<div class='muted small'>Cargando costos…</div>";
-
-  const { map, lastUpdated } = await fetchCostsPublic();
-  const keys = Object.keys(map || {}).sort((a,b)=>a.localeCompare(b));
-
-  if(!keys.length){
-    list.innerHTML = "<div class='muted small'>No hay costos disponibles.</div>";
-    return;
-  }
-
-  const rows = keys.map(k => {
-    const v = Number(map[k] || 0);
-    const money = v ? `$${Math.round(v).toLocaleString("es-CO")}` : "$0";
-    return `<div class="row" style="justify-content:space-between; padding:8px 0; border-bottom:1px solid var(--border);">
-              <div style="font-weight:700;">${escapeHtml(k)}</div>
-              <div class="muted">${money} / unidad</div>
-            </div>`;
-  }).join("");
-
-  const footer = lastUpdated ? `<div class="muted small" style="margin-top:10px;">Actualizado: ${escapeHtml(String(lastUpdated))}</div>` : "";
-  list.innerHTML = rows + footer;
 }
 
 
@@ -606,6 +596,80 @@ function renderProfilesList(){
 }
 
 // Costs UI
+
+/* =========================================================
+   ✅ Costos informativos (solo lectura) en Cocina
+   - Lee desde Sheets vía action: costs_public_list
+   - Renderiza por secciones (window.AMARED_COSTS_SECTIONS)
+========================================================= */
+async function loadCostsIntoModal(){
+  const host = document.getElementById("ordersList");
+  // Reutilizamos ordersModal para tabs hoy/historial; costos usa ordersModalSub como contenedor si existe
+  const modalSub = document.getElementById("ordersModalSub");
+  if (!modalSub) return;
+
+  modalSub.innerHTML = `<div class="muted small" style="padding:10px 2px;">Cargando costos…</div>`;
+  let data;
+  try{
+    data = await api({ action:"costs_public_list" });
+  }catch(e){
+    modalSub.innerHTML = `<div class="muted small" style="padding:10px 2px;">No se pudieron cargar costos.</div>`;
+    throw e;
+  }
+  const items = Array.isArray(data?.items) ? data.items : (Array.isArray(data?.data) ? data.data : []);
+  const map = new Map();
+  for(const it of items){
+    const key = String(it.ingredient_key || it.key || "").trim();
+    if(!key) continue;
+    map.set(key, it);
+  }
+
+  const sections = Array.isArray(window.AMARED_COSTS_SECTIONS) ? window.AMARED_COSTS_SECTIONS : [];
+  const fmtCOP = (n)=> {
+    const num = Number(n);
+    if(!Number.isFinite(num)) return "—";
+    return "$" + Math.round(num).toLocaleString("es-CO");
+  };
+
+  const rowsForKey = (k)=>{
+    const it = map.get(k);
+    if(!it) return `<div class="muted small" style="padding:6px 0;">${k}: sin datos</div>`;
+    const unit = String(it.unit_type || "").trim();
+    return `
+      <div class="rowBetween" style="gap:10px; padding:6px 0;">
+        <div>
+          <div style="font-weight:900;">${k}</div>
+          <div class="muted small">${unit ? `Unidad: ${unit}` : ""}</div>
+        </div>
+        <div class="pill">${fmtCOP(it.cop_per_unit)}${unit ? ` / ${unit}` : ""}</div>
+      </div>
+    `;
+  };
+
+  if(!sections.length){
+    // fallback: listado simple
+    const simple = [...map.keys()].sort().map(rowsForKey).join("");
+    modalSub.innerHTML = `<div style="padding:6px 2px;">${simple || `<div class="muted small">No hay costos.</div>`}</div>`;
+    return;
+  }
+
+  const html = sections.map((sec, idx)=> {
+    const keys = Array.isArray(sec.keys) ? sec.keys : [];
+    const inner = keys.map(rowsForKey).join("") || `<div class="muted small">Sin elementos.</div>`;
+    return `
+      <div class="card" style="margin-top:10px;">
+        <div class="rowBetween" style="align-items:flex-start; gap:10px;">
+          <div style="font-weight:950;">${sec.title || "Sección"}</div>
+          <div class="pill">${keys.length}</div>
+        </div>
+        <div style="margin-top:8px;">${inner}</div>
+      </div>
+    `;
+  }).join("");
+
+  modalSub.innerHTML = `<div style="padding:6px 2px;">${html}</div>`;
+}
+
 function openCostsModal(){
   costsModal.style.display = "flex";
   costsModal.setAttribute("aria-hidden","false");
@@ -685,75 +749,72 @@ function renderOrdersModalList(){
 }
 
 // Confirm 3s (cierra aviso y deja loader)
-function openConfirm(){
-  const el = ensureConfirmOverlay();
-  el.classList.add("show");
-  el.setAttribute("aria-hidden","false");
-}
+function openConfirm(){ confirmOverlay.classList.add("show"); confirmOverlay.setAttribute("aria-hidden","false"); }
+function closeConfirm(){ confirmOverlay.classList.remove("show"); confirmOverlay.setAttribute("aria-hidden","true"); }
 
-function closeConfirm(){
-  const el = ensureConfirmOverlay(false);
-  if(!el) return;
-  el.classList.remove("show");
-  el.setAttribute("aria-hidden","true");
-}
 
-function confirm3s(title, text, onGo){
-  // ✅ Resiliente: si el UI no existe, crea un overlay propio y evita errores por elementos null.
-  return new Promise((resolve) => {
-    const ui = ensureConfirmOverlay();
-    const titleEl = ui.querySelector("[data-confirm-title]");
-    const textEl = ui.querySelector("[data-confirm-text]");
-    const countdownEl = ui.querySelector("[data-confirm-countdown]");
-    const btnBack = ui.querySelector("[data-confirm-back]");
-    const btnGo = ui.querySelector("[data-confirm-go]");
+function confirm3s(title, text, seconds){
+  // Usar confirm overlay existente en kitchen.html
+  const counterEl = document.getElementById("confirmCountdown");
+  const btnBack = document.getElementById("btnConfirmBack");
+  const btnGo = document.getElementById("btnConfirmGo");
 
-    if(confirmTimer) clearInterval(confirmTimer);
-    btnGo.disabled = true;
+  // Si no existe el UI, fallback seguro sin romper
+  if(!counterEl || !btnBack || !btnGo){
+    return Promise.resolve(window.confirm(text || title || "¿Confirmar?"));
+  }
 
-    if(titleEl) titleEl.textContent = title || "Confirmar";
-    if(textEl) textEl.textContent = text || "";
-    if(countdownEl) countdownEl.textContent = "3";
-    confirmOnGo = onGo;
+  seconds = Number(seconds || 3);
+  if(!Number.isFinite(seconds) || seconds < 1) seconds = 3;
 
-    openConfirm();
+  // Mostrar overlay de receta como confirmación simple (sin cambiar tu línea gráfica)
+  // Usamos recipeOverlay con su zona de confirmación ya incluida.
+  const overlay = document.getElementById("recipeOverlay");
+  const stepText = document.getElementById("stepText");
+  const stepHint = document.getElementById("stepHint");
+  const stepCounter = document.getElementById("stepCounter");
+  const recipeTitle = document.getElementById("recipeTitle");
+  const recipeSub = document.getElementById("recipeSub");
 
-    let t = 3;
-    confirmTimer = setInterval(() => {
-      t--;
-      if(countdownEl) countdownEl.textContent = String(t);
-      if(t <= 0){
-        clearInterval(confirmTimer);
-        confirmTimer = null;
-        btnGo.disabled = false;
-        if(countdownEl) countdownEl.textContent = "✓";
-      }
-    }, 1000);
+  if(overlay){
+    overlay.classList.add("show");
+    overlay.setAttribute("aria-hidden","false");
+  }
+  if(recipeTitle) recipeTitle.textContent = title || "Confirmar";
+  if(recipeSub) recipeSub.textContent = "";
+  if(stepCounter) stepCounter.textContent = "";
+  if(stepText) stepText.textContent = text || "";
+  if(stepHint) stepHint.textContent = "Confirma para continuar.";
 
-    btnBack.onclick = () => {
-      if(confirmTimer) clearInterval(confirmTimer);
-      confirmTimer = null;
-      confirmOnGo = null;
-      closeConfirm();
-      resolve(false);
-    };
+  btnGo.disabled = true;
+  let remain = seconds;
+  counterEl.textContent = String(remain);
 
-    btnGo.onclick = async () => {
-      if(btnGo.disabled) return;
-      try{
-        const r = confirmOnGo ? await confirmOnGo() : true;
-        closeConfirm();
-        resolve(r !== false);
-      }catch(err){
-        console.error(err);
-        closeConfirm();
-        resolve(false);
-      }finally{
-        confirmOnGo = null;
+  let timer = setInterval(()=>{
+    remain -= 1;
+    counterEl.textContent = String(Math.max(0, remain));
+    if(remain <= 0){
+      clearInterval(timer);
+      btnGo.disabled = false;
+      counterEl.textContent = "0";
+    }
+  }, 1000);
+
+  return new Promise((resolve)=>{
+    const cleanup = ()=>{
+      clearInterval(timer);
+      btnBack.onclick = null;
+      btnGo.onclick = null;
+      if(overlay){
+        overlay.classList.remove("show");
+        overlay.setAttribute("aria-hidden","true");
       }
     };
+    btnBack.onclick = ()=>{ cleanup(); resolve(false); };
+    btnGo.onclick = ()=>{ cleanup(); resolve(true); };
   });
 }
+
 
 // Batch helpers
 function getBatchOrderIdsForProduct(productId){
