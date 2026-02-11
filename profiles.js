@@ -1,134 +1,160 @@
 /* =========================
-   AMARED - Profiles Manager
+   AMARED · Gestión de perfiles
    ========================= */
 
-const API_BASE = (typeof window.API_BASE === "string" && window.API_BASE)
-  ? window.API_BASE
-  : "REEMPLAZA_POR_TU_URL_DEL_WORKER";
+const API_BASE = "https://amared-orders.amaredpostres.workers.dev/"; // ✅ Worker real (NO GitHub Pages)
 
 const $ = (id) => document.getElementById(id);
 
+const btnBack = $("btnBack");
+
 const inpSecret = $("inpSecret");
 const btnUnlock = $("btnUnlock");
-const btnLock   = $("btnLock");
-const gateErr   = $("gateErr");
+const gateErr = $("gateErr");
 
-const mgr    = $("mgr");
-const listEl = $("list");
-const mgrErr = $("mgrErr");
+const pillState = $("pillState");
+const btnLogout = $("btnLogout");
+
+const mgrCard = $("mgrCard");
+const btnReload = $("btnReload");
+const pillCount = $("pillCount");
+const tbody = $("tbody");
+const listMsg = $("listMsg");
 
 const inpName = $("inpName");
-const inpId   = $("inpId");
-const btnAdd  = $("btnAdd");
+const inpId = $("inpId");
+const btnAdd = $("btnAdd");
+const mgrErr = $("mgrErr");
+
+const loading = $("loading");
+const loadingTitle = $("loadingTitle");
+const loadingMsg = $("loadingMsg");
 
 let PROFILES_SECRET = sessionStorage.getItem("amared_profiles_secret") || "";
+let UNLOCKED = false;
 
-// ---------- Helpers ----------
+// ---------- UI helpers ----------
 function showLoading(title, msg){
-  $("loadingTitle").textContent = title || "Cargando…";
-  $("loadingMsg").textContent = msg || "Procesando";
-  $("loading").style.display = "flex";
+  loadingTitle.textContent = title || "Cargando…";
+  loadingMsg.textContent = msg || "Procesando";
+  loading.style.display = "flex";
+  loading.setAttribute("aria-hidden","false");
 }
 function hideLoading(){
-  $("loading").style.display = "none";
+  loading.style.display = "none";
+  loading.setAttribute("aria-hidden","true");
 }
 function setGateError(msg){ gateErr.textContent = msg || ""; }
 function setMgrError(msg){ mgrErr.textContent = msg || ""; }
-
+function setListMsg(msg, color){
+  listMsg.textContent = msg || "";
+  listMsg.style.color = color || "";
+}
 function esc(s){
   return String(s||"").replace(/[&<>"']/g, (c)=>({
     "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"
   }[c]));
 }
 
+function setState(unlocked){
+  UNLOCKED = !!unlocked;
+  pillState.textContent = UNLOCKED ? "🔓 Desbloqueado" : "🔒 Bloqueado";
+  btnLogout.disabled = !UNLOCKED;
+  btnAdd.disabled = !UNLOCKED;
+  btnAdd.style.opacity = UNLOCKED ? "1" : ".65";
+}
+
+// ---------- API ----------
 async function api(action, payload){
   const res = await fetch(API_BASE, {
     method: "POST",
     headers: { "Content-Type":"application/json" },
     body: JSON.stringify({ action, ...(payload||{}) })
   });
+
   const data = await res.json().catch(()=> ({}));
   if(!res.ok || data?.ok === false){
-    const msg = data?.error || `HTTP ${res.status}`;
-    throw new Error(msg);
+    throw new Error(data?.error || `HTTP ${res.status}`);
   }
   return data;
 }
 
-// Slug para ID automático
+// ---------- ID automático ----------
 function slugifyId(label){
   return String(label||"")
     .trim()
     .toLowerCase()
     .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/[\u0300-\u036f]/g, "")   // quitar tildes
+    .replace(/[^a-z0-9]+/g, "_")        // no permitido -> _
     .replace(/^_+|_+$/g, "");
 }
 
 function getSelectedCategories(){
-  const arr = Array.from(document.querySelectorAll('.chipGroup input[type="checkbox"]:checked'))
+  const arr = Array.from(document.querySelectorAll('.chips input[type="checkbox"]:checked'))
     .map(i => String(i.value||"").trim().toLowerCase())
     .filter(Boolean);
-  // uniq
+
   const seen = {};
   return arr.filter(x => (seen[x] ? false : (seen[x]=1)));
 }
 
 // ---------- Render ----------
 function renderList(profiles){
-  listEl.innerHTML = "";
+  const list = Array.isArray(profiles) ? profiles : [];
 
-  if(!profiles.length){
-    listEl.innerHTML = `<div class="muted small" style="text-align:center; padding:12px;">No hay perfiles activos.</div>`;
+  pillCount.textContent = `${list.length} perfil${list.length === 1 ? "" : "es"}`;
+
+  if(!list.length){
+    tbody.innerHTML = `<tr><td colspan="4" class="muted small" style="padding:12px;">No hay perfiles activos.</td></tr>`;
     return;
   }
 
-  profiles.forEach(p => {
+  tbody.innerHTML = list.map(p => {
+    const id = esc(p.id);
+    const label = esc(p.label);
     const cats = Array.isArray(p.categories) ? p.categories : [];
-    const catTxt = cats.length ? cats.join(", ") : "—";
+    const catTxt = cats.length ? esc(cats.join(", ")) : "—";
 
-    const row = document.createElement("div");
-    row.className = "oRow";
-    row.innerHTML = `
-      <div class="oRowLeft">
-        <div class="oTitle">${esc(p.label)}</div>
-        <div class="oMeta muted small">${esc(p.id)} · <span class="pill">${esc(catTxt)}</span></div>
-      </div>
-      <div class="oRowRight">
-        <button class="btn secondary btnDel" data-id="${esc(p.id)}" type="button">Eliminar</button>
-      </div>
+    const delDisabled = UNLOCKED ? "" : "disabled";
+    const delStyle = UNLOCKED ? "" : "opacity:.55; cursor:not-allowed;";
+
+    return `
+      <tr>
+        <td><span class="badge">${id}</span></td>
+        <td>${label}</td>
+        <td>${catTxt}</td>
+        <td>
+          <button class="btn secondary" type="button"
+            data-del="${id}"
+            ${delDisabled}
+            style="padding:10px 12px; border-radius: 14px; background: linear-gradient(180deg, rgba(242,91,143,.12), rgba(242,91,143,.06)); border-color: rgba(242,91,143,.25); ${delStyle}"
+          >Eliminar</button>
+        </td>
+      </tr>
     `;
-
-    row.querySelector(".btnDel").addEventListener("click", async ()=>{
-      setMgrError("");
-      if(!PROFILES_SECRET){
-        setMgrError("Primero debes ingresar la clave.");
-        return;
-      }
-      const ok = confirm(`¿Eliminar el perfil "${p.label}"?`);
-      if(!ok) return;
-
-      try{
-        showLoading("Eliminando…","Actualizando en la base de datos.");
-        await api("profiles_delete", { profiles_secret: PROFILES_SECRET, profile_id: p.id });
-        const out = await api("profiles_list", {});
-        renderList(out.profiles || []);
-      }catch(e){
-        setMgrError(e.message);
-      }finally{
-        hideLoading();
-      }
-    });
-
-    listEl.appendChild(row);
-  });
+  }).join("");
 }
 
-// ---------- Flow ----------
+async function refresh(){
+  setListMsg("", "");
+  showLoading("Cargando…","Leyendo perfiles desde la base de datos.");
+  try{
+    const out = await api("profiles_list", {});
+    renderList(out.profiles || []);
+    setListMsg("Lista actualizada.", "rgba(64,17,2,.7)");
+  }catch(e){
+    setListMsg(e.message || String(e), "#b00020");
+  }finally{
+    hideLoading();
+  }
+}
+
+// ---------- Login / Logout ----------
 async function unlock(){
   setGateError("");
   setMgrError("");
+  setListMsg("");
 
   const secret = String(inpSecret.value||"").trim();
   if(!secret){
@@ -136,40 +162,39 @@ async function unlock(){
     return;
   }
 
+  showLoading("Ingresando…","Validando clave de perfiles.");
   try{
-    showLoading("Ingresando…","Validando clave.");
-    await api("validate_secret", { type:"profiles", secret }); // ✅ tipo correcto según Worker :contentReference[oaicite:6]{index=6}
+    // ✅ type:"profiles" (así lo exige tu Worker)
+    await api("validate_secret", { type:"profiles", secret });
+
     PROFILES_SECRET = secret;
     sessionStorage.setItem("amared_profiles_secret", secret);
 
-    const out = await api("profiles_list", {});
-    renderList(out.profiles || []);
-    mgr.style.display = "block";
-    setGateError("");
+    setState(true);
+    mgrCard.style.display = "block";
+    await refresh();
   }catch(e){
+    setState(false);
+    mgrCard.style.display = "none";
     setGateError("Clave incorrecta o no autorizada.");
   }finally{
     hideLoading();
   }
 }
 
-function lock(){
+function logout(){
   PROFILES_SECRET = "";
   sessionStorage.removeItem("amared_profiles_secret");
   inpSecret.value = "";
-  mgr.style.display = "none";
-  setGateError("Bloqueado.");
+  setState(false);
+  mgrCard.style.display = "none";
+  setGateError("Sesión bloqueada.");
 }
 
-// Auto ID preview
-inpName.addEventListener("input", ()=>{
-  inpId.value = slugifyId(inpName.value);
-});
-
-// Add profile
-btnAdd.addEventListener("click", async ()=>{
+// ---------- Add / Delete ----------
+async function addProfile(){
   setMgrError("");
-  if(!PROFILES_SECRET){
+  if(!UNLOCKED || !PROFILES_SECRET){
     setMgrError("Primero debes ingresar la clave.");
     return;
   }
@@ -191,38 +216,72 @@ btnAdd.addEventListener("click", async ()=>{
     return;
   }
 
+  showLoading("Guardando…","Creando/actualizando perfil.");
   try{
-    showLoading("Guardando…","Creando/actualizando perfil.");
     await api("profiles_add", {
       profiles_secret: PROFILES_SECRET,
       profile_id: id,
       label: name,
-      categories: cats.join(","),
+      categories: cats.join(","), // string
       created_by: "PROFILES_PAGE",
       is_active: true
     });
 
     inpName.value = "";
     inpId.value = "";
-
-    const out = await api("profiles_list", {});
-    renderList(out.profiles || []);
+    await refresh();
   }catch(e){
-    setMgrError(e.message);
+    setMgrError(e.message || String(e));
   }finally{
     hideLoading();
   }
+}
+
+async function deleteProfile(id){
+  setMgrError("");
+  if(!UNLOCKED || !PROFILES_SECRET) return;
+
+  const ok = confirm(`¿Eliminar el perfil "${id}"?`);
+  if(!ok) return;
+
+  showLoading("Eliminando…","Actualizando en la base de datos.");
+  try{
+    // Soft delete: marca is_active=false
+    await api("profiles_delete", {
+      profiles_secret: PROFILES_SECRET,
+      profile_id: String(id)
+    });
+    await refresh();
+  }catch(e){
+    setMgrError(e.message || String(e));
+  }finally{
+    hideLoading();
+  }
+}
+
+// ---------- Events ----------
+btnBack.addEventListener("click", ()=> history.back());
+
+btnUnlock.addEventListener("click", unlock);
+inpSecret.addEventListener("keydown", (e)=>{ if(e.key === "Enter") unlock(); });
+
+btnLogout.addEventListener("click", logout);
+btnReload.addEventListener("click", refresh);
+
+inpName.addEventListener("input", ()=>{
+  inpId.value = slugifyId(inpName.value);
 });
 
-// Buttons
-btnUnlock.addEventListener("click", unlock);
-btnLock.addEventListener("click", lock);
+btnAdd.addEventListener("click", addProfile);
+
+document.addEventListener("click", (e)=>{
+  const del = e.target?.getAttribute?.("data-del");
+  if(del) deleteProfile(del);
+});
 
 // Bootstrap
-(async function boot(){
-  // si había clave en sessionStorage, intenta auto abrir
-  if(PROFILES_SECRET){
-    inpSecret.value = PROFILES_SECRET;
-    await unlock();
-  }
-})();
+setState(false);
+if(PROFILES_SECRET){
+  inpSecret.value = PROFILES_SECRET;
+  unlock(); // auto-login
+}
