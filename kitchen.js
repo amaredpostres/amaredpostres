@@ -1,10 +1,10 @@
-/* kitchen.js (REFactor V2) — AMARED Cocina
-   Cambios clave V2:
-   ✅ No llama profiles_list / costs_public_list antes del login (evita 400/401 al cargar)
-   ✅ list_orders SIEMPRE envía admin_pin (corrige "Unauthorized admin" en Actualizar)
-   ✅ Logout limpia errores y evita que queden mensajes de PIN inválido
-   ✅ Costos toma datos de la hoja COSTOS_INGREDIENTES vía action:"costs_public_list"
-      (si el Worker exige PIN, se consulta después del login)
+/* kitchen.js (REFactor V3) — AMARED Cocina
+   V3:
+   ✅ Loader centrado (usa modalOverlay existente) + soporte para spinner si existe en HTML/CSS
+   ✅ Perfiles: reintenta profiles_list (sin admin_pin) y luego (con admin_pin)
+   ✅ Costos: reintenta costs_public_list (con admin_pin) y luego (sin admin_pin)
+   ✅ Costos NO más $0 por mismatch: normalización sin tildes + alias comunes
+   ✅ Acordeón por producto: solo muestra nombre + cantidad; al abrir carga ingredientes/costo
 */
 
 (() => {
@@ -19,9 +19,9 @@
   const BASE_FRIDGE_MINUTES = 30;
 
   // Storage keys
-  const SS_KEY = "AMARED_KITCHEN_SESSION_V2";
-  const LS_TIMER_KEY = "AMARED_KITCHEN_TIMERS_V1"; // por dayKey + productId
-  const LS_DONE_KEY  = "AMARED_KITCHEN_DONE_V1";   // por dayKey + productId
+  const SS_KEY = "AMARED_KITCHEN_SESSION_V3";
+  const LS_TIMER_KEY = "AMARED_KITCHEN_TIMERS_V1";
+  const LS_DONE_KEY  = "AMARED_KITCHEN_DONE_V1";
 
   // Fallback profiles (kitchen-profiles.js)
   const DEFAULT_PROFILES = (window.AMARED_KITCHEN_PROFILES && Array.isArray(window.AMARED_KITCHEN_PROFILES))
@@ -42,7 +42,6 @@
     { id: "arroz_con_leche", name: "Arroz con leche (no activo)" },
   ];
 
-  // Hero images (assets/)
   const HERO_IMG = {
     mousse_maracuya: "assets/mousse.webp",
     cheesecake_cafe_panela: "assets/cheesecake.webp",
@@ -135,7 +134,7 @@
   };
 
   // =========================
-  // DOM (según kitchen.html actual)
+  // DOM
   // =========================
   const $ = (id) => document.getElementById(id);
 
@@ -157,6 +156,7 @@
   const loading = $("loading");
   const loadingTitle = $("loadingTitle");
   const loadingMsg = $("loadingMsg");
+  const loadingSpin = $("loadingSpin"); // opcional si lo agregas en HTML
 
   const costsModal = $("costsModal");
   const btnCloseCosts = $("btnCloseCosts");
@@ -169,7 +169,7 @@
   const state = {
     session: { operatorId: null, operatorLabel: null, pin: null },
     profiles: [],
-    pricesMap: {},
+    pricesMap: {},            // normalizedKey2 -> cop_per_unit
     costsLastUpdated: null,
 
     paidOrders: [],
@@ -181,8 +181,7 @@
     recipe: { open:false, productId:null, orderIds:[], units:0, stepIdx:0 },
 
     timerTick: null,
-    refreshNonce: 0,     // para invalidar refresh en logout
-    loggedIn: false,
+    refreshNonce: 0,
   };
 
   // =========================
@@ -192,6 +191,7 @@
 
   function showLoading(title, msg){
     if(!loading) return;
+    if(loadingSpin) loadingSpin.style.display = "inline-block";
     loadingTitle.textContent = title || "Cargando…";
     loadingMsg.textContent = msg || "Procesando";
     loading.style.display = "flex";
@@ -236,8 +236,76 @@
     return out;
   }
 
+  async function apiTry(payload){
+    try{ return await api(payload); }catch(e){ return { ok:false, error:String(e?.message||e) }; }
+  }
+
   // =========================
-  // Time / reglas (Bogotá + cutoff + fin de semana)
+  // Normalización para match de costos
+  // =========================
+  function stripAccents(s){
+    return String(s||"").normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+  }
+  function normalizeKey1(s){
+    // quita paréntesis (unidades), baja a base
+    return String(s||"")
+      .replace(/\([^\)]*\)/g,"")
+      .replace(/\s{2,}/g," ")
+      .trim();
+  }
+  function normalizeKey2(s){
+    // sin tildes, solo letras/números, sin palabras irrelevantes
+    const base = stripAccents(normalizeKey1(s)).toLowerCase();
+    const cleaned = base.replace(/[^a-z0-9\s]/g, " ").replace(/\s{2,}/g," ").trim();
+    const tokens = cleaned.split(" ").filter(t => t && !["de","del","la","el","sin","con","para","y","opcional","logo","decorativo","topping","harina"].includes(t));
+    return tokens.join(" ");
+  }
+
+  // Alias comunes: receta -> hoja costos
+  const COST_ALIASES = {
+    "pulpa maracuya": ["pulpa de maracuya","pulpa maracuya"],
+    "galletas trituradas": ["galletas saladas","galletas","galletas trituradas"],
+    "mantequilla": ["mantequilla sin sal","mantequilla"],
+    "leche condensada": ["leche condensada","leche condensada (ml)","leche condensada (g)"],
+    "crema de leche": ["crema de leche","crema de leche (ml)"],
+    "gelatina sin sabor": ["gelatina sin sabor"],
+    "agua gelatina": ["agua","agua gelatina"],
+    "chocolate en polvo": ["chocolate en polvo","chocolate"],
+    "chocorramo": ["chocorramo"],
+    "queso crema": ["queso crema","queso crema (g)"],
+    "cafe preparado": ["cafe preparado","cafe"],
+    "panela": ["panela"],
+    "azucar": ["azucar"],
+    "arroz": ["arroz blanco","arroz"],
+    "sal": ["sal"],
+    "canela": ["canela"],
+    "vainilla": ["vainilla"],
+  };
+
+  function priceLookup(recipeKey){
+    const k2 = normalizeKey2(recipeKey);
+    if(state.pricesMap[k2] != null) return Number(state.pricesMap[k2] || 0);
+
+    // intenta alias
+    for(const [needle, alts] of Object.entries(COST_ALIASES)){
+      if(k2.includes(needle) || needle.includes(k2)){
+        for(const a of alts){
+          const a2 = normalizeKey2(a);
+          if(state.pricesMap[a2] != null) return Number(state.pricesMap[a2] || 0);
+        }
+      }
+    }
+
+    // fallback: match parcial (contiene)
+    const keys = Object.keys(state.pricesMap || {});
+    const hit = keys.find(k => k && (k.includes(k2) || k2.includes(k)));
+    if(hit) return Number(state.pricesMap[hit] || 0);
+
+    return 0;
+  }
+
+  // =========================
+  // Time / reglas
   // =========================
   function getBogotaParts(date){
     const fmt = new Intl.DateTimeFormat("en-CA", {
@@ -339,39 +407,43 @@
   }
 
   // =========================
-  // Costs (solo lectura) — desde COSTOS_INGREDIENTES
+  // Costs fetch (robusto)
   // =========================
-  function normalizeIngredientKey(s){
-    return String(s||"")
-      .replace(/\([^\)]*\)/g,"")
-      .replace(/\s{2,}/g," ")
-      .trim();
+  async function fetchCostsPublic(){
+    const pin = state.session.pin || "";
+
+    // 1) intenta con admin_pin
+    let out = await apiTry({ action:"costs_public_list", admin_pin: pin });
+    if(out.ok === true){
+      return parseCosts(out);
+    }
+
+    // 2) intenta sin admin_pin (por si el worker lo deja público)
+    out = await apiTry({ action:"costs_public_list" });
+    if(out.ok === true){
+      return parseCosts(out);
+    }
+
+    return { map:{}, lastUpdated:null };
   }
 
-  async function fetchCostsPublicAfterLogin(){
-    if(!state.session.pin) return { map:{}, lastUpdated:null };
+  function parseCosts(out){
+    const items = out.items || out.costs || [];
+    const map = {};
+    let lastUpdated = null;
 
-    try{
-      // En tu Apps Script existe costs_public_list (solo lectura).
-      // Si el Worker la protege, aquí la consultamos con admin_pin.
-      const out = await api({ action:"costs_public_list", admin_pin: state.session.pin });
-      const items = out.items || out.costs || [];
-      const map = {};
-      let lastUpdated = null;
+    for(const row of items){
+      const k = row.ingredient_key || row.key || row.ingredient || "";
+      if(!k) continue;
 
-      for(const row of items){
-        const key = normalizeIngredientKey(row.ingredient_key || row.key || "");
-        if(!key) continue;
-        const v = Number(row.cop_per_unit ?? row.copPerUnit ?? row.value ?? 0);
-        map[key] = Number.isFinite(v) ? v : 0;
+      const k2 = normalizeKey2(k);
+      const v = Number(row.cop_per_unit ?? row.copPerUnit ?? row.value ?? 0);
+      map[k2] = Number.isFinite(v) ? v : 0;
 
-        const u = row.updated_at || row.updatedAt || null;
-        if(u && (!lastUpdated || String(u) > String(lastUpdated))) lastUpdated = u;
-      }
-      return { map, lastUpdated };
-    }catch(_e){
-      return { map:{}, lastUpdated:null };
+      const u = row.updated_at || row.updatedAt || null;
+      if(u && (!lastUpdated || String(u) > String(lastUpdated))) lastUpdated = u;
     }
+    return { map, lastUpdated };
   }
 
   function calcBatchIngredients(productId, units){
@@ -381,13 +453,7 @@
     let totalCost = 0;
     const lines = (recipe.unitIngredients || []).map(ing => {
       const totalQty = Number(ing.qty || 0) * Number(units || 0);
-
-      // Match por clave normalizada
-      const keyNorm = normalizeIngredientKey(ing.key);
-      const pricePerUnit = Number(state.pricesMap[keyNorm] || 0);
-
-      // Si el precio está en "costo por unidad" del mismo tipo de unidad (ml, g, etc)
-      // el costo del ingrediente es qty_total * cop_per_unit
+      const pricePerUnit = priceLookup(ing.key);
       const cost = totalQty * pricePerUnit;
       totalCost += cost;
 
@@ -398,22 +464,33 @@
   }
 
   // =========================
-  // Profiles (solo lista kitchen) — DESPUÉS del login
+  // Profiles fetch (robusto)
   // =========================
-  async function fetchKitchenProfilesAfterLogin(){
-    if(!state.session.pin) return DEFAULT_PROFILES;
+  async function fetchKitchenProfiles(){
+    const pin = state.session.pin || "";
 
-    try{
-      const out = await api({ action:"profiles_list", category:"kitchen", admin_pin: state.session.pin });
-      if(out?.ok && Array.isArray(out.profiles) && out.profiles.length){
-        return out.profiles
-          .filter(p => p && (p.id || p.profile_id) && p.label)
-          .map(p => ({ id: String(p.id || p.profile_id), label: String(p.label) }));
-      }
-      return DEFAULT_PROFILES;
-    }catch(_e){
-      return DEFAULT_PROFILES;
+    // 1) intenta sin pin (si worker lo deja público)
+    let out = await apiTry({ action:"profiles_list", category:"kitchen" });
+    if(out.ok === true){
+      return parseProfiles(out);
     }
+
+    // 2) intenta con admin_pin
+    out = await apiTry({ action:"profiles_list", category:"kitchen", admin_pin: pin });
+    if(out.ok === true){
+      return parseProfiles(out);
+    }
+
+    return DEFAULT_PROFILES.slice();
+  }
+
+  function parseProfiles(out){
+    const arr = out.profiles || out.items || [];
+    if(!Array.isArray(arr) || !arr.length) return DEFAULT_PROFILES.slice();
+
+    return arr
+      .filter(p => p && (p.id || p.profile_id) && p.label)
+      .map(p => ({ id: String(p.id || p.profile_id), label: String(p.label) }));
   }
 
   function renderProfilesSelect(selectedId){
@@ -424,23 +501,18 @@
   }
 
   // =========================
-  // Auth + session
+  // Session
   // =========================
-  function saveSession(){
-    sessionStorage.setItem(SS_KEY, JSON.stringify(state.session));
-  }
+  function saveSession(){ sessionStorage.setItem(SS_KEY, JSON.stringify(state.session)); }
   function loadSession(){
     const raw = sessionStorage.getItem(SS_KEY);
     const s = raw ? safeJsonParse(raw) : null;
-    if(s?.operatorId && s?.operatorLabel && s?.pin){
-      state.session = s;
-      return true;
-    }
+    if(s?.operatorId && s?.operatorLabel && s?.pin){ state.session = s; return true; }
     return false;
   }
   function clearSession(){
     sessionStorage.removeItem(SS_KEY);
-    state.session = { operatorId: null, operatorLabel: null, pin: null };
+    state.session = { operatorId:null, operatorLabel:null, pin:null };
   }
 
   function showLogin(){
@@ -456,33 +528,25 @@
     if(btnRefresh) btnRefresh.style.display = "inline-flex";
   }
 
-  // Best-effort validate pin (si no existe acción, lo validará list_orders)
   async function validatePinBestEffort(pin){
-    try{
-      await api({ action:"validate_admin_pin", admin_pin: pin });
-      return true;
-    }catch(e){
-      const msg = String(e?.message || "").toLowerCase();
-      if(msg.includes("unknown action")) return true;
-      // si el error es 401/Unauthorized, lo dejamos fallar aquí
-      throw e;
-    }
+    // Si no existe la acción, list_orders lo validará
+    const out = await apiTry({ action:"validate_admin_pin", admin_pin: pin });
+    if(out.ok === true) return true;
+    if(String(out.error||"").toLowerCase().includes("unknown action")) return true;
+    throw new Error("PIN inválido o no autorizado.");
   }
 
   // =========================
-  // Lote: done + timers (local)
+  // Done + timers
   // =========================
   function getDoneMap(){
     const raw = localStorage.getItem(LS_DONE_KEY);
     const obj = raw ? safeJsonParse(raw) : null;
     return (obj && typeof obj === "object") ? obj : {};
   }
-  function setDoneMap(obj){
-    localStorage.setItem(LS_DONE_KEY, JSON.stringify(obj || {}));
-  }
+  function setDoneMap(obj){ localStorage.setItem(LS_DONE_KEY, JSON.stringify(obj || {})); }
   function isProductDone(dayKey, productId){
-    const m = getDoneMap();
-    return !!(m?.[dayKey]?.[productId]);
+    const m = getDoneMap(); return !!(m?.[dayKey]?.[productId]);
   }
   function markProductDone(dayKey, productId, val){
     const m = getDoneMap();
@@ -496,45 +560,36 @@
     const obj = raw ? safeJsonParse(raw) : null;
     return (obj && typeof obj === "object") ? obj : {};
   }
-  function setTimersMap(obj){
-    localStorage.setItem(LS_TIMER_KEY, JSON.stringify(obj || {}));
-  }
+  function setTimersMap(obj){ localStorage.setItem(LS_TIMER_KEY, JSON.stringify(obj || {})); }
   function setTimerEnd(dayKey, productId, endMs){
-    const m = getTimersMap();
-    if(!m[dayKey]) m[dayKey] = {};
-    m[dayKey][productId] = Number(endMs || 0);
-    setTimersMap(m);
+    const m = getTimersMap(); if(!m[dayKey]) m[dayKey] = {};
+    m[dayKey][productId] = Number(endMs || 0); setTimersMap(m);
   }
   function getTimerEnd(dayKey, productId){
-    const m = getTimersMap();
-    return Number(m?.[dayKey]?.[productId] || 0);
+    const m = getTimersMap(); return Number(m?.[dayKey]?.[productId] || 0);
   }
   function clearTimer(dayKey, productId){
     const m = getTimersMap();
-    if(m?.[dayKey]){
-      delete m[dayKey][productId];
-      setTimersMap(m);
-    }
+    if(m?.[dayKey]){ delete m[dayKey][productId]; setTimersMap(m); }
   }
 
   // =========================
-  // Bulk update (Sheets)
+  // Bulk update
   // =========================
   async function kitchenBulkUpdate(orderIds, patch){
     if(!Array.isArray(orderIds) || orderIds.length === 0) return;
 
-    const payload = {
+    await api({
       action: "kitchen_bulk_update",
       admin_pin: state.session.pin || "",
       operator: state.session.operatorLabel || "COCINA",
       order_ids: orderIds.map(String),
       patch: patch || {},
-    };
-    await api(payload);
+    });
   }
 
   // =========================
-  // Data load + buckets
+  // Data load
   // =========================
   async function loadData(myNonce){
     if(!state.session.pin) throw new Error("Unauthorized admin");
@@ -542,15 +597,15 @@
     state.todayKey = getTodayProductionDayKey();
     state.nextKey = getNextProductionDayKey(state.todayKey);
 
-    showLoading("Cargando cocina…", "Obteniendo pedidos y preparando producción.");
+    showLoading("Cargando cocina…", "Obteniendo pedidos…");
 
     const out = await api({
       action: "list_orders",
       payment_status: "Pagado",
-      admin_pin: state.session.pin, // ✅ clave: para que Worker no responda Unauthorized
+      admin_pin: state.session.pin, // importante
     });
 
-    if(myNonce !== state.refreshNonce) return; // logout / nuevo refresh
+    if(myNonce !== state.refreshNonce) return;
 
     const paid = (out.orders || []).map(o => {
       o.__prod_day = computeProductionDayKeyForOrder(o.created_at);
@@ -565,8 +620,7 @@
       const d = new Date(o.created_at);
       if(Number.isNaN(d.getTime())) return false;
       if(!isSameBogotaDay(d, state.todayKey)) return false;
-      const hh = getBogotaParts(d).hh;
-      return hh >= CUTOFF_HOUR;
+      return getBogotaParts(d).hh >= CUTOFF_HOUR;
     });
 
     const inProg = todayAll.filter(o => String(o.kitchen_status || "") === "En proceso");
@@ -583,9 +637,9 @@
   }
 
   // =========================
-  // UI: cards por producto + acordeón + acciones
+  // UI: acordeón por producto
   // =========================
-  function renderSectionProductCards(container, orders, opts){
+  function renderProductAccordions(container, orders, opts){
     if(!container) return;
     const { titlePill, showActions } = opts || {};
 
@@ -599,22 +653,12 @@
       const doneLocal = isProductDone(state.todayKey, p.id);
       const orderIds = getOrderIdsThatContainProduct(orders, p.id);
 
-      const { lines, totalCost } = calcBatchIngredients(p.id, qty);
-      const costText = totalCost > 0 ? `$${money(totalCost)}` : "—";
-
-      const ingHtml = (lines || []).map(li => `
-        <div class="line">
-          <span>${escapeHtml(li.key)}</span>
-          <div>${fmtQty(li.qty)}</div>
-        </div>
-      `).join("");
-
-      const disabledStart = (!showActions || doneLocal || orderIds.length === 0);
       const hero = HERO_IMG[p.id] || "";
 
+      // Body se carga "lazy": dejamos placeholder y cuando se abre calculamos ingredientes/costo
       cards.push(`
-        <div class="pCard" data-pid="${escapeHtml(p.id)}">
-          <div class="rowBetween">
+        <div class="pCard" data-pid="${escapeHtml(p.id)}" data-units="${qty}">
+          <div class="pHead" style="cursor:pointer;">
             <div style="display:flex; gap:12px; align-items:center; min-width:0;">
               ${hero ? `<img src="${escapeHtml(hero)}" alt="" style="width:56px;height:56px;object-fit:cover;border-radius:14px;border:1px solid rgba(64,17,2,.10);" />` : ""}
               <div style="min-width:0;">
@@ -624,30 +668,28 @@
               </div>
             </div>
 
-            <div class="row" style="gap:10px;">
-              <button class="btn secondary" type="button" data-act="toggle">Insumos</button>
-              ${showActions ? `<button class="btn primary" type="button" data-act="start" ${disabledStart ? "disabled" : ""}>Iniciar</button>` : ""}
+            <div class="row" style="gap:10px; align-items:center;">
+              ${doneLocal ? `<div class="pill">✅ Listo</div>` : ``}
+              <div class="pill">Ver</div>
             </div>
           </div>
 
-          <div class="accBody">
-            <div class="rowBetween" style="margin-bottom:10px;">
-              <div class="pill">Ingredientes (lote)</div>
-              <div class="pill">Costo estimado: ${costText}</div>
-            </div>
+          <div class="accBody" data-loaded="0">
+            <div class="muted small">Cargando ingredientes…</div>
+          </div>
 
-            ${ingHtml || `<div class="muted small">Sin receta configurada.</div>`}
-
-            ${showActions ? `
-              <div class="rowBetween" style="margin-top:10px;">
-                <button class="btn secondary" type="button" data-act="timer">⏱️ Temporizador 30 min</button>
+          ${showActions ? `
+            <div class="rowBetween" style="margin-top:10px;">
+              <button class="btn secondary" type="button" data-act="start" ${doneLocal ? "disabled" : ""}>Iniciar</button>
+              <div class="row" style="gap:10px;">
+                <button class="btn secondary" type="button" data-act="timer">⏱️ 30 min</button>
                 <button class="btn secondary" type="button" data-act="done" ${doneLocal ? "disabled" : ""}>✅ Marcar listo</button>
               </div>
-              <div class="muted small" style="margin-top:8px;">
-                Pedido(s) asociados: <b>${orderIds.length}</b>
-              </div>
-            ` : ``}
-          </div>
+            </div>
+            <div class="muted small" style="margin-top:8px;">
+              Pedido(s) asociados: <b>${orderIds.length}</b>
+            </div>
+          ` : ``}
         </div>
       `);
     }
@@ -661,36 +703,70 @@
 
     container.onclick = async (e) => {
       const card = e.target.closest(".pCard");
-      const btn = e.target.closest("button[data-act]");
-      if(!card || !btn) return;
+      if(!card) return;
 
       const pid = card.getAttribute("data-pid");
-      const act = btn.getAttribute("data-act");
+      const units = Number(card.getAttribute("data-units") || 0);
 
-      if(act === "toggle"){ card.classList.toggle("open"); return; }
-      if(act === "start"){ await startRecipeFlow(pid, orders); return; }
-      if(act === "timer"){ startBaseTimer(pid); return; }
-      if(act === "done"){ await markProductAsDone(pid, orders); return; }
+      // click en botones
+      const btn = e.target.closest("button[data-act]");
+      if(btn){
+        const act = btn.getAttribute("data-act");
+        if(act === "start"){ await startRecipeFlow(pid, orders); return; }
+        if(act === "timer"){ startBaseTimer(pid); return; }
+        if(act === "done"){ await markProductAsDone(pid, orders); return; }
+      }
+
+      // click en header => toggle y lazy load
+      const head = e.target.closest(".pHead");
+      if(!head) return;
+
+      card.classList.toggle("open");
+      const body = card.querySelector(".accBody");
+      if(card.classList.contains("open") && body && body.getAttribute("data-loaded") !== "1"){
+        body.setAttribute("data-loaded","1");
+
+        const { lines, totalCost } = calcBatchIngredients(pid, units);
+        const costText = totalCost > 0 ? `$${money(totalCost)}` : "—";
+
+        const ingHtml = (lines || []).map(li => `
+          <div class="line">
+            <span>${escapeHtml(li.key)}</span>
+            <div>
+              ${fmtQty(li.qty)}
+              ${li.pricePerUnit ? `<span class="muted small" style="margin-left:8px;">($${money(li.pricePerUnit)}/u)</span>` : `<span class="muted small" style="margin-left:8px;">(sin costo)</span>`}
+            </div>
+          </div>
+        `).join("");
+
+        body.innerHTML = `
+          <div class="rowBetween" style="margin-bottom:10px;">
+            <div class="pill">Ingredientes (lote)</div>
+            <div class="pill">Costo estimado: ${costText}</div>
+          </div>
+          ${ingHtml || `<div class="muted small">Sin receta configurada.</div>`}
+        `;
+      }
     };
   }
 
   function renderAll(){
-    renderSectionProductCards(todayWrap, state.buckets.today, {
+    renderProductAccordions(todayWrap, state.buckets.today, {
       titlePill: `Producción ${state.todayKey}`,
       showActions: true,
     });
 
-    renderSectionProductCards(tomorrowWrap, state.buckets.infoTomorrow, {
+    renderProductAccordions(tomorrowWrap, state.buckets.infoTomorrow, {
       titlePill: `Informativo (${state.nextKey})`,
       showActions: false,
     });
 
-    renderSectionProductCards(inProgressWrap, state.buckets.inProgress, {
+    renderProductAccordions(inProgressWrap, state.buckets.inProgress, {
       titlePill: "En proceso",
       showActions: true,
     });
 
-    renderSectionProductCards(doneWrap, state.buckets.done, {
+    renderProductAccordions(doneWrap, state.buckets.done, {
       titlePill: "Finalizados",
       showActions: false,
     });
@@ -699,7 +775,7 @@
   }
 
   // =========================
-  // Receta step-by-step (overlay)
+  // Receta overlay (igual que antes, mantenido)
   // =========================
   function ensureOverlays(){
     if(document.getElementById("amaredRecipeOverlay")) return;
@@ -745,9 +821,7 @@
     document.getElementById("amRecipeClose").onclick = closeRecipe;
     document.getElementById("amPrev").onclick = () => stepMove(-1);
     document.getElementById("amNext").onclick = () => stepMove(1);
-    document.getElementById("amStartTimer").onclick = () => {
-      if(state.recipe.productId) startBaseTimer(state.recipe.productId);
-    };
+    document.getElementById("amStartTimer").onclick = () => { if(state.recipe.productId) startBaseTimer(state.recipe.productId); };
   }
 
   function toast(msg){
@@ -815,7 +889,6 @@
 
     title.textContent = `Receta · ${prod ? prod.name : pid}`;
     sub.textContent = `Lote: ${state.recipe.units} unidades · Operador: ${state.session.operatorLabel || "—"}`;
-
     counter.textContent = `Paso ${state.recipe.stepIdx + 1} / ${steps.length}`;
 
     if(st && st.type === "batch_ingredients"){
@@ -828,7 +901,10 @@
         ${(lines||[]).map(li => `
           <div class="line">
             <span>${escapeHtml(li.key)}</span>
-            <div>${fmtQty(li.qty)} ${li.pricePerUnit ? `<span class="muted small" style="margin-left:8px;">($${money(li.pricePerUnit)}/u)</span>` : ""}</div>
+            <div>
+              ${fmtQty(li.qty)}
+              ${li.pricePerUnit ? `<span class="muted small" style="margin-left:8px;">($${money(li.pricePerUnit)}/u)</span>` : `<span class="muted small" style="margin-left:8px;">(sin costo)</span>`}
+            </div>
           </div>
         `).join("")}
       `;
@@ -863,7 +939,7 @@
   }
 
   // =========================
-  // Temporizador (30 min)
+  // Timer
   // =========================
   function renderTimerPill(productId){
     const pill = document.getElementById("amTimerPill");
@@ -907,7 +983,7 @@
   }
 
   // =========================
-  // Acciones: start / done / finalize
+  // Actions
   // =========================
   async function startRecipeFlow(productId, baseOrders){
     const orders = baseOrders || [];
@@ -917,7 +993,7 @@
 
     if(orderIds.length === 0){ toast("No hay pedidos para este producto."); return; }
 
-    showLoading("Iniciando…", "Marcando pedidos en proceso y abriendo receta.");
+    showLoading("Iniciando…", "Marcando pedidos en proceso…");
     try{
       await kitchenBulkUpdate(orderIds, { kitchen_status:"En proceso" });
       await refresh();
@@ -937,7 +1013,7 @@
     const ok = confirm("¿Marcar este producto como LISTO para todos sus pedidos?");
     if(!ok) return;
 
-    showLoading("Finalizando…", "Guardando estado en la base de datos.");
+    showLoading("Finalizando…", "Guardando estado…");
     try{
       await kitchenBulkUpdate(orderIds, { kitchen_status:"Listo" });
       markProductDone(state.todayKey, productId, true);
@@ -983,7 +1059,7 @@
       const stillNotDone = todayAll.filter(o => String(o.kitchen_status || "") !== "Listo");
       const ids = stillNotDone.map(o => String(o.order_id));
 
-      showLoading("Finalizando lote…", "Aplicando cambios finales.");
+      showLoading("Finalizando lote…", "Aplicando cambios…");
       try{
         if(ids.length){
           await kitchenBulkUpdate(ids, { kitchen_status:"Listo" });
@@ -1001,7 +1077,7 @@
   }
 
   // =========================
-  // Costos modal (solo lectura)
+  // Costs modal (read-only) — más agradable
   // =========================
   function ensureCostsButton(){
     if(document.getElementById("btnCostsRO")) return;
@@ -1015,19 +1091,16 @@
     btn.type = "button";
     btn.textContent = "Costos";
     btn.style.display = "none";
-
     btn.onclick = openCostsModal;
+
     headerBtns.insertBefore(btn, btnRefresh);
 
-    if(btnCloseCosts){
-      btnCloseCosts.onclick = closeCostsModal;
-    }
+    if(btnCloseCosts) btnCloseCosts.onclick = closeCostsModal;
   }
 
   function openCostsModal(){
     if(!costsModal) return;
     costsGateErr.textContent = "";
-
     costsModal.style.display = "flex";
     costsModal.setAttribute("aria-hidden","false");
     renderCostsReadOnly();
@@ -1042,47 +1115,33 @@
   function renderCostsReadOnly(){
     if(!costsEditor) return;
 
-    const sections = COSTS_SECTIONS.length
-      ? COSTS_SECTIONS
-      : [{ title: "Ingredientes", keys: Object.keys(state.pricesMap || {}).sort((a,b)=>a.localeCompare(b,"es")) }];
+    const keys = Object.keys(state.pricesMap || {});
+    const list = keys
+      .map(k => ({ k, v: Number(state.pricesMap[k]||0) }))
+      .sort((a,b)=> (b.v-a.v) || a.k.localeCompare(b.k,"es"));
 
-    const html = sections.map((sec, idx) => {
-      const items = (sec.keys || []).map(k => {
-        const keyNorm = normalizeIngredientKey(k);
-        const v = Number(state.pricesMap[keyNorm] || 0);
-        return `
-          <div class="line">
-            <span>${escapeHtml(k)}</span>
-            <div>$${money(v)}</div>
-          </div>
-        `;
-      }).join("");
-
-      return `
-        <div class="pCard ${idx===0 ? "open" : ""}" style="margin-bottom:12px;">
-          <div class="rowBetween">
-            <div style="font-weight:950;">${escapeHtml(sec.title || "Sección")}</div>
-            <button class="btn secondary" type="button" data-acc="toggle">Ver</button>
-          </div>
-          <div class="accBody" style="margin-top:10px;">
-            ${items || `<div class="muted small">Sin datos.</div>`}
-          </div>
-        </div>
-      `;
-    }).join("");
+    const htmlList = list.map(it => `
+      <div class="line">
+        <span>${escapeHtml(it.k)}</span>
+        <div>$${money(it.v)}</div>
+      </div>
+    `).join("");
 
     const meta = state.costsLastUpdated
       ? `<div class="muted small" style="margin-bottom:10px;">Última actualización: ${escapeHtml(state.costsLastUpdated)}</div>`
       : `<div class="muted small" style="margin-bottom:10px;">Costos en modo solo lectura.</div>`;
 
-    costsEditor.innerHTML = meta + html;
-
-    costsEditor.onclick = (e) => {
-      const btn = e.target.closest("button[data-acc]");
-      if(!btn) return;
-      const card = btn.closest(".pCard");
-      if(card) card.classList.toggle("open");
-    };
+    costsEditor.innerHTML = meta + `
+      <div class="pCard open">
+        <div class="rowBetween">
+          <div style="font-weight:950;">Costos por unidad (normalizados)</div>
+          <div class="pill">${keys.length} items</div>
+        </div>
+        <div class="accBody" style="margin-top:10px; max-height:55vh; overflow:auto;">
+          ${htmlList || `<div class="muted small">Sin datos.</div>`}
+        </div>
+      </div>
+    `;
   }
 
   // =========================
@@ -1090,7 +1149,6 @@
   // =========================
   async function refresh(){
     const myNonce = state.refreshNonce;
-
     try{
       await loadData(myNonce);
       if(myNonce !== state.refreshNonce) return;
@@ -1106,54 +1164,49 @@
   async function onLogin(){
     loginErr.textContent = "";
 
-    const selectedProfileId = selOperator.value;
+    const selectedId = selOperator.value;
     const pin = String(inpPin.value || "").trim();
 
-    if(!selectedProfileId || !pin){
+    if(!selectedId || !pin){
       loginErr.textContent = "Selecciona un perfil e ingresa el PIN.";
       return;
     }
 
-    showLoading("Validando…", "Verificando acceso.");
+    showLoading("Validando…", "Verificando acceso…");
 
     try{
       await validatePinBestEffort(pin);
 
-      // Guardar sesión (label puede venir del fallback y luego la actualizamos)
-      const labelFallback = (state.profiles.find(p => p.id === selectedProfileId)?.label) || selectedProfileId;
-
-      state.session = { operatorId: selectedProfileId, operatorLabel: labelFallback, pin };
+      // sesión inicial
+      const labelFallback = (state.profiles.find(p => p.id === selectedId)?.label) || selectedId;
+      state.session = { operatorId: selectedId, operatorLabel: labelFallback, pin };
       saveSession();
-      state.loggedIn = true;
 
       showApp();
       ensureCostsButton();
 
-      const btnCostsRO = document.getElementById("btnCostsRO");
-      if(btnCostsRO) btnCostsRO.style.display = "inline-flex";
-
-      // 🔽 Después del login: cargar perfiles reales (kitchen) y costos
-      state.profiles = await fetchKitchenProfilesAfterLogin();
+      // cargar perfiles reales de cocina
+      state.profiles = await fetchKitchenProfiles();
       renderProfilesSelect(state.session.operatorId);
 
-      // Ajustar label real si cambió
       const realLabel = state.profiles.find(p => p.id === state.session.operatorId)?.label;
       if(realLabel){
         state.session.operatorLabel = realLabel;
         saveSession();
       }
 
-      const c = await fetchCostsPublicAfterLogin();
+      // cargar costos reales
+      const c = await fetchCostsPublic();
       state.pricesMap = c.map || {};
       state.costsLastUpdated = c.lastUpdated || null;
 
-      // ✅ Ahora sí refresh (list_orders con admin_pin)
+      const btnCostsRO = document.getElementById("btnCostsRO");
+      if(btnCostsRO) btnCostsRO.style.display = "inline-flex";
+
       await refresh();
 
     } catch(e){
-      // Si falla, no dejamos sesión “a medias”
       clearSession();
-      state.loggedIn = false;
       showLogin();
       loginErr.textContent = "PIN inválido o no autorizado.";
     } finally {
@@ -1162,15 +1215,11 @@
   }
 
   function onLogout(){
-    // Invalida cualquier refresh pendiente
     state.refreshNonce++;
-    state.loggedIn = false;
-
     clearSession();
     closeRecipe();
     closeCostsModal();
 
-    // Limpieza visual
     if(loginErr) loginErr.textContent = "";
     if(inpPin) inpPin.value = "";
     if(selOperator) selOperator.value = "";
@@ -1188,15 +1237,14 @@
     ensureOverlays();
     ensureCostsButton();
 
-    // ✅ Antes del login NO hacemos llamadas al Worker (evita 400/401).
+    // antes de login: solo fallback, sin llamadas al worker
     state.profiles = DEFAULT_PROFILES.slice();
     renderProfilesSelect();
 
     showLogin();
 
-    // Si hay sesión previa, intentamos entrar automáticamente
+    // autologin si existe sesión
     if(loadSession()){
-      // Pintar select con el operador guardado (si existe en fallback)
       renderProfilesSelect(state.session.operatorId);
       inpPin.value = state.session.pin || "";
 
@@ -1204,11 +1252,9 @@
       const btnCostsRO = document.getElementById("btnCostsRO");
       if(btnCostsRO) btnCostsRO.style.display = "inline-flex";
 
-      // Cargar perfiles/costos y refresh
       try{
-        state.loggedIn = true;
-
-        state.profiles = await fetchKitchenProfilesAfterLogin();
+        // perfiles + costos + refresh (con reintentos)
+        state.profiles = await fetchKitchenProfiles();
         renderProfilesSelect(state.session.operatorId);
 
         const realLabel = state.profiles.find(p => p.id === state.session.operatorId)?.label;
@@ -1217,13 +1263,12 @@
           saveSession();
         }
 
-        const c = await fetchCostsPublicAfterLogin();
+        const c = await fetchCostsPublic();
         state.pricesMap = c.map || {};
         state.costsLastUpdated = c.lastUpdated || null;
 
         await refresh();
       }catch(_e){
-        // si falló (PIN expirado / cambiado), devolvemos a login sin error “fantasma”
         onLogout();
       }
     }
@@ -1231,16 +1276,10 @@
     if(btnLogin) btnLogin.onclick = onLogin;
     if(btnRefresh) btnRefresh.onclick = () => refresh().catch(e => alert(e?.message || String(e)));
     if(btnLogout) btnLogout.onclick = onLogout;
-
     if(inpPin){
-      inpPin.addEventListener("keydown", (e) => {
-        if(e.key === "Enter") onLogin();
-      });
+      inpPin.addEventListener("keydown", (e) => { if(e.key === "Enter") onLogin(); });
     }
-
-    if(btnCloseCosts){
-      btnCloseCosts.onclick = closeCostsModal;
-    }
+    if(btnCloseCosts) btnCloseCosts.onclick = closeCostsModal;
   }
 
   init().catch(err => {
