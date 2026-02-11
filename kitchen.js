@@ -502,25 +502,28 @@ function openProfilesModal(){
   inpProfilesSecret.value = "";
 
   // Mostrar modal (a prueba de CSS)
-  profilesModal.setAttribute("aria-hidden","false");
   profilesModal.classList.add("show");
+  profilesModal.setAttribute("aria-hidden","false");
 
-  // Forzar visibilidad real
+  // Forzar visibilidad real por si el CSS no aplica
   profilesModal.style.display = "flex";
   profilesModal.style.position = "fixed";
   profilesModal.style.inset = "0";
   profilesModal.style.alignItems = "center";
   profilesModal.style.justifyContent = "center";
-  profilesModal.style.zIndex = "9999";
+  profilesModal.style.zIndex = "99999";
 }
 
 function closeProfilesModal(){
-  profilesModal.setAttribute("aria-hidden","true");
   profilesModal.classList.remove("show");
-
-  // Forzar ocultamiento real
+  profilesModal.setAttribute("aria-hidden","true");
   profilesModal.style.display = "none";
 }
+
+// ✅ Exponer funciones para onclick en HTML
+window.openProfilesModal = openProfilesModal;
+window.closeProfilesModal = closeProfilesModal;
+
 
 // ✅ Plan B: delegación global (captura) para asegurar que el click llegue
 document.addEventListener("click", (e) => {
@@ -1107,6 +1110,7 @@ function renderLateOrders(){
     list.appendChild(div);
   }
 }
+
 
 
 
