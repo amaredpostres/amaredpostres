@@ -306,14 +306,53 @@ function formatQty(q){
   return rounded.toLocaleString("es-CO");
 }
 
+
+// =================== AUTH (ADMIN_PIN) ===================
+const ADMIN_ACTIONS = new Set([
+  "list_orders","get_order","update_order","mark_paid","cancel_order","kitchen_bulk_update"
+]);
+
+function getSavedAdminPin(){
+  return sessionStorage.getItem("amared_admin_pin") || "";
+}
+function saveAdminPin(pin){
+  sessionStorage.setItem("amared_admin_pin", String(pin||""));
+}
+function clearAdminPin(){
+  sessionStorage.removeItem("amared_admin_pin");
+}
+async function ensureAdminPin(){
+  let pin = getSavedAdminPin();
+  if(pin) return pin;
+  pin = window.prompt("Ingresa el PIN de Admin/Cocina para continuar:");
+  pin = String(pin||"").trim();
+  if(!pin) throw new Error("Se requiere PIN para acceder a Cocina.");
+  saveAdminPin(pin);
+  return pin;
+}
+
 // API
 async function api(payload){
+  const action = String(payload?.action || "");
+  // Inyectar PIN para acciones protegidas (Cocina/Admin)
+  if (ADMIN_ACTIONS.has(action) && !payload.admin_pin) {
+    payload.admin_pin = await ensureAdminPin();
+  }
+
   const res = await fetch(API_URL, {
     method:"POST",
     headers:{ "Content-Type":"application/json" },
     body: JSON.stringify(payload),
   });
+
+  // Intentar parsear siempre
   const out = await res.json().catch(async () => ({ ok:false, error: await res.text().catch(()=> "Error") }));
+
+  // Si el pin es incorrecto, limpiar y permitir reintento en el siguiente llamado
+  if (res.status === 401 && String(out?.error||"").toLowerCase().includes("unauthorized admin")) {
+    clearAdminPin();
+  }
+
   if(!out.ok) throw new Error(out.error || "Error");
   return out;
 }
