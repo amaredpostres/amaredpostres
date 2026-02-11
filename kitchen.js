@@ -1138,3 +1138,177 @@ function renderLateOrders(){
     list.appendChild(div);
   }
 }
+
+
+// =================== FIXES UI (modales y receta) ===================
+function showOverlay(el){
+  if(!el) return;
+  el.classList.add("show");
+  el.style.display = "flex";
+  el.setAttribute("aria-hidden","false");
+}
+function hideOverlay(el){
+  if(!el) return;
+  el.classList.remove("show");
+  el.style.display = "none";
+  el.setAttribute("aria-hidden","true");
+}
+
+// Alias defensivos (HTML/JS antiguo puede llamarlos)
+function closeOrdersRaw(){ try{ closeOrdersModal?.(); }catch(e){} }
+function closeRecipeRaw(){ try{ closeRecipe?.(); }catch(e){} }
+
+// ---- Costos (solo lectura) ----
+async function loadCostsIntoModal(){
+  if(!costsList) throw new Error("No existe contenedor de costos (costsList).");
+  costsList.innerHTML = '<div class="muted small">Cargando costos…</div>';
+
+  const data = await fetchCostsPublic();
+  const map = data?.map || {};
+  const lastUpdated = data?.lastUpdated || null;
+
+  // Render simple: secciones + items conocidos (si existe AMARED_COSTS_SECTIONS)
+  const sections = window.AMARED_COSTS_SECTIONS || [];
+  const rows = [];
+
+  if(Array.isArray(sections) && sections.length){
+    for(const sec of sections){
+      rows.push(`<div style="margin-top:10px; font-weight:900;">${escapeHtml(sec.title||"")}</div>`);
+      for(const key of (sec.keys||[])){
+        const nk = normalizeIngredientKey(key);
+        const v = map[nk];
+        rows.push(renderCostRow(key, v));
+      }
+    }
+  } else {
+    // fallback: lista plana
+    const keys = Object.keys(map).sort((a,b)=>a.localeCompare(b));
+    for(const k of keys){
+      rows.push(renderCostRow(k, map[k]));
+    }
+  }
+
+  costsList.innerHTML = rows.join("") || '<div class="muted small">No hay costos para mostrar.</div>';
+
+  // solo lectura: ocultar botón guardar si existe
+  const btnSave = document.getElementById("btnSaveCosts");
+  if(btnSave) btnSave.style.display = "none";
+
+  // Mostrar fecha si existe un slot
+  const small = document.getElementById("costsLastUpdated");
+  if(small && lastUpdated) small.textContent = String(lastUpdated);
+}
+
+function renderCostRow(label, value){
+  const v = Number(value);
+  const pretty = Number.isFinite(v) && v>0 ? formatCOP(v) : "—";
+  return `
+    <div class="oRow">
+      <div style="font-weight:800;">${escapeHtml(label)}</div>
+      <div class="pill">${pretty}</div>
+    </div>
+  `;
+}
+
+function formatCOP(n){
+  try{ return new Intl.NumberFormat("es-CO",{style:"currency",currency:"COP",maximumFractionDigits:0}).format(n); }
+  catch(e){ return `$${Math.round(n)}`; }
+}
+
+function escapeHtml(s){
+  return String(s||"").replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[m]));
+}
+
+// ---- Confirmación defensiva (si falta el modal HTML) ----
+async function confirm3({ title="Confirmar", text="¿Seguro?", onConfirm }){
+  // Si el modal no existe en el DOM, usar confirm nativo
+  const hasCountdown = document.getElementById("confirmCountdown");
+  const btnGo = document.getElementById("btnConfirmGo");
+  const btnBack = document.getElementById("btnConfirmBack");
+  if(!hasCountdown || !btnGo || !btnBack){
+    const ok = window.confirm(`${title}\n\n${text}`);
+    if(ok && typeof onConfirm==="function") return await onConfirm();
+    return false;
+  }
+  // Si existe (algunas versiones), delega al confirm3 original si está disponible
+  if(typeof window.__confirm3_original === "function"){
+    return await window.__confirm3_original({title,text,onConfirm});
+  }
+  // fallback simple
+  const ok = window.confirm(`${title}\n\n${text}`);
+  if(ok && typeof onConfirm==="function") return await onConfirm();
+  return false;
+}
+
+// Guardar una referencia al confirm3 anterior si existía (para no romper nada)
+if(typeof window.confirm3 === "function" && window.confirm3 !== confirm3){
+  window.__confirm3_original = window.confirm3;
+}
+window.confirm3 = confirm3;
+
+// ---- Receta / paso a paso ----
+function closeRecipe(){
+  const overlay = document.getElementById("recipeOverlay");
+  hideOverlay(overlay);
+}
+
+function openRecipe(productId){
+  // productId puede ser "mousse", "cheesecake", etc.
+  const overlay = document.getElementById("recipeOverlay");
+  const titleEl = document.getElementById("recipeTitle");
+  const subEl = document.getElementById("recipeSub");
+  const stepCounterEl = document.getElementById("stepCounter");
+  const stepTextEl = document.getElementById("stepText");
+  const stepHintEl = document.getElementById("stepHint");
+
+  if(!overlay) return;
+
+  const rec = (RECIPES && RECIPES[productId]) ? RECIPES[productId] : null;
+  const name = rec?.title || rec?.name || "Receta";
+  const steps = Array.isArray(rec?.steps) ? rec.steps : [];
+
+  if(titleEl) titleEl.textContent = name;
+  if(subEl) subEl.textContent = rec?.subtitle || "";
+
+  // Estado
+  window.__recipeState = { productId, idx:0, steps };
+
+  function render(){
+    const st = window.__recipeState;
+    const total = st.steps.length || 1;
+    const i = Math.min(st.idx, total-1);
+    const step = st.steps[i] || { text:"—" };
+    if(stepCounterEl) stepCounterEl.textContent = `Paso ${i+1} de ${total}`;
+    if(stepTextEl) stepTextEl.textContent = step.text || step.desc || "—";
+    if(stepHintEl) stepHintEl.textContent = step.hint || "";
+  }
+
+  render();
+  showOverlay(overlay);
+
+  // Botones next/back si existen
+  const btnPrev = document.getElementById("btnStepPrev");
+  const btnNext = document.getElementById("btnStepNext");
+  if(btnPrev){
+    btnPrev.onclick = () => {
+      const st = window.__recipeState;
+      st.idx = Math.max(0, st.idx-1);
+      render();
+    };
+  }
+  if(btnNext){
+    btnNext.onclick = () => {
+      const st = window.__recipeState;
+      const total = st.steps.length || 1;
+      st.idx = Math.min(total-1, st.idx+1);
+      render();
+    };
+  }
+}
+
+// Asegurar botón cerrar receta
+(function(){
+  const btn = document.getElementById("btnRecipeClose");
+  if(btn) btn.addEventListener("click", closeRecipe);
+})();
+
