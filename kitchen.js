@@ -3,6 +3,39 @@ const TZ = "America/Bogota";
 const CUTOFF_HOUR = 15;
 const BASE_FRIDGE_MINUTES = 30;
 
+// =================== FECHAS (Bogotá) ===================
+function parseBogotaDateTime(value){
+  if(!value) return null;
+  // Si ya es Date
+  if(value instanceof Date && !isNaN(value)) return value;
+
+  // Normaliza a string
+  const s = String(value).trim();
+
+  // 1) ISO o formato con 'T' / 'Z' (ej: 2026-02-10T18:22:10.000Z)
+  // 2) Formato común en Sheets: "YYYY-MM-DD HH:mm:ss" o "YYYY-MM-DD HH:mm"
+  // Nota: interpretamos estos como hora de Bogotá.
+  const m = s.match(/^(\d{4})-(\d{2})-(\d{2})(?:[ T](\d{2}):(\d{2})(?::(\d{2}))?)?/);
+  if(m){
+    const y = int(m[1]), mo = int(m[2]), d = int(m[3]);
+    const hh = m[4] ? int(m[4]) : 0;
+    const mm = m[5] ? int(m[5]) : 0;
+    const ss = m[6] ? int(m[6]) : 0;
+    // Crea una fecha en UTC equivalente a esa hora en Bogotá (-05:00)
+    // UTC = Bogotá + 5h
+    const utc = new Date(Date.UTC(y, mo-1, d, hh+5, mm, ss));
+    if(!isNaN(utc)) return utc;
+  }
+
+  // Fallback: Date.parse (para ISO válido u otros)
+  const d2 = new Date(s);
+  if(!isNaN(d2)) return d2;
+  return null;
+}
+function int(x){ return Number.parseInt(x,10); }
+
+
+
 // ✅ Ya NO hay claves en el frontend
 async function validateSecretWithWorker(type, secret) {
   const out = await api({ action:"validate_secret", type, secret });
@@ -43,15 +76,6 @@ function clearLotProgressForDay(dayKey){
 }
 
 function safeJsonParse(s){ try { return JSON.parse(s); } catch { return null; } }
-
-function escapeHtml(s){
-  return String(s ?? "")
-    .replace(/&/g,"&amp;")
-    .replace(/</g,"&lt;")
-    .replace(/>/g,"&gt;")
-    .replace(/"/g,"&quot;")
-    .replace(/'/g,"&#39;");
-}
 
 function loadProfiles(){
   const raw = localStorage.getItem(LS_PROFILES_KEY);
@@ -261,7 +285,10 @@ let todayProductionOrders = [];
 let todayDoneOrders = [];
 let lateOrdersToday = [];
 let historyOrders = [];
+let currentProductId = null;
 let currentBatchOrderIds = [];
+let currentSteps = [];
+let currentStepIdx = 0;
 let baseTimerInterval = null;
 let baseTimerEndMs = null;
 let confirmTimer = null;
@@ -306,52 +333,32 @@ function formatQty(q){
   return rounded.toLocaleString("es-CO");
 }
 
-
-// =================== AUTH (ADMIN_PIN) ===================
-const ADMIN_ACTIONS = new Set([
-  "list_orders","get_order","update_order","mark_paid","cancel_order","kitchen_bulk_update"
-]);
-
-function getSavedAdminPin(){
-  return sessionStorage.getItem("amared_admin_pin") || "";
-}
-function saveAdminPin(pin){
-  sessionStorage.setItem("amared_admin_pin", String(pin||""));
-}
-function clearAdminPin(){
-  sessionStorage.removeItem("amared_admin_pin");
-}
-async function ensureAdminPin(){
-  let pin = getSavedAdminPin();
-  if(pin) return pin;
-  pin = window.prompt("Ingresa el PIN de Admin/Cocina para continuar:");
-  pin = String(pin||"").trim();
-  if(!pin) throw new Error("Se requiere PIN para acceder a Cocina.");
-  saveAdminPin(pin);
-  return pin;
-}
-
 // API
 async function api(payload){
-  const action = String(payload?.action || "");
-  // Inyectar PIN para acciones protegidas (Cocina/Admin)
-  if (ADMIN_ACTIONS.has(action) && !payload.admin_pin) {
-    payload.admin_pin = await ensureAdminPin();
+  // Inyecta ADMIN_PIN automáticamente SOLO para acciones que lo requieren
+  const needsPin = new Set([
+    "list_orders",
+    "kitchen_bulk_update",
+    "orders_history",
+    "order_confirm",
+    "order_cancel",
+  ]);
+  const body = { ...payload };
+  if(needsPin.has(body.action)){
+    const pin = SESSION?.pin || "";
+    if(pin) body.admin_pin = pin;
   }
 
   const res = await fetch(API_URL, {
     method:"POST",
     headers:{ "Content-Type":"application/json" },
-    body: JSON.stringify(payload),
+    body: JSON.stringify(body),
   });
 
-  // Intentar parsear siempre
-  const out = await res.json().catch(async () => ({ ok:false, error: await res.text().catch(()=> "Error") }));
-
-  // Si el pin es incorrecto, limpiar y permitir reintento en el siguiente llamado
-  if (res.status === 401 && String(out?.error||"").toLowerCase().includes("unauthorized admin")) {
-    clearAdminPin();
-  }
+  const out = await res.json().catch(async () => ({
+    ok:false,
+    error: await res.text().catch(()=> "Error"),
+  }));
 
   if(!out.ok) throw new Error(out.error || "Error");
   return out;
@@ -748,191 +755,25 @@ function getProductsNeededToday(){
   return needed;
 }
 
-// Bulk update (Sheets)
+// Bulk update
 async function bulkUpdate(orderIds, patch){
-  if(!Array.isArray(orderIds) || !orderIds.length) return;
-  showLoading("Actualizando...", "Aplicando cambios en pedidos.");
+  if(!orderIds.length) return;
+  showLoading("Actualizando...", "Aplicando cambios.");
   disableUIWhileLoading(true);
   try{
-    await api({
-      action: "kitchen_bulk_update",
-      operator: SESSION?.operatorLabel || "",
-      order_ids: orderIds,
-      patch: patch || {}
-    });
-  } finally {
-    disableUIWhileLoading(false);
-    hideLoading();
-  }
-}
-
-// ===============================
-// Receta paso a paso (Overlay)
-// ===============================
-
-// Estado de receta
-let currentProductId = null;
-let currentRecipe = null;
-let currentRecipeSteps = [];
-let currentStepIdx = 0;
-
-// Guardamos handlers originales del confirm modal (se reutiliza en receta)
-let _origConfirmBack = null;
-let _origConfirmGo = null;
-
-// Timer helper para habilitar "Confirmar"
-function startStepCountdown(seconds = 3){
-  if(confirmTimer) clearInterval(confirmTimer);
-  let t = Number(seconds) || 3;
-  btnConfirmGo.disabled = true;
-  confirmCountdown.textContent = String(t);
-  confirmTimer = setInterval(() => {
-    t -= 1;
-    if(t <= 0){
-      clearInterval(confirmTimer);
-      confirmTimer = null;
-      btnConfirmGo.disabled = false;
-      confirmCountdown.textContent = "✓";
-      return;
-    }
-    confirmCountdown.textContent = String(t);
-  }, 1000);
-}
-
-function openRecipe(productId){
-  currentProductId = productId;
-  currentRecipe = RECIPE_UNIT[productId] || null;
-  if(!currentRecipe){
-    alert("No hay receta configurada para este postre.");
+    markProductDoneForDay(todayKey, currentProductId);
+          closeRecipeRaw();
+          renderMain(todayKey);
+          renderLateOrders();
+          hideLoading();
+      }
+    );
     return;
   }
 
-  currentRecipeSteps = Array.isArray(currentRecipe.steps) ? currentRecipe.steps : [];
-  currentStepIdx = 0;
-
-  // Mostrar overlay
-  recipeOverlay.classList.add("show");
-  recipeOverlay.setAttribute("aria-hidden", "false");
-
-  // Título
-  const pname = PRODUCTS.find(p=>p.id===productId)?.name || productId;
-  recipeTitle.textContent = pname;
-  const units = getTotalUnitsForProductInTodayBatch(productId);
-  recipeSub.textContent = units ? `Lote: ${units} unidad(es)` : "—";
-
-  // Override de botones (Volver / Confirmar)
-  _origConfirmBack = btnConfirmBack.onclick;
-  _origConfirmGo = btnConfirmGo.onclick;
-
-  btnConfirmBack.onclick = () => {
-    // volver un paso (o cerrar si está en el primero)
-    if(currentStepIdx <= 0){
-      closeRecipeRaw();
-      return;
-    }
-    currentStepIdx -= 1;
-    renderRecipeStep();
-  };
-
-  btnConfirmGo.onclick = async () => {
-    if(btnConfirmGo.disabled) return;
-
-    // Si es el último paso, finaliza postre (solo UI/local)
-    if(currentStepIdx >= currentRecipeSteps.length - 1){
-      const todayKey = getTodayProductionDayKey();
-      markProductDoneForDay(todayKey, currentProductId);
-      closeRecipeRaw();
-      renderMain(todayKey);
-      renderLateOrders();
-      return;
-    }
-
-    currentStepIdx += 1;
-    renderRecipeStep();
-  };
-
+  currentStepIdx++;
   renderRecipeStep();
-}
-
-function closeRecipeRaw(){
-  // Restaurar handlers
-  if(_origConfirmBack) btnConfirmBack.onclick = _origConfirmBack;
-  if(_origConfirmGo) btnConfirmGo.onclick = _origConfirmGo;
-  _origConfirmBack = null;
-  _origConfirmGo = null;
-
-  if(confirmTimer) clearInterval(confirmTimer);
-  confirmTimer = null;
-
-  recipeOverlay.classList.remove("show");
-  recipeOverlay.setAttribute("aria-hidden", "true");
-
-  currentProductId = null;
-  currentRecipe = null;
-  currentRecipeSteps = [];
-  currentStepIdx = 0;
-}
-
-function renderRecipeStep(){
-  if(!currentRecipe || !Array.isArray(currentRecipeSteps) || !currentRecipeSteps.length){
-    stepCounter.textContent = "Paso 1 de 1";
-    stepText.textContent = "—";
-    stepHint.innerHTML = "";
-    return;
-  }
-
-  const total = currentRecipeSteps.length;
-  const step = currentRecipeSteps[currentStepIdx] || {};
-  stepCounter.textContent = `Paso ${currentStepIdx + 1} de ${total}`;
-
-  // Texto principal
-  if(step.type === "batch_ingredients"){
-    const units = getTotalUnitsForProductInTodayBatch(currentProductId);
-    const { lines, totalCost } = calcBatchIngredients(currentProductId, units || 0);
-    const costText = totalCost > 0 ? `$${money(totalCost)}` : "—";
-    stepText.textContent = "Insumos del lote (según cantidad de hoy)";
-    stepHint.innerHTML = `
-      <div style="font-weight:900; margin-bottom:6px;">Resumen</div>
-      <div class="muted small" style="margin-bottom:10px;">Costo estimado del lote: <b>${costText}</b></div>
-      <div style="display:grid; gap:6px;">
-        ${lines.map(li => `
-          <div class="rowBetween" style="gap:10px;">
-            <div style="font-weight:750;">${escapeHtml(li.name)}</div>
-            <div class="muted small">${escapeHtml(li.qtyText)} • $${money(li.cost)}</div>
-          </div>
-        `).join("")}
-      </div>
-    `;
-  } else {
-    stepText.textContent = String(step.text || "—");
-    // Hint box
-    const hints = [];
-    if(step.type === "timer_base"){
-      hints.push(`⏱ Base a nevera: ${BASE_FRIDGE_MINUTES} min (informativo).`);
-    }
-    if(step.img){
-      hints.push(`Imagen: ${step.img}`);
-    }
-    stepHint.innerHTML = hints.length
-      ? `<div class="muted small">${hints.map(h=>escapeHtml(h)).join("<br>")}</div>`
-      : "";
-  }
-
-  // Botón confirmar
-  if(currentStepIdx >= total - 1){
-    btnConfirmGo.textContent = "Finalizar postre";
-  } else {
-    btnConfirmGo.textContent = "Confirmar";
-  }
-  startStepCountdown(3);
-}
-
-// Cerrar receta
-btnRecipeClose.addEventListener("click", closeRecipeRaw);
-recipeOverlay.addEventListener("click", (e) => {
-  if(e.target === recipeOverlay) closeRecipeRaw();
 });
-
 
 // Main render
 function renderMain(todayKey){
