@@ -368,3 +368,42 @@ if(btnLogout) btnLogout.addEventListener("click", handleLogout);
     // no auto-validamos pin aquí para no forzar llamadas; usuario puede ingresar
   }
 })();
+
+/* === HOTFIX: asegurar que "Gestionar perfiles" siempre abra el modal === */
+(function(){
+  const $ = (id) => document.getElementById(id);
+
+  function openModal(modalEl){
+    if(!modalEl) return;
+    modalEl.setAttribute("aria-hidden","false");
+    modalEl.style.display = "flex";
+  }
+  function closeModal(modalEl){
+    if(!modalEl) return;
+    modalEl.setAttribute("aria-hidden","true");
+    modalEl.style.display = "none";
+  }
+
+  document.addEventListener("click", (e)=>{
+    const manageBtn = e.target.closest("#btnManageProfiles");
+    const closeBtn  = e.target.closest("#btnCloseProfiles");
+
+    if (manageBtn){
+      const modal = $("profilesModal");
+      if(!modal){
+        console.warn("[profiles] No existe #profilesModal en kitchen.html");
+        return;
+      }
+      console.log("[profiles] Abrir modal gestionar perfiles");
+      openModal(modal);
+      return;
+    }
+
+    if (closeBtn){
+      const modal = $("profilesModal");
+      console.log("[profiles] Cerrar modal gestionar perfiles");
+      closeModal(modal);
+      return;
+    }
+  }, true);
+})();
