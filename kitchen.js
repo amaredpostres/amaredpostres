@@ -761,9 +761,6 @@ async function bulkUpdate(orderIds, patch){
   }
 }
 
-  currentStepIdx++;
-  renderRecipeStep();
-});
 
 // Main render
 function renderMain(todayKey){
@@ -1139,5 +1136,6 @@ const RECIPES = {
     ]
   }
 };
+
 
 
