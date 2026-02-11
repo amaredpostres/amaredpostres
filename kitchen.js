@@ -439,3 +439,68 @@ if(btnLogout) btnLogout.addEventListener("click", handleLogout);
     applyVisibleStyle(modal);
   }
 })();
+
+/* === FIX DEFINITIVO: forzar visibilidad del modal de perfiles (independiente del CSS) === */
+(function () {
+  const btn = document.getElementById("btnManageProfiles");
+  const modal = document.getElementById("profilesModal");
+  const btnClose = document.getElementById("btnCloseProfiles");
+
+  if (!btn || !modal) {
+    console.warn("[profiles] No se encontró btnManageProfiles o profilesModal");
+    return;
+  }
+
+  function showModal() {
+    console.log("[profiles] MOSTRAR modal (forzado)");
+
+    // Estado accesible
+    modal.setAttribute("aria-hidden", "false");
+
+    // Clase por si tu CSS depende de .show
+    modal.classList.add("show");
+
+    // Forzar visibilidad aunque el CSS lo oculte
+    modal.style.display = "flex";
+    modal.style.opacity = "1";
+    modal.style.pointerEvents = "auto";
+    modal.style.visibility = "visible";
+
+    // Asegurar que quede encima
+    modal.style.position = "fixed";
+    modal.style.inset = "0";
+    modal.style.zIndex = "9999";
+
+    // Fondo overlay por si el CSS lo deja transparente
+    if (!modal.style.background) modal.style.background = "rgba(0,0,0,0.55)";
+  }
+
+  function hideModal() {
+    console.log("[profiles] OCULTAR modal");
+    modal.setAttribute("aria-hidden", "true");
+    modal.classList.remove("show");
+    modal.style.display = "none";
+    modal.style.pointerEvents = "none";
+  }
+
+  // Abrir
+  btn.addEventListener("click", (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    showModal();
+  });
+
+  // Cerrar (botón)
+  if (btnClose) {
+    btnClose.addEventListener("click", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      hideModal();
+    });
+  }
+
+  // Cerrar al hacer clic fuera (overlay)
+  modal.addEventListener("click", (e) => {
+    if (e.target === modal) hideModal();
+  });
+})();
