@@ -3,68 +3,6 @@ const TZ = "America/Bogota";
 const CUTOFF_HOUR = 15;
 const BASE_FRIDGE_MINUTES = 30;
 
-// =================== FECHAS (Bogotá) ===================
-function parseBogotaDateTime(value){
-  if(!value) return null;
-  // Si ya es Date
-  if(value instanceof Date && !isNaN(value)) return value;
-
-  // Normaliza a string
-  const s = String(value).trim();
-
-  // 1) ISO o formato con 'T' / 'Z' (ej: 2026-02-10T18:22:10.000Z)
-  // 2) Formato común en Sheets: "YYYY-MM-DD HH:mm:ss" o "YYYY-MM-DD HH:mm"
-  // Nota: interpretamos estos como hora de Bogotá.
-  const m = s.match(/^(\d{4})-(\d{2})-(\d{2})(?:[ T](\d{2}):(\d{2})(?::(\d{2}))?)?/);
-  if(m){
-    const y = int(m[1]), mo = int(m[2]), d = int(m[3]);
-    const hh = m[4] ? int(m[4]) : 0;
-    const mm = m[5] ? int(m[5]) : 0;
-    const ss = m[6] ? int(m[6]) : 0;
-    // Crea una fecha en UTC equivalente a esa hora en Bogotá (-05:00)
-    // UTC = Bogotá + 5h
-    const utc = new Date(Date.UTC(y, mo-1, d, hh+5, mm, ss));
-    if(!isNaN(utc)) return utc;
-  }
-
-  // Fallback: Date.parse (para ISO válido u otros)
-  const d2 = new Date(s);
-  if(!isNaN(d2)) return d2;
-  return null;
-}
-
-function bogotaYMD(date){
-  try{
-    const parts = new Intl.DateTimeFormat("en-CA", {
-      timeZone: "America/Bogota",
-      year: "numeric",
-      month: "2-digit",
-      day: "2-digit"
-    }).formatToParts(date);
-    const y = parts.find(p=>p.type==="year")?.value;
-    const m = parts.find(p=>p.type==="month")?.value;
-    const d = parts.find(p=>p.type==="day")?.value;
-    return `${y}-${m}-${d}`;
-  } catch(e){
-    // Fallback: use local date (should be fine if device is Colombia)
-    const y = date.getFullYear();
-    const m = String(date.getMonth()+1).padStart(2,"0");
-    const d = String(date.getDate()).padStart(2,"0");
-    return `${y}-${m}-${d}`;
-  }
-}
-
-function isSameBogotaDay(a,b){
-  if(!a || !b) return false;
-  const da = (a instanceof Date) ? a : new Date(a);
-  const db = (b instanceof Date) ? b : new Date(b);
-  return bogotaYMD(da) === bogotaYMD(db);
-}
-
-function int(x){ return Number.parseInt(x,10); }
-
-
-
 // ✅ Ya NO hay claves en el frontend
 async function validateSecretWithWorker(type, secret) {
   const out = await api({ action:"validate_secret", type, secret });
@@ -364,31 +302,12 @@ function formatQty(q){
 
 // API
 async function api(payload){
-  // Inyecta ADMIN_PIN automáticamente SOLO para acciones que lo requieren
-  const needsPin = new Set([
-    "list_orders",
-    "kitchen_bulk_update",
-    "orders_history",
-    "order_confirm",
-    "order_cancel",
-  ]);
-  const body = { ...payload };
-  if(needsPin.has(body.action)){
-    const pin = SESSION?.pin || "";
-    if(pin) body.admin_pin = pin;
-  }
-
   const res = await fetch(API_URL, {
     method:"POST",
     headers:{ "Content-Type":"application/json" },
-    body: JSON.stringify(body),
+    body: JSON.stringify(payload),
   });
-
-  const out = await res.json().catch(async () => ({
-    ok:false,
-    error: await res.text().catch(()=> "Error"),
-  }));
-
+  const out = await res.json().catch(async () => ({ ok:false, error: await res.text().catch(()=> "Error") }));
   if(!out.ok) throw new Error(out.error || "Error");
   return out;
 }
@@ -714,67 +633,87 @@ function renderOrdersModalList(){
 function openConfirm(){ confirmOverlay.classList.add("show"); confirmOverlay.setAttribute("aria-hidden","false"); }
 function closeConfirm(){ confirmOverlay.classList.remove("show"); confirmOverlay.setAttribute("aria-hidden","true"); }
 
-function confirm3s(title, text, onGo){
+function ensureConfirmOverlay(){
+  let el = document.getElementById("confirmOverlay");
+  if (el) return el;
+  el = document.createElement("div");
+  el.id = "confirmOverlay";
+  el.style.position = "fixed";
+  el.style.inset = "0";
+  el.style.background = "rgba(0,0,0,.32)";
+  el.style.zIndex = "15000";
+  el.style.display = "none";
+  el.style.alignItems = "center";
+  el.style.justifyContent = "center";
+  el.innerHTML = `
+    <div style="width:min(520px, 92vw); background:white; border-radius:18px; padding:14px; box-shadow:0 12px 28px rgba(0,0,0,.18);">
+      <div style="font-weight:950; font-size:18px;" id="confirmOverlayTitle">Confirmar</div>
+      <div style="opacity:.8; margin-top:6px;" id="confirmOverlayText">—</div>
+      <div style="display:flex; gap:10px; justify-content:flex-end; margin-top:14px;">
+        <button id="confirmOverlayCancel" class="btn secondary" type="button">Cancelar</button>
+        <button id="confirmOverlayOk" class="btn primary" type="button">Aceptar (<span id="confirmOverlayCountdown">3</span>)</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(el);
+  return el;
+}
+
+function confirm3s(title, text, seconds=3){
   return new Promise((resolve) => {
-    // Si el modal de confirmación no existe en tu HTML, hacemos fallback a confirm() nativo
-    const hasUi = !!(confirmOverlay && confirmTitle && confirmText && confirmCountdown && btnConfirmGo && btnConfirmBack);
-    if(!hasUi){
-      const msg = (title ? (title + "\n\n") : "") + (text || "");
-      const ok = window.confirm(msg || "¿Confirmar?");
-      if(!ok){ resolve(false); return; }
-      Promise.resolve()
-        .then(() => (typeof onGo === "function" ? onGo() : null))
-        .then(() => resolve(true))
-        .catch((e) => { console.error(e); resolve(false); });
-      return;
-    }
+    const overlay = ensureConfirmOverlay();
+    const tEl = overlay.querySelector("#confirmOverlayTitle");
+    const bEl = overlay.querySelector("#confirmOverlayText");
+    const cEl = overlay.querySelector("#confirmOverlayCountdown");
+    const btnOk = overlay.querySelector("#confirmOverlayOk");
+    const btnCancel = overlay.querySelector("#confirmOverlayCancel");
 
-    if(confirmTimer) clearInterval(confirmTimer);
-    btnConfirmGo.disabled = true;
+    if (tEl) tEl.textContent = title || "Confirmar";
+    if (bEl) bEl.textContent = text || "";
 
-    confirmTitle.textContent = title || "Confirmar";
-    confirmText.textContent = text || "";
-    confirmCountdown.textContent = "3";
-    confirmOnGo = onGo;
+    let left = Math.max(1, Number(seconds)||3);
+    if (cEl) cEl.textContent = String(left);
 
-    openConfirm();
+    overlay.style.display = "flex";
 
-    let t = 3;
-    confirmTimer = setInterval(() => {
-      t--;
-      confirmCountdown.textContent = String(t);
-      if(t <= 0){
-        clearInterval(confirmTimer);
-        confirmTimer = null;
-        btnConfirmGo.disabled = false;
-        confirmCountdown.textContent = "✓";
-      }
-    }, 1000);
-
-    btnConfirmBack.onclick = () => {
-      if(confirmTimer) clearInterval(confirmTimer);
-      confirmTimer = null;
-      confirmOnGo = null;
-      closeConfirm();
-      resolve(false);
+    let done = false;
+    const cleanup = () => {
+      if (done) return;
+      done = true;
+      overlay.style.display = "none";
+      btnOk.onclick = null;
+      btnCancel.onclick = null;
     };
 
-    btnConfirmGo.onclick = async () => {
-      if(btnConfirmGo.disabled) return;
-      try{
-        btnConfirmGo.disabled = true;
-        if(confirmOnGo) await confirmOnGo();
-        closeConfirm();
-        resolve(true);
-      }catch(e){
-        console.error(e);
-        if(confirmText) confirmText.textContent = (e?.message || String(e));
-        btnConfirmGo.disabled = false;
-        resolve(false);
+    const tick = () => {
+      left -= 1;
+      if (cEl) cEl.textContent = String(Math.max(0,left));
+      if (left <= 0) {
+        // enable final confirm without auto-accept
+        btnOk.disabled = false;
+        btnOk.innerHTML = `Aceptar`;
+        return;
       }
+      setTimeout(tick, 1000);
     };
+
+    // during countdown, keep ok disabled
+    btnOk.disabled = true;
+    btnOk.innerHTML = `Aceptar (<span id="confirmOverlayCountdown">${left}</span>)`;
+    // use separate span update
+    const span = btnOk.querySelector("#confirmOverlayCountdown");
+    const updateSpan = () => {
+      if (span) span.textContent = String(left);
+      if (!done && left>0) setTimeout(updateSpan, 200);
+    };
+    updateSpan();
+    setTimeout(tick, 1000);
+
+    btnCancel.onclick = () => { cleanup(); resolve(false); };
+    btnOk.onclick = () => { cleanup(); resolve(true); };
   });
 }
+
 
 // Batch helpers
 function getBatchOrderIdsForProduct(productId){
@@ -805,22 +744,23 @@ function getProductsNeededToday(){
 
 // Bulk update
 async function bulkUpdate(orderIds, patch){
-  if(!orderIds || !orderIds.length) return;
-  showLoading("Actualizando...", "Aplicando cambios en la base de datos.");
+  if(!orderIds.length) return;
+  showLoading("Actualizando...", "Aplicando cambios.");
   disableUIWhileLoading(true);
   try{
-    const out = await api({
-      action: "kitchen_bulk_update",
-      order_ids: orderIds,
-      patch
-    });
-    // opcional: refrescar datos después de actualizar
-    return out;
-  } finally {
-    disableUIWhileLoading(false);
-    hideLoading();
+    markProductDoneForDay(todayKey, currentProductId);
+          closeRecipeRaw();
+          renderMain(todayKey);
+          renderLateOrders();
+          hideLoading();
+      }
+    );
+    return;
   }
-}
+
+  currentStepIdx++;
+  renderRecipeStep();
+});
 
 // Main render
 function renderMain(todayKey){
@@ -1021,7 +961,7 @@ btnLogout.addEventListener("click", () => {
 });
 
 // Profiles management (secure)
-btnManageProfiles.addEventListener("click", openProfilesModal);
+btnManageProfiles && btnManageProfiles.addEventListener("click", openProfilesModal);
 btnCloseProfiles.addEventListener("click", closeProfilesModal);
 
 btnProfilesUnlock.addEventListener("click", async () => {
@@ -1077,7 +1017,7 @@ btnAddProfile.addEventListener("click", async () => {
 });
 
 // Costs management (secure)
-btnCosts.addEventListener("click", openCostsModal);
+btnCosts && btnCosts.addEventListener("click", openCostsModal);
 btnCloseCosts.addEventListener("click", closeCostsModal);
 
 btnCostsUnlock && btnCostsUnlock.addEventListener("click", async () => { await openCostsModal(); });
@@ -1157,177 +1097,44 @@ function renderLateOrders(){
     list.appendChild(div);
   }
 }
-
-
-// =================== FIXES UI (modales y receta) ===================
-function showOverlay(el){
-  if(!el) return;
-  el.classList.add("show");
-  el.style.display = "flex";
-  el.setAttribute("aria-hidden","false");
-}
-function hideOverlay(el){
-  if(!el) return;
-  el.classList.remove("show");
-  el.style.display = "none";
-  el.setAttribute("aria-hidden","true");
-}
-
-// Alias defensivos (HTML/JS antiguo puede llamarlos)
-function closeOrdersRaw(){ try{ closeOrdersModal?.(); }catch(e){} }
-function closeRecipeRaw(){ try{ closeRecipe?.(); }catch(e){} }
-
-// ---- Costos (solo lectura) ----
-async function loadCostsIntoModal(){
-  if(!costsList) throw new Error("No existe contenedor de costos (costsList).");
-  costsList.innerHTML = '<div class="muted small">Cargando costos…</div>';
-
-  const data = await fetchCostsPublic();
-  const map = data?.map || {};
-  const lastUpdated = data?.lastUpdated || null;
-
-  // Render simple: secciones + items conocidos (si existe AMARED_COSTS_SECTIONS)
-  const sections = window.AMARED_COSTS_SECTIONS || [];
-  const rows = [];
-
-  if(Array.isArray(sections) && sections.length){
-    for(const sec of sections){
-      rows.push(`<div style="margin-top:10px; font-weight:900;">${escapeHtml(sec.title||"")}</div>`);
-      for(const key of (sec.keys||[])){
-        const nk = normalizeIngredientKey(key);
-        const v = map[nk];
-        rows.push(renderCostRow(key, v));
-      }
-    }
-  } else {
-    // fallback: lista plana
-    const keys = Object.keys(map).sort((a,b)=>a.localeCompare(b));
-    for(const k of keys){
-      rows.push(renderCostRow(k, map[k]));
-    }
+// ------------------------------
+// Recetas (paso a paso)
+// Nota: Mantén aquí la estructura mínima para que openRecipe() funcione.
+// Puedes ampliar ingredientes/tiempos sin tocar la lógica.
+// productId debe coincidir con los IDs usados en tus cards (ej: 'mousse_maracuya', 'cheesecake_cafe', 'arroz_leche').
+// ------------------------------
+const RECIPES = {
+  mousse_maracuya: {
+    title: "Mousse de Maracuyá",
+    subtitle: "Producción por lote",
+    steps: [
+      { title: "Preparar ingredientes", body: "Pesa y alista todos los ingredientes y utensilios." },
+      { title: "Mezclar base", body: "Mezcla los ingredientes base hasta homogeneizar." },
+      { title: "Porcionar", body: "Sirve en los envases correspondientes del lote." },
+      { title: "Nevera (30 min)", body: "Lleva a nevera. Usa el temporizador de 30 min." }
+    ]
+  },
+  cheesecake_cafe: {
+    title: "Cheesecake café con panela",
+    subtitle: "Producción por lote",
+    steps: [
+      { title: "Preparar ingredientes", body: "Pesa y alista todos los ingredientes y utensilios." },
+      { title: "Mezclar base", body: "Mezcla queso/crema y endulzante hasta homogeneizar." },
+      { title: "Agregar café", body: "Incorpora café y mezcla de manera uniforme." },
+      { title: "Porcionar", body: "Sirve en los envases correspondientes del lote." },
+      { title: "Nevera (30 min)", body: "Lleva a nevera. Usa el temporizador de 30 min." }
+    ]
+  },
+  arroz_leche: {
+    title: "Arroz con leche",
+    subtitle: "Solo cocina (no venta aún)",
+    steps: [
+      { title: "Alistar ingredientes", body: "Pesa y alista ingredientes y utensilios." },
+      { title: "Cocción", body: "Cocina a fuego medio, revolviendo para evitar que se pegue." },
+      { title: "Ajuste final", body: "Ajusta dulzor/espesor y deja enfriar." },
+      { title: "Porcionar y enfriar", body: "Sirve en envases y lleva a nevera." }
+    ]
   }
+};
 
-  costsList.innerHTML = rows.join("") || '<div class="muted small">No hay costos para mostrar.</div>';
-
-  // solo lectura: ocultar botón guardar si existe
-  const btnSave = document.getElementById("btnSaveCosts");
-  if(btnSave) btnSave.style.display = "none";
-
-  // Mostrar fecha si existe un slot
-  const small = document.getElementById("costsLastUpdated");
-  if(small && lastUpdated) small.textContent = String(lastUpdated);
-}
-
-function renderCostRow(label, value){
-  const v = Number(value);
-  const pretty = Number.isFinite(v) && v>0 ? formatCOP(v) : "—";
-  return `
-    <div class="oRow">
-      <div style="font-weight:800;">${escapeHtml(label)}</div>
-      <div class="pill">${pretty}</div>
-    </div>
-  `;
-}
-
-function formatCOP(n){
-  try{ return new Intl.NumberFormat("es-CO",{style:"currency",currency:"COP",maximumFractionDigits:0}).format(n); }
-  catch(e){ return `$${Math.round(n)}`; }
-}
-
-function escapeHtml(s){
-  return String(s||"").replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[m]));
-}
-
-// ---- Confirmación defensiva (si falta el modal HTML) ----
-async function confirm3({ title="Confirmar", text="¿Seguro?", onConfirm }){
-  // Si el modal no existe en el DOM, usar confirm nativo
-  const hasCountdown = document.getElementById("confirmCountdown");
-  const btnGo = document.getElementById("btnConfirmGo");
-  const btnBack = document.getElementById("btnConfirmBack");
-  if(!hasCountdown || !btnGo || !btnBack){
-    const ok = window.confirm(`${title}\n\n${text}`);
-    if(ok && typeof onConfirm==="function") return await onConfirm();
-    return false;
-  }
-  // Si existe (algunas versiones), delega al confirm3 original si está disponible
-  if(typeof window.__confirm3_original === "function"){
-    return await window.__confirm3_original({title,text,onConfirm});
-  }
-  // fallback simple
-  const ok = window.confirm(`${title}\n\n${text}`);
-  if(ok && typeof onConfirm==="function") return await onConfirm();
-  return false;
-}
-
-// Guardar una referencia al confirm3 anterior si existía (para no romper nada)
-if(typeof window.confirm3 === "function" && window.confirm3 !== confirm3){
-  window.__confirm3_original = window.confirm3;
-}
-window.confirm3 = confirm3;
-
-// ---- Receta / paso a paso ----
-function closeRecipe(){
-  const overlay = document.getElementById("recipeOverlay");
-  hideOverlay(overlay);
-}
-
-function openRecipe(productId){
-  // productId puede ser "mousse", "cheesecake", etc.
-  const overlay = document.getElementById("recipeOverlay");
-  const titleEl = document.getElementById("recipeTitle");
-  const subEl = document.getElementById("recipeSub");
-  const stepCounterEl = document.getElementById("stepCounter");
-  const stepTextEl = document.getElementById("stepText");
-  const stepHintEl = document.getElementById("stepHint");
-
-  if(!overlay) return;
-
-  const rec = (RECIPES && RECIPES[productId]) ? RECIPES[productId] : null;
-  const name = rec?.title || rec?.name || "Receta";
-  const steps = Array.isArray(rec?.steps) ? rec.steps : [];
-
-  if(titleEl) titleEl.textContent = name;
-  if(subEl) subEl.textContent = rec?.subtitle || "";
-
-  // Estado
-  window.__recipeState = { productId, idx:0, steps };
-
-  function render(){
-    const st = window.__recipeState;
-    const total = st.steps.length || 1;
-    const i = Math.min(st.idx, total-1);
-    const step = st.steps[i] || { text:"—" };
-    if(stepCounterEl) stepCounterEl.textContent = `Paso ${i+1} de ${total}`;
-    if(stepTextEl) stepTextEl.textContent = step.text || step.desc || "—";
-    if(stepHintEl) stepHintEl.textContent = step.hint || "";
-  }
-
-  render();
-  showOverlay(overlay);
-
-  // Botones next/back si existen
-  const btnPrev = document.getElementById("btnStepPrev");
-  const btnNext = document.getElementById("btnStepNext");
-  if(btnPrev){
-    btnPrev.onclick = () => {
-      const st = window.__recipeState;
-      st.idx = Math.max(0, st.idx-1);
-      render();
-    };
-  }
-  if(btnNext){
-    btnNext.onclick = () => {
-      const st = window.__recipeState;
-      const total = st.steps.length || 1;
-      st.idx = Math.min(total-1, st.idx+1);
-      render();
-    };
-  }
-}
-
-// Asegurar botón cerrar receta
-(function(){
-  const btn = document.getElementById("btnRecipeClose");
-  if(btn) btn.addEventListener("click", closeRecipe);
-})();
 
