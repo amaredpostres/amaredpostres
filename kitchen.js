@@ -753,21 +753,32 @@ function getProductsNeededToday(){
   return needed;
 }
 
-// Bulk update
+// Bulk update (Sheets) — FIX: evita que kitchen.js se rompa y permite que corran los listeners
 async function bulkUpdate(orderIds, patch){
-  if(!Array.isArray(orderIds) || orderIds.length === 0) return null;
+  if(!Array.isArray(orderIds) || !orderIds.length) return;
 
-  showLoading("Actualizando...", "Aplicando cambios.");
+  showLoading("Actualizando...", "Aplicando cambios en la base de datos.");
   disableUIWhileLoading(true);
 
   try{
     const out = await api({
       action: "kitchen_bulk_update",
+      admin_pin: SESSION?.pin || "",
       operator: SESSION?.operatorLabel || "COCINA",
       order_ids: orderIds.map(String),
       patch: patch || {}
     });
-    return out;
+
+    if(!out?.ok){
+      throw new Error(out?.error || "No se pudo actualizar en Sheets.");
+    }
+
+    // Refrescar para ver el resultado en pantalla
+    await loadKitchenData(true);
+
+  } catch(e){
+    alert(e?.message || String(e));
+    throw e;
   } finally {
     disableUIWhileLoading(false);
     hideLoading();
@@ -1110,6 +1121,7 @@ function renderLateOrders(){
     list.appendChild(div);
   }
 }
+
 
 
 
