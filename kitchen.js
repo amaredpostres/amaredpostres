@@ -53,85 +53,6 @@ function hideLoading(){
   el.classList.add("hidden");
 }
 
-// ---------- UI helpers (sin alerts/confirm del navegador) ----------
-function toast(msg, isError=false, ms=2400){
-  try{
-    let box = document.getElementById("toast");
-    if(!box){
-      box = document.createElement("div");
-      box.id = "toast";
-      box.style.position = "fixed";
-      box.style.left = "50%";
-      box.style.bottom = "18px";
-      box.style.transform = "translateX(-50%)";
-      box.style.padding = "12px 16px";
-      box.style.borderRadius = "14px";
-      box.style.fontWeight = "800";
-      box.style.fontSize = "14px";
-      box.style.color = "#fff";
-      box.style.zIndex = "99999";
-      box.style.maxWidth = "92vw";
-      box.style.textAlign = "center";
-      box.style.boxShadow = "0 14px 40px rgba(0,0,0,.25)";
-      box.style.display = "none";
-      document.body.appendChild(box);
-    }
-    box.style.background = isError ? "#b00020" : "#1f7a3a";
-    box.textContent = msg;
-    box.style.display = "block";
-    clearTimeout(box._t);
-    box._t = setTimeout(()=>{ box.style.display="none"; }, ms);
-  }catch(_){}
-}
-
-function confirmUI(title="Confirmar", msg="¿Deseas continuar?", okText="Confirmar", cancelText="Cancelar"){
-  return new Promise((resolve)=>{
-    // overlay
-    let ov = document.getElementById("confirmOverlay");
-    if(!ov){
-      ov = document.createElement("div");
-      ov.id = "confirmOverlay";
-      ov.style.position = "fixed";
-      ov.style.inset = "0";
-      ov.style.background = "rgba(0,0,0,.55)";
-      ov.style.display = "flex";
-      ov.style.alignItems = "center";
-      ov.style.justifyContent = "center";
-      ov.style.zIndex = "99999";
-      ov.style.padding = "16px";
-      ov.innerHTML = `
-        <div id="confirmCard" style="width:min(520px,92vw); background:#fff; border-radius:18px; padding:16px; box-shadow:0 14px 40px rgba(0,0,0,.25);">
-          <div id="confirmTitle" style="font-weight:900; font-size:16px; margin-bottom:6px;"></div>
-          <div id="confirmMsg" style="color:#6b7280; font-size:14px; margin-bottom:14px;"></div>
-          <div style="display:flex; gap:10px; justify-content:flex-end;">
-            <button id="confirmCancel" class="btn secondary" type="button">${cancelText}</button>
-            <button id="confirmOk" class="btn primary" type="button">${okText}</button>
-          </div>
-        </div>
-      `;
-      document.body.appendChild(ov);
-    } else {
-      ov.style.display = "flex";
-      // update texts in case they changed
-      ov.querySelector("#confirmCancel").textContent = cancelText;
-      ov.querySelector("#confirmOk").textContent = okText;
-    }
-
-    ov.querySelector("#confirmTitle").textContent = title;
-    ov.querySelector("#confirmMsg").textContent = msg;
-
-    const cleanup = (val)=>{
-      ov.style.display = "none";
-      resolve(val);
-    };
-
-    ov.onclick = (e)=>{ if(e.target===ov) cleanup(false); };
-    ov.querySelector("#confirmCancel").onclick = ()=>cleanup(false);
-    ov.querySelector("#confirmOk").onclick = ()=>cleanup(true);
-  });
-}
-
-
 // ---------- DOM refs ----------
 const selOperator = $("selOperator");
 const inpPin = $("inpPin");
@@ -192,15 +113,20 @@ function renderProfilesSelect(list){
 
 function openModal(modalEl){
   if(!modalEl) return;
-  modalEl.setAttribute("aria-hidden","false");
+  modalEl.classList.add("show");
   modalEl.style.display = "flex";
+  modalEl.style.opacity = "1";
+  modalEl.style.visibility = "visible";
+  modalEl.style.pointerEvents = "auto";
+  modalEl.setAttribute("aria-hidden","false");
 }
 function closeModal(modalEl){
   if(!modalEl) return;
-  modalEl.setAttribute("aria-hidden","true");
+  modalEl.classList.remove("show");
   modalEl.style.display = "none";
+  modalEl.style.pointerEvents = "none";
+  modalEl.setAttribute("aria-hidden","true");
 }
-
 async function validateProfilesSecret(secret){
   // Worker tiene validate_secret (no se reenvía al Apps Script)
   const out = await api({ action:"validate_secret", type:"profiles", secret });
@@ -242,14 +168,14 @@ function renderProfilesManagerList(list){
     btn.addEventListener("click", async ()=>{
       const id = btn.getAttribute("data-id") || "";
       if(!id) return;
-      const ok = await confirmUI("Confirmar", `¿Eliminar el perfil "${id}"?`);
+      const ok = confirm(`¿Eliminar el perfil "${id}"?`);
       if(!ok) return;
       try{
         showLoading("Eliminando…","Actualizando perfiles.");
         await api({ action:"profiles_delete", profiles_secret: cachedProfilesSecret, profile_id: id });
         await reloadProfilesEverywhere();
       }catch(e){
-        toast(`No se pudo eliminar: ${e.message}`, true);
+        alert(`No se pudo eliminar: ${e.message}`);
       }finally{
         hideLoading();
       }
@@ -311,7 +237,9 @@ function handleLogout(){
 }
 
 // ---------- Wire events ----------
-btnManageProfiles.addEventListener("click", ()=>{
+btnManageProfiles.addEventListener("click", (e)=>{
+  e.preventDefault();
+  e.stopPropagation();
   // reset gate/editor view
   profilesUnlocked = false;
   cachedProfilesSecret = "";
@@ -361,12 +289,12 @@ btnAddProfile.addEventListener("click", async ()=>{
   }
   const label = String(inpNewProfile.value||"").trim();
   if(!label){
-    toast("Escribe el nombre del perfil.", true);
+    alert("Escribe el nombre del perfil.");
     return;
   }
   const id = normalizeProfileId(label);
   if(!id){
-    toast("Nombre inválido. Prueba con otro.", true);
+    alert("Nombre inválido. Prueba con otro.");
     return;
   }
   try{
@@ -380,12 +308,11 @@ btnAddProfile.addEventListener("click", async ()=>{
     });
     inpNewProfile.value = "";
     await reloadProfilesEverywhere();
-    toast("Perfil guardado y actualizado.");
     // mantener editor actualizado
     const list = await fetchProfilesPublic();
     renderProfilesManagerList(list);
   }catch(e){
-    toast(`No se pudo agregar: ${e.message}`, true);
+    alert(`No se pudo agregar: ${e.message}`);
   }finally{
     hideLoading();
   }
@@ -448,138 +375,3 @@ if(btnLogout) btnLogout.addEventListener("click", handleLogout);
   }
 })();
 
-/* === HOTFIX: asegurar que "Gestionar perfiles" siempre abra el modal === */
-(function(){
-  const $ = (id) => document.getElementById(id);
-
-  function openModal(modalEl){
-    if(!modalEl) return;
-    modalEl.setAttribute("aria-hidden","false");
-    modalEl.style.display = "flex";
-  }
-  function closeModal(modalEl){
-    if(!modalEl) return;
-    modalEl.setAttribute("aria-hidden","true");
-    modalEl.style.display = "none";
-  }
-
-  document.addEventListener("click", (e)=>{
-    const manageBtn = e.target.closest("#btnManageProfiles");
-    const closeBtn  = e.target.closest("#btnCloseProfiles");
-
-    if (manageBtn){
-      const modal = $("profilesModal");
-      if(!modal){
-        console.warn("[profiles] No existe #profilesModal en kitchen.html");
-        return;
-      }
-      console.log("[profiles] Abrir modal gestionar perfiles");
-      openModal(modal);
-      return;
-    }
-
-    if (closeBtn){
-      const modal = $("profilesModal");
-      console.log("[profiles] Cerrar modal gestionar perfiles");
-      closeModal(modal);
-      return;
-    }
-  }, true);
-})();
-
-/* === HOTFIX VISUAL: asegurar que profilesModal sea visible encima === */
-(function(){
-  const modal = document.getElementById("profilesModal");
-  if(!modal) return;
-
-  // Estilos mínimos solo para visibilidad (no cambia tu contenido interno)
-  function applyVisibleStyle(el){
-    el.style.display = "flex";
-    el.style.position = "fixed";
-    el.style.inset = "0";
-    el.style.zIndex = "9999";
-    el.style.alignItems = "center";
-    el.style.justifyContent = "center";
-    // Fondo semitransparente (puedes ajustar luego)
-    el.style.background = "rgba(0,0,0,0.55)";
-  }
-
-  // Intercepta cada vez que se “abra”
-  const originalSetAttribute = modal.setAttribute.bind(modal);
-  modal.setAttribute = function(name, value){
-    originalSetAttribute(name, value);
-    if(name === "aria-hidden" && value === "false"){
-      applyVisibleStyle(modal);
-    }
-  };
-
-  // Por si ya quedó en estado abierto
-  if(modal.getAttribute("aria-hidden") === "false"){
-    applyVisibleStyle(modal);
-  }
-})();
-
-/* === FIX DEFINITIVO: forzar visibilidad del modal de perfiles (independiente del CSS) === */
-(function () {
-  const btn = document.getElementById("btnManageProfiles");
-  const modal = document.getElementById("profilesModal");
-  const btnClose = document.getElementById("btnCloseProfiles");
-
-  if (!btn || !modal) {
-    console.warn("[profiles] No se encontró btnManageProfiles o profilesModal");
-    return;
-  }
-
-  function showModal() {
-    console.log("[profiles] MOSTRAR modal (forzado)");
-
-    // Estado accesible
-    modal.setAttribute("aria-hidden", "false");
-
-    // Clase por si tu CSS depende de .show
-    modal.classList.add("show");
-
-    // Forzar visibilidad aunque el CSS lo oculte
-    modal.style.display = "flex";
-    modal.style.opacity = "1";
-    modal.style.pointerEvents = "auto";
-    modal.style.visibility = "visible";
-
-    // Asegurar que quede encima
-    modal.style.position = "fixed";
-    modal.style.inset = "0";
-    modal.style.zIndex = "9999";
-
-    // Fondo overlay por si el CSS lo deja transparente
-    if (!modal.style.background) modal.style.background = "rgba(0,0,0,0.55)";
-  }
-
-  function hideModal() {
-    console.log("[profiles] OCULTAR modal");
-    modal.setAttribute("aria-hidden", "true");
-    modal.classList.remove("show");
-    modal.style.display = "none";
-    modal.style.pointerEvents = "none";
-  }
-
-  // Abrir
-  btn.addEventListener("click", (e) => {
-    e.preventDefault();
-    e.stopPropagation();
-    showModal();
-  });
-
-  // Cerrar (botón)
-  if (btnClose) {
-    btnClose.addEventListener("click", (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-      hideModal();
-    });
-  }
-
-  // Cerrar al hacer clic fuera (overlay)
-  modal.addEventListener("click", (e) => {
-    if (e.target === modal) hideModal();
-  });
-})();
