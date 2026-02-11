@@ -495,17 +495,31 @@ function renderOperatorProfiles(){
   selOperator.innerHTML = `<option value="">Seleccionar…</option>` + list.map(p => `<option value="${p.id}">${p.label}</option>`).join("");
 }
 function openProfilesModal(){
+  // Reset UI
   profilesGate.classList.remove("hidden");
   profilesEditor.classList.add("hidden");
   profilesGateErr.textContent = "";
   inpProfilesSecret.value = "";
-  profilesModal.classList.add("show");
+
+  // Mostrar modal (a prueba de CSS)
   profilesModal.setAttribute("aria-hidden","false");
+  profilesModal.classList.add("show");
+
+  // Forzar visibilidad real
+  profilesModal.style.display = "flex";
+  profilesModal.style.position = "fixed";
+  profilesModal.style.inset = "0";
+  profilesModal.style.alignItems = "center";
+  profilesModal.style.justifyContent = "center";
+  profilesModal.style.zIndex = "9999";
 }
+
 function closeProfilesModal(){
-  profilesModal.classList.remove("show");
-  profilesModal.style.display = ""; // por si quedó seteado en versiones anteriores
   profilesModal.setAttribute("aria-hidden","true");
+  profilesModal.classList.remove("show");
+
+  // Forzar ocultamiento real
+  profilesModal.style.display = "none";
 }
 
 function renderProfilesList(){
@@ -1069,5 +1083,6 @@ function renderLateOrders(){
     list.appendChild(div);
   }
 }
+
 
 
