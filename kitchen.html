@@ -338,6 +338,23 @@
       border:1px solid rgba(64,17,2,.18);
       font-weight:950;
     }
+
+        /* FIX: overlays siempre por encima */
+    .modalOverlay{
+      position: fixed;
+      inset: 0;
+      z-index: 9999;
+      display: none;
+      align-items: center;
+      justify-content: center;
+    }
+    
+    /* Cuando está abierto */
+    .modalOverlay.show,
+    .modalOverlay[aria-hidden="false"]{
+      display: flex;
+    }
+
   </style>
 </head>
 
@@ -549,4 +566,5 @@
 <script src="kitchen.js?v=20260210_2"></script>
 </body>
 </html>
+
 
