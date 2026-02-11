@@ -495,26 +495,15 @@ function renderOperatorProfiles(){
   selOperator.innerHTML = `<option value="">Seleccionar…</option>` + list.map(p => `<option value="${p.id}">${p.label}</option>`).join("");
 }
 function openProfilesModal(){
-  // Asegurar que ninguna capa de carga esté tapando el modal
-  try { hideLoading(); } catch(e) {}
-
-  // Reset UI del modal
   profilesGate.classList.remove("hidden");
   profilesEditor.classList.add("hidden");
   profilesGateErr.textContent = "";
   inpProfilesSecret.value = "";
-
-  // Mostrar (CSS usa .show, pero forzamos también display por seguridad)
   profilesModal.classList.add("show");
-  profilesModal.style.display = "flex";
-  profilesModal.style.zIndex = "32000"; // por encima del loadingOverlay (30000)
   profilesModal.setAttribute("aria-hidden","false");
 }
-
 function closeProfilesModal(){
   profilesModal.classList.remove("show");
-  profilesModal.style.display = "none";
-  profilesModal.style.zIndex = "";
   profilesModal.setAttribute("aria-hidden","true");
 }
 
