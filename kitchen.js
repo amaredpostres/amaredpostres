@@ -504,6 +504,7 @@ function openProfilesModal(){
 }
 function closeProfilesModal(){
   profilesModal.classList.remove("show");
+  profilesModal.style.display = ""; // por si quedó seteado en versiones anteriores
   profilesModal.setAttribute("aria-hidden","true");
 }
 
@@ -552,20 +553,27 @@ function renderProfilesList(){
 
 // Costs UI
 function openCostsModal(){
-  costsModal.style.display = "flex";
+  // ✅ Abrir modal (consistente con perfiles)
+  costsModal.classList.add("show");
   costsModal.setAttribute("aria-hidden","false");
+
   // Solo lectura: no pedimos claves
   if(costsGate) costsGate.classList.add("hidden");
   if(costsEditor) costsEditor.classList.remove("hidden");
+
   loadCostsIntoModal().catch(err => {
     console.error(err);
     if(costsGateErr) costsGateErr.textContent = err?.message || String(err);
   });
 }
+
 function closeCostsModal(){
+  // ✅ Cerrar modal (remover show y limpiar display inline si existiera)
   costsModal.classList.remove("show");
+  costsModal.style.display = ""; // por si quedó seteado en versiones anteriores
   costsModal.setAttribute("aria-hidden","true");
 }
+
 function getAllIngredientKeys(){
   const set = new Set();
   for(const pid of Object.keys(RECIPE_UNIT)){
@@ -1058,3 +1066,4 @@ function renderLateOrders(){
     list.appendChild(div);
   }
 }
+
