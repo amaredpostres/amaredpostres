@@ -24,37 +24,46 @@
     .btnLinkLike{ text-decoration:none; display:inline-flex; align-items:center; justify-content:center; }
     <style>
   
-  /* ✅ FIX visual: Loading/modal siempre centrado */
-  .modalOverlay{
-    position: fixed !important;
-    inset: 0 !important;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: 18px;
-    background: rgba(0,0,0,.25);
-    z-index: 99999;
-  }
-  .modalBox{
-    width: 100%;
-    background: rgba(255,255,255,.92);
-    border: 1px solid rgba(64,17,2,.10);
-    border-radius: 18px;
-    padding: 14px 16px;
-    box-shadow: 0 14px 40px rgba(0,0,0,.18);
-    backdrop-filter: blur(6px);
-  }
-    .loginActions{
-  width: 100%;
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 10px;
-  align-items: center;
-}
+    /* ✅ FIX: Overlay de carga centrado y bonito */
+    .modalOverlay{
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,.25);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+      z-index: 9999;
+    }
+    
+    .modalBox{
+      width: 100%;
+      background: rgba(255,255,255,.92);
+      border: 1px solid rgba(64,17,2,.12);
+      border-radius: 22px;
+      padding: 18px;
+      box-shadow: 0 18px 40px rgba(0,0,0,.18);
+      backdrop-filter: blur(6px);
+    }
 
-@media (max-width: 520px){
-  .loginActions{ grid-template-columns: 1fr; }
-}
+      /* ✅ Login actions responsive */
+      .loginActions{
+        display: flex;
+        gap: 10px;
+        width: 100%;
+      }
+      
+      .loginActions .btn,
+      .loginActions .btnLinkLike{
+        flex: 1;
+        width: 100%;
+      }
+      
+      @media (max-width: 520px){
+        .loginActions{
+          flex-direction: column;
+        }
+      }
 
   </style>
 </head>
@@ -96,21 +105,21 @@
       </div>
 
       <div class="field" style="margin-top:12px;">
-      <div class="loginActions">
-        <button id="btnLogin" class="btn primary" type="button" style="width:100%;">Ingresar</button>
-    
-        <a id="btnManageProfiles"
-           class="btn secondary btnLinkLike"
-           href="profiles.html"
-           target="_blank"
-           rel="noopener"
-           style="width:100%;">
-          Gestionar perfiles
-        </a>
+        <div class="loginActions">
+          <button id="btnLogin" class="btn primary" type="button">Ingresar</button>
+      
+          <a id="btnManageProfiles"
+             class="btn secondary btnLinkLike"
+             href="profiles.html"
+             target="_blank"
+             rel="noopener">
+            Gestionar perfiles
+          </a>
+        </div>
+      
+        <div id="loginErr" class="muted small" style="color:#b00020; margin-top:10px;"></div>
       </div>
-    
-      <div id="loginErr" class="muted small" style="color:#b00020; margin-top:10px;"></div>
-    </div>
+
 
     </div>
 
@@ -174,5 +183,6 @@
   <script src="kitchen.js?v=20260211"></script>
 </body>
 </html>
+
 
 
