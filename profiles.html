@@ -5,90 +5,234 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>AMARED · Gestión de perfiles</title>
 
-  <!-- Favicon -->
-  <link rel="icon" href="favicon.ico" />
-
-  <!-- Reusa tu CSS general si ya lo usas en otras páginas -->
+  <link rel="icon" href="assets/favicon.ico" />
   <link rel="stylesheet" href="styles.css" />
+
+  <style>
+    .topbarInner{ justify-content: space-between; }
+    .brand{ gap: 12px; }
+    .brandMeta{ display:flex; flex-direction:column; gap:2px; }
+    .brandTitle{ font-weight: 950; font-size: 18px; line-height: 1.1; }
+    .brandSubtitle{ font-size: 12.5px; color: rgba(64,17,2,.65); font-weight: 800; }
+
+    .grid2{ display:grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+    @media (max-width: 920px){ .grid2{ grid-template-columns: 1fr; } }
+
+    .field label{ display:block; font-size: 12.5px; color: rgba(64,17,2,.70); font-weight: 800; margin-bottom: 6px; }
+    .input{
+      width:100%;
+      padding: 12px 12px;
+      border-radius: 16px;
+      border: 1px solid var(--border);
+      outline: none;
+      font-weight: 800;
+      background: rgba(255,255,255,.85);
+    }
+
+    .rowBetween{ display:flex; align-items:center; justify-content:space-between; gap: 12px; flex-wrap: wrap; }
+    .row{ display:flex; align-items:center; gap: 10px; flex-wrap: wrap; }
+
+    .pill{
+      display:inline-flex; align-items:center; gap: 6px;
+      padding: 8px 12px;
+      border-radius: 999px;
+      border: 1px solid var(--border);
+      background: rgba(255,255,255,.75);
+      font-weight: 900; font-size: 12.5px;
+    }
+
+    .table{
+      width:100%;
+      border-collapse: collapse;
+      margin-top: 10px;
+      overflow:hidden;
+      border-radius: 16px;
+      border: 1px solid var(--border);
+      background: rgba(255,255,255,.65);
+    }
+    .table th, .table td{
+      padding: 10px 12px;
+      border-bottom: 1px solid rgba(64,17,2,.08);
+      text-align: left;
+      vertical-align: middle;
+    }
+    .table th{
+      font-size: 12px;
+      color: rgba(64,17,2,.65);
+      font-weight: 950;
+      background: rgba(247,206,145,.12);
+    }
+    .badge{
+      display:inline-block;
+      padding: 6px 10px;
+      border-radius: 999px;
+      background: rgba(242,91,143,.10);
+      border: 1px solid rgba(242,91,143,.20);
+      font-weight: 900;
+      font-size: 12px;
+    }
+
+    .chips{ display:flex; gap: 8px; flex-wrap: wrap; }
+    .chip{
+      display:inline-flex; align-items:center; gap: 8px;
+      padding: 10px 12px;
+      border-radius: 999px;
+      border: 1px solid var(--border);
+      background: rgba(255,255,255,.75);
+      font-weight: 900;
+      cursor: pointer;
+      user-select: none;
+    }
+    .chip input{ transform: scale(1.05); }
+
+    .loadingOverlay{
+      position: fixed; inset: 0;
+      display:none; align-items:center; justify-content:center;
+      background: rgba(64,17,2,.18);
+      z-index: 99999;
+      padding: 18px;
+    }
+    .loadingCard{
+      width: min(520px, 100%);
+      background: var(--paper);
+      border: 1px solid var(--border);
+      border-radius: 22px;
+      padding: 16px;
+      box-shadow: var(--shadow);
+      text-align: center;
+    }
+    .loadingTitle{ font-weight: 950; font-size: 18px; }
+  </style>
 </head>
 <body>
   <header class="topbar">
-    <div class="brand">
-      <img src="logo.svg" alt="AMARED" class="brandLogo" />
-      <div>
-        <div class="brandTitle">AMARED</div>
-        <div class="muted small">Gestión de perfiles</div>
+    <div class="topbarInner">
+      <div class="brand">
+        <img class="brandLogo" src="assets/Logo-Isotipo-Amared.svg" alt="AMARED" />
+        <div class="brandMeta">
+          <div class="brandTitle">AMARED</div>
+          <div class="brandSubtitle">Gestión de perfiles</div>
+        </div>
+      </div>
+
+      <div class="row">
+        <button id="btnBack" class="btn secondary" type="button">Volver</button>
       </div>
     </div>
-    <a class="btn secondary" href="kitchen.html">Volver a cocina</a>
   </header>
 
-  <!-- Loading overlay (igual idea que ya manejas) -->
-  <div id="loading" class="loadingOverlay" style="display:none;">
-    <div class="loadingCard">
-      <div class="loadingTitle" id="loadingTitle">Cargando…</div>
-      <div class="muted small" id="loadingMsg">Procesando</div>
-    </div>
-  </div>
-
   <main class="container">
-    <!-- Gate / Login -->
-    <section class="card">
-      <h2>Acceso</h2>
-      <p class="muted small">Ingresa la clave para administrar perfiles.</p>
+    <div class="hero">
+      <h1 class="heroTitle">Perfiles del sistema</h1>
+      <p class="heroSubtitle">Crea y administra perfiles por categoría (Cocina, Pagos, Admin).</p>
+    </div>
 
-      <div class="field">
-        <label>Clave de perfiles</label>
-        <input id="inpSecret" type="password" placeholder="Clave" autocomplete="current-password" />
-      </div>
+    <div class="grid2">
+      <!-- LOGIN -->
+      <section class="card" id="gateCard">
+        <h2 class="cardTitle">Acceso</h2>
+        <p class="muted small">Ingresa la clave para administrar perfiles.</p>
 
-      <div class="rowBetween" style="margin-top:12px;">
-        <button id="btnUnlock" class="btn primary" type="button">Ingresar</button>
-        <button id="btnLock" class="btn secondary" type="button">Bloquear</button>
-      </div>
+        <div class="field">
+          <label>Clave de perfiles</label>
+          <input id="inpSecret" class="input" type="password" placeholder="••••••••" autocomplete="current-password" />
+        </div>
 
-      <div id="gateErr" class="muted small" style="margin-top:10px; color:#b00020;"></div>
-    </section>
+        <div class="row" style="margin-top:12px;">
+          <button id="btnUnlock" class="btn primary" type="button">Ingresar</button>
+        </div>
 
-    <!-- Manager -->
-    <section class="card" id="mgr" style="display:none;">
+        <div id="gateErr" class="status" style="color:#b00020;"></div>
+      </section>
+
+      <!-- ESTADO -->
+      <section class="card" id="statusCard">
+        <h2 class="cardTitle">Estado</h2>
+        <div class="rowBetween">
+          <div class="pill" id="pillState">🔒 Bloqueado</div>
+          <button id="btnLogout" class="btn secondary" type="button" disabled>Bloquear</button>
+        </div>
+
+        <p class="muted small" style="margin-top:10px;">
+          Al ingresar, podrás <b>agregar</b> y <b>eliminar</b> perfiles. Eliminar no borra: marca el perfil como inactivo (false) en la hoja.
+        </p>
+      </section>
+    </div>
+
+    <!-- MANAGER -->
+    <section class="card" id="mgrCard" style="display:none; margin-top:14px;">
       <div class="rowBetween">
-        <h2>Perfiles</h2>
-        <div class="pill">PERFILES (Sheets)</div>
+        <h2 class="cardTitle" style="margin:0;">Listado</h2>
+        <div class="row">
+          <div class="pill" id="pillCount">0 perfiles</div>
+          <button id="btnReload" class="btn secondary" type="button">Actualizar</button>
+        </div>
       </div>
 
-      <div id="list" class="stack" style="margin-top:12px;"></div>
+      <table class="table">
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>Nombre</th>
+            <th>Categorías</th>
+            <th style="width:140px;">Acción</th>
+          </tr>
+        </thead>
+        <tbody id="tbody"></tbody>
+      </table>
+
+      <div id="listMsg" class="status"></div>
 
       <hr style="margin:16px 0; opacity:.2;" />
 
-      <h3>Agregar perfil</h3>
+      <h2 class="cardTitle">Agregar perfil</h2>
 
-      <div class="field">
-        <label>Nombre</label>
-        <input id="inpName" type="text" placeholder="Ej: Juan Pérez" />
-      </div>
+      <div class="grid2">
+        <div>
+          <div class="field">
+            <label>Nombre</label>
+            <input id="inpName" class="input" type="text" placeholder="Ej: Paola" />
+          </div>
 
-      <div class="field">
-        <label>ID (automático)</label>
-        <input id="inpId" type="text" disabled />
-        <div class="muted small">Se genera desde el nombre (sin tildes, espacios → guiones bajos).</div>
-      </div>
-
-      <div class="field">
-        <label>Categorías</label>
-        <div class="chipGroup">
-          <label class="chip"><input type="checkbox" value="kitchen" checked> Cocina</label>
-          <label class="chip"><input type="checkbox" value="payments"> Pagos</label>
-          <label class="chip"><input type="checkbox" value="admin"> Admin</label>
+          <div class="field" style="margin-top:10px;">
+            <label>ID (automático)</label>
+            <input id="inpId" class="input" type="text" disabled />
+            <div class="muted small" style="margin-top:6px;">
+              Se genera desde el nombre (sin tildes, espacios → guiones bajos).
+            </div>
+          </div>
         </div>
-        <div class="muted small">Un perfil puede estar en varias categorías.</div>
-      </div>
 
-      <button id="btnAdd" class="btn primary" type="button">Agregar</button>
-      <div id="mgrErr" class="muted small" style="margin-top:10px; color:#b00020;"></div>
+        <div>
+          <div class="field">
+            <label>Categorías</label>
+            <div class="chips">
+              <label class="chip"><input type="checkbox" value="kitchen" checked> Cocina</label>
+              <label class="chip"><input type="checkbox" value="payments"> Pagos</label>
+              <label class="chip"><input type="checkbox" value="admin"> Admin</label>
+            </div>
+            <div class="muted small" style="margin-top:6px;">
+              Un perfil puede estar en varias categorías.
+            </div>
+          </div>
+
+          <div class="row" style="margin-top:12px;">
+            <button id="btnAdd" class="btn primary" type="button">Agregar</button>
+          </div>
+
+          <div id="mgrErr" class="status" style="color:#b00020;"></div>
+        </div>
+      </div>
     </section>
   </main>
 
-  <script src="profiles.js"></script>
+  <div id="loading" class="loadingOverlay" aria-hidden="true">
+    <div class="loadingCard">
+      <div class="loadingTitle" id="loadingTitle">Cargando…</div>
+      <div class="muted small" id="loadingMsg" style="margin-top:6px;">Procesando</div>
+    </div>
+  </div>
+
+  <script src="profiles.js?v=20260211"></script>
 </body>
 </html>
