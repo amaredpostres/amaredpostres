@@ -744,19 +744,22 @@ function getProductsNeededToday(){
 
 // Bulk update
 async function bulkUpdate(orderIds, patch){
-  if(!orderIds.length) return;
-  showLoading("Actualizando...", "Aplicando cambios.");
+  if(!orderIds || !orderIds.length) return;
+  showLoading("Actualizando...", "Aplicando cambios en la base de datos.");
   disableUIWhileLoading(true);
   try{
-    markProductDoneForDay(todayKey, currentProductId);
-          closeRecipeRaw();
-          renderMain(todayKey);
-          renderLateOrders();
-          hideLoading();
-      }
-    );
-    return;
+    const out = await api({
+      action: "kitchen_bulk_update",
+      order_ids: orderIds,
+      patch
+    });
+    // opcional: refrescar datos después de actualizar
+    return out;
+  } finally {
+    disableUIWhileLoading(false);
+    hideLoading();
   }
+}
 
   currentStepIdx++;
   renderRecipeStep();
