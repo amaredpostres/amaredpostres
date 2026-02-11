@@ -540,17 +540,23 @@ function renderOperatorProfiles(){
   selOperator.innerHTML = `<option value="">Seleccionar…</option>` + list.map(p => `<option value="${p.id}">${p.label}</option>`).join("");
 }
 function openProfilesModal(){
-  profilesGate.classList.remove("hidden");
-  profilesEditor.classList.add("hidden");
-  profilesGateErr.textContent = "";
-  inpProfilesSecret.value = "";
-  profilesModal.classList.add("show");
-  profilesModal.setAttribute("aria-hidden","false");
+  try{
+    profilesGate.classList.remove("hidden");
+    profilesEditor.classList.add("hidden");
+    profilesGateErr.textContent = "";
+    inpProfilesSecret.value = "";
+    profilesModal.classList.add("show");
+    profilesModal.style.display = "flex";
+    profilesModal.setAttribute("aria-hidden","false");
+  }catch(e){ console.error("openProfilesModal error", e); }
 }
+
 function closeProfilesModal(){
   profilesModal.classList.remove("show");
+  profilesModal.style.display = "none";
   profilesModal.setAttribute("aria-hidden","true");
 }
+
 
 function renderProfilesList(){
   const list = Array.isArray(profiles) ? profiles : [];
@@ -671,20 +677,22 @@ async function loadCostsIntoModal(){
 }
 
 function openCostsModal(){
+  costsModal.classList.add("show");
   costsModal.style.display = "flex";
   costsModal.setAttribute("aria-hidden","false");
-  // Solo lectura: no pedimos claves
-  if(costsGate) costsGate.classList.add("hidden");
-  if(costsEditor) costsEditor.classList.remove("hidden");
   loadCostsIntoModal().catch(err => {
-    console.error(err);
-    if(costsGateErr) costsGateErr.textContent = err?.message || String(err);
+    console.error("No se pudieron cargar costos públicos", err);
+    costsBody.innerHTML = `<div class="muted">No se pudieron cargar costos.</div>`;
   });
+}
+);
 }
 function closeCostsModal(){
   costsModal.classList.remove("show");
+  costsModal.style.display = "none";
   costsModal.setAttribute("aria-hidden","true");
 }
+
 function getAllIngredientKeys(){
   const set = new Set();
   for(const pid of Object.keys(RECIPE_UNIT)){
