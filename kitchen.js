@@ -1,9 +1,10 @@
-/* kitchen.js (REFactor total) — AMARED Cocina
-   - Sin gestión/creación/eliminación de perfiles (eso vive en profiles.html)
-   - Solo carga perfiles filtrados por category:"kitchen"
-   - Enfoque: producción diaria + receta + temporizador + kitchen_bulk_update
-
-   Nota: si no existen imágenes de pasos (assets/steps/...), el visor las ocultará automáticamente.
+/* kitchen.js (REFactor V2) — AMARED Cocina
+   Cambios clave V2:
+   ✅ No llama profiles_list / costs_public_list antes del login (evita 400/401 al cargar)
+   ✅ list_orders SIEMPRE envía admin_pin (corrige "Unauthorized admin" en Actualizar)
+   ✅ Logout limpia errores y evita que queden mensajes de PIN inválido
+   ✅ Costos toma datos de la hoja COSTOS_INGREDIENTES vía action:"costs_public_list"
+      (si el Worker exige PIN, se consulta después del login)
 */
 
 (() => {
@@ -20,7 +21,7 @@
   // Storage keys
   const SS_KEY = "AMARED_KITCHEN_SESSION_V2";
   const LS_TIMER_KEY = "AMARED_KITCHEN_TIMERS_V1"; // por dayKey + productId
-  const LS_DONE_KEY = "AMARED_KITCHEN_DONE_V1";   // por dayKey + productId
+  const LS_DONE_KEY  = "AMARED_KITCHEN_DONE_V1";   // por dayKey + productId
 
   // Fallback profiles (kitchen-profiles.js)
   const DEFAULT_PROFILES = (window.AMARED_KITCHEN_PROFILES && Array.isArray(window.AMARED_KITCHEN_PROFILES))
@@ -41,7 +42,7 @@
     { id: "arroz_con_leche", name: "Arroz con leche (no activo)" },
   ];
 
-  // Helper: product hero image (exists in your repo)
+  // Hero images (assets/)
   const HERO_IMG = {
     mousse_maracuya: "assets/mousse.webp",
     cheesecake_cafe_panela: "assets/cheesecake.webp",
@@ -153,12 +154,10 @@
   const inProgressWrap = $("inProgressWrap");
   const doneWrap = $("doneWrap");
 
-  // Loading
   const loading = $("loading");
   const loadingTitle = $("loadingTitle");
   const loadingMsg = $("loadingMsg");
 
-  // Costs modal (solo lectura)
   const costsModal = $("costsModal");
   const btnCloseCosts = $("btnCloseCosts");
   const costsEditor = $("costsEditor");
@@ -170,29 +169,20 @@
   const state = {
     session: { operatorId: null, operatorLabel: null, pin: null },
     profiles: [],
-    pricesMap: {},   // ingredientKeyNormalized => cop_per_unit
+    pricesMap: {},
     costsLastUpdated: null,
 
     paidOrders: [],
     todayKey: null,
     nextKey: null,
 
-    buckets: {
-      today: [],
-      infoTomorrow: [],
-      inProgress: [],
-      done: [],
-    },
+    buckets: { today: [], infoTomorrow: [], inProgress: [], done: [] },
 
-    recipe: {
-      open: false,
-      productId: null,
-      orderIds: [],
-      units: 0,
-      stepIdx: 0,
-    },
+    recipe: { open:false, productId:null, orderIds:[], units:0, stepIdx:0 },
 
     timerTick: null,
+    refreshNonce: 0,     // para invalidar refresh en logout
+    loggedIn: false,
   };
 
   // =========================
@@ -258,10 +248,7 @@
     });
     const parts = fmt.formatToParts(date);
     const get = (t) => parts.find(p => p.type === t)?.value;
-    return {
-      hh: Number(get("hour")),
-      key: `${get("year")}-${get("month")}-${get("day")}`
-    };
+    return { hh: Number(get("hour")), key: `${get("year")}-${get("month")}-${get("day")}` };
   }
   function getWeekdayBogota(date){
     const wd = new Intl.DateTimeFormat("en-US", { timeZone: TZ, weekday:"short" }).format(date);
@@ -283,10 +270,10 @@
     const weekday = getWeekdayBogota(dt);
     const orderDayKey = p.key;
 
-    if (weekday === 6) return addDaysBogotaKey(orderDayKey, 2); // sáb
-    if (weekday === 0) return addDaysBogotaKey(orderDayKey, 1); // dom
-    if (weekday === 5 && p.hh >= CUTOFF_HOUR) return addDaysBogotaKey(orderDayKey, 3); // vie >=3pm => lun
-    if (p.hh >= CUTOFF_HOUR) return addDaysBogotaKey(orderDayKey, 1); // >=3pm => mañana
+    if (weekday === 6) return addDaysBogotaKey(orderDayKey, 2);
+    if (weekday === 0) return addDaysBogotaKey(orderDayKey, 1);
+    if (weekday === 5 && p.hh >= CUTOFF_HOUR) return addDaysBogotaKey(orderDayKey, 3);
+    if (p.hh >= CUTOFF_HOUR) return addDaysBogotaKey(orderDayKey, 1);
     return orderDayKey;
   }
 
@@ -322,11 +309,7 @@
       const parsed = (typeof raw === "string") ? safeJsonParse(raw) : raw;
       if (Array.isArray(parsed)) {
         return parsed
-          .map(it => ({
-            id: String(it.id || ""),
-            name: String(it.name || ""),
-            qty: Number(it.qty || 0),
-          }))
+          .map(it => ({ id: String(it.id || ""), name: String(it.name || ""), qty: Number(it.qty || 0) }))
           .filter(it => it.id && it.qty > 0);
       }
     }
@@ -335,16 +318,13 @@
 
   function aggregateByProduct(orders){
     const map = new Map();
-    let totalUnits = 0;
-
     for(const o of (orders || [])){
       const items = normalizeItemsFromOrder(o);
       for(const it of items){
         map.set(it.id, (map.get(it.id) || 0) + it.qty);
-        totalUnits += it.qty;
       }
     }
-    return { byProduct: map, totalUnits };
+    return { byProduct: map };
   }
 
   function getOrderIdsThatContainProduct(orders, productId){
@@ -359,7 +339,7 @@
   }
 
   // =========================
-  // Costs (solo lectura)
+  // Costs (solo lectura) — desde COSTOS_INGREDIENTES
   // =========================
   function normalizeIngredientKey(s){
     return String(s||"")
@@ -368,9 +348,13 @@
       .trim();
   }
 
-  async function fetchCostsPublic(){
+  async function fetchCostsPublicAfterLogin(){
+    if(!state.session.pin) return { map:{}, lastUpdated:null };
+
     try{
-      const out = await api({ action:"costs_public_list" });
+      // En tu Apps Script existe costs_public_list (solo lectura).
+      // Si el Worker la protege, aquí la consultamos con admin_pin.
+      const out = await api({ action:"costs_public_list", admin_pin: state.session.pin });
       const items = out.items || out.costs || [];
       const map = {};
       let lastUpdated = null;
@@ -397,11 +381,16 @@
     let totalCost = 0;
     const lines = (recipe.unitIngredients || []).map(ing => {
       const totalQty = Number(ing.qty || 0) * Number(units || 0);
+
+      // Match por clave normalizada
       const keyNorm = normalizeIngredientKey(ing.key);
       const pricePerUnit = Number(state.pricesMap[keyNorm] || 0);
-      const cost = totalQty * pricePerUnit;
 
+      // Si el precio está en "costo por unidad" del mismo tipo de unidad (ml, g, etc)
+      // el costo del ingrediente es qty_total * cop_per_unit
+      const cost = totalQty * pricePerUnit;
       totalCost += cost;
+
       return { key: ing.key, qty: totalQty, pricePerUnit, cost };
     });
 
@@ -409,15 +398,17 @@
   }
 
   // =========================
-  // Profiles (solo carga por categoría kitchen)
+  // Profiles (solo lista kitchen) — DESPUÉS del login
   // =========================
-  async function fetchKitchenProfiles(){
+  async function fetchKitchenProfilesAfterLogin(){
+    if(!state.session.pin) return DEFAULT_PROFILES;
+
     try{
-      const out = await api({ action:"profiles_list", category:"kitchen" });
+      const out = await api({ action:"profiles_list", category:"kitchen", admin_pin: state.session.pin });
       if(out?.ok && Array.isArray(out.profiles) && out.profiles.length){
         return out.profiles
-          .filter(p => p && p.id && p.label)
-          .map(p => ({ id: String(p.id), label: String(p.label) }));
+          .filter(p => p && (p.id || p.profile_id) && p.label)
+          .map(p => ({ id: String(p.id || p.profile_id), label: String(p.label) }));
       }
       return DEFAULT_PROFILES;
     }catch(_e){
@@ -425,10 +416,11 @@
     }
   }
 
-  function renderProfilesSelect(){
+  function renderProfilesSelect(selectedId){
     const list = (Array.isArray(state.profiles) && state.profiles.length) ? state.profiles : DEFAULT_PROFILES;
     selOperator.innerHTML = `<option value="">Seleccionar…</option>` +
       list.map(p => `<option value="${escapeHtml(p.id)}">${escapeHtml(p.label)}</option>`).join("");
+    if(selectedId) selOperator.value = selectedId;
   }
 
   // =========================
@@ -463,6 +455,18 @@
     if(btnLogout) btnLogout.style.display = "inline-flex";
     if(btnRefresh) btnRefresh.style.display = "inline-flex";
   }
+
+  // Best-effort validate pin (si no existe acción, lo validará list_orders)
+  async function validatePinBestEffort(pin){
+    try{
+      await api({ action:"validate_admin_pin", admin_pin: pin });
+      return true;
+    }catch(e){
+      const msg = String(e?.message || "").toLowerCase();
+      if(msg.includes("unknown action")) return true;
+      // si el error es 401/Unauthorized, lo dejamos fallar aquí
+      throw e;
+    }
   }
 
   // =========================
@@ -517,9 +521,8 @@
   // Bulk update (Sheets)
   // =========================
   async function kitchenBulkUpdate(orderIds, patch){
-    if(!Array.isArray(orderIds) || orderIds.length === 0){
-      return;
-    }
+    if(!Array.isArray(orderIds) || orderIds.length === 0) return;
+
     const payload = {
       action: "kitchen_bulk_update",
       admin_pin: state.session.pin || "",
@@ -533,53 +536,50 @@
   // =========================
   // Data load + buckets
   // =========================
-  async function loadData(){
-    if(!state.session.pin){
-      // Sin sesión: no pedimos pedidos (evita 401 al abrir la página)
-      state.paidOrders = [];
-      state.todayKey = getTodayProductionDayKey();
-      state.nextKey = getNextProductionDayKey(state.todayKey);
-      state.buckets = { today:[], infoTomorrow:[], inProgress:[], done:[] };
-      return;
-    }
+  async function loadData(myNonce){
+    if(!state.session.pin) throw new Error("Unauthorized admin");
+
     state.todayKey = getTodayProductionDayKey();
     state.nextKey = getNextProductionDayKey(state.todayKey);
 
     showLoading("Cargando cocina…", "Obteniendo pedidos y preparando producción.");
-    try{
-      const out = await api({ action:"list_orders", admin_pin: state.session.pin, payment_status:"Pagado" });
-      const paid = (out.orders || []).map(o => {
-        o.__prod_day = computeProductionDayKeyForOrder(o.created_at);
-        return o;
-      });
 
-      state.paidOrders = paid;
+    const out = await api({
+      action: "list_orders",
+      payment_status: "Pagado",
+      admin_pin: state.session.pin, // ✅ clave: para que Worker no responda Unauthorized
+    });
 
-      const todayAll = paid.filter(o => o.__prod_day === state.todayKey);
+    if(myNonce !== state.refreshNonce) return; // logout / nuevo refresh
 
-      const lateToday = paid.filter(o => {
-        const d = new Date(o.created_at);
-        if(Number.isNaN(d.getTime())) return false;
-        if(!isSameBogotaDay(d, state.todayKey)) return false;
-        const hh = getBogotaParts(d).hh;
-        return hh >= CUTOFF_HOUR;
-      });
+    const paid = (out.orders || []).map(o => {
+      o.__prod_day = computeProductionDayKeyForOrder(o.created_at);
+      return o;
+    });
 
-      const inProg = todayAll.filter(o => String(o.kitchen_status || "") === "En proceso");
-      const done = todayAll.filter(o => String(o.kitchen_status || "") === "Listo");
-      const pending = todayAll.filter(o => {
-        const ks = String(o.kitchen_status || "");
-        return ks !== "En proceso" && ks !== "Listo";
-      });
+    state.paidOrders = paid;
 
-      state.buckets.today = pending;
-      state.buckets.infoTomorrow = lateToday;
-      state.buckets.inProgress = inProg;
-      state.buckets.done = done;
+    const todayAll = paid.filter(o => o.__prod_day === state.todayKey);
 
-    } finally {
-      hideLoading();
-    }
+    const lateToday = paid.filter(o => {
+      const d = new Date(o.created_at);
+      if(Number.isNaN(d.getTime())) return false;
+      if(!isSameBogotaDay(d, state.todayKey)) return false;
+      const hh = getBogotaParts(d).hh;
+      return hh >= CUTOFF_HOUR;
+    });
+
+    const inProg = todayAll.filter(o => String(o.kitchen_status || "") === "En proceso");
+    const done = todayAll.filter(o => String(o.kitchen_status || "") === "Listo");
+    const pending = todayAll.filter(o => {
+      const ks = String(o.kitchen_status || "");
+      return ks !== "En proceso" && ks !== "Listo";
+    });
+
+    state.buckets.today = pending;
+    state.buckets.infoTomorrow = lateToday;
+    state.buckets.inProgress = inProg;
+    state.buckets.done = done;
   }
 
   // =========================
@@ -610,7 +610,6 @@
       `).join("");
 
       const disabledStart = (!showActions || doneLocal || orderIds.length === 0);
-
       const hero = HERO_IMG[p.id] || "";
 
       cards.push(`
@@ -668,25 +667,10 @@
       const pid = card.getAttribute("data-pid");
       const act = btn.getAttribute("data-act");
 
-      if(act === "toggle"){
-        card.classList.toggle("open");
-        return;
-      }
-
-      if(act === "start"){
-        await startRecipeFlow(pid, orders);
-        return;
-      }
-
-      if(act === "timer"){
-        startBaseTimer(pid);
-        return;
-      }
-
-      if(act === "done"){
-        await markProductAsDone(pid, orders);
-        return;
-      }
+      if(act === "toggle"){ card.classList.toggle("open"); return; }
+      if(act === "start"){ await startRecipeFlow(pid, orders); return; }
+      if(act === "timer"){ startBaseTimer(pid); return; }
+      if(act === "done"){ await markProductAsDone(pid, orders); return; }
     };
   }
 
@@ -715,7 +699,7 @@
   }
 
   // =========================
-  // Receta step-by-step (overlay inyectado)
+  // Receta step-by-step (overlay)
   // =========================
   function ensureOverlays(){
     if(document.getElementById("amaredRecipeOverlay")) return;
@@ -777,7 +761,6 @@
 
   function openRecipe(productId, orderIds, units){
     ensureOverlays();
-
     const overlay = document.getElementById("amaredRecipeOverlay");
     overlay.style.display = "flex";
     overlay.setAttribute("aria-hidden","false");
@@ -845,7 +828,7 @@
         ${(lines||[]).map(li => `
           <div class="line">
             <span>${escapeHtml(li.key)}</span>
-            <div>${fmtQty(li.qty)}</div>
+            <div>${fmtQty(li.qty)} ${li.pricePerUnit ? `<span class="muted small" style="margin-left:8px;">($${money(li.pricePerUnit)}/u)</span>` : ""}</div>
           </div>
         `).join("")}
       `;
@@ -932,10 +915,7 @@
     const units = agg.byProduct.get(productId) || 0;
     const orderIds = getOrderIdsThatContainProduct(orders, productId);
 
-    if(orderIds.length === 0){
-      toast("No hay pedidos para este producto.");
-      return;
-    }
+    if(orderIds.length === 0){ toast("No hay pedidos para este producto."); return; }
 
     showLoading("Iniciando…", "Marcando pedidos en proceso y abriendo receta.");
     try{
@@ -952,10 +932,7 @@
   async function markProductAsDone(productId, baseOrders){
     const orders = baseOrders || [];
     const orderIds = getOrderIdsThatContainProduct(orders, productId);
-    if(orderIds.length === 0){
-      toast("No hay pedidos para este producto.");
-      return;
-    }
+    if(orderIds.length === 0){ toast("No hay pedidos para este producto."); return; }
 
     const ok = confirm("¿Marcar este producto como LISTO para todos sus pedidos?");
     if(!ok) return;
@@ -977,10 +954,7 @@
   function allProductsDoneForToday(){
     const todayOrdersAll = state.paidOrders.filter(o => o.__prod_day === state.todayKey);
     const agg = aggregateByProduct(todayOrdersAll);
-    const needed = PRODUCTS
-      .map(p => p.id)
-      .filter(pid => (agg.byProduct.get(pid) || 0) > 0);
-
+    const needed = PRODUCTS.map(p => p.id).filter(pid => (agg.byProduct.get(pid) || 0) > 0);
     if(needed.length === 0) return false;
     return needed.every(pid => isProductDone(state.todayKey, pid));
   }
@@ -988,7 +962,6 @@
   function renderFinalizeLotButton(){
     const existing = document.getElementById("amFinalizeLot");
     if(existing) existing.remove();
-
     if(!allProductsDoneForToday()) return;
 
     const btn = document.createElement("button");
@@ -1116,29 +1089,42 @@
   // Refresh
   // =========================
   async function refresh(){
-    await loadData();
-    renderAll();
+    const myNonce = state.refreshNonce;
+
+    try{
+      await loadData(myNonce);
+      if(myNonce !== state.refreshNonce) return;
+      renderAll();
+    } finally {
+      hideLoading();
+    }
   }
 
   // =========================
-  // Events
+  // Login / Logout
   // =========================
   async function onLogin(){
     loginErr.textContent = "";
-    const opId = selOperator.value;
-    const opLabel = (state.profiles.find(p => p.id === opId)?.label) || "";
+
+    const selectedProfileId = selOperator.value;
     const pin = String(inpPin.value || "").trim();
 
-    if(!opId || !opLabel || !pin){
+    if(!selectedProfileId || !pin){
       loginErr.textContent = "Selecciona un perfil e ingresa el PIN.";
       return;
     }
 
-    showLoading("Validando…", "Verificando acceso y cargando pedidos.");
+    showLoading("Validando…", "Verificando acceso.");
+
     try{
-      // Guardar sesión provisional
-      state.session = { operatorId: opId, operatorLabel: opLabel, pin };
+      await validatePinBestEffort(pin);
+
+      // Guardar sesión (label puede venir del fallback y luego la actualizamos)
+      const labelFallback = (state.profiles.find(p => p.id === selectedProfileId)?.label) || selectedProfileId;
+
+      state.session = { operatorId: selectedProfileId, operatorLabel: labelFallback, pin };
       saveSession();
+      state.loggedIn = true;
 
       showApp();
       ensureCostsButton();
@@ -1146,12 +1132,28 @@
       const btnCostsRO = document.getElementById("btnCostsRO");
       if(btnCostsRO) btnCostsRO.style.display = "inline-flex";
 
-      // ✅ Validación real: si el PIN no sirve, list_orders fallará con 401
+      // 🔽 Después del login: cargar perfiles reales (kitchen) y costos
+      state.profiles = await fetchKitchenProfilesAfterLogin();
+      renderProfilesSelect(state.session.operatorId);
+
+      // Ajustar label real si cambió
+      const realLabel = state.profiles.find(p => p.id === state.session.operatorId)?.label;
+      if(realLabel){
+        state.session.operatorLabel = realLabel;
+        saveSession();
+      }
+
+      const c = await fetchCostsPublicAfterLogin();
+      state.pricesMap = c.map || {};
+      state.costsLastUpdated = c.lastUpdated || null;
+
+      // ✅ Ahora sí refresh (list_orders con admin_pin)
       await refresh();
 
     } catch(e){
-      // rollback sesión
+      // Si falla, no dejamos sesión “a medias”
       clearSession();
+      state.loggedIn = false;
       showLogin();
       loginErr.textContent = "PIN inválido o no autorizado.";
     } finally {
@@ -1160,10 +1162,19 @@
   }
 
   function onLogout(){
-    loginErr.textContent = "";
+    // Invalida cualquier refresh pendiente
+    state.refreshNonce++;
+    state.loggedIn = false;
+
     clearSession();
     closeRecipe();
     closeCostsModal();
+
+    // Limpieza visual
+    if(loginErr) loginErr.textContent = "";
+    if(inpPin) inpPin.value = "";
+    if(selOperator) selOperator.value = "";
+
     showLogin();
 
     const btnCostsRO = document.getElementById("btnCostsRO");
@@ -1177,35 +1188,44 @@
     ensureOverlays();
     ensureCostsButton();
 
-    showLoading("Cargando…", "Preparando perfiles y costos.");
+    // ✅ Antes del login NO hacemos llamadas al Worker (evita 400/401).
+    state.profiles = DEFAULT_PROFILES.slice();
+    renderProfilesSelect();
 
-    try{
-      state.profiles = await fetchKitchenProfiles();
-      renderProfilesSelect();
+    showLogin();
 
-      const c = await fetchCostsPublic();
-      state.pricesMap = c.map || {};
-      state.costsLastUpdated = c.lastUpdated || null;
-
-    } finally {
-      hideLoading();
-    }
-
+    // Si hay sesión previa, intentamos entrar automáticamente
     if(loadSession()){
-      if(state.session.operatorId){
-        selOperator.value = state.session.operatorId;
-      }
+      // Pintar select con el operador guardado (si existe en fallback)
+      renderProfilesSelect(state.session.operatorId);
+      inpPin.value = state.session.pin || "";
 
       showApp();
       const btnCostsRO = document.getElementById("btnCostsRO");
       if(btnCostsRO) btnCostsRO.style.display = "inline-flex";
 
-      await refresh().catch(() => {
-        clearSession();
-        showLogin();
-      });
-    } else {
-      showLogin();
+      // Cargar perfiles/costos y refresh
+      try{
+        state.loggedIn = true;
+
+        state.profiles = await fetchKitchenProfilesAfterLogin();
+        renderProfilesSelect(state.session.operatorId);
+
+        const realLabel = state.profiles.find(p => p.id === state.session.operatorId)?.label;
+        if(realLabel){
+          state.session.operatorLabel = realLabel;
+          saveSession();
+        }
+
+        const c = await fetchCostsPublicAfterLogin();
+        state.pricesMap = c.map || {};
+        state.costsLastUpdated = c.lastUpdated || null;
+
+        await refresh();
+      }catch(_e){
+        // si falló (PIN expirado / cambiado), devolvemos a login sin error “fantasma”
+        onLogout();
+      }
     }
 
     if(btnLogin) btnLogin.onclick = onLogin;
