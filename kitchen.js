@@ -407,3 +407,35 @@ if(btnLogout) btnLogout.addEventListener("click", handleLogout);
     }
   }, true);
 })();
+
+/* === HOTFIX VISUAL: asegurar que profilesModal sea visible encima === */
+(function(){
+  const modal = document.getElementById("profilesModal");
+  if(!modal) return;
+
+  // Estilos mínimos solo para visibilidad (no cambia tu contenido interno)
+  function applyVisibleStyle(el){
+    el.style.display = "flex";
+    el.style.position = "fixed";
+    el.style.inset = "0";
+    el.style.zIndex = "9999";
+    el.style.alignItems = "center";
+    el.style.justifyContent = "center";
+    // Fondo semitransparente (puedes ajustar luego)
+    el.style.background = "rgba(0,0,0,0.55)";
+  }
+
+  // Intercepta cada vez que se “abra”
+  const originalSetAttribute = modal.setAttribute.bind(modal);
+  modal.setAttribute = function(name, value){
+    originalSetAttribute(name, value);
+    if(name === "aria-hidden" && value === "false"){
+      applyVisibleStyle(modal);
+    }
+  };
+
+  // Por si ya quedó en estado abierto
+  if(modal.getAttribute("aria-hidden") === "false"){
+    applyVisibleStyle(modal);
+  }
+})();
