@@ -132,6 +132,21 @@ summary::marker{ content:""; }
   line-height: 1.35;
 }
 
+
+/* =========================
+   LOADING SPINNER
+   ========================= */
+.costsLoadingSpinner{
+  width: 34px;
+  height: 34px;
+  border-radius: 999px;
+  margin: 2px 0 10px 0;
+  border: 4px solid rgba(64,17,2,.14);
+  border-top-color: rgba(255,106,161,.85);
+  animation: amSpin .9s linear infinite;
+}
+@keyframes amSpin{ to { transform: rotate(360deg); } }
+
 /* =========================
    MODAL AMARED (Tiendas/Marcas)
    ========================= */
@@ -246,4 +261,127 @@ summary::marker{ content:""; }
   .btn{ width:100%; }
   .costsField{ width:100%; min-width: unset; }
   .amBtn{ width:100%; }
+}
+
+
+/* =========================
+   COMPRAS / SOBRANTES
+   ========================= */
+.costsAcc{
+  margin-top: 14px;
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  overflow: hidden;
+  background: rgba(255,255,255,.72);
+}
+.costsAccSum{
+  list-style: none;
+  cursor: pointer;
+  display:flex;
+  align-items:center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 12px 14px;
+  font-weight: 950;
+  color: var(--choco);
+}
+.costsAccSum::-webkit-details-marker{ display:none; }
+.costsAccHint{
+  font-weight: 800;
+  font-size: 12px;
+  color: rgba(64,17,2,.62);
+}
+.costsAccBody{
+  border-top: 1px solid var(--border);
+  padding: 12px 14px 14px 14px;
+}
+.buyTop{
+  display:flex;
+  align-items:flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.buyHelp{
+  max-width: 560px;
+  color: rgba(64,17,2,.78);
+  font-size: 13px;
+  line-height: 1.35;
+}
+.buyActions{
+  display:flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.buyTotals{
+  margin-top: 12px;
+  display:flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.buyPill{
+  padding: 8px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--paper);
+  font-weight: 900;
+  color: var(--choco);
+  font-size: 12px;
+}
+.buyList{
+  margin-top: 12px;
+  overflow:auto;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: rgba(255,255,255,.85);
+}
+.buyTable{
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 720px;
+}
+.buyTable th, .buyTable td{
+  padding: 10px 10px;
+  border-bottom: 1px solid rgba(64,17,2,.08);
+  vertical-align: middle;
+}
+.buyTable th{
+  position: sticky;
+  top: 0;
+  background: rgba(255,255,255,.92);
+  backdrop-filter: blur(8px);
+  text-align: left;
+  font-size: 12px;
+  color: rgba(64,17,2,.78);
+  font-weight: 950;
+}
+.buyName{
+  font-weight: 950;
+  color: var(--choco);
+}
+.buyUnit{
+  font-size: 12px;
+  color: rgba(64,17,2,.62);
+  font-weight: 800;
+}
+.buyNum{
+  width: 120px;
+  padding: 9px 10px;
+  border-radius: 12px;
+  border: 1px solid rgba(64,17,2,.14);
+  background: rgba(255,255,255,.92);
+  outline: none;
+}
+.buyNum:focus{
+  border-color: rgba(255,106,161,.55);
+  box-shadow: 0 0 0 3px rgba(255,106,161,.18);
+}
+.buyToBuy{
+  font-weight: 950;
+}
+.buyFooter{
+  margin-top: 10px;
+}
+@media (max-width: 720px){
+  .buyTable{ min-width: 620px; }
 }
