@@ -410,9 +410,10 @@
     state.paidOrders=paid;
 
     const todayAll = paid.filter(o=>o.__prod_day===state.todayKey);
-    const inProgDb = todayAll.filter(o=>String(o.kitchen_status||"")==="En proceso");
-    const doneDb = todayAll.filter(o=>String(o.kitchen_status||"")==="Listo");
-    const pending = todayAll.filter(o=>{ const ks=String(o.kitchen_status||""); return ks!=="En proceso" && ks!=="Listo"; });
+    const normStatus = (v)=>String(v||"").trim().toLowerCase();
+    const inProgDb = todayAll.filter(o=>normStatus(o.kitchen_status)==="en proceso");
+    const doneDb = todayAll.filter(o=>normStatus(o.kitchen_status)==="listo");
+    const pending = todayAll.filter(o=>{ const ks=normStatus(o.kitchen_status); return ks!=="en proceso" && ks!=="listo"; });
 
     // Informativo mañana (pedidos creados hoy >= 3pm)
     const lateToday = paid.filter(o=>{
@@ -1142,12 +1143,62 @@
     };
   }
 
+
+  function renderFinalizadosDb(container, doneOrders){
+    if(!container) return;
+    injectStylesV6();
+    const orders = Array.isArray(doneOrders) ? doneOrders : [];
+    // Render por postre agregando detalle desplegable con pedidos (IDs) e ingredientes
+    const byProd = aggregateByProduct(orders);
+    const cards=[];
+    for(const p of PRODUCTS){
+      const qty=byProd.get(p.id)||0;
+      if(qty<=0) continue;
+      // Ingredientes del lote (según receta)
+      const ing = computeBatchIngredients(p.id, qty);
+      const ingHtml = renderIngredientsPretty(ing, true, qty, p.id);
+
+      // IDs asociados
+      const ids = getOrderIdsThatContainProduct(orders, p.id);
+
+      cards.push(`
+        <details class="amCard" open="false">
+          <summary class="amHead">
+            <div style="min-width:0;">
+              <div class="amName">${escapeHtml(p.label||p.id)}</div>
+              <div class="muted small">Listo · ${ids.length} pedido(s)</div>
+            </div>
+            <div style="text-align:right;">
+              <div class="amQty">${qty}</div>
+              <div class="muted small">unidades</div>
+            </div>
+          </summary>
+
+          <div class="amBody" style="margin-top:10px;">
+            <div class="muted small" style="margin:0 0 10px 0;"><b>IDs:</b> ${ids.map(escapeHtml).join(", ")}</div>
+            ${ingHtml}
+          </div>
+        </details>
+      `);
+    }
+
+    if(cards.length===0){
+      container.innerHTML = `<div class="muted small">Sin datos.</div>`;
+      return;
+    }
+
+    container.innerHTML = `<div class="amStack">${cards.join("")}</div>`;
+  }
+
   function renderAll(){
     renderProductCards(todayWrap, state.buckets.today, {badgeText:`Producción ${state.todayKey}`, showAction:true});
     renderProductCards(tomorrowWrap, state.buckets.infoTomorrow, {badgeText:`Informativo (${state.nextKey})`, showAction:false});
     renderProductCards(inProgressWrap, state.buckets.inProgress, {badgeText:"En proceso", showAction:true});
 
-    // Finalizados: primero local (postres ya terminados por operador), luego DB si quieres
+    // Finalizados:
+    // 1) DB: pedidos con kitchen_status="Listo"
+    renderFinalizadosDb(doneWrap, state.buckets.doneDb);
+    // 2) Local (si marcaste postres como hechos en vista, sin cerrar lote)
     renderFinalizadosLocal(doneWrap, state.paidOrders.filter(o=>o.__prod_day===state.todayKey), "Finalizado (operador)");
   }
 
@@ -1223,7 +1274,7 @@
     overlay.style.display="none";
     overlay.setAttribute("aria-hidden","true");
     overlay.innerHTML = `
-      <div class="modalBox" style="max-width:920px;">
+      <div class="modalBox" style="max-width:920px; max-height:88vh; overflow:hidden;">
         <div class="rowBetween" style="align-items:flex-start; gap:12px;">
           <div style="min-width:0;">
             <div class="modalTitle" style="margin:0;">Historial · Pedidos elaborados</div>
@@ -1266,7 +1317,11 @@
         .ingList{ margin-top:8px; display:flex; flex-direction:column; gap:6px; }
         .ingRow{ display:flex; justify-content:space-between; gap:10px; padding:4px 0; border-bottom:1px dashed rgba(0,0,0,.08); }
         .ingRow:last-child{ border-bottom:none; }
-      `;
+        .histList{ margin-top:12px; max-height:70vh; overflow:auto; padding-right:6px; }
+        .histList::-webkit-scrollbar{ width:10px; }
+        .histList::-webkit-scrollbar-thumb{ background: rgba(0,0,0,.15); border-radius:10px; }
+      
+    `;
       document.head.appendChild(st);
     }
 
@@ -1428,6 +1483,7 @@
 // ========= Refresh =========
   async function refresh(){
     const myNonce=state.refreshNonce;
+    showLoading("Cargando…","Actualizando pedidos…");
     try{
       await loadData(myNonce);
       if(myNonce!==state.refreshNonce) return;
@@ -1518,9 +1574,11 @@
     showLogin();
     renderProfilesSelect([], "");
     loginErr.textContent="Cargando perfiles…";
+    showLoading("Cargando…","Preparando perfiles…");
 
     // 1) perfiles al iniciar
     await loadProfilesOnStart();
+    hideLoading();
 
     // 2) sesión previa
     if(loadSession()){
