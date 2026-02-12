@@ -162,6 +162,10 @@
     if(!loading) return;
     loadingTitle.textContent = title || "Cargando…";
     loadingMsg.textContent = msg || "Procesando";
+    // asegurar que el loader quede por encima de cualquier modal
+    loading.style.position="fixed";
+    loading.style.inset="0";
+    loading.style.zIndex="999999";
     loading.style.display="flex";
     loading.setAttribute("aria-hidden","false");
   }
@@ -194,6 +198,23 @@
     const get = (t)=> parts.find(p=>p.type===t)?.value;
     return { hh:Number(get("hour")), key:`${get("year")}-${get("month")}-${get("day")}` };
   }
+
+  // Devuelve fecha/hora legible en hora Colombia
+  function formatBogotaDT(iso){
+    try{
+      const d = new Date(iso);
+      if(Number.isNaN(d.getTime())) return String(iso||"");
+      return new Intl.DateTimeFormat("es-CO",{
+        timeZone: TZ,
+        year:"numeric",month:"2-digit",day:"2-digit",
+        hour:"2-digit",minute:"2-digit",
+        hour12:true
+      }).format(d);
+    }catch(_e){
+      return String(iso||"");
+    }
+  }
+
   function getWeekdayBogota(date){
     const wd = new Intl.DateTimeFormat("en-US",{timeZone:TZ,weekday:"short"}).format(date);
     const map={Sun:0,Mon:1,Tue:2,Wed:3,Thu:4,Fri:5,Sat:6};
@@ -299,6 +320,7 @@
     if(btnLogout) btnLogout.style.display="none";
     if(btnRefresh) btnRefresh.style.display="none";
     if(btnCosts) btnCosts.style.display="none";
+    if(btnHistory) btnHistory.style.display="none";
   }
   function showApp(){
     if(loginBox) loginBox.style.display="none";
@@ -306,6 +328,7 @@
     if(btnLogout) btnLogout.style.display="inline-flex";
     if(btnRefresh) btnRefresh.style.display="inline-flex";
     if(btnCosts) btnCosts.style.display="inline-flex";
+    if(btnHistory) btnHistory.style.display="inline-flex";
   }
   function saveSession(){ sessionStorage.setItem(SS_KEY, JSON.stringify(state.session)); }
   function loadSession(){
@@ -375,10 +398,15 @@
     state.nextKey=getNextProductionDayKey(state.todayKey);
 
     showLoading("Cargando cocina…","Obteniendo pedidos…");
-    const out = await api({action:"list_orders", payment_status:"Pagado", admin_pin: state.session.pin});
+    const outPaid = await api({action:"list_orders", payment_status:"Pagado", admin_pin: state.session.pin});
+    const outPend = await api({action:"list_orders", payment_status:"Pendiente", admin_pin: state.session.pin});
+    const out = { ok:true, orders: [...(outPaid.orders||[]), ...(outPend.orders||[])] };
     if(myNonce!==state.refreshNonce) return;
 
-    const paid=(out.orders||[]).map(o=>{ o.__prod_day=computeProductionDayKeyForOrder(o.created_at); return o; });
+    const merged=(out.orders||[]);
+    const seen=new Set();
+    const paid=merged.filter(o=>{ const id=String(o.order_id||""); if(!id||seen.has(id)) return false; seen.add(id); return true; })
+      .map(o=>{ o.__prod_day=computeProductionDayKeyForOrder(o.created_at) || state.todayKey; return o; });
     state.paidOrders=paid;
 
     const todayAll = paid.filter(o=>o.__prod_day===state.todayKey);
@@ -1179,6 +1207,7 @@
     btn.className="btn secondary";
     btn.type="button";
     btn.innerHTML = `<span class="ico" style="display:none;">🕘</span><span class="txt">Historial</span>`;
+    btn.style.display = "none";
     // lo ponemos antes de "Actualizar" (y después de Costos si existe)
     headerBtns.insertBefore(btn, btnRefresh);
     btnHistory = btn;
@@ -1213,6 +1242,33 @@
       </div>
     `;
     document.body.appendChild(overlay);
+
+    // estilos del historial (solo una vez)
+    if(!document.getElementById("amHistoryStyles")){
+      const st=document.createElement("style");
+      st.id="amHistoryStyles";
+      st.textContent = `
+        .histDays{ margin-top:14px; display:flex; flex-direction:column; gap:10px; }
+        .histDay{ border:1px solid rgba(0,0,0,.06); border-radius:14px; padding:10px 12px; background:rgba(255,255,255,.55); }
+        .histDay > summary{ cursor:pointer; display:flex; align-items:center; justify-content:space-between; gap:10px; font-weight:800; }
+        .histOrders{ display:flex; flex-direction:column; gap:10px; margin-top:10px; }
+        .histOrder{ border:1px solid rgba(0,0,0,.06); border-radius:14px; padding:10px 12px; background:#fff; }
+        .histOrder > summary{ cursor:pointer; display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+        .histOrder .oid{ font-weight:900; }
+        .histOrder .when{ color:rgba(0,0,0,.6); font-size:12px; }
+        .histSection{ margin-top:10px; }
+        .histSection .label{ font-weight:800; margin-bottom:6px; }
+        .miniBox{ border:1px solid rgba(0,0,0,.06); background:rgba(0,0,0,.02); border-radius:12px; padding:10px; }
+        .miniRow{ display:flex; justify-content:space-between; gap:10px; padding:6px 0; border-bottom:1px dashed rgba(0,0,0,.08); }
+        .miniRow:last-child{ border-bottom:none; }
+        .histProd{ border:1px solid rgba(0,0,0,.06); border-radius:12px; padding:8px 10px; background:#fff; margin-top:8px; }
+        .histProd > summary{ cursor:pointer; display:flex; gap:8px; align-items:center; flex-wrap:wrap; justify-content:space-between; font-weight:800; }
+        .ingList{ margin-top:8px; display:flex; flex-direction:column; gap:6px; }
+        .ingRow{ display:flex; justify-content:space-between; gap:10px; padding:4px 0; border-bottom:1px dashed rgba(0,0,0,.08); }
+        .ingRow:last-child{ border-bottom:none; }
+      `;
+      document.head.appendChild(st);
+    }
 
     historyModal = overlay;
     histListEl = overlay.querySelector("#histList");
@@ -1258,7 +1314,7 @@
     const all = (state.paidOrders || [])
       .filter(o => String(o.kitchen_status || "") === "Listo")
       .map(o => {
-        if(!o.__prod_day) o.__prod_day = computeProductionDayKeyForOrder(o.created_at);
+        if(!o.__prod_day) o.__prod_day = computeProductionDayKeyForOrder(o.created_at) || state.todayKey;
         return o;
       })
       .sort((a,b)=> (Date.parse(b.created_at||"")||0) - (Date.parse(a.created_at||"")||0));
@@ -1280,37 +1336,94 @@
     const days = Array.from(groups.keys()).sort((a,b)=> b.localeCompare(a,"es"));
     histStatusEl.textContent = `${all.length} pedidos listos · ${days.length} día(s)`;
 
-    const htmlDays = days.map(dayKey => {
-      const orders = groups.get(dayKey) || [];
-      const byProd = aggregateByProduct(orders);
-      const rows = PRODUCTS
-        .map(p => ({id:p.id, name:p.name, qty: (byProd.get(p.id)||0)}))
-        .filter(x => x.qty>0)
-        .sort((a,b)=> b.qty - a.qty);
+    const orderHtml = (o)=>{
+      const oid = escapeHtml(String(o.order_id||""));
+      const when = escapeHtml(formatBogotaDT(o.created_at||""));
+      const items = safeJsonParse(o.items)||[];
+      const itemsHtml = (items.length? items.map(it=>{
+        const pid = String(it.id||it.product_id||"");
+        const p = PRODUCTS.find(x=>x.id===pid);
+        const name = escapeHtml(p?.name || it.name || pid || "Producto");
+        const qty = Number(it.qty||it.units||0)||0;
+        const price = Number(it.price||0)||0;
+        return `<div class="miniRow"><div>${name}</div><div><b>${qty}</b> · ${escapeHtml(fmtMoney(price))}</div></div>`;
+      }).join("") : `<div class="muted small">Sin items.</div>`);
 
-      const rowsHtml = rows.map(r => `
-        <div class="histRow">
-          <div class="n">${escapeHtml(r.name)}</div>
-          <div class="q">${r.qty}</div>
-        </div>
-      `).join("") || `<div class="muted small">Sin productos.</div>`;
+      // ingredientes estimados por pedido (según recetas)
+      const ingBlocks = [];
+      for(const it of items){
+        const pid = String(it.id||it.product_id||"");
+        const qty = Number(it.qty||it.units||0)||0;
+        if(!pid || qty<=0) continue;
+        const prod = PRODUCTS.find(x=>x.id===pid);
+        const bi = calcBatchIngredients(pid, qty);
+        if(!bi.lines.length) continue;
+        const title = escapeHtml(prod?.name || pid);
+        const costLote = Math.round(bi.totalCost);
+        const costUnit = qty>0 ? Math.round(bi.totalCost/qty) : 0;
+        const linesHtml = bi.lines.map(l=>{
+          const q = fmtQty(l.qty);
+          const ppu = l.pricePerUnit>0 ? ` (${fmtMoney(l.pricePerUnit)}/u)` : ` <span class="muted small">(sin costo)</span>`;
+          return `<div class="ingRow"><div>${escapeHtml(l.key)}</div><div>${q}${ppu}</div></div>`;
+        }).join("");
+        ingBlocks.push(`
+          <details class="histProd">
+            <summary>
+              <span>${title}</span>
+              <span class="pill">${qty} uds</span>
+              <span class="pill">${fmtMoney(costLote)} lote</span>
+              <span class="pill">${fmtMoney(costUnit)} /ud</span>
+            </summary>
+            <div class="ingList">${linesHtml}</div>
+          </details>
+        `);
+      }
 
-      const meta = `Pedidos: ${orders.length} · Último: ${escapeHtml(formatBogotaDT(orders[0]?.created_at || ""))}`;
+      const ingHtml = ingBlocks.length ? ingBlocks.join("") : `<div class="muted small">Sin ingredientes configurados para este pedido.</div>`;
 
       return `
-        <details class="histDay">
+        <details class="histOrder">
+          <summary>
+            <span class="oid">#${oid}</span>
+            <span class="when">${when}</span>
+            <span class="pill">Listo</span>
+          </summary>
+          <div class="histSection">
+            <div class="label">Items</div>
+            <div class="miniBox">${itemsHtml}</div>
+          </div>
+          <div class="histSection">
+            <div class="label">Ingredientes usados (estimado)</div>
+            <div class="miniBox">${ingHtml}</div>
+          </div>
+        </details>
+      `;
+    };
+
+    const htmlDays = days.map(dayKey => {
+      const orders = groups.get(dayKey) || [];
+      const last = orders[0]?.created_at || "";
+      const meta = `Pedidos: ${orders.length} · Último: ${escapeHtml(formatBogotaDT(last))}`;
+
+      return `
+        <details class="histDay" open>
           <summary>
             <span>${escapeHtml(dayKey)}</span>
             <span class="pill">${orders.length} pedidos</span>
           </summary>
-          <div class="histRows">${rowsHtml}</div>
-          <div class="histMeta">${meta}</div>
+          <div class="muted small" style="margin:6px 0 10px;">${meta}</div>
+          <div class="histOrders">
+            ${orders.map(orderHtml).join("")}
+          </div>
         </details>
       `;
     }).join("");
 
-    histListEl.innerHTML = htmlDays;
+    histListEl.innerHTML = `
+      <div class="histDays">${htmlDays}</div>
+    `;
   }
+
 
 // ========= Refresh =========
   async function refresh(){
