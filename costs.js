@@ -409,7 +409,8 @@ function renderTopTools(){
       SHEETS_ROWS = await fetchCostsFromSheets();
       buildUIFromSheets(SHEETS_ROWS);
       render();
-    }catch(e){ alert(e.message||"Error"); }
+    
+      try{ renderPurchases(); }catch(_e){}}catch(e){ alert(e.message||"Error"); }
     finally{ hideLoading(); }
   };
 
@@ -604,6 +605,162 @@ async function saveAllToSheets(){
   }
 }
 
+
+// =========================
+// COMPRAS / SOBRANTES (localStorage)
+// =========================
+const STOCK_LS_KEY = "amared_stock_ingredients_v1";
+const NEED_LS_KEY  = "amared_need_ingredients_v1";
+// Keys alternos por compatibilidad (si Cocina guarda otro nombre)
+const NEED_LS_KEYS_FALLBACK = ["amared_required_ingredients", "amared_kitchen_batch_ingredients", "amared_latest_batch_ingredients_v1"];
+
+function lsReadObj(key){
+  try{
+    const raw = localStorage.getItem(key);
+    if(!raw) return {};
+    const obj = JSON.parse(raw);
+    return (obj && typeof obj === "object") ? obj : {};
+  }catch(_e){ return {}; }
+}
+function lsWriteObj(key, obj){
+  try{ localStorage.setItem(key, JSON.stringify(obj||{})); }catch(_e){}
+}
+function num(v){
+  const n = Number(String(v).replace(",", "."));
+  if(!isFinite(n)) return 0;
+  return n;
+}
+function fmt(n){
+  const x = Number(n||0);
+  if(!isFinite(x)) return "0";
+  // mostrar decimales solo si hace falta
+  const isInt = Math.abs(x - Math.round(x)) < 1e-9;
+  return isInt ? String(Math.round(x)) : x.toFixed(1).replace(".", ",");
+}
+function fmtCOP(n){
+  const x = Math.round(Number(n||0));
+  return x.toLocaleString("es-CO");
+}
+
+function getAllIngredientKeys(){
+  const a = [];
+  for(const k of (CANON||[])) a.push(k);
+  for(const r of (SHEETS_ROWS||[])){
+    if(r && r.ingredient_key) a.push(String(r.ingredient_key));
+  }
+  return uniqSorted(a);
+}
+
+function findCostRow(ingredientKey){
+  const key = String(ingredientKey||"");
+  return (SHEETS_ROWS||[]).find(r=> String(r.ingredient_key||"")===key) || null;
+}
+
+function renderPurchases(){
+  const acc = document.getElementById("buyAcc");
+  const hint = document.getElementById("buySummaryHint");
+  const totalsEl = document.getElementById("buyTotals");
+  const listEl = document.getElementById("buyList");
+  if(!acc || !totalsEl || !listEl) return;
+
+  const stock = lsReadObj(STOCK_LS_KEY);
+  const need  = lsReadObj(NEED_LS_KEY);
+
+  const keys = getAllIngredientKeys();
+
+  let totalCost = 0;
+  let countNeed = 0;
+
+  const rowsHtml = keys.map(k=>{
+    const row = findCostRow(k);
+    const unit = normUnit(row?.unit_type || "");
+    const price = num(row?.cop_per_unit || 0);
+    const nNeed = num(need[k] ?? 0);
+    const nStock = num(stock[k] ?? 0);
+    const nBuy = Math.max(0, nNeed - nStock);
+    const lineCost = nBuy * price;
+
+    if(nNeed > 0) countNeed++;
+    totalCost += lineCost;
+
+    const priceTxt = price>0 ? `$${fmtCOP(price)}/u` : "—";
+
+    return `
+      <tr data-k="${cssEscape(k)}">
+        <td>
+          <div class="buyName">${k}</div>
+          <div class="buyUnit">${unit || "unidad"} · ${priceTxt}</div>
+        </td>
+        <td><input class="buyNum inpNeed" inputmode="decimal" value="${fmt(nNeed)}" /></td>
+        <td><input class="buyNum inpStock" inputmode="decimal" value="${fmt(nStock)}" /></td>
+        <td class="buyToBuy">${
+          nBuy>0 ? fmt(nBuy) : "0"
+        }</td>
+        <td class="buyToBuy">$${fmtCOP(lineCost)}</td>
+      </tr>
+    `;
+  }).join("");
+
+  listEl.innerHTML = `
+    <table class="buyTable">
+      <thead>
+        <tr>
+          <th>Ingrediente</th>
+          <th>Necesario</th>
+          <th>Sobrante</th>
+          <th>Comprar</th>
+          <th>Costo estimado</th>
+        </tr>
+      </thead>
+      <tbody>${rowsHtml || `<tr><td colspan="5" class="muted small">Sin datos.</td></tr>`}</tbody>
+    </table>
+  `;
+
+  totalsEl.innerHTML = `
+    <div class="buyPill">Ingredientes con necesidad: ${countNeed}</div>
+    <div class="buyPill">Total compra estimada: $${fmtCOP(totalCost)}</div>
+  `;
+  hint.textContent = `$${fmtCOP(totalCost)} · ${countNeed} ing.`;
+
+  // bind inputs (delegación)
+  const tbody = listEl.querySelector("tbody");
+  tbody.addEventListener("input", (ev)=>{
+    const tr = ev.target.closest("tr");
+    if(!tr) return;
+    const key = unescapeCss(tr.getAttribute("data-k")||"");
+    if(!key) return;
+
+    const needObj = lsReadObj(NEED_LS_KEY);
+    const stockObj = lsReadObj(STOCK_LS_KEY);
+
+    if(ev.target.classList.contains("inpNeed")){
+      needObj[key] = num(ev.target.value);
+      lsWriteObj(NEED_LS_KEY, needObj);
+    }
+    if(ev.target.classList.contains("inpStock")){
+      stockObj[key] = num(ev.target.value);
+      lsWriteObj(STOCK_LS_KEY, stockObj);
+    }
+    // re-render rápido (sin loader)
+    renderPurchases();
+  }, { once: true }); // el render vuelve a crear la tabla; re-atach en cada render
+}
+
+function importNeedsFromKitchen(){
+  // Lee NEED_LS_KEY si ya existe
+  let obj = lsReadObj(NEED_LS_KEY);
+  if(Object.keys(obj).length>0) return obj;
+
+  for(const k of NEED_LS_KEYS_FALLBACK){
+    const o = lsReadObj(k);
+    if(o && Object.keys(o).length>0){
+      obj = o;
+      break;
+    }
+  }
+  return obj;
+}
+
 // ===== Bootstrap =====
 async function bootstrap(){
   document.getElementById("unlock").onclick = async ()=>{
@@ -624,7 +781,32 @@ async function bootstrap(){
 
       document.getElementById("editor").style.display = "block";
       render();
-    }catch(e){
+    
+      // Compras / sobrantes
+      try{ renderPurchases(); }catch(_e){}
+      const bi=document.getElementById("buyImport");
+      const br=document.getElementById("buyReset");
+      if(bi && !bi._bound){
+        bi._bound=true;
+        bi.onclick=()=>{
+          const need = importNeedsFromKitchen();
+          lsWriteObj(NEED_LS_KEY, need);
+          renderPurchases();
+          // abre el acordeón si estaba cerrado
+          const acc=document.getElementById("buyAcc");
+          if(acc && !acc.open) acc.open = true;
+        };
+      }
+      if(br && !br._bound){
+        br._bound=true;
+        br.onclick=()=>{
+          lsWriteObj(STOCK_LS_KEY, {});
+          renderPurchases();
+          const acc=document.getElementById("buyAcc");
+          if(acc && !acc.open) acc.open = true;
+        };
+      }
+}catch(e){
       document.getElementById("err").textContent = e.message || "Error";
       UNLOCKED_SECRET = "";
     }finally{
