@@ -564,7 +564,22 @@
   }
 
   // ========= UI: perfiles =========
-  function renderProfilesSelect(list, selectedId){
+  
+
+  // ===== Money formatter =====
+  function fmtMoney(v){
+    const n = Number(v || 0) || 0;
+    try{
+      return new Intl.NumberFormat("es-CO", {
+        style: "currency",
+        currency: "COP",
+        maximumFractionDigits: 0
+      }).format(n);
+    }catch(e){
+      return "$" + Math.round(n).toLocaleString("es-CO");
+    }
+  }
+function renderProfilesSelect(list, selectedId){
     const arr=Array.isArray(list)?list:[];
     selOperator.innerHTML = `<option value="">Seleccionar…</option>` + arr.map(p=>`<option value="${escapeHtml(p.id)}">${escapeHtml(p.label)}</option>`).join("");
     if(selectedId) selOperator.value=selectedId;
