@@ -1797,4 +1797,4 @@ function renderProfilesSelect(list, selectedId){
 
   // Compat: algunos módulos usan apiPost()
   const apiPost = (payload)=>api(payload);
-)();
+})();
