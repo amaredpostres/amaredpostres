@@ -211,6 +211,19 @@
     widgetTick: null,
   };
 
+
+  function getSessionPin(){
+    // Fuente única para acciones protegidas por ADMIN_PIN
+    if(state && state.session && state.session.pin) return String(state.session.pin);
+    try{
+      const raw = localStorage.getItem("amared_kitchen_session");
+      if(raw){
+        const s = JSON.parse(raw);
+        if(s && s.pin) return String(s.pin);
+      }
+    }catch(_){}
+    return "";
+  }
   // ========= LOADING UI =========
   function showLoading(title,msg){
     if(!loading) return;
@@ -240,9 +253,6 @@
     if(!out || out.ok !== true) throw new Error(out?.error || "Error");
     return out;
   }
-
-  // Compat: versiones anteriores llamaban apiPost
-  const apiPost = (payload)=>api(payload);
   async function apiTry(payload){
     try { return await api(payload); }
     catch(e){ return {ok:false,error:String(e?.message||e)}; }
@@ -1333,9 +1343,9 @@ function renderProfilesSelect(list, selectedId){
       showLoading("Preparando compras…", "Calculando ingredientes necesarios…");
       const need = computeNeededIngredientsForShopping();
       // Guardar en base de datos (multi-dispositivo)
-      await api({
+      await apiPost({
         action: "shopping_save",
-        admin_pin: state.adminPin,
+        admin_pin: getSessionPin(),
         operator: state.operatorLabel || state.operatorId || "",
         payload: need,
       });
