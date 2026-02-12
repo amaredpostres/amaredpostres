@@ -659,8 +659,8 @@
     if(document.getElementById("amConfirmOverlay")) return;
     const el=document.createElement("div");
     el.innerHTML = `
-      <div id="amConfirmOverlay" class="modalOverlay" style="display:none;" aria-hidden="true">
-        <div class="modalBox" style="max-width:520px;">
+      <div id="amConfirmOverlay" class="modalOverlay" style="display:none; position:fixed; inset:0; z-index: 999999;" aria-hidden="true">
+        <div class="modalBox" style="max-width:520px; position:relative; z-index: 1000000;">
           <div style="font-weight:950; font-size:18px;" id="amConfTitle">Confirmar</div>
           <div class="muted small" id="amConfMsg" style="margin-top:8px;"></div>
           <div class="pill" id="amConfCountdown" style="margin-top:12px; display:inline-flex;">2</div>
