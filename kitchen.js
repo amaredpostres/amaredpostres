@@ -1155,7 +1155,7 @@
       const qty=byProd.get(p.id)||0;
       if(qty<=0) continue;
       // Ingredientes del lote (según receta)
-      const ing = computeBatchIngredients(p.id, qty);
+      const ing = calcBatchIngredients(p.id, qty);
       const ingHtml = renderIngredientsPretty(ing, true, qty, p.id);
 
       // IDs asociados
