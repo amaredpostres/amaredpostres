@@ -1328,14 +1328,15 @@ function renderProfilesSelect(list, selectedId){
     btn.onclick = onClickShopping;
   }
 
-  async function onClickShopping(){
+  async async function onClickShopping(){
     try{
       showLoading("Preparando compras…", "Calculando ingredientes necesarios…");
       const need = computeNeededIngredientsForShopping();
+      if(!(state.session && state.session.pin)) throw new Error("Sesión no válida. Inicia sesión nuevamente.");
       // Guardar en base de datos (multi-dispositivo)
       await api({
         action: "shopping_save",
-        admin_pin: state.adminPin,
+        admin_pin: (state.session && state.session.pin) ? state.session.pin : "",
         operator: state.operatorLabel || state.operatorId || "",
         payload: need,
       });
