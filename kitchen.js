@@ -240,6 +240,9 @@
     if(!out || out.ok !== true) throw new Error(out?.error || "Error");
     return out;
   }
+
+  // Compat: versiones anteriores llamaban apiPost
+  const apiPost = (payload)=>api(payload);
   async function apiTry(payload){
     try { return await api(payload); }
     catch(e){ return {ok:false,error:String(e?.message||e)}; }
@@ -1330,9 +1333,9 @@ function renderProfilesSelect(list, selectedId){
       showLoading("Preparando compras…", "Calculando ingredientes necesarios…");
       const need = computeNeededIngredientsForShopping();
       // Guardar en base de datos (multi-dispositivo)
-      await apiPost({
+      await api({
         action: "shopping_save",
-        admin_pin: state.session.pin,
+        admin_pin: state.adminPin,
         operator: state.operatorLabel || state.operatorId || "",
         payload: need,
       });
@@ -1793,8 +1796,4 @@ function renderProfilesSelect(list, selectedId){
     console.error(err);
     alert("Error inicializando cocina: " + (err?.message||String(err)));
   });
-}
-
-  // Compat: algunos módulos usan apiPost()
-  const apiPost = (payload)=>api(payload);
 })();
