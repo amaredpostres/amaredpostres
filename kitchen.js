@@ -399,8 +399,8 @@
 
     showLoading("Cargando cocina…","Obteniendo pedidos…");
     const outPaid = await api({action:"list_orders", payment_status:"Pagado", admin_pin: state.session.pin});
-    const outPend = await api({action:"list_orders", payment_status:"Pendiente", admin_pin: state.session.pin});
-    const out = { ok:true, orders: [...(outPaid.orders||[]), ...(outPend.orders||[])] };
+    // Cocina SOLO debe mostrar pedidos confirmados/pagados
+    const out = { ok:true, orders: [...(outPaid.orders||[])] };
     if(myNonce!==state.refreshNonce) return;
 
     const merged=(out.orders||[]);
