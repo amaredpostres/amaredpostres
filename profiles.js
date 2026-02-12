@@ -1,307 +1,281 @@
-/* =========================
-   AMARED · Gestión de perfiles
-   ========================= */
+// =================== CONFIG ===================
+const API_URL = "https://amared-orders.amaredpostres.workers.dev/";
 
-const API_BASE = "https://amared-orders.amaredpostres.workers.dev/"; // ✅ Worker real (NO GitHub Pages)
+// =================== STATE ===================
+let PROFILES_SECRET = null;
+let PROFILES_CACHE = [];
 
-const $ = (id) => document.getElementById(id);
+// =================== DOM ===================
+const btnBack = document.getElementById("btnBack");
 
-const btnBack = $("btnBack");
+const gateCard = document.getElementById("gateCard");
+const statusCard = document.getElementById("statusCard");
+const mgrCard = document.getElementById("mgrCard");
 
-const inpSecret = $("inpSecret");
-const btnUnlock = $("btnUnlock");
-const gateErr = $("gateErr");
+const inpSecret = document.getElementById("inpSecret");
+const btnUnlock = document.getElementById("btnUnlock");
+const gateErr = document.getElementById("gateErr");
 
-const pillState = $("pillState");
-const btnLogout = $("btnLogout");
+const pillState = document.getElementById("pillState");
+const btnLogout = document.getElementById("btnLogout");
 
-const mgrCard = $("mgrCard");
-const btnReload = $("btnReload");
-const pillCount = $("pillCount");
-const tbody = $("tbody");
-const listMsg = $("listMsg");
+const pillCount = document.getElementById("pillCount");
+const btnReload = document.getElementById("btnReload");
+const tbody = document.getElementById("tbody");
+const listMsg = document.getElementById("listMsg");
 
-const inpName = $("inpName");
-const inpId = $("inpId");
-const btnAdd = $("btnAdd");
-const mgrErr = $("mgrErr");
+const inpName = document.getElementById("inpName");
+const inpId = document.getElementById("inpId");
+const btnAdd = document.getElementById("btnAdd");
+const mgrErr = document.getElementById("mgrErr");
 
-const loading = $("loading");
-const loadingTitle = $("loadingTitle");
-const loadingMsg = $("loadingMsg");
+const loading = document.getElementById("loading");
+const loadingTitle = document.getElementById("loadingTitle");
+const loadingMsg = document.getElementById("loadingMsg");
 
-let PROFILES_SECRET = sessionStorage.getItem("amared_profiles_secret") || "";
-let UNLOCKED = false;
-
-// ---------- UI helpers ----------
+// =================== HELPERS ===================
 function showLoading(title, msg){
+  if(!loading) return;
   loadingTitle.textContent = title || "Cargando…";
-  loadingMsg.textContent = msg || "Procesando";
+  loadingMsg.textContent = msg || "Procesando…";
   loading.style.display = "flex";
   loading.setAttribute("aria-hidden","false");
 }
 function hideLoading(){
+  if(!loading) return;
   loading.style.display = "none";
   loading.setAttribute("aria-hidden","true");
 }
-function setGateError(msg){ gateErr.textContent = msg || ""; }
-function setMgrError(msg){ mgrErr.textContent = msg || ""; }
-function setListMsg(msg, color){
-  listMsg.textContent = msg || "";
-  listMsg.style.color = color || "";
-}
-function esc(s){
-  return String(s||"").replace(/[&<>"']/g, (c)=>({
-    "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"
-  }[c]));
+
+function escapeHtml(s){
+  return String(s ?? "")
+    .replaceAll("&","&amp;")
+    .replaceAll("<","&lt;")
+    .replaceAll(">","&gt;")
+    .replaceAll('"',"&quot;")
+    .replaceAll("'","&#039;");
 }
 
-function setState(unlocked){
-  UNLOCKED = !!unlocked;
-  pillState.textContent = UNLOCKED ? "🔓 Desbloqueado" : "🔒 Bloqueado";
-  btnLogout.disabled = !UNLOCKED;
-  btnAdd.disabled = !UNLOCKED;
-  btnAdd.style.opacity = UNLOCKED ? "1" : ".65";
-}
-
-// ---------- API ----------
-async function api(action, payload){
-  const res = await fetch(API_BASE, {
-    method: "POST",
-    headers: { "Content-Type":"application/json" },
-    body: JSON.stringify(Object.assign({ action }, payload || {}))
-  });
-
-  // Leemos como texto para poder mostrar el snippet si no es JSON
-  const text = await res.text();
-
-  let data;
-  try {
-    data = JSON.parse(text);
-  } catch (e) {
-    console.error("NON-JSON response (first 500 chars):", text.slice(0, 500));
-    throw new Error("Apps Script returned non-JSON");
-  }
-
-  if (!res.ok || data.ok === false) {
-    console.error("Worker error object:", data);
-    console.error("raw_snippet:", data.raw_snippet);
-    console.error("debug:", data.debug);
-
-    const err = new Error(data.error || ("HTTP " + res.status));
-    err.data = data;
-    throw err;
-  }
-
-  return data;
-}
-
-
-// ---------- ID automático ----------
-function slugifyId(label){
-  return String(label||"")
+function slugifyNameToId(name){
+  const s = String(name || "")
     .trim()
     .toLowerCase()
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")   // quitar tildes
-    .replace(/[^a-z0-9]+/g, "_")        // no permitido -> _
+    .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9\s_-]/g, "")
+    .replace(/\s+/g, "_")
+    .replace(/_+/g, "_")
     .replace(/^_+|_+$/g, "");
+  return s || "";
 }
 
 function getSelectedCategories(){
-  const arr = Array.from(document.querySelectorAll('.chips input[type="checkbox"]:checked'))
-    .map(i => String(i.value||"").trim().toLowerCase())
-    .filter(Boolean);
-
-  const seen = {};
-  return arr.filter(x => (seen[x] ? false : (seen[x]=1)));
+  const checks = Array.from(document.querySelectorAll(".chips input[type=checkbox]"));
+  return checks.filter(c=>c.checked).map(c=>String(c.value||"").trim()).filter(Boolean);
 }
 
-// ---------- Render ----------
-function renderList(profiles){
-  const list = Array.isArray(profiles) ? profiles : [];
+async function api(payload){
+  const res = await fetch(API_URL, {
+    method: "POST",
+    headers: {"Content-Type":"application/json"},
+    body: JSON.stringify(payload || {})
+  });
+  const data = await res.json().catch(()=> ({}));
+  if(!res.ok || data.ok===false){
+    const msg = data.error || data.message || `HTTP ${res.status}`;
+    throw new Error(msg);
+  }
+  return data;
+}
 
-  pillCount.textContent = `${list.length} perfil${list.length === 1 ? "" : "es"}`;
+function setLockedUI(locked){
+  if(locked){
+    pillState.textContent = "🔒 Bloqueado";
+    btnLogout.disabled = true;
+    mgrCard.style.display = "none";
+    gateErr.textContent = "";
+    listMsg.textContent = "";
+    mgrErr.textContent = "";
+  }else{
+    pillState.textContent = "🔓 Desbloqueado";
+    btnLogout.disabled = false;
+    mgrCard.style.display = "block";
+  }
+}
 
-  if(!list.length){
-    tbody.innerHTML = `<tr><td colspan="4" class="muted small" style="padding:12px;">No hay perfiles activos.</td></tr>`;
+// =================== RENDER ===================
+function renderTable(rows){
+  tbody.innerHTML = "";
+  const active = (rows||[]).filter(r=>String(r.is_active||"").toLowerCase()!=="false");
+  pillCount.textContent = `${active.length} perfiles`;
+
+  if(active.length===0){
+    tbody.innerHTML = `<tr><td colspan="4" class="muted small">Sin datos.</td></tr>`;
     return;
   }
 
-  tbody.innerHTML = list.map(p => {
-    const id = esc(p.id);
-    const label = esc(p.label);
-    const cats = Array.isArray(p.categories) ? p.categories : [];
-    const catTxt = cats.length ? esc(cats.join(", ")) : "—";
+  for(const p of active){
+    const cats = String(p.categories||"")
+      .split(",")
+      .map(s=>s.trim())
+      .filter(Boolean)
+      .map(c=>`<span class="badge">${escapeHtml(c)}</span>`)
+      .join(" ");
 
-    const delDisabled = UNLOCKED ? "" : "disabled";
-    const delStyle = UNLOCKED ? "" : "opacity:.55; cursor:not-allowed;";
-
-    return `
-      <tr>
-        <td><span class="badge">${id}</span></td>
-        <td>${label}</td>
-        <td>${catTxt}</td>
-        <td>
-          <button class="btn secondary" type="button"
-            data-del="${id}"
-            ${delDisabled}
-            style="padding:10px 12px; border-radius: 14px; background: linear-gradient(180deg, rgba(242,91,143,.12), rgba(242,91,143,.06)); border-color: rgba(242,91,143,.25); ${delStyle}"
-          >Eliminar</button>
-        </td>
-      </tr>
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td><code>${escapeHtml(p.profile_id||"")}</code></td>
+      <td>${escapeHtml(p.label||"")}</td>
+      <td>${cats || `<span class="muted small">—</span>`}</td>
+      <td><button class="btn secondary btnDel" data-id="${escapeHtml(p.profile_id||"")}">Eliminar</button></td>
     `;
-  }).join("");
+    tbody.appendChild(tr);
+  }
+
+  // bind deletes
+  tbody.querySelectorAll(".btnDel").forEach(btn=>{
+    btn.addEventListener("click", async ()=>{
+      const id = btn.getAttribute("data-id");
+      if(!id) return;
+      const ok = confirm(`¿Eliminar el perfil "${id}"? (Se marcará como inactivo)`);
+      if(!ok) return;
+
+      try{
+        showLoading("Eliminando…", "Actualizando base de datos…");
+        await api({
+          action: "profiles_delete",
+          profiles_secret: PROFILES_SECRET,
+          profile_id: id
+        });
+        await loadProfiles();
+      }catch(e){
+        mgrErr.textContent = e.message || "Error eliminando.";
+      }finally{
+        hideLoading();
+      }
+    });
+  });
 }
 
-async function refresh(){
-  setListMsg("", "");
-  showLoading("Cargando…","Leyendo perfiles desde la base de datos.");
+// =================== DATA ===================
+async function loadProfiles(){
+  if(!PROFILES_SECRET) throw new Error("No autorizado.");
+  listMsg.textContent = "";
+  mgrErr.textContent = "";
+
+  showLoading("Cargando…", "Leyendo perfiles…");
   try{
-    const out = await api("profiles_list", {});
-    renderList(out.profiles || []);
-    setListMsg("Lista actualizada.", "rgba(64,17,2,.7)");
-  }catch(e){
-    setListMsg(e.message || String(e), "#b00020");
+    const out = await api({
+      action: "profiles_list",
+      profiles_secret: PROFILES_SECRET
+    });
+    PROFILES_CACHE = Array.isArray(out.profiles) ? out.profiles : [];
+    renderTable(PROFILES_CACHE);
+    listMsg.textContent = `Actualizado: ${new Date().toLocaleString("es-CO")}`;
   }finally{
     hideLoading();
   }
 }
 
-// ---------- Login / Logout ----------
-async function unlock(){
-  setGateError("");
-  setMgrError("");
-  setListMsg("");
+// =================== EVENTS ===================
+btnBack?.addEventListener("click", ()=>{
+  // si venías desde cocina o admin, volver atrás; si no, ir al index
+  if(history.length > 1) history.back();
+  else location.href = "index.html";
+});
 
+inpName?.addEventListener("input", ()=>{
+  const id = slugifyNameToId(inpName.value);
+  inpId.value = id;
+});
+
+btnUnlock?.addEventListener("click", async ()=>{
+  gateErr.textContent = "";
   const secret = String(inpSecret.value||"").trim();
   if(!secret){
-    setGateError("Ingresa la clave.");
+    gateErr.textContent = "Ingresa la clave.";
     return;
   }
 
-  showLoading("Ingresando…","Validando clave de perfiles.");
   try{
-    // ✅ type:"profiles" (así lo exige tu Worker)
-    await api("validate_secret", { type:"profiles", secret });
+    showLoading("Validando…", "Comprobando acceso…");
+
+    // No existe action validate_secret en backend.
+    // Validamos haciendo un profiles_list con profiles_secret.
+    const out = await api({
+      action: "profiles_list",
+      profiles_secret: secret
+    });
 
     PROFILES_SECRET = secret;
-    sessionStorage.setItem("amared_profiles_secret", secret);
-
-    setState(true);
-    mgrCard.style.display = "block";
-    await refresh();
+    setLockedUI(false);
+    PROFILES_CACHE = Array.isArray(out.profiles) ? out.profiles : [];
+    renderTable(PROFILES_CACHE);
+    listMsg.textContent = `Acceso concedido.`;
   }catch(e){
-    setState(false);
-    mgrCard.style.display = "none";
-    setGateError("Clave incorrecta o no autorizada.");
+    PROFILES_SECRET = null;
+    setLockedUI(true);
+    gateErr.textContent = "Clave incorrecta o no autorizada.";
+    console.error("Worker error object:", e);
   }finally{
     hideLoading();
   }
-}
+});
 
-function logout(){
-  PROFILES_SECRET = "";
-  sessionStorage.removeItem("amared_profiles_secret");
+btnLogout?.addEventListener("click", ()=>{
+  PROFILES_SECRET = null;
   inpSecret.value = "";
-  setState(false);
-  mgrCard.style.display = "none";
-  setGateError("Sesión bloqueada.");
-}
+  setLockedUI(true);
+});
 
-// ---------- Add / Delete ----------
-async function addProfile(){
-  setMgrError("");
-  if(!UNLOCKED || !PROFILES_SECRET){
-    setMgrError("Primero debes ingresar la clave.");
+btnReload?.addEventListener("click", async ()=>{
+  try{
+    await loadProfiles();
+  }catch(e){
+    mgrErr.textContent = e.message || "Error cargando perfiles.";
+  }
+});
+
+btnAdd?.addEventListener("click", async ()=>{
+  mgrErr.textContent = "";
+  const name = String(inpName.value||"").trim();
+  const id = String(inpId.value||"").trim();
+  const cats = getSelectedCategories();
+  if(!PROFILES_SECRET){
+    mgrErr.textContent = "Primero ingresa la clave.";
     return;
   }
-
-  const name = String(inpName.value||"").trim();
-  const id = slugifyId(name);
-  const cats = getSelectedCategories();
-
   if(!name){
-    setMgrError("Escribe el nombre del perfil.");
+    mgrErr.textContent = "Ingresa el nombre.";
     return;
   }
   if(!id){
-    setMgrError("No se pudo generar el ID. Cambia el nombre.");
+    mgrErr.textContent = "ID inválido.";
     return;
   }
-  if(!cats.length){
-    setMgrError("Selecciona al menos una categoría.");
+  if(cats.length===0){
+    mgrErr.textContent = "Selecciona al menos una categoría.";
     return;
   }
 
-  showLoading("Guardando…","Creando/actualizando perfil.");
   try{
-    await api("profiles_add", {
+    showLoading("Guardando…", "Creando perfil…");
+    await api({
+      action: "profiles_add",
       profiles_secret: PROFILES_SECRET,
       profile_id: id,
       label: name,
-      categories: cats.join(","), // string
-      created_by: "PROFILES_PAGE",
-      is_active: true
+      categories: cats.join(",")
     });
 
     inpName.value = "";
     inpId.value = "";
-    await refresh();
+    await loadProfiles();
   }catch(e){
-    setMgrError(e.message || String(e));
+    mgrErr.textContent = e.message || "Error agregando perfil.";
   }finally{
     hideLoading();
   }
-}
-
-async function deleteProfile(id){
-  setMgrError("");
-  if(!UNLOCKED || !PROFILES_SECRET) return;
-
-  const ok = confirm(`¿Eliminar el perfil "${id}"?`);
-  if(!ok) return;
-
-  showLoading("Eliminando…","Actualizando en la base de datos.");
-  try{
-    // Soft delete: marca is_active=false
-    await api("profiles_delete", {
-      profiles_secret: PROFILES_SECRET,
-      profile_id: String(id)
-    });
-    await refresh();
-  }catch(e){
-    setMgrError(e.message || String(e));
-  }finally{
-    hideLoading();
-  }
-}
-
-// ---------- Events ----------
-btnBack.addEventListener("click", ()=> history.back());
-
-btnUnlock.addEventListener("click", unlock);
-inpSecret.addEventListener("keydown", (e)=>{ if(e.key === "Enter") unlock(); });
-
-btnLogout.addEventListener("click", logout);
-btnReload.addEventListener("click", refresh);
-
-inpName.addEventListener("input", ()=>{
-  inpId.value = slugifyId(inpName.value);
 });
 
-btnAdd.addEventListener("click", addProfile);
-
-document.addEventListener("click", (e)=>{
-  const del = e.target?.getAttribute?.("data-del");
-  if(del) deleteProfile(del);
-});
-
-// Bootstrap
-setState(false);
-if(PROFILES_SECRET){
-  inpSecret.value = PROFILES_SECRET;
-  unlock(); // auto-login
-}
-
-
+// init UI locked
+setLockedUI(true);
