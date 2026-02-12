@@ -77,11 +77,7 @@
 
   const SS_KEY = "AMARED_KITCHEN_SESSION_V6";
   const LS_TIMER_KEY = "AMARED_KITCHEN_TIMERS_V1";
-    // ===== Compras (localStorage puente hacia costs.html) =====
-  const LS_NEED_ING_KEY = "amared_need_ingredients_v1";
-  const LS_NEED_META_KEY = "amared_need_ingredients_meta_v1";
-
-const LS_DONE_KEY  = "AMARED_KITCHEN_DONE_V1";
+  const LS_DONE_KEY  = "AMARED_KITCHEN_DONE_V1";
 
   // ========= PRODUCTOS =========
   const PRODUCTS = [
@@ -180,8 +176,8 @@ const LS_DONE_KEY  = "AMARED_KITCHEN_DONE_V1";
 
   const btnLogout = $("btnLogout");
   const btnRefresh = $("btnRefresh");
+  let btnShopping = $("btnShopping"); // se crea si no existe
   const btnCosts = $("btnCosts"); // si no existe, se crea
-  const btnShopping = $("btnShopping"); // si no existe, se crea
 
   const todayWrap = $("todayWrap");
   const tomorrowWrap = $("tomorrowWrap");
@@ -340,51 +336,6 @@ const LS_DONE_KEY  = "AMARED_KITCHEN_DONE_V1";
     return ids;
   }
 
-
-
-  // ========= COMPRAS: exportar necesidades a Costos =========
-  function computeNeedIngredientsFromOrders(orders){
-    const prodMap = aggregateByProduct(orders); // Map(pid -> units)
-    const need = {};
-    for(const [pid, units] of prodMap.entries()){
-      const {lines} = calcBatchIngredients(pid, units);
-      for(const ln of (lines||[])){
-        const k = String(ln.key||"").trim();
-        if(!k) continue;
-        const q = Number(ln.qty||0);
-        if(!Number.isFinite(q) || q<=0) continue;
-        need[k] = (need[k] || 0) + q;
-      }
-    }
-    return need;
-  }
-
-  function exportShoppingNeedToCosts(){
-    // Incluye: Producción de hoy (pendientes) + En proceso + Informativo (mañana)
-    const orders = [
-      ...(state.buckets.today||[]),
-      ...(state.buckets.inProgress||[]),
-      ...(state.buckets.infoTomorrow||[])
-    ];
-    const need = computeNeedIngredientsFromOrders(orders);
-
-    try{
-      localStorage.setItem(LS_NEED_ING_KEY, JSON.stringify(need));
-      localStorage.setItem(LS_NEED_META_KEY, JSON.stringify({
-        saved_at: new Date().toISOString(),
-        today_key: state.todayKey,
-        count_orders: orders.length
-      }));
-    }catch(e){
-      console.warn("No se pudo guardar en localStorage", e);
-      alert("No se pudo guardar la lista de compras (storage lleno o bloqueado).");
-      return;
-    }
-
-    // Abre costos en nueva pestaña (muestra compras automáticamente)
-    window.open("costs.html#compras", "_blank", "noopener");
-  }
-
   // ========= DONE / TIMERS (LOCAL) =========
   const getDoneMap=()=>{ const r=localStorage.getItem(LS_DONE_KEY); const o=r?safeJsonParse(r):null; return (o&&typeof o==="object")?o:{}; };
   const setDoneMap=(o)=> localStorage.setItem(LS_DONE_KEY, JSON.stringify(o||{}));
@@ -422,6 +373,7 @@ const LS_DONE_KEY  = "AMARED_KITCHEN_DONE_V1";
     if(app) app.style.display="none";
     if(btnLogout) btnLogout.style.display="none";
     if(btnRefresh) btnRefresh.style.display="none";
+    if(btnShopping) btnShopping.style.display="none";
     if(btnCosts) btnCosts.style.display="none";
     if(btnHistory) btnHistory.style.display="none";
   }
@@ -430,6 +382,7 @@ const LS_DONE_KEY  = "AMARED_KITCHEN_DONE_V1";
     if(app) app.style.display="block";
     if(btnLogout) btnLogout.style.display="inline-flex";
     if(btnRefresh) btnRefresh.style.display="inline-flex";
+    if(btnShopping) btnShopping.style.display="inline-flex";
     if(btnCosts) btnCosts.style.display="inline-flex";
     if(btnHistory) btnHistory.style.display="inline-flex";
   }
@@ -1356,7 +1309,84 @@ function renderProfilesSelect(list, selectedId){
     renderFinalizadosLocal(doneWrap, state.paidOrders.filter(o=>o.__prod_day===state.todayKey), "Finalizado (operador)");
   }
 
-  // ========= Costs modal (solo lectura) =========
+    // ========= Compras (enviar lista a Costos) =========
+  function ensureShoppingButton(){
+    if(btnShopping) return;
+    const headerBtns = btnRefresh?.parentElement;
+    if(!headerBtns) return;
+    const btn=document.createElement("button");
+    btn.id="btnShopping";
+    btn.className="btn secondary";
+    btn.type="button";
+    btn.innerHTML = `<span class="ico" style="display:none;">🛒</span><span class="txt">Compras</span>`;
+    // lo ponemos antes de Costos si existe, si no antes de Actualizar
+    headerBtns.insertBefore(btn, (btnCosts || btnRefresh));
+    btnShopping = btn;
+    btn.onclick = onClickShopping;
+  }
+
+  async function onClickShopping(){
+    try{
+      showLoading("Preparando compras…", "Calculando ingredientes necesarios…");
+      const need = computeNeededIngredientsForShopping();
+      // Guardar en base de datos (multi-dispositivo)
+      await apiPost({
+        action: "shopping_save",
+        admin_pin: state.adminPin,
+        operator: state.operatorLabel || state.operatorId || "",
+        payload: need,
+      });
+      // Abrir costos en sección compras
+      window.open("costs.html#compras", "_blank");
+    }catch(e){
+      alert(e?.message || "No se pudo preparar la lista de compras.");
+      console.error("shopping error:", e);
+    }finally{
+      hideLoading();
+    }
+  }
+
+  function computeNeededIngredientsForShopping(){
+    // Agrupa ingredientes de lotes que aún se deben producir (hoy + mañana informativo) y los en proceso.
+    // Usa las recetas (computeBatchIngredients) y suma por ingrediente (nombre + unidad).
+    const map = {}; // key: name|unit => qty
+    const add = (name, unit, qty)=>{
+      const k = (String(name||"").trim().toLowerCase()) + "|" + (String(unit||"").trim().toLowerCase());
+      map[k] = (map[k]||0) + Number(qty||0);
+    };
+
+    // lotes hoy pendientes
+    const lots = []
+      .concat(state.buckets?.todayLots || [])
+      .concat(state.buckets?.tomorrowLots || [])
+      .concat(state.buckets?.inProgressLots || []);
+
+    for(const lot of lots){
+      const productKey = lot.product_key || lot.product || lot.name;
+      const qty = Number(lot.qty || lot.quantity || 0);
+      if(!productKey || !qty) continue;
+
+      const ing = computeBatchIngredients(productKey, qty); // [{name, unit, qty}]
+      for(const it of (ing||[])){
+        add(it.name, it.unit, it.qty);
+      }
+    }
+
+    // output array
+    const out = Object.entries(map).map(([k, qty])=>{
+      const [name, unit] = k.split("|");
+      return { name: name, unit: unit, qty: Math.round(qty*1000)/1000 };
+    }).sort((a,b)=> (a.name||"").localeCompare(b.name||"", "es-CO"));
+
+    return {
+      created_at: new Date().toISOString(),
+      day_key: state.todayKey,
+      items: out
+    };
+  }
+
+
+// ========= Costs modal (solo lectura) =========
   function ensureCostsButton(){
     if(btnCosts) return;
     // Si tu HTML no trae btnCosts, lo creamos al lado de Actualizar
@@ -1703,6 +1733,7 @@ function renderProfilesSelect(list, selectedId){
     injectRecipeOverlay();
     injectHistoryModal();
     ensureHistoryButton();
+    ensureShoppingButton();
     ensureCostsButton();
 
     // Botones header: reemplaza texto por iconos en móvil (si tu HTML usa spans, se verá mejor)
