@@ -1364,7 +1364,7 @@ function renderProfilesSelect(list, selectedId){
     overlay.style.display="none";
     overlay.setAttribute("aria-hidden","true");
     overlay.innerHTML = `
-      <div class="modalBox" style="max-width:920px; max-height:88vh; overflow:hidden;">
+      <div class="modalBox" style="max-width:920px; max-height:88vh; overflow:auto;">
         <div class="rowBetween" style="align-items:flex-start; gap:12px;">
           <div style="min-width:0;">
             <div class="modalTitle" style="margin:0;">Historial · Pedidos elaborados</div>
@@ -1407,9 +1407,7 @@ function renderProfilesSelect(list, selectedId){
         .ingList{ margin-top:8px; display:flex; flex-direction:column; gap:6px; }
         .ingRow{ display:flex; justify-content:space-between; gap:10px; padding:4px 0; border-bottom:1px dashed rgba(0,0,0,.08); }
         .ingRow:last-child{ border-bottom:none; }
-        .histList{ margin-top:12px; max-height:70vh; overflow:auto; padding-right:6px; }
-        .histList::-webkit-scrollbar{ width:10px; }
-        .histList::-webkit-scrollbar-thumb{ background: rgba(0,0,0,.15); border-radius:10px; }
+        .histList{ margin-top:12px; }
       
     `;
       document.head.appendChild(st);
