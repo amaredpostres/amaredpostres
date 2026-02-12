@@ -143,6 +143,7 @@
   const state = {
     session: { operatorId:null, operatorLabel:null, pin:null },
     profiles: null,
+    activeOverlay: null, // { pid, orderIds, units }
     profilesLoaded: false,
     pricesMap: {},
     costsLoaded: false,
@@ -450,6 +451,29 @@
       }
       .amCard.open .amBody{ display:block; }
 
+      /* Ingredientes: layout más atractivo */
+      .amIngRow{
+        display:flex;
+        justify-content:space-between;
+        gap:12px;
+        padding:10px 0;
+        border-bottom:1px dashed rgba(64,17,2,.12);
+      }
+      .amIngRow:last-child{ border-bottom:none; }
+      .amIngName{ font-weight:900; }
+      .amIngRight{ text-align:right; min-width: 120px; }
+      .amIngQty{ font-weight:900; }
+      .amIngCost{
+        margin-top:2px;
+        font-size:12px;
+        color: rgba(64,17,2,.55);
+      }
+      .amIngCost.hasCost{
+        color: rgba(64,17,2,.78);
+        font-weight:800;
+      }
+
+
       /* Botón grande de acción */
       .amActionRow{ display:flex; justify-content:flex-end; margin-top: 12px; }
       .amActionRow .btn{ width: 100%; justify-content:center; }
@@ -584,6 +608,8 @@
         const units=Number(card.getAttribute("data-units")||0);
         const {lines,totalCost}=calcBatchIngredients(pid,units);
         const costText= totalCost>0?`$${money(totalCost)}`:"—";
+        const unitCost = (units>0 && totalCost>0) ? (totalCost/units) : 0;
+        const unitText = unitCost>0?`$${money(unitCost)}`:"—";
         const ingHtml=(lines||[]).map(li=>`
           <div class="line">
             <span>${escapeHtml(li.key)}</span>
@@ -595,7 +621,10 @@
         body.innerHTML=`
           <div class="rowBetween" style="margin-bottom:10px;">
             <div class="pill">Ingredientes (lote)</div>
-            <div class="pill">Costo estimado: ${costText}</div>
+            <div style="display:flex; gap:8px; flex-wrap:wrap; justify-content:flex-end;">
+              <div class="pill">Unitario: ${unitText}</div>
+              <div class="pill">Lote: ${costText}</div>
+            </div>
           </div>
           ${ingHtml||`<div class="muted small">Sin receta configurada.</div>`}
         `;
@@ -978,7 +1007,7 @@
   }
 
   async function finalizeLoteFromOverlay(){
-    const ids=getTodayOrderIds();
+    const ids=(state.activeOverlay?.orderIds && state.activeOverlay.orderIds.length)? state.activeOverlay.orderIds : getTodayOrderIds();
     if(ids.length===0) return;
 
     const ok=await confirmWithDelay({title:"Finalizar lote", message:"Esto cambiará a 'Listo' en la base de datos.", seconds:2, okText:"Finalizar lote"});
@@ -1011,8 +1040,8 @@
       if(!isProductDone(state.todayKey,p.id)) continue;
 
       cards.push(`
-        <div class="amCard open" data-pid="${escapeHtml(p.id)}" data-units="${qty}">
-          <div class="amHead" style="cursor:default;">
+        <div class="amCard" data-pid="${escapeHtml(p.id)}" data-units="${qty}">
+          <div class="amHead">
             <div style="min-width:0;">
               <div class="amName">${escapeHtml(p.name)}</div>
               <div class="muted small" style="margin-top:8px;">${escapeHtml(badge||"Finalizado")}</div>
@@ -1020,12 +1049,58 @@
             <div style="display:flex; flex-direction:column; align-items:flex-end; gap:10px;">
               <div class="amQty">${qty}</div>
               <div class="amPill">✅ Hecho</div>
+              <div class="muted small">Ver ▾</div>
             </div>
           </div>
+          <div class="amBody"></div>
         </div>
       `);
     }
-    container.innerHTML = cards.length? cards.join("") : `<div class="muted small" style="padding:8px 0;">Sin datos.</div>`;
+
+    container.innerHTML = cards.length ? cards.join("") : `<div class="muted small" style="padding:8px 0;">Sin datos.</div>`;
+
+    container.onclick=async(e)=>{
+      const card=e.target.closest(".amCard"); if(!card) return;
+      const head=e.target.closest(".amHead"); if(!head) return;
+
+      card.classList.toggle("open");
+      const body=card.querySelector(".amBody");
+      if(!body) return;
+
+      if(!card.classList.contains("open")) return;
+
+      if(body.getAttribute("data-loaded")==="1") return;
+      body.setAttribute("data-loaded","1");
+
+      const pid=card.getAttribute("data-pid");
+      const units=Number(card.getAttribute("data-units")||0);
+
+      const {lines,totalCost}=calcBatchIngredients(pid,units);
+      const costText= totalCost>0?`$${money(totalCost)}`:"—";
+      const unitCost = (units>0 && totalCost>0) ? (totalCost/units) : 0;
+      const unitText = unitCost>0?`$${money(unitCost)}`:"—";
+
+      const ingHtml=(lines||[]).map(li=>`
+        <div class="amIngRow">
+          <div class="amIngName">${escapeHtml(li.key)}</div>
+          <div class="amIngRight">
+            <div class="amIngQty">${li.qtyText}</div>
+            <div class="amIngCost ${li.costNote && li.costNote!=="(sin costo)" ? "hasCost": ""}">${li.costNote}</div>
+          </div>
+        </div>
+      `).join("");
+
+      body.innerHTML=`
+        <div class="rowBetween" style="margin-bottom:10px;">
+          <div class="pill">Ingredientes (lote)</div>
+          <div style="display:flex; gap:8px; flex-wrap:wrap; justify-content:flex-end;">
+            <div class="pill">Unitario: ${unitText}</div>
+            <div class="pill">Lote: ${costText}</div>
+          </div>
+        </div>
+        ${ingHtml||`<div class="muted small">Sin receta configurada.</div>`}
+      `;
+    };
   }
 
   function renderAll(){
