@@ -103,6 +103,187 @@ function setLockedUI(locked){
   }
 }
 
+
+
+// =================== CONFIRM MODAL (2s) ===================
+function ensureConfirmModal(){
+  if(document.getElementById("confirmModal")) return;
+
+  const style = document.createElement("style");
+  style.id = "confirmModalStyles";
+  style.textContent = `
+    .cmOverlay{
+      position: fixed; inset: 0;
+      display: none;
+      align-items: center; justify-content: center;
+      background: rgba(0,0,0,.28);
+      z-index: 9999;
+      padding: 16px;
+    }
+    .cmBox{
+      width: min(520px, 100%);
+      background: rgba(255,255,255,.92);
+      border: 1px solid rgba(0,0,0,.06);
+      border-radius: 18px;
+      box-shadow: 0 18px 45px rgba(0,0,0,.18);
+      padding: 18px;
+    }
+    .cmTitle{
+      font-weight: 800;
+      font-size: 20px;
+      color: #3b1a0d;
+      margin: 0 0 6px 0;
+    }
+    .cmMsg{
+      margin: 0 0 14px 0;
+      color: rgba(59,26,13,.85);
+      line-height: 1.35;
+    }
+    .cmRow{
+      display:flex; gap:10px; justify-content:flex-end; flex-wrap:wrap;
+    }
+    .cmBtn{
+      border: 0;
+      border-radius: 14px;
+      padding: 10px 14px;
+      font-weight: 800;
+      cursor: pointer;
+    }
+    .cmBtn:disabled{ opacity:.55; cursor:not-allowed; }
+    .cmCancel{
+      background: #f1e7df;
+      color: #3b1a0d;
+    }
+    .cmDanger{
+      background: linear-gradient(90deg, #ff6aa1, #ff9a5b);
+      color: white;
+      min-width: 160px;
+    }
+    .cmTimer{
+      display:flex; align-items:center; justify-content:space-between;
+      gap:10px;
+      margin: 10px 0 14px 0;
+      color: rgba(59,26,13,.8);
+      font-weight: 700;
+      font-size: 13px;
+    }
+    .cmBar{
+      flex:1;
+      height: 8px;
+      border-radius: 999px;
+      background: rgba(0,0,0,.08);
+      overflow:hidden;
+    }
+    .cmBar > div{
+      height: 100%;
+      width: 0%;
+      background: rgba(255,106,161,.75);
+      transition: width .15s linear;
+    }
+  `;
+  document.head.appendChild(style);
+
+  const overlay = document.createElement("div");
+  overlay.id = "confirmModal";
+  overlay.className = "cmOverlay";
+  overlay.setAttribute("aria-hidden","true");
+  overlay.innerHTML = `
+    <div class="cmBox" role="dialog" aria-modal="true" aria-labelledby="cmTitle">
+      <div class="cmTitle" id="cmTitle">Confirmar acción</div>
+      <p class="cmMsg" id="cmMsg"></p>
+
+      <div class="cmTimer">
+        <span id="cmCountdownText">Verificación…</span>
+        <div class="cmBar"><div id="cmBarFill"></div></div>
+      </div>
+
+      <div class="cmRow">
+        <button class="cmBtn cmCancel" id="cmCancelBtn" type="button">Cancelar</button>
+        <button class="cmBtn cmDanger" id="cmOkBtn" type="button" disabled>Eliminar (2s)</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(overlay);
+}
+
+function confirmWithTimer({title, message, okLabel="Eliminar", seconds=2}){
+  ensureConfirmModal();
+  const overlay = document.getElementById("confirmModal");
+  const elTitle = document.getElementById("cmTitle");
+  const elMsg = document.getElementById("cmMsg");
+  const btnCancel = document.getElementById("cmCancelBtn");
+  const btnOk = document.getElementById("cmOkBtn");
+  const txt = document.getElementById("cmCountdownText");
+  const bar = document.getElementById("cmBarFill");
+
+  let resolveFn;
+  const p = new Promise(res=> resolveFn = res);
+
+  elTitle.textContent = title || "Confirmar acción";
+  elMsg.textContent = message || "";
+  overlay.style.display = "flex";
+  overlay.setAttribute("aria-hidden","false");
+
+  // timer lock
+  const totalMs = Math.max(0, Number(seconds||0))*1000;
+  const start = performance.now();
+  btnOk.disabled = true;
+
+  const setBtnText = (leftMs)=>{
+    const left = Math.max(0, Math.ceil(leftMs/1000));
+    btnOk.textContent = `${okLabel} (${left}s)`;
+  };
+  setBtnText(totalMs);
+
+  let rafId = 0;
+  const tick = ()=>{
+    const now = performance.now();
+    const elapsed = now - start;
+    const left = totalMs - elapsed;
+    const pct = totalMs<=0 ? 100 : Math.min(100, (elapsed/totalMs)*100);
+    bar.style.width = `${pct}%`;
+    if(left > 0){
+      txt.textContent = "Espera para confirmar…";
+      setBtnText(left);
+      rafId = requestAnimationFrame(tick);
+    }else{
+      txt.textContent = "Listo para confirmar.";
+      bar.style.width = "100%";
+      btnOk.disabled = false;
+      btnOk.textContent = okLabel;
+    }
+  };
+  rafId = requestAnimationFrame(tick);
+
+  const cleanup = ()=>{
+    cancelAnimationFrame(rafId);
+    overlay.style.display = "none";
+    overlay.setAttribute("aria-hidden","true");
+    btnCancel.onclick = null;
+    btnOk.onclick = null;
+    overlay.onclick = null;
+    document.removeEventListener("keydown", onKey);
+  };
+
+  const done = (val)=>{
+    cleanup();
+    resolveFn(val);
+  };
+
+  const onKey = (e)=>{
+    if(e.key === "Escape") done(false);
+  };
+  document.addEventListener("keydown", onKey);
+
+  overlay.onclick = (e)=>{
+    if(e.target === overlay) done(false);
+  };
+  btnCancel.onclick = ()=> done(false);
+  btnOk.onclick = ()=> done(true);
+
+  return p;
+}
+
 // =================== RENDER ===================
 function normalizeId(p){
   return String(p?.profile_id ?? p?.id ?? p?.profileId ?? "").trim();
@@ -153,7 +334,12 @@ tbody?.addEventListener("click", async (ev)=>{
   const id = String(btn.getAttribute("data-id")||"").trim();
   if(!id) return;
 
-  const ok = confirm(`¿Eliminar el perfil "${id}"? (Se marcará como inactivo)`);
+  const ok = await confirmWithTimer({
+    title: "Eliminar perfil",
+    message: `¿Seguro que deseas eliminar el perfil "${id}"? Se marcará como inactivo en la base de datos.`,
+    okLabel: "Eliminar",
+    seconds: 2
+  });
   if(!ok) return;
 
   mgrErr.textContent = "";
