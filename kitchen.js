@@ -1,5 +1,19 @@
 
 
+  // Safe JSON parse (returns fallback on error)
+  function safeJsonParse(v, fallback){
+    try{
+      if(v == null) return fallback;
+      if(typeof v === "object") return v;
+      const s = String(v).trim();
+      if(!s) return fallback;
+      return JSON.parse(s);
+    }catch(_e){
+      return fallback;
+    }
+  }
+
+
   // Items parser (works with Apps Script rows: items_json + items text)
   function normalizeItemsFromAnyOrder(order){
     if(!order) return [];
