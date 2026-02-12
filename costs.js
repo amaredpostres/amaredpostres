@@ -761,6 +761,22 @@ function importNeedsFromKitchen(){
   return obj;
 }
 
+
+
+async function fetchNeedsFromServer(){
+  // Requiere que UNLOCKED_SECRET esté definido (COSTS_SECRET)
+  if(!UNLOCKED_SECRET) return null;
+  try{
+    const out = await api({ action:"shopping_get", costs_secret: UNLOCKED_SECRET });
+    // Esperado: { ok:true, data:{ day_key, items:[{name,unit,qty}], created_at, operator } }
+    return out?.data || null;
+  }catch(e){
+    // Si no existe la acción aún, simplemente ignoramos y seguimos con localStorage
+    console.warn("shopping_get no disponible:", e?.message||e);
+    return null;
+  }
+}
+
 // ===== Bootstrap =====
 async function bootstrap(){
   document.getElementById("unlock").onclick = async ()=>{
@@ -781,6 +797,22 @@ async function bootstrap(){
 
       document.getElementById("editor").style.display = "block";
       render();
+
+      // Traer lista de compras desde servidor (multi-dispositivo)
+      try{
+        const serverNeed = await fetchNeedsFromServer();
+        if(serverNeed && Array.isArray(serverNeed.items)){
+          // Guardamos en localStorage para reutilizar UI existente
+          const obj = {};
+          for(const it of serverNeed.items){
+            const key = (String(it.name||"").trim().toLowerCase()) + "|" + (String(it.unit||"").trim().toLowerCase());
+            obj[key] = Number(it.qty||0);
+          }
+          lsWriteObj(NEED_LS_KEY, obj);
+        }
+      }catch(_e){}
+
+
     
       // Compras / sobrantes
       try{ renderPurchases(); }catch(_e){}
