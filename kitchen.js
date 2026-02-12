@@ -77,7 +77,11 @@
 
   const SS_KEY = "AMARED_KITCHEN_SESSION_V6";
   const LS_TIMER_KEY = "AMARED_KITCHEN_TIMERS_V1";
-  const LS_DONE_KEY  = "AMARED_KITCHEN_DONE_V1";
+    // ===== Compras (localStorage puente hacia costs.html) =====
+  const LS_NEED_ING_KEY = "amared_need_ingredients_v1";
+  const LS_NEED_META_KEY = "amared_need_ingredients_meta_v1";
+
+const LS_DONE_KEY  = "AMARED_KITCHEN_DONE_V1";
 
   // ========= PRODUCTOS =========
   const PRODUCTS = [
@@ -177,6 +181,7 @@
   const btnLogout = $("btnLogout");
   const btnRefresh = $("btnRefresh");
   const btnCosts = $("btnCosts"); // si no existe, se crea
+  const btnShopping = $("btnShopping"); // si no existe, se crea
 
   const todayWrap = $("todayWrap");
   const tomorrowWrap = $("tomorrowWrap");
@@ -333,6 +338,51 @@
       if(normalizeItemsFromOrder(o).some(it=>it.id===pid && it.qty>0)) ids.push(String(o.order_id));
     }
     return ids;
+  }
+
+
+
+  // ========= COMPRAS: exportar necesidades a Costos =========
+  function computeNeedIngredientsFromOrders(orders){
+    const prodMap = aggregateByProduct(orders); // Map(pid -> units)
+    const need = {};
+    for(const [pid, units] of prodMap.entries()){
+      const {lines} = calcBatchIngredients(pid, units);
+      for(const ln of (lines||[])){
+        const k = String(ln.key||"").trim();
+        if(!k) continue;
+        const q = Number(ln.qty||0);
+        if(!Number.isFinite(q) || q<=0) continue;
+        need[k] = (need[k] || 0) + q;
+      }
+    }
+    return need;
+  }
+
+  function exportShoppingNeedToCosts(){
+    // Incluye: Producción de hoy (pendientes) + En proceso + Informativo (mañana)
+    const orders = [
+      ...(state.buckets.today||[]),
+      ...(state.buckets.inProgress||[]),
+      ...(state.buckets.infoTomorrow||[])
+    ];
+    const need = computeNeedIngredientsFromOrders(orders);
+
+    try{
+      localStorage.setItem(LS_NEED_ING_KEY, JSON.stringify(need));
+      localStorage.setItem(LS_NEED_META_KEY, JSON.stringify({
+        saved_at: new Date().toISOString(),
+        today_key: state.todayKey,
+        count_orders: orders.length
+      }));
+    }catch(e){
+      console.warn("No se pudo guardar en localStorage", e);
+      alert("No se pudo guardar la lista de compras (storage lleno o bloqueado).");
+      return;
+    }
+
+    // Abre costos en nueva pestaña (muestra compras automáticamente)
+    window.open("costs.html#compras", "_blank", "noopener");
   }
 
   // ========= DONE / TIMERS (LOCAL) =========
