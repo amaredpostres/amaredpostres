@@ -1,3 +1,42 @@
+
+
+  // Items parser (works with Apps Script rows: items_json + items text)
+  function normalizeItemsFromAnyOrder(order){
+    if(!order) return [];
+    // 1) prefer items_json
+    const raw = order.items_json ?? order.itemsJson ?? order.itemsJSON;
+    if(raw){
+      const parsed = (typeof raw === "string") ? safeJsonParse(raw) : raw;
+      if(Array.isArray(parsed)){
+        return parsed.map(it=>({
+          id: String(it.id || it.product_id || ""),
+          name: String(it.name || ""),
+          qty: Number(it.qty || it.units || 0) || 0,
+          unit_price: Number(it.unit_price ?? it.price ?? 0) || 0,
+        })).filter(it=>it.id && it.qty>0);
+      }
+    }
+
+    // 2) fallback: items text like "- Nombre: 2"
+    const txt = String(order.items || "").trim();
+    if(txt){
+      const lines = txt.split("\n").map(s=>s.trim()).filter(Boolean);
+      const out = [];
+      for(const line0 of lines){
+        const line = line0.replace(/^-+\s*/, "");
+        const m = line.match(/^(.+?)\s*:\s*(\d+(?:[\.,]\d+)?)$/);
+        if(!m) continue;
+        const name = m[1].trim();
+        const qty = Number(String(m[2]).replace(",",".")) || 0;
+        if(!(qty>0)) continue;
+        // try map name -> product id
+        const p = PRODUCTS.find(x => String(x.name||"").toLowerCase() === name.toLowerCase());
+        out.push({ id: p?.id || name.toLowerCase().replace(/\s+/g,"_"), name, qty, unit_price: Number(p?.unit_price||0) });
+      }
+      return out;
+    }
+    return [];
+  }
 /* kitchen.js (REFactor V6) — AMARED Cocina
    Objetivos V6 (según tu último mensaje):
    1) Perfiles se cargan al iniciar la página (SIN pedir PIN) ✅ pero requiere que el Worker exponga un action público.
@@ -1445,21 +1484,21 @@ function renderProfilesSelect(list, selectedId){
     const orderHtml = (o)=>{
       const oid = escapeHtml(String(o.order_id||""));
       const when = escapeHtml(formatBogotaDT(o.created_at||""));
-      const items = safeJsonParse(o.items)||[];
+      const items = normalizeItemsFromAnyOrder(o);
       const itemsHtml = (items.length? items.map(it=>{
-        const pid = String(it.id||it.product_id||"");
+        const pid = String(it.id||"");
         const p = PRODUCTS.find(x=>x.id===pid);
         const name = escapeHtml(p?.name || it.name || pid || "Producto");
-        const qty = Number(it.qty||it.units||0)||0;
-        const price = Number(it.price||0)||0;
+        const qty = Number(it.qty||0)||0;
+        const price = Number(it.unit_price||0)||0;
         return `<div class="miniRow"><div>${name}</div><div><b>${qty}</b> · ${escapeHtml(fmtMoney(price))}</div></div>`;
       }).join("") : `<div class="muted small">Sin items.</div>`);
 
       // ingredientes estimados por pedido (según recetas)
       const ingBlocks = [];
       for(const it of items){
-        const pid = String(it.id||it.product_id||"");
-        const qty = Number(it.qty||it.units||0)||0;
+        const pid = String(it.id||"");
+        const qty = Number(it.qty||0)||0;
         if(!pid || qty<=0) continue;
         const prod = PRODUCTS.find(x=>x.id===pid);
         const bi = calcBatchIngredients(pid, qty);
