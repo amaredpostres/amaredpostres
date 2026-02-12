@@ -253,6 +253,10 @@
     if(!out || out.ok !== true) throw new Error(out?.error || "Error");
     return out;
   }
+
+// Alias de compatibilidad (algunas funciones aún llaman apiPost)
+const apiPost = (payload) => api(payload);
+
   async function apiTry(payload){
     try { return await api(payload); }
     catch(e){ return {ok:false,error:String(e?.message||e)}; }
