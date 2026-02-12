@@ -1190,6 +1190,42 @@
     container.innerHTML = `<div class="amStack">${cards.join("")}</div>`;
   }
 
+
+  // Pretty ingredients block for Finalizados (DB) cards
+  function renderIngredientsPretty(batchInfo, showCost, qty, pid){
+    // batchInfo expected from calcBatchIngredients(): { lines:[{key,qty,unit,pricePerUnit}], totalCost:number }
+    const bi = batchInfo && typeof batchInfo === "object" ? batchInfo : { lines: [], totalCost: 0 };
+    const lines = Array.isArray(bi.lines) ? bi.lines : [];
+    const total = Number(bi.totalCost||0)||0;
+    const unit = (Number(qty||0)>0) ? (total/Number(qty||0)) : 0;
+
+    const costText = showCost ? fmtMoney(Math.round(total)) : "—";
+    const unitText = showCost ? fmtMoney(Math.round(unit)) : "—";
+
+    const rows = lines.map(li=>{
+      const q = fmtQty(li.qty);
+      const ppu = (Number(li.pricePerUnit||0)>0)
+        ? `<span class="muted small" style="margin-left:8px;">(${fmtMoney(li.pricePerUnit)}/u)</span>`
+        : `<span class="muted small" style="margin-left:8px;">(sin costo)</span>`;
+      return `
+        <div class="line">
+          <span>${escapeHtml(li.key)}</span>
+          <div>${q}${ppu}</div>
+        </div>`;
+    }).join("");
+
+    return `
+      <div class="rowBetween" style="margin-bottom:10px;">
+        <div class="pill">Ingredientes (lote)</div>
+        <div style="display:flex; gap:8px; flex-wrap:wrap; justify-content:flex-end;">
+          <div class="pill">Unitario: ${unitText}</div>
+          <div class="pill">Lote: ${costText}</div>
+        </div>
+      </div>
+      ${rows || `<div class="muted small">Sin receta configurada.</div>`}
+    `;
+  }
+
   function renderAll(){
     renderProductCards(todayWrap, state.buckets.today, {badgeText:`Producción ${state.todayKey}`, showAction:true});
     renderProductCards(tomorrowWrap, state.buckets.infoTomorrow, {badgeText:`Informativo (${state.nextKey})`, showAction:false});
