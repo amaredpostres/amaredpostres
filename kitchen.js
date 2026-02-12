@@ -519,7 +519,18 @@
         .header-actions .btn span.txt{ display:none !important; }
         .header-actions .btn span.ico{ display:inline !important; font-size: 18px; }
       }
-    `;
+    
+      /* Historial modal */
+      .histList{display:flex; flex-direction:column; gap:10px; margin-top:10px;}
+      .histDay{background: rgba(255,255,255,.82); border:1px solid rgba(64,17,2,.12); border-radius:16px; padding:12px;}
+      .histDay summary{cursor:pointer; font-weight:950; list-style:none; display:flex; align-items:center; justify-content:space-between; gap:10px;}
+      .histDay summary::-webkit-details-marker{display:none;}
+      .histRows{margin-top:10px; display:flex; flex-direction:column; gap:8px;}
+      .histRow{display:flex; align-items:center; justify-content:space-between; gap:10px; padding:10px 12px; border-radius:14px; background: rgba(255,255,255,.75); border:1px solid rgba(64,17,2,.08);}
+      .histRow .n{font-weight:950;}
+      .histRow .q{font-weight:950; font-size:22px; line-height:1;}
+      .histMeta{margin-top:8px; font-size:12px; opacity:.7;}
+`;
     document.head.appendChild(st);
   }
 
@@ -1150,7 +1161,158 @@
     </div>`;
   }
 
-  // ========= Refresh =========
+  
+  // ========= Historial (pedidos elaborados) =========
+  let btnHistory = null;
+  let historyModal = null;
+  let histListEl = null;
+  let histStatusEl = null;
+  let btnHistClose = null;
+  let btnHistRefresh = null;
+
+  function ensureHistoryButton(){
+    if(btnHistory) return;
+    const headerBtns = btnRefresh?.parentElement;
+    if(!headerBtns) return;
+    const btn=document.createElement("button");
+    btn.id="btnHistory";
+    btn.className="btn secondary";
+    btn.type="button";
+    btn.innerHTML = `<span class="ico" style="display:none;">🕘</span><span class="txt">Historial</span>`;
+    // lo ponemos antes de "Actualizar" (y después de Costos si existe)
+    headerBtns.insertBefore(btn, btnRefresh);
+    btnHistory = btn;
+    btn.onclick = openHistoryModal;
+  }
+
+  function injectHistoryModal(){
+    if(document.getElementById("historyModal")) return;
+
+    const overlay=document.createElement("div");
+    overlay.id="historyModal";
+    overlay.className="modalOverlay";
+    overlay.style.display="none";
+    overlay.setAttribute("aria-hidden","true");
+    overlay.innerHTML = `
+      <div class="modalBox" style="max-width:920px;">
+        <div class="rowBetween" style="align-items:flex-start; gap:12px;">
+          <div style="min-width:0;">
+            <div class="modalTitle" style="margin:0;">Historial · Pedidos elaborados</div>
+            <div class="muted small" style="margin-top:6px;">
+              Muestra pedidos con <b>cocina: Listo</b> (últimos registros cargados en la sesión).
+            </div>
+          </div>
+          <div class="row" style="gap:10px;">
+            <button id="btnHistRefresh" class="btn secondary" type="button">Refrescar</button>
+            <button id="btnHistClose" class="btn secondary" type="button">Cerrar</button>
+          </div>
+        </div>
+
+        <div id="histStatus" class="muted small" style="margin-top:10px;"></div>
+        <div id="histList" class="histList"></div>
+      </div>
+    `;
+    document.body.appendChild(overlay);
+
+    historyModal = overlay;
+    histListEl = overlay.querySelector("#histList");
+    histStatusEl = overlay.querySelector("#histStatus");
+    btnHistClose = overlay.querySelector("#btnHistClose");
+    btnHistRefresh = overlay.querySelector("#btnHistRefresh");
+
+    btnHistClose.onclick = closeHistoryModal;
+    btnHistRefresh.onclick = async () => {
+      showLoading("Actualizando…","Cargando historial.");
+      try{
+        await refresh(); // recarga pedidos pagados
+        renderHistory();
+      }catch(e){
+        if(histStatusEl) histStatusEl.textContent = "❌ " + String(e?.message || e);
+      }finally{
+        hideLoading();
+      }
+    };
+
+    // click fuera para cerrar
+    overlay.addEventListener("click",(e)=>{
+      if(e.target === overlay) closeHistoryModal();
+    });
+  }
+
+  function openHistoryModal(){
+    if(!historyModal) return;
+    historyModal.style.display="flex";
+    historyModal.setAttribute("aria-hidden","false");
+    renderHistory();
+  }
+
+  function closeHistoryModal(){
+    if(!historyModal) return;
+    historyModal.style.display="none";
+    historyModal.setAttribute("aria-hidden","true");
+  }
+
+  function renderHistory(){
+    if(!histListEl || !histStatusEl) return;
+
+    const all = (state.paidOrders || [])
+      .filter(o => String(o.kitchen_status || "") === "Listo")
+      .map(o => {
+        if(!o.__prod_day) o.__prod_day = computeProductionDayKeyForOrder(o.created_at);
+        return o;
+      })
+      .sort((a,b)=> (Date.parse(b.created_at||"")||0) - (Date.parse(a.created_at||"")||0));
+
+    if(!all.length){
+      histStatusEl.textContent = "Sin datos de historial (aún no hay pedidos con cocina en 'Listo').";
+      histListEl.innerHTML = "";
+      return;
+    }
+
+    // agrupar por día de producción
+    const groups = new Map();
+    for(const o of all){
+      const k = o.__prod_day || "—";
+      if(!groups.has(k)) groups.set(k, []);
+      groups.get(k).push(o);
+    }
+
+    const days = Array.from(groups.keys()).sort((a,b)=> b.localeCompare(a,"es"));
+    histStatusEl.textContent = `${all.length} pedidos listos · ${days.length} día(s)`;
+
+    const htmlDays = days.map(dayKey => {
+      const orders = groups.get(dayKey) || [];
+      const byProd = aggregateByProduct(orders);
+      const rows = PRODUCTS
+        .map(p => ({id:p.id, name:p.name, qty: (byProd.get(p.id)||0)}))
+        .filter(x => x.qty>0)
+        .sort((a,b)=> b.qty - a.qty);
+
+      const rowsHtml = rows.map(r => `
+        <div class="histRow">
+          <div class="n">${escapeHtml(r.name)}</div>
+          <div class="q">${r.qty}</div>
+        </div>
+      `).join("") || `<div class="muted small">Sin productos.</div>`;
+
+      const meta = `Pedidos: ${orders.length} · Último: ${escapeHtml(formatBogotaDT(orders[0]?.created_at || ""))}`;
+
+      return `
+        <details class="histDay">
+          <summary>
+            <span>${escapeHtml(dayKey)}</span>
+            <span class="pill">${orders.length} pedidos</span>
+          </summary>
+          <div class="histRows">${rowsHtml}</div>
+          <div class="histMeta">${meta}</div>
+        </details>
+      `;
+    }).join("");
+
+    histListEl.innerHTML = htmlDays;
+  }
+
+// ========= Refresh =========
   async function refresh(){
     const myNonce=state.refreshNonce;
     try{
@@ -1218,6 +1380,8 @@
     injectStylesV6();
     ensureConfirmOverlay();
     injectRecipeOverlay();
+    injectHistoryModal();
+    ensureHistoryButton();
     ensureCostsButton();
 
     // Botones header: reemplaza texto por iconos en móvil (si tu HTML usa spans, se verá mejor)
@@ -1226,6 +1390,9 @@
     }
     if(btnRefresh && !btnRefresh.querySelector(".ico")){
       btnRefresh.innerHTML = `<span class="ico" style="display:none;">🔄</span><span class="txt">Actualizar</span>`;
+    }
+    if(btnHistory && !btnHistory.querySelector(".ico")){
+      btnHistory.innerHTML = `<span class="ico" style="display:none;">🕘</span><span class="txt">Historial</span>`;
     }
     if(btnCosts && !btnCosts.querySelector(".ico")){
       btnCosts.innerHTML = `<span class="ico" style="display:none;">💰</span><span class="txt">Costos</span>`;
