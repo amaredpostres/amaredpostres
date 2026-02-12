@@ -828,7 +828,7 @@ btnPayConfirm?.addEventListener("click", async () => {
     showLoading("Confirmando pago...");
 
     await api({
-      action: "confirm_payment",
+      action: "mark_paid",
       admin_pin: SESSION.pin,
       operator: SESSION.operator,
       order_id: orderId,
