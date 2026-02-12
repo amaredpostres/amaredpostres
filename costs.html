@@ -58,12 +58,42 @@
 
         <div id="topTools" class="costsTopTools"></div>
         <div id="list" class="costsList"></div>
+
+        <!-- Compras / Sobrantes -->
+        <details id="buyAcc" class="costsAcc">
+          <summary class="costsAccSum">
+            <span>🛒 Compras y sobrantes</span>
+            <span class="costsAccHint" id="buySummaryHint">—</span>
+          </summary>
+
+          <div class="costsAccBody">
+            <div class="buyTop">
+              <div class="buyHelp">
+                Registra lo que te queda en inventario (sobrantes) y calcula automáticamente cuánto debes comprar para completar próximos pedidos.
+                <span class="muted">Se guarda en este navegador.</span>
+              </div>
+
+              <div class="buyActions">
+                <button id="buyImport" class="btn secondary">Importar desde cocina</button>
+                <button id="buyReset" class="btn secondary">Reiniciar sobrantes</button>
+              </div>
+            </div>
+
+            <div id="buyTotals" class="buyTotals"></div>
+            <div id="buyList" class="buyList"></div>
+
+            <div class="buyFooter muted small">
+              Tip: si abres Cocina y generas un lote, luego vuelve aquí y usa “Importar desde cocina” para traer las cantidades calculadas.
+            </div>
+          </div>
+        </details>
       </section>
     </main>
 
     <!-- Loading -->
     <div id="loading" class="costsLoading">
       <div class="costsLoadingCard">
+        <div class="costsLoadingSpinner" aria-hidden="true"></div>
         <div class="costsLoadingTitle" id="lt">Cargando…</div>
         <div class="costsLoadingDesc" id="ld">Por favor espera.</div>
       </div>
