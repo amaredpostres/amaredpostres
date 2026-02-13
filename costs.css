@@ -385,3 +385,9 @@ summary::marker{ content:""; }
 @media (max-width: 720px){
   .buyTable{ min-width: 620px; }
 }
+
+
+/* ---- Informativo: pedidos después de 3pm ---- */
+.buyLateBox{ margin-top:16px; padding-top:12px; border-top:1px solid rgba(255,255,255,.08); }
+.buyLateHeader{ display:flex; align-items:flex-end; justify-content:space-between; gap:12px; margin-bottom:10px; flex-wrap:wrap; }
+.buyLateTitle{ font-weight:700; }
