@@ -656,7 +656,7 @@ function findCostRow(ingredientKey){
   return (SHEETS_ROWS||[]).find(r=> String(r.ingredient_key||"")===key) || null;
 }
 
-function renderPurchases(){
+function renderPurchases(ctx){
   const acc = document.getElementById("buyAcc");
   const hint = document.getElementById("buySummaryHint");
   const totalsEl = document.getElementById("buyTotals");
@@ -777,6 +777,86 @@ async function fetchNeedsFromServer(){
   }
 }
 
+// -------------------------------
+// Compras: carga desde servidor (COMPRAS_NEED) + persistencia de sobrantes
+// -------------------------------
+let LAST_SERVER_PAYLOAD = null;   // {day_key, created_at, needs, ...}
+let LAST_SERVER_META = null;      // {day_key, created_at}
+
+function setBuyMetaText_(txt){
+  const el = document.getElementById("buySummaryHint");
+  if(!el) return;
+  if(txt) el.textContent = txt;
+}
+
+async function loadNeedsFromServerAndRender_(opts){
+  const o = opts || {};
+  try{
+    const data = await fetchNeedsFromServer(); // {day_key, created_at, payload}
+    // data puede venir como payload directo o como {payload:{...}}
+    const payload = (data && data.payload) ? data.payload : (data || null);
+    LAST_SERVER_PAYLOAD = payload;
+
+    // Guardar meta
+    const dayKey = payload && payload.day_key ? String(payload.day_key) : "";
+    const createdAt = payload && payload.created_at ? String(payload.created_at) : "";
+    LAST_SERVER_META = {day_key: dayKey, created_at: createdAt};
+
+    // Si el payload trae sobrantes/stock, los usamos (y también los guardamos local como backup)
+    if(payload && payload.stock && typeof payload.stock === "object"){
+      try{ localStorage.setItem(STOCK_LS_KEY, JSON.stringify(payload.stock)); }catch(_){}
+    }
+    // Si trae needs, guardarlos local como backup
+    if(payload && payload.needs && Array.isArray(payload.needs)){
+      try{ localStorage.setItem(NEED_LS_KEY, JSON.stringify(payload.needs)); }catch(_){}
+    }
+
+    renderPurchases({
+      needs: (payload && Array.isArray(payload.needs)) ? payload.needs : getNeedList(),
+      stock: getStockMap(),
+      meta: LAST_SERVER_META
+    });
+
+    if(o.saveBack){
+      // Guardar de nuevo al servidor incluyendo stock (sobrantes), para que esté disponible en otros navegadores.
+      await saveShoppingPayloadToServer_();
+    }
+
+  }catch(err){
+    console.error("loadNeedsFromServerAndRender_ error", err);
+    // fallback: render con lo local
+    renderPurchases({ needs: getNeedList(), stock: getStockMap(), meta: null });
+  }
+}
+
+async function saveShoppingPayloadToServer_(){
+  // Construye un payload unificado: needs + stock + meta
+  const stock = getStockMap();
+  const needs = getNeedList();
+
+  const dayKey = (LAST_SERVER_META && LAST_SERVER_META.day_key) ? LAST_SERVER_META.day_key : (new Date()).toISOString().slice(0,10);
+  const createdAt = (LAST_SERVER_META && LAST_SERVER_META.created_at) ? LAST_SERVER_META.created_at : (new Date()).toISOString();
+
+  const payload = Object.assign({}, (LAST_SERVER_PAYLOAD && typeof LAST_SERVER_PAYLOAD === "object") ? LAST_SERVER_PAYLOAD : {});
+  payload.day_key = payload.day_key || dayKey;
+  payload.created_at = payload.created_at || createdAt;
+  payload.needs = needs;
+  payload.stock = stock;
+  payload.updated_from_costs_at = new Date().toISOString();
+
+  const res = await api({ action:"shopping_save", payload });
+  if(!res || res.ok !== true){
+    throw new Error(res && res.error ? res.error : "No se pudo guardar compras en servidor");
+  }
+  // Actualiza meta local con respuesta
+  if(res.day_key) LAST_SERVER_META = { day_key: String(res.day_key), created_at: payload.created_at };
+  setBuyMetaText_(LAST_SERVER_META && LAST_SERVER_META.created_at
+    ? `Última sincronización desde cocina: ${fmtDateTimeCol_(LAST_SERVER_META.created_at)}`
+    : "");
+}
+
+
+
 // ===== Bootstrap =====
 async function bootstrap(){
   document.getElementById("unlock").onclick = async ()=>{
@@ -820,22 +900,40 @@ async function bootstrap(){
       const br=document.getElementById("buyReset");
       if(bi && !bi._bound){
         bi._bound=true;
-        bi.onclick=()=>{
-          const need = importNeedsFromKitchen();
-          lsWriteObj(NEED_LS_KEY, need);
-          renderPurchases();
-          // abre el acordeón si estaba cerrado
-          const acc=document.getElementById("buyAcc");
-          if(acc && !acc.open) acc.open = true;
+        bi.onclick=async ()=>{
+          try{
+            showLoading(true, "Importando desde cocina...");
+            // Lee COMPRAS_NEED desde el servidor (Worker -> Apps Script) y renderiza
+            await loadNeedsFromServerAndRender_({saveBack:true});
+            // abre el acordeón si estaba cerrado
+            const acc=document.getElementById("buyAcc");
+            if(acc && !acc.open) acc.open = true;
+          }catch(e){
+            console.error("import buy error", e);
+            showToast(e && e.message ? e.message : "No se pudo importar desde cocina", "err");
+          }finally{
+            showLoading(false);
+          }
         };
       }
       if(br && !br._bound){
         br._bound=true;
-        br.onclick=()=>{
-          lsWriteObj(STOCK_LS_KEY, {});
-          renderPurchases();
-          const acc=document.getElementById("buyAcc");
-          if(acc && !acc.open) acc.open = true;
+        br.onclick=async ()=>{
+          try{
+            showLoading(true, "Reiniciando sobrantes...");
+            lsWriteObj(STOCK_LS_KEY, {});
+            // Guardar en servidor para que aplique en cualquier navegador
+            await saveShoppingPayloadToServer_();
+            renderPurchases({ needs: getNeedList(), stock: getStockMap(), meta: LAST_SERVER_META });
+            const acc=document.getElementById("buyAcc");
+            if(acc && !acc.open) acc.open = true;
+            showToast("Sobrantes reiniciados", "ok");
+          }catch(e){
+            console.error("reset sobrantes error", e);
+            showToast(e && e.message ? e.message : "No se pudo reiniciar sobrantes", "err");
+          }finally{
+            showLoading(false);
+          }
         };
       }
 }catch(e){
