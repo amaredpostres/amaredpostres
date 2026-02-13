@@ -74,13 +74,23 @@
               </div>
 
               <div class="buyActions">
-                <button id="buyImport" class="btn secondary">Importar desde cocina</button>
+                <button id="buyRefreshOrders" class="btn secondary">Actualizar desde pedidos</button>
                 <button id="buyReset" class="btn secondary">Reiniciar sobrantes</button>
               </div>
             </div>
 
             <div id="buyTotals" class="buyTotals"></div>
             <div id="buyList" class="buyList"></div>
+
+            <!-- Informativo: pedidos pagados después de 3pm -->
+            <div id="lateBox" class="buyLateBox" style="display:none;">
+              <div class="buyLateHeader">
+                <div class="buyLateTitle">🕒 Pedidos pagados después de las 3:00 p.m. (informativo)</div>
+                <div id="lateMeta" class="muted small"></div>
+              </div>
+              <div id="lateTotals" class="buyTotals"></div>
+              <div id="lateList" class="buyList"></div>
+            </div>
 
             <div class="buyFooter muted small">
               Tip: si abres Cocina y generas un lote, luego vuelve aquí y usa “Importar desde cocina” para traer las cantidades calculadas.
