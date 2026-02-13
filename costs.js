@@ -904,7 +904,7 @@ async function saveShoppingPayloadToServer_(){
   payload.stock = stock;
   payload.updated_from_costs_at = new Date().toISOString();
 
-  const res = await api({ action:"shopping_save", payload });
+  const res = await api({ action:"shopping_save", costs_secret: UNLOCKED_SECRET, payload });
   if(!res || res.ok !== true){
     throw new Error(res && res.error ? res.error : "No se pudo guardar compras en servidor");
   }
