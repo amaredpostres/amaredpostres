@@ -844,49 +844,54 @@ function setBuyMetaText_(txt){
   if(txt) el.textContent = txt;
 }
 
-async function loadNeedsFromServerAndRender_(opts){
-  const o = opts || {};
+async function loadNeedsFromServerAndRender_(){
+  // Trae desde el servidor el último cálculo enviado desde Cocina (hoja COMPRAS_NEED)
   try{
-    const data = await fetchNeedsFromServer(); // {day_key, created_at, payload}
-    // data puede venir como payload directo o como {payload:{...}}
-    const payload = (data && data.payload) ? data.payload : (data || null);
-    LAST_SERVER_PAYLOAD = payload;
+    const serverData = await fetchNeedsFromServer(); // {items, payload, created_at, day_key...}
 
-    // Guardar meta
-    const dayKey = payload && payload.day_key ? String(payload.day_key) : "";
-    const createdAt = payload && payload.created_at ? String(payload.created_at) : "";
-    LAST_SERVER_META = {day_key: dayKey, created_at: createdAt};
+    // El Apps Script devuelve: { ok:true, data:{ day_key, created_at, items:[{name,unit,qty}], payload?:{...} } }
+    // Aceptamos varias formas para máxima compatibilidad.
+    const data = serverData || {};
+    const payload = (data && data.payload) ? data.payload : null;
+    const items = (data && Array.isArray(data.items)) ? data.items : (payload && Array.isArray(payload.items) ? payload.items : []);
 
-    // Si el payload trae sobrantes/stock, los usamos (y también los guardamos local como backup)
-    if(payload && payload.stock && typeof payload.stock === "object"){
-      try{ localStorage.setItem(STOCK_LS_KEY, JSON.stringify(payload.stock)); }catch(_){}
-    }
-    // Si trae needs desde servidor, guardarlos local (objeto: {ingrediente: cantidad})
-if(payload && payload.needs){
-  let needObj = {};
-  if(Array.isArray(payload.needs)){
-    for(const it of payload.needs){
-      const k = String(it.ingredient || it.key || it.name || "").trim();
-      if(!k) continue;
-      needObj[k] = Number(it.qty ?? it.need ?? it.required ?? 0) || 0;
-    }
-  }else if(typeof payload.needs === "object"){
-    needObj = payload.needs;
-  }
-  try{ lsWriteObj(NEED_LS_KEY, needObj); }catch(_){}
-}
-
-renderPurchases();
-if(o.saveBack){
-      // Guardar de nuevo al servidor incluyendo stock (sobrantes), para que esté disponible en otros navegadores.
-      await saveShoppingPayloadToServer_();
+    // 1) Construir NEEDS (necesario) desde items (qty / need_qty)
+    const needsObj = {};
+    for(const it of items){
+      const name = (it && (it.name || it.ingredient || it.n)) ? String(it.name || it.ingredient || it.n).trim() : '';
+      if(!name) continue;
+      const qty = Number(it.qty ?? it.need_qty ?? it.need ?? it.amount ?? 0) || 0;
+      needsObj[name] = qty;
     }
 
-  }catch(err){
-    console.error("loadNeedsFromServerAndRender_ error", err);
-    // fallback: render con lo local
+    // 2) Guardar en localStorage para que el render actual lo use (sin romper el formato existente)
+    lsWriteObj(NEED_LS_KEY, needsObj);
+
+    // 3) Meta (fecha/hora) del último envío para mostrar al usuario (si existe el contenedor)
+    const meta = {
+      day_key: data.day_key || payload?.day_key || null,
+      created_at: data.created_at || payload?.created_at || null,
+      updated_at_local: new Date().toISOString()
+    };
+    lsWriteObj('AMARED_SHOPPING_META', meta);
+
+    // 4) Render UI
     renderPurchases();
-}
+
+    // 5) Mostrar fecha/hora si existe contenedor (no falla si no existe)
+    const metaEl = document.getElementById('shoppingMeta');
+    if(metaEl){
+      metaEl.textContent = meta.created_at
+        ? `Último envío desde cocina: ${meta.created_at}`
+        : 'Sin envíos recientes desde cocina.';
+    }
+
+    return true;
+  }catch(err){
+    console.error('loadNeedsFromServerAndRender_ error', err);
+    showToast('No se pudo importar desde cocina. Revisa consola.', 'error');
+    return false;
+  }
 }
 
 async function saveShoppingPayloadToServer_(){
