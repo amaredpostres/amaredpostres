@@ -625,6 +625,61 @@ function lsReadObj(key){
 function lsWriteObj(key, obj){
   try{ localStorage.setItem(key, JSON.stringify(obj||{})); }catch(_e){}
 }
+// ===== Shopping helpers (persistencia cross-device via servidor + respaldo local) =====
+function getNeedList(){
+  // En esta app lo manejamos como objeto: { "Ingrediente": cantidadNecesaria }
+  return lsReadObj(NEED_LS_KEY);
+}
+function getStockMap(){
+  // Sobrantes/inventario: { "Ingrediente": cantidadSobrante }
+  return lsReadObj(STOCK_LS_KEY);
+}
+
+// Toast simple (no bloqueante)
+function showToast(msg, kind="ok"){
+  try{
+    let el = document.getElementById("toast");
+    if(!el){
+      el = document.createElement("div");
+      el.id = "toast";
+      el.style.position = "fixed";
+      el.style.left = "50%";
+      el.style.bottom = "22px";
+      el.style.transform = "translateX(-50%)";
+      el.style.padding = "10px 14px";
+      el.style.borderRadius = "14px";
+      el.style.boxShadow = "0 10px 30px rgba(0,0,0,.18)";
+      el.style.fontWeight = "700";
+      el.style.fontSize = "14px";
+      el.style.zIndex = "99999";
+      el.style.maxWidth = "92vw";
+      el.style.textAlign = "center";
+      el.style.cursor = "pointer";
+      el.onclick = ()=>{ el.style.display="none"; };
+      document.body.appendChild(el);
+    }
+    el.textContent = String(msg || "");
+    // colores coherentes con el tema (sin depender de CSS extra)
+    if(kind === "err"){
+      el.style.background = "rgba(255, 80, 110, .95)";
+      el.style.color = "#fff";
+    }else{
+      el.style.background = "rgba(246, 186, 96, .95)";
+      el.style.color = "#3a1a0a";
+    }
+    el.style.display = "block";
+    clearTimeout(el._t);
+    el._t = setTimeout(()=>{ el.style.display="none"; }, 2600);
+  }catch(_){}
+}
+
+function fmtDateTimeCol_(iso){
+  try{
+    const d = new Date(iso);
+    return d.toLocaleString("es-CO", { year:"numeric", month:"2-digit", day:"2-digit", hour:"2-digit", minute:"2-digit" });
+  }catch(_){ return String(iso||""); }
+}
+
 function num(v){
   const n = Number(String(v).replace(",", "."));
   if(!isFinite(n)) return 0;
@@ -806,18 +861,23 @@ async function loadNeedsFromServerAndRender_(opts){
     if(payload && payload.stock && typeof payload.stock === "object"){
       try{ localStorage.setItem(STOCK_LS_KEY, JSON.stringify(payload.stock)); }catch(_){}
     }
-    // Si trae needs, guardarlos local como backup
-    if(payload && payload.needs && Array.isArray(payload.needs)){
-      try{ localStorage.setItem(NEED_LS_KEY, JSON.stringify(payload.needs)); }catch(_){}
+    // Si trae needs desde servidor, guardarlos local (objeto: {ingrediente: cantidad})
+if(payload && payload.needs){
+  let needObj = {};
+  if(Array.isArray(payload.needs)){
+    for(const it of payload.needs){
+      const k = String(it.ingredient || it.key || it.name || "").trim();
+      if(!k) continue;
+      needObj[k] = Number(it.qty ?? it.need ?? it.required ?? 0) || 0;
     }
+  }else if(typeof payload.needs === "object"){
+    needObj = payload.needs;
+  }
+  try{ lsWriteObj(NEED_LS_KEY, needObj); }catch(_){}
+}
 
-    renderPurchases({
-      needs: (payload && Array.isArray(payload.needs)) ? payload.needs : getNeedList(),
-      stock: getStockMap(),
-      meta: LAST_SERVER_META
-    });
-
-    if(o.saveBack){
+renderPurchases();
+if(o.saveBack){
       // Guardar de nuevo al servidor incluyendo stock (sobrantes), para que esté disponible en otros navegadores.
       await saveShoppingPayloadToServer_();
     }
@@ -825,8 +885,8 @@ async function loadNeedsFromServerAndRender_(opts){
   }catch(err){
     console.error("loadNeedsFromServerAndRender_ error", err);
     // fallback: render con lo local
-    renderPurchases({ needs: getNeedList(), stock: getStockMap(), meta: null });
-  }
+    renderPurchases();
+}
 }
 
 async function saveShoppingPayloadToServer_(){
@@ -902,7 +962,7 @@ async function bootstrap(){
         bi._bound=true;
         bi.onclick=async ()=>{
           try{
-            showLoading(true, "Importando desde cocina...");
+            showLoading( "Importando desde cocina...");
             // Lee COMPRAS_NEED desde el servidor (Worker -> Apps Script) y renderiza
             await loadNeedsFromServerAndRender_({saveBack:true});
             // abre el acordeón si estaba cerrado
@@ -912,7 +972,7 @@ async function bootstrap(){
             console.error("import buy error", e);
             showToast(e && e.message ? e.message : "No se pudo importar desde cocina", "err");
           }finally{
-            showLoading(false);
+            hideLoading();
           }
         };
       }
@@ -920,7 +980,7 @@ async function bootstrap(){
         br._bound=true;
         br.onclick=async ()=>{
           try{
-            showLoading(true, "Reiniciando sobrantes...");
+            showLoading( "Reiniciando sobrantes...");
             lsWriteObj(STOCK_LS_KEY, {});
             // Guardar en servidor para que aplique en cualquier navegador
             await saveShoppingPayloadToServer_();
@@ -932,7 +992,7 @@ async function bootstrap(){
             console.error("reset sobrantes error", e);
             showToast(e && e.message ? e.message : "No se pudo reiniciar sobrantes", "err");
           }finally{
-            showLoading(false);
+            hideLoading();
           }
         };
       }
