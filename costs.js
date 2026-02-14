@@ -407,7 +407,6 @@ function renderTopTools(){
     try{
       await fetchCatalogsFromSheets();
       SHEETS_ROWS = await fetchCostsFromSheets();
-      buildCostIndex_();
       buildUIFromSheets(SHEETS_ROWS);
       render();
     
@@ -698,27 +697,6 @@ function fmtCOP(n){
   return x.toLocaleString("es-CO");
 }
 
-
-function normTextKey_(s){
-  // normaliza: lower + sin tildes + espacios simples
-  return String(s||"")
-    .trim()
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .replace(/\s+/g, " ");
-}
-
-let _costRowIndexByNormKey = null;
-function buildCostIndex_(){
-  _costRowIndexByNormKey = new Map();
-  for(const r of (SHEETS_ROWS||[])){
-    const k = String(r.ingredient_key || "").trim();
-    if(!k) continue;
-    const nk = normTextKey_(k);
-    if(!_costRowIndexByNormKey.has(nk)) _costRowIndexByNormKey.set(nk, r);
-  }
-}
 function getAllIngredientKeys(){
   const a = [];
   for(const k of (CANON||[])) a.push(k);
@@ -729,21 +707,8 @@ function getAllIngredientKeys(){
 }
 
 function findCostRow(ingredientKey){
-  const key = String(ingredientKey||"").trim();
-  if(!key) return null;
-  // exact
-  const exact = (SHEETS_ROWS||[]).find(r=> String(r.ingredient_key||"")===key) || null;
-  if(exact) return exact;
-  // fallback normalize
-  if(!_costRowIndexByNormKey) buildCostIndex_();
-  return _costRowIndexByNormKey.get(normTextKey_(key)) || null;
-}
-
-function resolveIngredientKeyFromSheet_(name){
-  // devuelve el ingredient_key real si existe uno equivalente en la hoja
-  if(!_costRowIndexByNormKey) buildCostIndex_();
-  const r = _costRowIndexByNormKey.get(normTextKey_(name));
-  return r ? String(r.ingredient_key||name).trim() : String(name||"").trim();
+  const key = String(ingredientKey||"");
+  return (SHEETS_ROWS||[]).find(r=> String(r.ingredient_key||"")===key) || null;
 }
 
 function renderPurchases(ctx){
@@ -836,221 +801,6 @@ function renderPurchases(ctx){
   }, { once: true }); // el render vuelve a crear la tabla; re-atach en cada render
 }
 
-
-// ================================
-// ✅ NUEVO: Actualizar compras desde PEDIDOS PAGADOS (y cocina_status = "No iniciar")
-// Corte informativo: 3:00 p.m. (Bogotá)
-// ================================
-const RECIPES_FOR_PURCHASES = {
-  mousse_maracuya: [
-    { name:"Pulpa de maracuyá", qty:21.4 },
-    { name:"Leche condensada", qty:42.8 },
-    { name:"Crema de leche", qty:42.8 },
-    { name:"Leche entera", qty:42.8 },
-    { name:"Gelatina sin sabor", qty:1.25 },
-    { name:"Agua", qty:8.3 },
-    { name:"Vainilla", qty:0.33 },
-    { name:"Galletas saladas", qty:25 },
-    { name:"Mantequilla sin sal", qty:11.7 },
-    { name:"Chocorramo", qty:1 },
-    { name:"Chocolate en polvo", qty:1 }
-  ],
-  cheesecake_cafe_panela: [
-    { name:"Galleta de leche", qty:25 },
-    { name:"Mantequilla sin sal", qty:10 },
-    { name:"Queso crema", qty:75 },
-    { name:"Crema de leche", qty:41.7 },
-    { name:"Leche condensada", qty:25 },
-    { name:"Café", qty:10 },
-    { name:"Panela", qty:3.33 },
-    { name:"Gelatina sin sabor", qty:1.67 },
-    { name:"Agua", qty:7.5 },
-    { name:"Vainilla", qty:0.33 }
-  ],
-  arroz_con_leche: [
-    { name:"Arroz blanco", qty:20 },   // AJUSTA si tu receta real usa otra cantidad
-    { name:"Leche condensada", qty:20 },
-    { name:"Leche entera", qty:80 },
-    { name:"Agua", qty:50 },
-    { name:"Azúcar", qty:10 },
-    { name:"Canela en astilla", qty:1 },
-    { name:"Queso costeño", qty:5 },
-    { name:"Sal", qty:0.2 }
-  ]
-};
-
-function getBogotaNow_(){
-  const s = new Date().toLocaleString("en-US", { timeZone:"America/Bogota" });
-  return new Date(s);
-}
-function bogotaDateKey_(d){
-  const y=d.getFullYear();
-  const m=String(d.getMonth()+1).padStart(2,"0");
-  const dd=String(d.getDate()).padStart(2,"0");
-  return `${y}-${m}-${dd}`;
-}
-function parseCreatedAt_(v){
-  if(v instanceof Date) return v;
-  const s = String(v||"").trim();
-  if(!s) return null;
-  const m = s.match(/^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})(?::(\d{2}))?/);
-  if(m){
-    const y=+m[1], mo=+m[2]-1, d=+m[3], hh=+m[4], mm=+m[5], ss=+(m[6]||0);
-    return new Date(y,mo,d,hh,mm,ss);
-  }
-  const d2=new Date(s);
-  return isNaN(d2.getTime())? null : d2;
-}
-function normalizeItemsFromOrder_(order){
-  // Intenta items_json (array), si no items (texto)
-  const safeJson = (s)=>{ try{ return JSON.parse(s); }catch(_e){ return null; } };
-  const out = [];
-
-  if(order && order.items_json){
-    const j = safeJson(order.items_json);
-    if(Array.isArray(j)){
-      for(const it of j){
-        const id = String(it.id||it.product_id||it.sku||"").trim();
-        const name = String(it.name||it.product||it.title||"").trim();
-        const qty = Number(it.qty ?? it.quantity ?? 0) || 0;
-        if((id||name) && qty>0) out.push({ id, name, qty });
-      }
-      return out;
-    }
-  }
-
-  const txt = String(order?.items||"").trim();
-  if(!txt) return out;
-
-  // Formato típico: "- Mousse de maracuyá: 2"
-  const lines = txt.split("\n").map(s=>s.trim()).filter(Boolean);
-  for(const line of lines){
-    const m = line.replace(/^\-\s*/,"").match(/^(.+?):\s*(\d+(?:[.,]\d+)?)$/);
-    if(m){
-      const name = String(m[1]).trim();
-      const qty = Number(String(m[2]).replace(",", ".")) || 0;
-      if(name && qty>0) out.push({ id:"", name, qty });
-    }
-  }
-  return out;
-}
-function resolveProductId_(it){
-  const raw = String(it.id||"").trim().toLowerCase();
-  if(raw && RECIPES_FOR_PURCHASES[raw]) return raw;
-
-  const name = String(it.name||it.id||"").trim().toLowerCase();
-  if(name.includes("mousse")) return "mousse_maracuya";
-  if(name.includes("cheesecake")) return "cheesecake_cafe_panela";
-  if(name.includes("arroz")) return "arroz_con_leche";
-  return raw || "";
-}
-
-function computeNeedsFromOrders_(orders){
-  const needObj = {};
-  const byProd = new Map();
-
-  for(const o of orders){
-    const items = normalizeItemsFromOrder_(o);
-    for(const it of items){
-      const pid = resolveProductId_(it);
-      if(!pid) continue;
-      byProd.set(pid, (byProd.get(pid)||0) + Number(it.qty||0));
-    }
-  }
-
-  for(const [pid, units] of byProd.entries()){
-    const recipe = RECIPES_FOR_PURCHASES[pid];
-    if(!recipe) continue;
-    for(const ing of recipe){
-      const key = resolveIngredientKeyFromSheet_(ing.name);
-      needObj[key] = (Number(needObj[key]||0) + Number(ing.qty||0)*Number(units||0));
-    }
-  }
-
-  // redondeo suave
-  for(const k of Object.keys(needObj)){
-    needObj[k] = Math.round(Number(needObj[k]||0)*1000)/1000;
-  }
-  return { needObj, byProd };
-}
-
-function splitOrdersBy3pm_(orders){
-  const before = [];
-  const after = [];
-  for(const o of (orders||[])){
-    const d = parseCreatedAt_(o.created_at);
-    if(!d){ after.push(o); continue; }
-    if(d.getHours() < 15) before.push(o);
-    else after.push(o);
-  }
-  return { before, after };
-}
-
-function renderLateInfo_(ordersAfter){
-  const box = document.getElementById("lateBox");
-  const metaEl = document.getElementById("lateMeta");
-  const totalsEl = document.getElementById("lateTotals");
-  const listEl = document.getElementById("lateList");
-  if(!box || !totalsEl || !listEl) return;
-
-  if(!ordersAfter || ordersAfter.length===0){
-    box.style.display="none";
-    return;
-  }
-  box.style.display="block";
-
-  const byProd = new Map();
-  for(const o of ordersAfter){
-    const items = normalizeItemsFromOrder_(o);
-    for(const it of items){
-      const pid = resolveProductId_(it) || (it.name||it.id||"");
-      const name = String(it.name||pid||"").trim();
-      const prev = byProd.get(name) || 0;
-      byProd.set(name, prev + Number(it.qty||0));
-    }
-  }
-
-  const rows = Array.from(byProd.entries()).sort((a,b)=> String(a[0]).localeCompare(String(b[0]),"es"));
-
-  totalsEl.innerHTML = `
-    <div class="buyPill">Pedidos (después 3pm): ${ordersAfter.length}</div>
-    <div class="buyPill">Tipos de postre: ${rows.length}</div>
-  `;
-  listEl.innerHTML = `
-    <table class="buyTable">
-      <thead><tr><th>Postre</th><th>Unidades</th></tr></thead>
-      <tbody>
-        ${rows.map(([name,qty])=>`
-          <tr><td><div class="buyName">${name}</div></td><td class="buyToBuy">${fmt(qty)}</td></tr>
-        `).join("")}
-      </tbody>
-    </table>
-  `;
-  if(metaEl) metaEl.textContent = "Informativo: no se incluye en la compra principal (corte 3:00 p.m.).";
-}
-
-async function loadNeedsFromPaidOrdersAndRender_(){
-  if(!UNLOCKED_SECRET) throw new Error("Primero desbloquea Costos con tu clave.");
-  const now = getBogotaNow_();
-  const dateKey = bogotaDateKey_(now);
-
-  const out = await api({ action:"costs_orders_for_purchases", costs_secret: UNLOCKED_SECRET, date_key: dateKey });
-  const orders = Array.isArray(out.orders) ? out.orders : [];
-
-  const split = splitOrdersBy3pm_(orders);
-
-  const { needObj } = computeNeedsFromOrders_(split.before);
-  lsWriteObj(NEED_LS_KEY, needObj);
-
-  // meta UI
-  setBuyMetaText_(`Hoy ${dateKey} · pedidos PAGADOS + No iniciar · corte 3:00 p.m.`);
-
-  renderPurchases();
-  renderLateInfo_(split.after);
-
-  return true;
-}
-
 function importNeedsFromKitchen(){
   // Lee NEED_LS_KEY si ya existe
   let obj = lsReadObj(NEED_LS_KEY);
@@ -1139,7 +889,7 @@ async function loadNeedsFromServerAndRender_(){
     return true;
   }catch(err){
     console.error('loadNeedsFromServerAndRender_ error', err);
-    showToast('No se pudo importar desde cocina. Revisa consola.', 'error');
+    showToast('No se pudo actualizar desde pedidos. Revisa consola.', 'error');
     return false;
   }
 }
@@ -1188,7 +938,6 @@ async function bootstrap(){
 
       await fetchCatalogsFromSheets();
       SHEETS_ROWS = await fetchCostsFromSheets();
-      buildCostIndex_();
       buildUIFromSheets(SHEETS_ROWS);
 
       document.getElementById("editor").style.display = "block";
@@ -1201,7 +950,7 @@ async function bootstrap(){
           // Guardamos en localStorage para reutilizar UI existente
           const obj = {};
           for(const it of serverNeed.items){
-            const key = String(it.name||it.ingredient||"").trim();
+            const key = (String(it.name||"").trim().toLowerCase()) + "|" + (String(it.unit||"").trim().toLowerCase());
             obj[key] = Number(it.qty||0);
           }
           lsWriteObj(NEED_LS_KEY, obj);
@@ -1213,20 +962,20 @@ async function bootstrap(){
       // Compras / sobrantes
       try{ renderPurchases(); }catch(_e){}
       const bi=document.getElementById("buyImport");
-      if(bi) bi.textContent = "Actualizar desde pedidos";
       const br=document.getElementById("buyReset");
       if(bi && !bi._bound){
         bi._bound=true;
         bi.onclick=async ()=>{
           try{
-            showLoading("Actualizando desde pedidos...","Calculando ingredientes (PAGADOS + No iniciar)");
-            await loadNeedsFromPaidOrdersAndRender_();
+            showLoading( "Importando desde cocina...");
+            // Lee COMPRAS_NEED desde el servidor (Worker -> Apps Script) y renderiza
+            await loadNeedsFromServerAndRender_({saveBack:true});
             // abre el acordeón si estaba cerrado
             const acc=document.getElementById("buyAcc");
             if(acc && !acc.open) acc.open = true;
           }catch(e){
             console.error("import buy error", e);
-            showToast(e && e.message ? e.message : "No se pudo importar desde cocina", "err");
+            showToast(e && e.message ? e.message : "No se pudo actualizar desde pedidos", "err");
           }finally{
             hideLoading();
           }
@@ -1266,7 +1015,6 @@ async function bootstrap(){
       showLoading("Refrescando…","Cargando cambios desde la base de datos.");
       await fetchCatalogsFromSheets();
       SHEETS_ROWS = await fetchCostsFromSheets();
-      buildCostIndex_();
       buildUIFromSheets(SHEETS_ROWS);
       render();
     }catch(e){
@@ -1278,3 +1026,23 @@ async function bootstrap(){
 }
 
 document.addEventListener("DOMContentLoaded", bootstrap);
+
+
+
+function normStatus_(s){
+  return String(s||"")
+    .trim()
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/\s+/g, " ");
+}
+
+function isPaid_(o){
+  const v = normStatus_(o?.payment_status ?? o?.payment ?? o?.pago ?? o?.estado_pago ?? "");
+  return v === "pagado" || v === "paid";
+}
+function isKitchenPending_(o){
+  const v = normStatus_(o?.kitchen_status ?? o?.kitchen ?? o?.estado_cocina ?? "");
+  return v === "no iniciar" || v === "sin iniciar" || v === "pendiente" || v === "por iniciar";
+}
