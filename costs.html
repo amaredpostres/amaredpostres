@@ -30,6 +30,7 @@
         <div class="costsRow">
           <input id="secret" class="costsField" type="password" placeholder="AMARED_COSTS_KEY" autocomplete="off" />
           <button id="unlock" class="btn">Desbloquear</button>
+          <button id="goBuyMode" class="btn secondary" type="button">Modo compras</button>
         </div>
 
         <div id="err" class="costsErr"></div>
@@ -46,6 +47,7 @@
 
           <div class="costsActions">
             <button id="saveAll" class="btn">Guardar</button>
+            <button id="goBuyMode2" class="btn secondary" type="button">Ir a compras</button>
           </div>
         </div>
 
@@ -105,6 +107,73 @@
 
     <script src="kitchen-costs.js"></script>
     <script src="costs.js"></script>
+
+    <script>
+      (function(){
+        const buyHash = "#compras";
+
+        function openBuyAndRefresh(){
+          const acc = document.getElementById("buyAcc");
+          if(acc) acc.open = true;
+
+          // Scroll suave hacia compras
+          try{ acc && acc.scrollIntoView({ behavior:"smooth", block:"start" }); }catch(_e){}
+
+          // Click en actualizar desde pedidos (si existe)
+          const btn = document.getElementById("buyRefreshOrders");
+          if(btn) btn.click();
+        }
+
+        function ensureUnlockedThenOpenBuy(){
+          const editor = document.getElementById("editor");
+          if(!editor) return;
+
+          // Si ya está desbloqueado:
+          const visible = editor.style.display !== "none";
+          if(visible){
+            openBuyAndRefresh();
+            return;
+          }
+
+          // Si no está desbloqueado, llevar a la sección de clave
+          const topCard = document.querySelector("main.container .card");
+          try{ topCard && topCard.scrollIntoView({ behavior:"smooth", block:"start" }); }catch(_e){}
+
+          // Esperar a que se desbloquee para auto-abrir compras
+          const obs = new MutationObserver(() => {
+            const vis = editor.style.display !== "none";
+            if(vis){
+              obs.disconnect();
+              // pequeño delay para que el JS termine de renderizar
+              setTimeout(openBuyAndRefresh, 50);
+            }
+          });
+          obs.observe(editor, { attributes:true, attributeFilter:["style"] });
+        }
+
+        // Botones de modo compras
+        const b1 = document.getElementById("goBuyMode");
+        if(b1){
+          b1.addEventListener("click", () => {
+            location.hash = buyHash;
+            ensureUnlockedThenOpenBuy();
+          });
+        }
+        const b2 = document.getElementById("goBuyMode2");
+        if(b2){
+          b2.addEventListener("click", () => {
+            location.hash = buyHash;
+            ensureUnlockedThenOpenBuy();
+          });
+        }
+
+        // Si entras con el hash #compras
+        if(location.hash === buyHash){
+          ensureUnlockedThenOpenBuy();
+        }
+      })();
+    </script>
+
   </div>
 </body>
 </html>
