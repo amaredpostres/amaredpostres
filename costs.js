@@ -611,6 +611,7 @@ async function saveAllToSheets(){
 // =========================
 const STOCK_LS_KEY = "amared_stock_ingredients_v1";
 const NEED_LS_KEY  = "amared_need_ingredients_v1";
+const PURCHASE_DRAFT_LS_KEY = "amared_purchase_draft_v1";
 // Keys alternos por compatibilidad (si Cocina guarda otro nombre)
 const NEED_LS_KEYS_FALLBACK = ["amared_required_ingredients", "amared_kitchen_batch_ingredients", "amared_latest_batch_ingredients_v1"];
 
@@ -623,17 +624,14 @@ function lsReadObj(key){
   }catch(_e){ return {}; }
 }
 function lsWriteObj(key, obj){
-  try{ localStorage.setItem(key, JSON.stringify(obj||{}
+  try{ localStorage.setItem(key, JSON.stringify(obj||{})); }catch(_e){}
 
-function pushPurchaseLog_(entry){
-  try{
-    const arr = JSON.parse(localStorage.getItem(PURCHASE_LOG_LS_KEY) || "[]");
-    arr.unshift(entry);
-    while(arr.length > 200) arr.pop();
-    localStorage.setItem(PURCHASE_LOG_LS_KEY, JSON.stringify(arr));
-  }catch(_e){}
+function getPurchaseDraft_(){
+  return lsReadObj(PURCHASE_DRAFT_LS_KEY);
 }
-)); }catch(_e){}
+function setPurchaseDraft_(obj){
+  lsWriteObj(PURCHASE_DRAFT_LS_KEY, obj || {});
+}
 }
 // ===== Shopping helpers (persistencia cross-device via servidor + respaldo local) =====
 function getNeedList(){
@@ -730,6 +728,7 @@ function renderPurchases(ctx){
 
   const stock = lsReadObj(STOCK_LS_KEY);
   const need  = lsReadObj(NEED_LS_KEY);
+  const draft = getPurchaseDraft_();
 
   const keys = getAllIngredientKeys();
 
@@ -743,11 +742,8 @@ function renderPurchases(ctx){
     const nNeed = num(need[k] ?? 0);
     const nStock = num(stock[k] ?? 0);
     const nBuy = Math.max(0, nNeed - nStock);
-    const purchaseMarks = lsReadObj(PURCHASE_LS_KEY);
-    const mark = purchaseMarks[k];
-    const boughtChecked = !!(mark && mark.checked);
-    const boughtQtyVal = (mark && typeof mark.qty !== "undefined") ? num(mark.qty) : nBuy;
     const lineCost = nBuy * price;
+    const draftQty = (draft && typeof draft[k] !== 'undefined') ? num(draft[k]) : nBuy;
 
     if(nNeed > 0) countNeed++;
     totalCost += lineCost;
@@ -766,8 +762,8 @@ function renderPurchases(ctx){
           nBuy>0 ? fmt(nBuy) : "0"
         }</td>
         <td class="buyToBuy">$${fmtCOP(lineCost)}</td>
-        <td><input type="checkbox" class="inpBought" ${boughtChecked ? "checked" : ""} /></td>
-        <td><input class="buyNum inpBoughtQty" inputmode="decimal" value="${fmt(boughtQtyVal)}" /></td>
+        <td><input type="checkbox" class="inpBought" /></td>
+        <td><input class="buyNum inpBoughtQty" inputmode="decimal" value="${fmt(draftQty)}" /></td>
       </tr>
     `;
   }).join("");
@@ -806,15 +802,6 @@ function renderPurchases(ctx){
     const needObj = lsReadObj(NEED_LS_KEY);
     const stockObj = lsReadObj(STOCK_LS_KEY);
 
-    if(ev.target.classList.contains("inpBoughtQty")){
-      const marks = lsReadObj(PURCHASE_LS_KEY);
-      const cur = marks[key] || { checked:false, qty:0, at:"" };
-      cur.qty = num(ev.target.value);
-      marks[key] = cur;
-      lsWriteObj(PURCHASE_LS_KEY, marks);
-      return;
-    }
-
     if(ev.target.classList.contains("inpNeed")){
       needObj[key] = num(ev.target.value);
       lsWriteObj(NEED_LS_KEY, needObj);
@@ -826,36 +813,7 @@ function renderPurchases(ctx){
     // re-render rápido (sin loader)
     renderPurchases();
   }, { once: true }); // el render vuelve a crear la tabla; re-atach en cada render
-
-  tbody.addEventListener("change", (ev)=>{
-    const tr = ev.target.closest("tr");
-    if(!tr) return;
-    const key = unescapeCss(tr.getAttribute("data-k")||"");
-    if(!key) return;
-
-    if(ev.target.classList.contains("inpBought")){
-      const marks = lsReadObj(PURCHASE_LS_KEY);
-      const cur = marks[key] || { checked:false, qty:0, at:"" };
-      cur.checked = !!ev.target.checked;
-
-      const qtyInput = tr.querySelector(".inpBoughtQty");
-      const qtyBought = qtyInput ? num(qtyInput.value) : 0;
-      cur.qty = qtyBought;
-      cur.at = new Date().toISOString();
-      marks[key] = cur;
-      lsWriteObj(PURCHASE_LS_KEY, marks);
-
-      if(cur.checked && qtyBought > 0){
-        const stockObj = lsReadObj(STOCK_LS_KEY);
-        stockObj[key] = num(stockObj[key] ?? 0) + qtyBought;
-        lsWriteObj(STOCK_LS_KEY, stockObj);
-        pushPurchaseLog_({ at: cur.at, ingredient: key, qty: qtyBought });
-        renderPurchases();
-      }
-    }
-  }, { once: true });
 }
-
 
 function importNeedsFromKitchen(){
   // Lee NEED_LS_KEY si ya existe
@@ -950,183 +908,6 @@ async function loadNeedsFromServerAndRender_(){
   }
 }
 
-
-// ==============================
-// ✅ NUEVO: Calcular necesidades desde PEDIDOS (Pagado + No iniciar)
-// Corte compras: 3:00 p.m. (Bogotá)
-// ==============================
-function getBogotaNow_(){
-  const s = new Date().toLocaleString("en-US", { timeZone: "America/Bogota" });
-  return new Date(s);
-}
-function bogotaDateKey_(d){
-  const y = d.getFullYear();
-  const m = String(d.getMonth()+1).padStart(2,"0");
-  const dd= String(d.getDate()).padStart(2,"0");
-  return `${y}-${m}-${dd}`;
-}
-function parseCreatedAt_(v){
-  if(v instanceof Date) return v;
-  const s = String(v||"").trim();
-  if(!s) return null;
-  const m = s.match(/^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})(?::(\d{2}))?/);
-  if(m){
-    const y=+m[1], mo=+m[2]-1, d=+m[3], hh=+m[4], mm=+m[5], ss=+(m[6]||0);
-    return new Date(y, mo, d, hh, mm, ss);
-  }
-  const d2 = new Date(s);
-  if(!isNaN(d2.getTime())) return d2;
-  return null;
-}
-function normStatus_(s){
-  return String(s||"")
-    .trim()
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .replace(/\s+/g, " ");
-}
-function isPaid_(o){
-  const v = normStatus_(o?.payment_status ?? "");
-  return v === "pagado" || v === "paid";
-}
-function isKitchenPending_(o){
-  const v = normStatus_(o?.kitchen_status ?? "");
-  return v === "no iniciar" || v === "sin iniciar" || v === "pendiente" || v === "por iniciar";
-}
-
-// ⚠️ Ajusta aquí el mapeo de IDs/nombres de productos si cambian en tu hoja PEDIDOS
-const RECIPES_FOR_PURCHASES = {
-  mousse_maracuya: [
-    { name:"Pulpa de maracuyá", qty:21.4 },
-    { name:"Leche condensada", qty:42.8 },
-    { name:"Crema de leche", qty:42.8 },
-    { name:"Leche entera", qty:42.8 },
-    { name:"Gelatina sin sabor", qty:1.25 },
-    { name:"Agua", qty:8.3 },
-    { name:"Vainilla", qty:0.33 },
-    { name:"Galletas saladas", qty:25 },
-    { name:"Mantequilla sin sal", qty:11.7 },
-    { name:"Chocorramo", qty:1 },
-    { name:"Chocolate en polvo", qty:1 }
-  ],
-  cheesecake_cafe_panela: [
-    { name:"Galleta de leche", qty:25 },
-    { name:"Mantequilla sin sal", qty:10 },
-    { name:"Queso crema", qty:75 },
-    { name:"Crema de leche", qty:41.7 },
-    { name:"Leche condensada", qty:25 },
-    { name:"Café", qty:10 },
-    { name:"Panela", qty:3.33 },
-    { name:"Gelatina sin sabor", qty:1.67 },
-    { name:"Agua", qty:7.5 },
-    { name:"Vainilla", qty:0.33 }
-  ]
-};
-
-function normalizeItemsFromOrder_(order){
-  // soporta items_json (array) o items (texto)
-  try{
-    if(order && order.items_json){
-      const j = JSON.parse(order.items_json);
-      if(Array.isArray(j)){
-        return j.map(it=>({
-          id: String(it.id||it.product_id||it.sku||"").trim(),
-          name: String(it.name||it.product||it.title||"").trim(),
-          qty: Number(it.qty ?? it.quantity ?? 0) || 0
-        })).filter(it=>(it.id||it.name) && it.qty>0);
-      }
-    }
-  }catch(_e){}
-
-  const txt = String(order?.items||"");
-  const lines = txt.split("\n").map(s=>s.trim()).filter(Boolean);
-  const out = [];
-  for(const line of lines){
-    const m = line.replace(/^\-\s*/,"").match(/^(.+?):\s*(\d+(?:[.,]\d+)?)$/);
-    if(m){
-      out.push({ id:"", name:String(m[1]).trim(), qty:Number(String(m[2]).replace(",", "."))||0 });
-    }
-  }
-  return out;
-}
-function resolveProductId_(key){
-  const k = normStatus_(key);
-  if(k.includes("mousse")) return "mousse_maracuya";
-  if(k.includes("cheesecake")) return "cheesecake_cafe_panela";
-  if(RECIPES_FOR_PURCHASES[k]) return k;
-  return null;
-}
-function computeNeedsFromOrders_(orders){
-  const needObj = {};
-  const add = (name, qty)=>{
-    const kk = String(name||"").trim();
-    if(!kk) return;
-    needObj[kk] = (Number(needObj[kk]||0) + Number(qty||0));
-  };
-
-  const byProd = {};
-  for(const o of orders){
-    const items = normalizeItemsFromOrder_(o);
-    for(const it of items){
-      const key = String(it.id||it.name||"").trim();
-      if(!key) continue;
-      byProd[key] = (Number(byProd[key]||0) + Number(it.qty||0));
-    }
-  }
-
-  for(const key of Object.keys(byProd)){
-    const units = Number(byProd[key]||0);
-    const pid = resolveProductId_(key);
-    const recipe = pid ? (RECIPES_FOR_PURCHASES[pid] || []) : [];
-    for(const ing of recipe){
-      add(ing.name, Number(ing.qty||0) * units);
-    }
-  }
-
-  // redondeo
-  for(const k of Object.keys(needObj)){
-    needObj[k] = Math.round(Number(needObj[k]||0)*1000)/1000;
-  }
-  return needObj;
-}
-
-async function loadNeedsFromPaidOrdersAndRender_(){
-  const now = getBogotaNow_();
-  const dateKey = bogotaDateKey_(now);
-
-  const out = await api({
-    action: "costs_orders_for_purchases",
-    costs_secret: UNLOCKED_SECRET,
-    date_key: dateKey
-  });
-
-  let orders = Array.isArray(out.orders) ? out.orders : [];
-  // Filtro defensivo:
-  orders = orders.filter(o => isPaid_(o) && isKitchenPending_(o));
-
-  // corte 3pm
-  const before = [];
-  const after = [];
-  for(const o of orders){
-    const d = parseCreatedAt_(o.created_at);
-    if(!d){ after.push(o); continue; }
-    if(d.getHours() < 15) before.push(o);
-    else after.push(o);
-  }
-
-  const needObj = computeNeedsFromOrders_(before);
-  lsWriteObj(NEED_LS_KEY, needObj);
-
-  // meta en UI si existe
-  const meta = document.getElementById("shoppingMeta");
-  if(meta) meta.textContent = `Pedidos: ${before.length} (hasta 3pm) · Informativo: ${after.length} (después 3pm) · ${dateKey}`;
-
-  renderPurchases();
-  return true;
-}
-
-
 async function saveShoppingPayloadToServer_(){
   // Construye un payload unificado: needs + stock + meta
   const stock = getStockMap();
@@ -1200,15 +981,15 @@ async function bootstrap(){
         bi._bound=true;
         bi.onclick=async ()=>{
           try{
-            showLoading("Actualizando desde pedidos...");
+            showLoading( "Importando desde cocina...");
             // Lee COMPRAS_NEED desde el servidor (Worker -> Apps Script) y renderiza
-            await loadNeedsFromPaidOrdersAndRender_();
+            await loadNeedsFromServerAndRender_({saveBack:true});
             // abre el acordeón si estaba cerrado
             const acc=document.getElementById("buyAcc");
             if(acc && !acc.open) acc.open = true;
           }catch(e){
             console.error("import buy error", e);
-            showToast(e && e.message ? e.message : "No se pudo importar desde cocina", "err");
+            showToast(e && e.message ? e.message : "No se pudo actualizar desde pedidos", "err");
           }finally{
             hideLoading();
           }
@@ -1259,3 +1040,23 @@ async function bootstrap(){
 }
 
 document.addEventListener("DOMContentLoaded", bootstrap);
+
+
+
+function normStatus_(s){
+  return String(s||"")
+    .trim()
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/\s+/g, " ");
+}
+
+function isPaid_(o){
+  const v = normStatus_(o?.payment_status ?? o?.payment ?? o?.pago ?? o?.estado_pago ?? "");
+  return v === "pagado" || v === "paid";
+}
+function isKitchenPending_(o){
+  const v = normStatus_(o?.kitchen_status ?? o?.kitchen ?? o?.estado_cocina ?? "");
+  return v === "no iniciar" || v === "sin iniciar" || v === "pendiente" || v === "por iniciar";
+}
