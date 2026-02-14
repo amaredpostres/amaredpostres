@@ -5,13 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>AMARED · Costos</title>
 
-  <!-- ✅ favicon igual al resto -->
   <link rel="icon" href="assets/favicon.ico" type="image/x-icon">
-
-  <!-- ✅ estilos globales AMARED -->
   <link rel="stylesheet" href="styles.css" />
-
-  <!-- ✅ estilos SOLO de costos -->
   <link rel="stylesheet" href="costs.css" />
 </head>
 
@@ -26,7 +21,6 @@
     </header>
 
     <main class="container">
-      <!-- Unlock -->
       <section class="card">
         <h2 class="cardTitle">🔒 Costos de ingredientes</h2>
         <p class="cardSubtitle">
@@ -34,20 +28,19 @@
         </p>
 
         <div class="costsRow">
-          <input id="secret" class="costsField" type="password" placeholder="COSTS_SECRET" autocomplete="off" />
+          <input id="secret" class="costsField" type="password" placeholder="AMARED_COSTS_KEY" autocomplete="off" />
           <button id="unlock" class="btn">Desbloquear</button>
         </div>
 
         <div id="err" class="costsErr"></div>
       </section>
 
-      <!-- Editor -->
       <section id="editor" class="card" style="display:none;">
         <div class="costsHeaderRow">
           <div>
             <h2 class="cardTitle">📌 Tabla de costos</h2>
             <p class="cardSubtitle">
-              El cálculo se actualiza en tiempo real. Usa <b>Guardar</b> para dejarlo permanente en la base de datos.
+              Actualiza precios y unidades. Usa <b>Guardar</b> para dejarlo permanente en la base de datos.
             </p>
           </div>
 
@@ -69,12 +62,13 @@
           <div class="costsAccBody">
             <div class="buyTop">
               <div class="buyHelp">
-                Registra lo que te queda en inventario (sobrantes) y calcula automáticamente cuánto debes comprar para completar próximos pedidos.
-                <span class="muted">Se guarda en este navegador.</span>
+                Registra lo que te queda en inventario (sobrantes) y calcula automáticamente cuánto debes comprar
+                para completar los pedidos <b>PAGADOS</b> y pendientes (<b>No iniciar</b> en cocina).
+                <span class="muted">Los sobrantes se guardan en este navegador.</span>
               </div>
 
               <div class="buyActions">
-                <button id="buyImport" class="btn secondary">Actualizar desde pedidos</button>
+                <button id="buyRefreshOrders" class="btn secondary">Actualizar desde pedidos</button>
                 <button id="buyReset" class="btn secondary">Reiniciar sobrantes</button>
               </div>
             </div>
@@ -92,16 +86,15 @@
               <div id="lateList" class="buyList"></div>
             </div>
 
-
             <div class="buyFooter muted small">
-              Tip: si abres Cocina y generas un lote, luego vuelve aquí y usa “Importar desde cocina” para traer las cantidades calculadas.
+              Tip: usa “Actualizar desde pedidos” para calcular ingredientes desde la hoja <b>PEDIDOS</b>.
+              Corte de compras: <b>3:00 p.m.</b> (hora Colombia).
             </div>
           </div>
         </details>
       </section>
     </main>
 
-    <!-- Loading -->
     <div id="loading" class="costsLoading">
       <div class="costsLoadingCard">
         <div class="costsLoadingSpinner" aria-hidden="true"></div>
@@ -110,10 +103,7 @@
       </div>
     </div>
 
-    <!-- ✅ SECCIONES CANÓNICAS -->
     <script src="kitchen-costs.js"></script>
-
-    <!-- ✅ LÓGICA COSTOS -->
     <script src="costs.js"></script>
   </div>
 </body>
