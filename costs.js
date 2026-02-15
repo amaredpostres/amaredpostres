@@ -611,7 +611,6 @@ async function saveAllToSheets(){
 // =========================
 const STOCK_LS_KEY = "amared_stock_ingredients_v1";
 const NEED_LS_KEY  = "amared_need_ingredients_v1";
-const PURCHASE_DRAFT_LS_KEY = "amared_purchase_draft_v1";
 // Keys alternos por compatibilidad (si Cocina guarda otro nombre)
 const NEED_LS_KEYS_FALLBACK = ["amared_required_ingredients", "amared_kitchen_batch_ingredients", "amared_latest_batch_ingredients_v1"];
 
@@ -625,13 +624,6 @@ function lsReadObj(key){
 }
 function lsWriteObj(key, obj){
   try{ localStorage.setItem(key, JSON.stringify(obj||{})); }catch(_e){}
-
-function getPurchaseDraft_(){
-  return lsReadObj(PURCHASE_DRAFT_LS_KEY);
-}
-function setPurchaseDraft_(obj){
-  lsWriteObj(PURCHASE_DRAFT_LS_KEY, obj || {});
-}
 }
 // ===== Shopping helpers (persistencia cross-device via servidor + respaldo local) =====
 function getNeedList(){
@@ -728,7 +720,6 @@ function renderPurchases(ctx){
 
   const stock = lsReadObj(STOCK_LS_KEY);
   const need  = lsReadObj(NEED_LS_KEY);
-  const draft = getPurchaseDraft_();
 
   const keys = getAllIngredientKeys();
 
@@ -743,7 +734,6 @@ function renderPurchases(ctx){
     const nStock = num(stock[k] ?? 0);
     const nBuy = Math.max(0, nNeed - nStock);
     const lineCost = nBuy * price;
-    const draftQty = (draft && typeof draft[k] !== 'undefined') ? num(draft[k]) : nBuy;
 
     if(nNeed > 0) countNeed++;
     totalCost += lineCost;
@@ -762,8 +752,6 @@ function renderPurchases(ctx){
           nBuy>0 ? fmt(nBuy) : "0"
         }</td>
         <td class="buyToBuy">$${fmtCOP(lineCost)}</td>
-        <td><input type="checkbox" class="inpBought" /></td>
-        <td><input class="buyNum inpBoughtQty" inputmode="decimal" value="${fmt(draftQty)}" /></td>
       </tr>
     `;
   }).join("");
@@ -777,11 +765,9 @@ function renderPurchases(ctx){
           <th>Sobrante</th>
           <th>Comprar</th>
           <th>Costo estimado</th>
-          <th>Comprado</th>
-          <th>Cant. comprada</th>
         </tr>
       </thead>
-      <tbody>${rowsHtml || `<tr><td colspan="7" class="muted small">Sin datos.</td></tr>`}</tbody>
+      <tbody>${rowsHtml || `<tr><td colspan="5" class="muted small">Sin datos.</td></tr>`}</tbody>
     </table>
   `;
 
@@ -903,7 +889,7 @@ async function loadNeedsFromServerAndRender_(){
     return true;
   }catch(err){
     console.error('loadNeedsFromServerAndRender_ error', err);
-    showToast('No se pudo actualizar desde pedidos. Revisa consola.', 'error');
+    showToast('No se pudo importar desde cocina. Revisa consola.', 'error');
     return false;
   }
 }
@@ -989,7 +975,7 @@ async function bootstrap(){
             if(acc && !acc.open) acc.open = true;
           }catch(e){
             console.error("import buy error", e);
-            showToast(e && e.message ? e.message : "No se pudo actualizar desde pedidos", "err");
+            showToast(e && e.message ? e.message : "No se pudo importar desde cocina", "err");
           }finally{
             hideLoading();
           }
@@ -1043,20 +1029,417 @@ document.addEventListener("DOMContentLoaded", bootstrap);
 
 
 
-function normStatus_(s){
+// =========================
+// COMPRAS V2 (Sheets: RECETAS + INVENTARIO)
+// - Calcula necesidades desde PEDIDOS (Pagado + No iniciar)
+// - Separa bloque informativo > 3pm (por postre + total)
+// - Guarda compras en INVENTARIO_MOVIMIENTOS y actualiza INVENTARIO
+// =========================
+
+let RECIPES_MAP = null;       // { dessert_id: [ {ingredient_key, qty_per_unit, unit} ] }
+let INVENTORY_MAP = null;     // { ingredient_key: qty }
+let COST_INDEX = null;        // { normKey: { ingredient_key, unit_type, cop_per_unit } }
+
+function normKey_(s){
   return String(s||"")
     .trim()
     .toLowerCase()
     .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .replace(/\s+/g, " ");
+    .replace(/[\u0300-\u036f]/g,"")
+    .replace(/\s+/g," ");
+}
+
+function buildCostIndex_(){
+  const idx = {};
+  (SHEETS_ROWS||[]).forEach(r=>{
+    const k = r.ingredient_key || r.key || r.ingredient || "";
+    if(!k) return;
+    idx[normKey_(k)] = {
+      ingredient_key: k,
+      unit_type: (r.unit_type || r.unit || "").trim(),
+      cop_per_unit: Number(r.cop_per_unit || r.cop_per_u || r.cop || 0) || 0
+    };
+  });
+  COST_INDEX = idx;
+}
+
+async function recipesGet_(){
+  const out = await api({ action:"recipes_get", costs_secret: UNLOCKED_SECRET });
+  const rows = Array.isArray(out.items) ? out.items : [];
+  const map = {};
+  rows.forEach(r=>{
+    const did = (r.dessert_id||"").trim();
+    const ik  = (r.ingredient_key||"").trim();
+    const qty = Number(r.qty_per_unit || r.qty || 0) || 0;
+    const unit = (r.unit||"").trim();
+    if(!did || !ik || !qty) return;
+    if(!map[did]) map[did] = [];
+    map[did].push({ ingredient_key: ik, qty_per_unit: qty, unit });
+  });
+  RECIPES_MAP = map;
+  return map;
+}
+
+async function inventoryGet_(){
+  const out = await api({ action:"inventory_get", costs_secret: UNLOCKED_SECRET });
+  const items = Array.isArray(out.items) ? out.items : [];
+  const map = {};
+  items.forEach(r=>{
+    const k = (r.ingredient_key||r.ingredient||"").trim();
+    if(!k) return;
+    map[k] = Number(r.qty || r.quantity || r.cantidad || 0) || 0;
+  });
+  INVENTORY_MAP = map;
+
+  // Cache local (por si quieres ver el mismo valor en inputs existentes)
+  try{ localStorage.setItem(STOCK_LS_KEY, JSON.stringify(map)); }catch(_e){}
+  return map;
+}
+
+// created_at viene como "YYYY-MM-DDTHH:mm:ss" o string similar.
+// Si viene vacio o raro, devolvemos null.
+function parseBogotaDate_(s){
+  try{
+    if(!s) return null;
+    // Si es Date de Apps Script serializada
+    // Intentar Date nativo
+    const d = new Date(s);
+    if(!isNaN(d.getTime())) return d;
+  }catch(_e){}
+  return null;
 }
 
 function isPaid_(o){
-  const v = normStatus_(o?.payment_status ?? o?.payment ?? o?.pago ?? o?.estado_pago ?? "");
+  const v = String(o.payment_status||o.payment||o.pago||o.estado_pago||"").trim().toLowerCase();
   return v === "pagado" || v === "paid";
 }
+
 function isKitchenPending_(o){
-  const v = normStatus_(o?.kitchen_status ?? o?.kitchen ?? o?.estado_cocina ?? "");
+  const v = String(o.kitchen_status||o.kitchen||o.estado_cocina||"").trim().toLowerCase();
   return v === "no iniciar" || v === "sin iniciar" || v === "pendiente" || v === "por iniciar";
 }
+
+function splitBy3pm_(orders){
+  const before = [];
+  const after = [];
+  orders.forEach(o=>{
+    const d = parseBogotaDate_(o.created_at || o.createdAt || o.fecha || "");
+    if(!d){ before.push(o); return; }
+    const h = d.getHours();
+    const m = d.getMinutes();
+    const after3 = (h > 15) || (h === 15 && m > 0);
+    (after3 ? after : before).push(o);
+  });
+  return { before, after };
+}
+
+function parseItemsJson_(s){
+  if(!s) return [];
+  if(Array.isArray(s)) return s;
+  if(typeof s === "object") return [s];
+  try{
+    const out = JSON.parse(s);
+    return Array.isArray(out) ? out : [];
+  }catch(_e){
+    return [];
+  }
+}
+
+function sumDessertsFromOrders_(orders){
+  const map = {}; // dessert_id -> {name, qty}
+  orders.forEach(o=>{
+    const items = parseItemsJson_(o.items_json || o.items || o.itemsJson || "");
+    items.forEach(it=>{
+      const id = String(it.id || it.dessert_id || it.product_id || it.slug || "").trim();
+      const name = String(it.name || it.title || id).trim() || id;
+      const qty = Number(it.qty || it.quantity || 0) || 0;
+      if(!id || !qty) return;
+      if(!map[id]) map[id] = { id, name, qty:0 };
+      map[id].qty += qty;
+    });
+  });
+  return map;
+}
+
+function computeNeedsFromDesserts_(dessertCounts){
+  const need = {}; // ingredient_key -> qty
+  const unknownDesserts = [];
+  Object.values(dessertCounts).forEach(d=>{
+    const did = d.id;
+    const rec = RECIPES_MAP && RECIPES_MAP[did];
+    if(!rec){
+      unknownDesserts.push(did);
+      return;
+    }
+    rec.forEach(r=>{
+      const k = r.ingredient_key;
+      need[k] = (need[k] || 0) + (Number(r.qty_per_unit)||0) * (Number(d.qty)||0);
+    });
+  });
+  return { need, unknownDesserts };
+}
+
+function money_(n){
+  const x = Number(n||0) || 0;
+  return x.toLocaleString("es-CO");
+}
+
+function fmtQty_(n){
+  const x = Number(n||0) || 0;
+  // mostrar sin ruido
+  return (Math.round(x*100)/100).toLocaleString("es-CO");
+}
+
+function ensureBuyEls_(){
+  const els = {
+    totals: document.getElementById("buyTotals"),
+    list: document.getElementById("buyList"),
+    hint: document.getElementById("buySummaryHint"),
+    btnRefresh: document.getElementById("buyRefreshOrders"),
+    btnReset: document.getElementById("buyReset"),
+    lateBox: document.getElementById("lateBox"),
+    lateTotals: document.getElementById("lateTotals"),
+    lateList: document.getElementById("lateList"),
+    lateMeta: document.getElementById("lateMeta"),
+    acc: document.getElementById("buyAcc"),
+  };
+  return els;
+}
+
+function renderLateInfoBlock_(dessertCounts){
+  const els = ensureBuyEls_();
+  const arr = Object.values(dessertCounts).sort((a,b)=>b.qty-a.qty);
+  if(arr.length === 0){
+    els.lateBox.style.display = "none";
+    return;
+  }
+  els.lateBox.style.display = "block";
+
+  const total = arr.reduce((s,x)=>s + (Number(x.qty)||0), 0);
+
+  els.lateTotals.innerHTML = `
+    <div class="pill">Postres después de 3pm: <b>${total}</b></div>
+  `;
+
+  els.lateList.innerHTML = arr.map(x=>`
+    <div class="buyLine">
+      <div class="buyIng"><b>${x.name}</b></div>
+      <div class="buyNum">${x.qty}</div>
+    </div>
+  `).join("");
+}
+
+function renderBuyTable_(needObj, inventoryObj){
+  const els = ensureBuyEls_();
+  if(!COST_INDEX) buildCostIndex_();
+
+  const keys = Object.keys(needObj||{}).sort((a,b)=>a.localeCompare(b,"es"));
+  if(keys.length === 0){
+    els.totals.innerHTML = `<div class="pill">Ingredientes con necesidad: <b>0</b></div>`;
+    els.list.innerHTML = `<div class="muted">No hay necesidades calculadas. Usa “Actualizar desde pedidos”.</div>`;
+    els.hint.textContent = "0 ing. · $0";
+    return;
+  }
+
+  let needCount = 0;
+  let totalCost = 0;
+
+  const rows = keys.map(k=>{
+    const need = Number(needObj[k]||0) || 0;
+    if(need <= 0) return "";
+    const stock = Number(inventoryObj[k] ?? 0) || 0;
+    const toBuy = Math.max(0, need - stock);
+
+    const ci = COST_INDEX[normKey_(k)] || COST_INDEX[normKey_(k.replace(/\s+/g," "))] || null;
+    const unit = ci ? ci.unit_type : "";
+    const cpu = ci ? Number(ci.cop_per_unit||0) : 0;
+    const est = toBuy * cpu;
+
+    needCount += (toBuy > 0 ? 1 : 0);
+    totalCost += est;
+
+    return `
+      <div class="buyRow" data-k="${encodeURIComponent(k)}">
+        <div class="buyColIng">
+          <div class="buyIngName"><b>${k}</b></div>
+          <div class="buyIngMeta muted small">${unit ? unit : "—"} · ${cpu ? "$" + money_(cpu) + "/u" : "sin costo"}</div>
+        </div>
+
+        <div class="buyCol">
+          <input class="buyNum inpNeed" value="${fmtQty_(need)}" disabled />
+        </div>
+
+        <div class="buyCol">
+          <input class="buyNum inpStock" value="${fmtQty_(stock)}" />
+        </div>
+
+        <div class="buyCol buyToBuy"><b>${fmtQty_(toBuy)}</b></div>
+
+        <div class="buyCol buyCost"><b>$${money_(est)}</b></div>
+
+        <div class="buyCol">
+          <input type="checkbox" class="inpBought" ${toBuy<=0 ? "disabled" : ""} />
+        </div>
+
+        <div class="buyCol">
+          <input class="buyNum inpBoughtQty" value="${fmtQty_(toBuy)}" ${toBuy<=0 ? "disabled" : ""} />
+        </div>
+      </div>
+    `;
+  }).join("");
+
+  els.list.innerHTML = `
+    <div class="buyGridHead">
+      <div>Ingrediente</div>
+      <div>Necesario</div>
+      <div>Inventario</div>
+      <div>Comprar</div>
+      <div>Costo est.</div>
+      <div>Comprado</div>
+      <div>Cant. comprada</div>
+    </div>
+    ${rows}
+  `;
+
+  els.totals.innerHTML = `
+    <div class="pill">Ingredientes con necesidad: <b>${needCount}</b></div>
+    <div class="pill">Total compra estimada: <b>$${money_(totalCost)}</b></div>
+  `;
+  els.hint.textContent = `${needCount} ing. · $${money_(totalCost)}`;
+
+  // Handlers
+  els.list.querySelectorAll(".inpStock").forEach(inp=>{
+    inp.addEventListener("change", async (ev)=>{
+      const row = ev.target.closest(".buyRow");
+      const k = decodeURIComponent(row.getAttribute("data-k")||"");
+      const v = Number(ev.target.value||0) || 0;
+
+      // ✅ Ajuste manual de inventario (se guarda en Sheets)
+      try{
+        await api({ action:"inventory_set", costs_secret: UNLOCKED_SECRET, ingredient_key:k, qty:v });
+        inventoryObj[k] = v;
+        INVENTORY_MAP = inventoryObj;
+        renderBuyTable_(needObj, inventoryObj);
+      }catch(e){
+        showToast("No se pudo guardar inventario: " + (e.message||e), "err");
+      }
+    });
+  });
+
+  els.list.querySelectorAll(".inpBought").forEach(chk=>{
+    chk.addEventListener("change", async (ev)=>{
+      const row = ev.target.closest(".buyRow");
+      const k = decodeURIComponent(row.getAttribute("data-k")||"");
+      const qtyInp = row.querySelector(".inpBoughtQty");
+      const qty = Number(qtyInp ? qtyInp.value : 0) || 0;
+      if(!ev.target.checked) return;
+
+      if(qty <= 0){
+        ev.target.checked = false;
+        showToast("Ingresa una cantidad comprada > 0", "warn");
+        return;
+      }
+
+      // costo unitario (si existe)
+      const ci = COST_INDEX[normKey_(k)] || null;
+      const cpu = ci ? Number(ci.cop_per_unit||0) : 0;
+
+      try{
+        await api({
+          action:"inventory_add_purchase",
+          costs_secret: UNLOCKED_SECRET,
+          ingredient_key: k,
+          qty: qty,
+          cop_per_unit: cpu
+        });
+
+        // actualizar inventario local y re-render
+        inventoryObj[k] = (Number(inventoryObj[k]||0)||0) + qty;
+        INVENTORY_MAP = inventoryObj;
+
+        showToast("Compra registrada: " + k, "ok");
+        renderBuyTable_(needObj, inventoryObj);
+      }catch(e){
+        ev.target.checked = false;
+        showToast("No se pudo registrar compra: " + (e.message||e), "err");
+      }
+    });
+  });
+}
+
+async function refreshFromOrdersV2_(){
+  if(!UNLOCKED_SECRET) throw new Error("Debes desbloquear primero.");
+  const els = ensureBuyEls_();
+  showLoading("Actualizando…","Leyendo pedidos, recetas e inventario.");
+  try{
+    if(!RECIPES_MAP) await recipesGet_();
+    if(!INVENTORY_MAP) await inventoryGet_();
+
+    // Pedidos del día (servidor ya filtra por fecha del día en Bogotá)
+    const out = await api({ action:"costs_orders_for_purchases", costs_secret: UNLOCKED_SECRET });
+    let orders = Array.isArray(out.orders) ? out.orders : [];
+    // defensivo:
+    orders = orders.filter(o=>isPaid_(o) && isKitchenPending_(o));
+
+    const split = splitBy3pm_(orders);
+
+    const dessertsBefore = sumDessertsFromOrders_(split.before);
+    const dessertsAfter  = sumDessertsFromOrders_(split.after);
+
+    const { need, unknownDesserts } = computeNeedsFromDesserts_(dessertsBefore);
+
+    // Guardar need en local por compatibilidad (si quieres)
+    try{ localStorage.setItem(NEED_LS_KEY, JSON.stringify(need)); }catch(_e){}
+
+    // UI
+    renderBuyTable_(need, INVENTORY_MAP);
+
+    // bloque informativo después de 3pm (por postre + total)
+    renderLateInfoBlock_(dessertsAfter);
+
+    if(unknownDesserts.length){
+      showToast("Recetas faltantes para: " + unknownDesserts.join(", "), "warn");
+    }
+
+  }finally{
+    hideLoading();
+  }
+}
+
+function initPurchasesV2_(){
+  const els = ensureBuyEls_();
+  if(!els || !els.btnRefresh || !els.list) return;
+
+  els.btnRefresh.onclick = async ()=>{
+    try{ await refreshFromOrdersV2_(); }
+    catch(e){ showToast(e.message||String(e), "err"); }
+  };
+
+  els.btnReset.onclick = async ()=>{
+    // Solo reinicia inventario local? NO. Como inventario es global, aquí solo limpiamos la tabla.
+    // Si quieres "reiniciar inventario" eso debe ser acción administrativa, no botón casual.
+    try{
+      localStorage.removeItem(NEED_LS_KEY);
+      els.list.innerHTML = "";
+      els.totals.innerHTML = "";
+      els.hint.textContent = "—";
+      els.lateBox.style.display = "none";
+      showToast("Vista de compras reiniciada", "ok");
+    }catch(_e){}
+  };
+
+  // Intento de carga inicial suave (si hay inventario/recipes, no bloquea)
+  // No auto refrescamos pedidos aquí para no gastar requests si aún estás editando costos.
+}
+
+try{
+  // Hook: cuando ya se desbloquea y se muestra el editor, inicializamos compras V2
+  const __oldUnlock = document.getElementById("unlock").onclick;
+  document.getElementById("unlock").onclick = async ()=>{
+    await __oldUnlock();
+    initPurchasesV2_();
+    // precargar inventario + recetas para que compras sea instantáneo (sin romper)
+    try{ await recipesGet_(); }catch(_e){}
+    try{ await inventoryGet_(); }catch(_e){}
+  };
+}catch(_e){}
