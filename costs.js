@@ -1,5 +1,4 @@
 
-
 function initBuyButtons_(){
   const btnRefresh = document.getElementById("buyRefreshOrders") || document.getElementById("buyImport");
   if(btnRefresh && !btnRefresh.__amaredBound){
@@ -17,14 +16,13 @@ function initBuyButtons_(){
       }
     });
   }
-
   const btnReset = document.getElementById("buyReset");
   if(btnReset && !btnReset.__amaredBound){
     btnReset.__amaredBound = true;
     btnReset.addEventListener("click", ()=>{
       try{
         lsWriteObj(STOCK_LS_KEY, {});
-        lsWriteObj(PURCHASE_LS_KEY, {});
+        setPurchaseSelect_({});
         renderPurchases();
         showToast("Sobrantes reiniciados", "ok");
       }catch(e){
@@ -47,6 +45,9 @@ let UI = {};
 let SHEETS_ROWS = [];
 
 // ===== Helpers =====
+function getPurchaseSelect_(){ return lsReadObj(PURCHASE_SELECT_LS_KEY); }
+function setPurchaseSelect_(obj){ lsWriteObj(PURCHASE_SELECT_LS_KEY, obj||{}); }
+
 function showLoading(t,d){
   const el=document.getElementById("loading");
   document.getElementById("lt").textContent=t||"Cargando...";
@@ -444,7 +445,6 @@ function renderTopTools(){
     try{
       await fetchCatalogsFromSheets();
       SHEETS_ROWS = await fetchCostsFromSheets();
-      buildCostIndex_();
       buildUIFromSheets(SHEETS_ROWS);
       render();
     
@@ -735,27 +735,6 @@ function fmtCOP(n){
   return x.toLocaleString("es-CO");
 }
 
-
-function normTextKey_(s){
-  // normaliza: lower + sin tildes + espacios simples
-  return String(s||"")
-    .trim()
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .replace(/\s+/g, " ");
-}
-
-let _costRowIndexByNormKey = null;
-function buildCostIndex_(){
-  _costRowIndexByNormKey = new Map();
-  for(const r of (SHEETS_ROWS||[])){
-    const k = String(r.ingredient_key || "").trim();
-    if(!k) continue;
-    const nk = normTextKey_(k);
-    if(!_costRowIndexByNormKey.has(nk)) _costRowIndexByNormKey.set(nk, r);
-  }
-}
 function getAllIngredientKeys(){
   const a = [];
   for(const k of (CANON||[])) a.push(k);
@@ -766,21 +745,8 @@ function getAllIngredientKeys(){
 }
 
 function findCostRow(ingredientKey){
-  const key = String(ingredientKey||"").trim();
-  if(!key) return null;
-  // exact
-  const exact = (SHEETS_ROWS||[]).find(r=> String(r.ingredient_key||"")===key) || null;
-  if(exact) return exact;
-  // fallback normalize
-  if(!_costRowIndexByNormKey) buildCostIndex_();
-  return _costRowIndexByNormKey.get(normTextKey_(key)) || null;
-}
-
-function resolveIngredientKeyFromSheet_(name){
-  // devuelve el ingredient_key real si existe uno equivalente en la hoja
-  if(!_costRowIndexByNormKey) buildCostIndex_();
-  const r = _costRowIndexByNormKey.get(normTextKey_(name));
-  return r ? String(r.ingredient_key||name).trim() : String(name||"").trim();
+  const key = String(ingredientKey||"");
+  return (SHEETS_ROWS||[]).find(r=> String(r.ingredient_key||"")===key) || null;
 }
 
 function renderPurchases(ctx){
@@ -805,10 +771,6 @@ function renderPurchases(ctx){
     const nNeed = num(need[k] ?? 0);
     const nStock = num(stock[k] ?? 0);
     const nBuy = Math.max(0, nNeed - nStock);
-    const marks = lsReadObj(PURCHASE_LS_KEY);
-    const mark = marks[k];
-    const boughtChecked = !!(mark && mark.checked);
-    const boughtQtyVal = mark && typeof mark.qty !== "undefined" ? num(mark.qty) : nBuy;
     const lineCost = nBuy * price;
 
     if(nNeed > 0) countNeed++;
@@ -828,8 +790,6 @@ function renderPurchases(ctx){
           nBuy>0 ? fmt(nBuy) : "0"
         }</td>
         <td class="buyToBuy">$${fmtCOP(lineCost)}</td>
-        <td><input type="checkbox" class="inpBought" ${boughtChecked ? "checked" : ""} /></td>
-        <td><input class="buyNum inpBoughtQty" inputmode="decimal" value="${fmt(boughtQtyVal)}" /></td>
       </tr>
     `;
   }).join("");
@@ -842,7 +802,7 @@ function renderPurchases(ctx){
           <th>Necesario</th>
           <th>Sobrante</th>
           <th>Comprar</th>
-          <th>Costo estimado</th><th>Comprado</th><th>Cant. comprada</th>
+          <th>Costo estimado</th>
         </tr>
       </thead>
       <tbody>${rowsHtml || `<tr><td colspan="5" class="muted small">Sin datos.</td></tr>`}</tbody>
@@ -855,47 +815,13 @@ function renderPurchases(ctx){
   `;
   hint.textContent = `$${fmtCOP(totalCost)} · ${countNeed} ing.`;
 
+  renderPurchaseChecklist_({ keys, need, stock, ctx });
+
   // bind inputs (delegación)
   const tbody = listEl.querySelector("tbody");
   tbody.addEventListener("input", (ev)=>{
     const tr = ev.target.closest("tr");
-    
-  tbody.addEventListener("change", async (ev)=>{
-    const tr = ev.target.closest("tr");
     if(!tr) return;
-    const key = unescapeCss(tr.getAttribute("data-k")||"");
-    if(!key) return;
-
-    if(ev.target.classList.contains("inpBought")){
-      const marks = lsReadObj(PURCHASE_LS_KEY);
-      const cur = marks[key] || { checked:false, qty:0, at:"" };
-      cur.checked = !!ev.target.checked;
-
-      const qtyInput = tr.querySelector(".inpBoughtQty");
-      const qtyBought = qtyInput ? num(qtyInput.value) : 0;
-      cur.qty = qtyBought;
-      cur.at = new Date().toISOString();
-      marks[key] = cur;
-      lsWriteObj(PURCHASE_LS_KEY, marks);
-
-      if(cur.checked && qtyBought > 0){
-        const stockObj = lsReadObj(STOCK_LS_KEY);
-        stockObj[key] = num(stockObj[key] ?? 0) + qtyBought;
-        lsWriteObj(STOCK_LS_KEY, stockObj);
-
-        try{
-          if(UNLOCKED_SECRET){
-            await api({ action:"inventory_add_purchase", costs_secret: UNLOCKED_SECRET, ingredient_key: key, qty: qtyBought, source:"COSTS_UI" });
-          }
-        }catch(e){
-          console.warn("No se pudo guardar en BD (se guardó local):", e);
-        }
-
-        renderPurchases();
-      }
-    }
-  });
-if(!tr) return;
     const key = unescapeCss(tr.getAttribute("data-k")||"");
     if(!key) return;
 
@@ -906,15 +832,6 @@ if(!tr) return;
       needObj[key] = num(ev.target.value);
       lsWriteObj(NEED_LS_KEY, needObj);
     }
-    if(ev.target.classList.contains("inpBoughtQty")){
-      const marks = lsReadObj(PURCHASE_LS_KEY);
-      const cur = marks[key] || { checked:false, qty:0, at:"" };
-      cur.qty = num(ev.target.value);
-      marks[key] = cur;
-      lsWriteObj(PURCHASE_LS_KEY, marks);
-      return;
-    }
-
     if(ev.target.classList.contains("inpStock")){
       stockObj[key] = num(ev.target.value);
       lsWriteObj(STOCK_LS_KEY, stockObj);
@@ -922,221 +839,6 @@ if(!tr) return;
     // re-render rápido (sin loader)
     renderPurchases();
   }, { once: true }); // el render vuelve a crear la tabla; re-atach en cada render
-}
-
-
-// ================================
-// ✅ NUEVO: Actualizar compras desde PEDIDOS PAGADOS (y cocina_status = "No iniciar")
-// Corte informativo: 3:00 p.m. (Bogotá)
-// ================================
-const RECIPES_FOR_PURCHASES = {
-  mousse_maracuya: [
-    { name:"Pulpa de maracuyá", qty:21.4 },
-    { name:"Leche condensada", qty:42.8 },
-    { name:"Crema de leche", qty:42.8 },
-    { name:"Leche entera", qty:42.8 },
-    { name:"Gelatina sin sabor", qty:1.25 },
-    { name:"Agua", qty:8.3 },
-    { name:"Vainilla", qty:0.33 },
-    { name:"Galletas saladas", qty:25 },
-    { name:"Mantequilla sin sal", qty:11.7 },
-    { name:"Chocorramo", qty:1 },
-    { name:"Chocolate en polvo", qty:1 }
-  ],
-  cheesecake_cafe_panela: [
-    { name:"Galleta de leche", qty:25 },
-    { name:"Mantequilla sin sal", qty:10 },
-    { name:"Queso crema", qty:75 },
-    { name:"Crema de leche", qty:41.7 },
-    { name:"Leche condensada", qty:25 },
-    { name:"Café", qty:10 },
-    { name:"Panela", qty:3.33 },
-    { name:"Gelatina sin sabor", qty:1.67 },
-    { name:"Agua", qty:7.5 },
-    { name:"Vainilla", qty:0.33 }
-  ],
-  arroz_con_leche: [
-    { name:"Arroz blanco", qty:20 },   // AJUSTA si tu receta real usa otra cantidad
-    { name:"Leche condensada", qty:20 },
-    { name:"Leche entera", qty:80 },
-    { name:"Agua", qty:50 },
-    { name:"Azúcar", qty:10 },
-    { name:"Canela en astilla", qty:1 },
-    { name:"Queso costeño", qty:5 },
-    { name:"Sal", qty:0.2 }
-  ]
-};
-
-function getBogotaNow_(){
-  const s = new Date().toLocaleString("en-US", { timeZone:"America/Bogota" });
-  return new Date(s);
-}
-function bogotaDateKey_(d){
-  const y=d.getFullYear();
-  const m=String(d.getMonth()+1).padStart(2,"0");
-  const dd=String(d.getDate()).padStart(2,"0");
-  return `${y}-${m}-${dd}`;
-}
-function parseCreatedAt_(v){
-  if(v instanceof Date) return v;
-  const s = String(v||"").trim();
-  if(!s) return null;
-  const m = s.match(/^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})(?::(\d{2}))?/);
-  if(m){
-    const y=+m[1], mo=+m[2]-1, d=+m[3], hh=+m[4], mm=+m[5], ss=+(m[6]||0);
-    return new Date(y,mo,d,hh,mm,ss);
-  }
-  const d2=new Date(s);
-  return isNaN(d2.getTime())? null : d2;
-}
-function normalizeItemsFromOrder_(order){
-  // Intenta items_json (array), si no items (texto)
-  const safeJson = (s)=>{ try{ return JSON.parse(s); }catch(_e){ return null; } };
-  const out = [];
-
-  if(order && order.items_json){
-    const j = safeJson(order.items_json);
-    if(Array.isArray(j)){
-      for(const it of j){
-        const id = String(it.id||it.product_id||it.sku||"").trim();
-        const name = String(it.name||it.product||it.title||"").trim();
-        const qty = Number(it.qty ?? it.quantity ?? 0) || 0;
-        if((id||name) && qty>0) out.push({ id, name, qty });
-      }
-      return out;
-    }
-  }
-
-  const txt = String(order?.items||"").trim();
-  if(!txt) return out;
-
-  // Formato típico: "- Mousse de maracuyá: 2"
-  const lines = txt.split("\n").map(s=>s.trim()).filter(Boolean);
-  for(const line of lines){
-    const m = line.replace(/^\-\s*/,"").match(/^(.+?):\s*(\d+(?:[.,]\d+)?)$/);
-    if(m){
-      const name = String(m[1]).trim();
-      const qty = Number(String(m[2]).replace(",", ".")) || 0;
-      if(name && qty>0) out.push({ id:"", name, qty });
-    }
-  }
-  return out;
-}
-function resolveProductId_(it){
-  const raw = String(it.id||"").trim().toLowerCase();
-  if(raw && RECIPES_FOR_PURCHASES[raw]) return raw;
-
-  const name = String(it.name||it.id||"").trim().toLowerCase();
-  if(name.includes("mousse")) return "mousse_maracuya";
-  if(name.includes("cheesecake")) return "cheesecake_cafe_panela";
-  if(name.includes("arroz")) return "arroz_con_leche";
-  return raw || "";
-}
-
-function computeNeedsFromOrders_(orders){
-  const needObj = {};
-  const byProd = new Map();
-
-  for(const o of orders){
-    const items = normalizeItemsFromOrder_(o);
-    for(const it of items){
-      const pid = resolveProductId_(it);
-      if(!pid) continue;
-      byProd.set(pid, (byProd.get(pid)||0) + Number(it.qty||0));
-    }
-  }
-
-  for(const [pid, units] of byProd.entries()){
-    const recipe = RECIPES_FOR_PURCHASES[pid];
-    if(!recipe) continue;
-    for(const ing of recipe){
-      const key = resolveIngredientKeyFromSheet_(ing.name);
-      needObj[key] = (Number(needObj[key]||0) + Number(ing.qty||0)*Number(units||0));
-    }
-  }
-
-  // redondeo suave
-  for(const k of Object.keys(needObj)){
-    needObj[k] = Math.round(Number(needObj[k]||0)*1000)/1000;
-  }
-  return { needObj, byProd };
-}
-
-function splitOrdersBy3pm_(orders){
-  const before = [];
-  const after = [];
-  for(const o of (orders||[])){
-    const d = parseCreatedAt_(o.created_at);
-    if(!d){ after.push(o); continue; }
-    if(d.getHours() < 15) before.push(o);
-    else after.push(o);
-  }
-  return { before, after };
-}
-
-function renderLateInfo_(ordersAfter){
-  const box = document.getElementById("lateBox");
-  const metaEl = document.getElementById("lateMeta");
-  const totalsEl = document.getElementById("lateTotals");
-  const listEl = document.getElementById("lateList");
-  if(!box || !totalsEl || !listEl) return;
-
-  if(!ordersAfter || ordersAfter.length===0){
-    box.style.display="none";
-    return;
-  }
-  box.style.display="block";
-
-  const byProd = new Map();
-  for(const o of ordersAfter){
-    const items = normalizeItemsFromOrder_(o);
-    for(const it of items){
-      const pid = resolveProductId_(it) || (it.name||it.id||"");
-      const name = String(it.name||pid||"").trim();
-      const prev = byProd.get(name) || 0;
-      byProd.set(name, prev + Number(it.qty||0));
-    }
-  }
-
-  const rows = Array.from(byProd.entries()).sort((a,b)=> String(a[0]).localeCompare(String(b[0]),"es"));
-
-  totalsEl.innerHTML = `
-    <div class="buyPill">Pedidos (después 3pm): ${ordersAfter.length}</div>
-    <div class="buyPill">Tipos de postre: ${rows.length}</div>
-  `;
-  listEl.innerHTML = `
-    <table class="buyTable">
-      <thead><tr><th>Postre</th><th>Unidades</th></tr></thead>
-      <tbody>
-        ${rows.map(([name,qty])=>`
-          <tr><td><div class="buyName">${name}</div></td><td class="buyToBuy">${fmt(qty)}</td></tr>
-        `).join("")}
-      </tbody>
-    </table>
-  `;
-  if(metaEl) metaEl.textContent = "Informativo: no se incluye en la compra principal (corte 3:00 p.m.).";
-}
-
-async function loadNeedsFromPaidOrdersAndRender_(){
-  if(!UNLOCKED_SECRET) throw new Error("Primero desbloquea Costos con tu clave.");
-  const now = getBogotaNow_();
-  const dateKey = bogotaDateKey_(now);
-
-  const out = await api({ action:"costs_orders_for_purchases", costs_secret: UNLOCKED_SECRET, date_key: dateKey });
-  const orders = Array.isArray(out.orders) ? out.orders : [];
-
-  const split = splitOrdersBy3pm_(orders);
-
-  const { needObj } = computeNeedsFromOrders_(split.before);
-  lsWriteObj(NEED_LS_KEY, needObj);
-
-  // meta UI
-  setBuyMetaText_(`Hoy ${dateKey} · pedidos PAGADOS + No iniciar · corte 3:00 p.m.`);
-
-  renderPurchases();
-  renderLateInfo_(split.after);
-
-  return true;
 }
 
 function importNeedsFromKitchen(){
@@ -1276,7 +978,6 @@ async function bootstrap(){
 
       await fetchCatalogsFromSheets();
       SHEETS_ROWS = await fetchCostsFromSheets();
-      buildCostIndex_();
       buildUIFromSheets(SHEETS_ROWS);
 
       document.getElementById("editor").style.display = "block";
@@ -1289,7 +990,7 @@ async function bootstrap(){
           // Guardamos en localStorage para reutilizar UI existente
           const obj = {};
           for(const it of serverNeed.items){
-            const key = String(it.name||it.ingredient||"").trim();
+            const key = (String(it.name||"").trim().toLowerCase()) + "|" + (String(it.unit||"").trim().toLowerCase());
             obj[key] = Number(it.qty||0);
           }
           lsWriteObj(NEED_LS_KEY, obj);
@@ -1301,14 +1002,14 @@ async function bootstrap(){
       // Compras / sobrantes
       try{ renderPurchases(); }catch(_e){}
       const bi=document.getElementById("buyImport");
-      if(bi) bi.textContent = "Actualizar desde pedidos";
       const br=document.getElementById("buyReset");
       if(bi && !bi._bound){
         bi._bound=true;
         bi.onclick=async ()=>{
           try{
-            showLoading("Actualizando desde pedidos...","Calculando ingredientes (PAGADOS + No iniciar)");
-            await loadNeedsFromPaidOrdersAndRender_();
+            showLoading( "Importando desde cocina...");
+            // Lee COMPRAS_NEED desde el servidor (Worker -> Apps Script) y renderiza
+            await loadNeedsFromServerAndRender_({saveBack:true});
             // abre el acordeón si estaba cerrado
             const acc=document.getElementById("buyAcc");
             if(acc && !acc.open) acc.open = true;
@@ -1354,7 +1055,6 @@ async function bootstrap(){
       showLoading("Refrescando…","Cargando cambios desde la base de datos.");
       await fetchCatalogsFromSheets();
       SHEETS_ROWS = await fetchCostsFromSheets();
-      buildCostIndex_();
       buildUIFromSheets(SHEETS_ROWS);
       render();
     }catch(e){
@@ -1366,3 +1066,240 @@ async function bootstrap(){
 }
 
 document.addEventListener("DOMContentLoaded", bootstrap);
+
+async function loadNeedsFromPaidOrdersAndRender_(){
+  if(!UNLOCKED_SECRET) throw new Error("Primero desbloquea Costos con tu clave.");
+  // Backend debe devolver {needs:{ingredient:qty}, late:{byDessert:{}, total:{}}, meta:{...}}
+  const out = await api({ action:"costs_orders_for_purchases", costs_secret: UNLOCKED_SECRET });
+  const needs = out.needs || out.needObj || (out.data && out.data.items ? out.data.items : null);
+  if(!needs || typeof needs !== "object") throw new Error("No llegó la necesidad desde pedidos. Revisa Worker/Apps Script.");
+  lsWriteObj(NEED_LS_KEY, needs);
+
+  // cargar inventario desde BD si está disponible
+  try{
+    const inv = await api({ action:"inventory_get", costs_secret: UNLOCKED_SECRET });
+    if(inv && inv.ok && inv.inventory && typeof inv.inventory === "object"){
+      lsWriteObj(STOCK_LS_KEY, inv.inventory);
+    }
+  }catch(e){
+    console.warn("No se pudo leer INVENTARIO (se usará local):", e);
+  }
+
+  renderPurchases(out);
+}
+
+function renderPurchaseChecklist_({ keys, need, stock, ctx }){
+  const panel = document.getElementById("buyPurchasePanel");
+  if(!panel) return;
+
+  const sel = getPurchaseSelect_();
+  const rows = keys.map(k=>{
+    const row = findCostRow(k) || {};
+    const unit = normUnit(row.unit_type || "") || "unidad";
+    const packQty = num(row.pack_qty || 0);
+    const packPrice = num(row.pack_price || 0);
+    const copUnit = num(row.cop_per_unit || 0);
+
+    const nNeed = num(need[k] ?? 0);
+    const nStock = num(stock[k] ?? 0);
+    const nBuyNeed = Math.max(0, nNeed - nStock);
+
+    const s = sel[k] || { buy:false, mult:1, updateCost:false };
+    const mult = num(s.mult || 1);
+
+    // Cantidad que entra a inventario si compro 1 empaque:
+    const addQty = packQty * (mult || 1);
+
+    const store = row.store || "—";
+    const brand = row.brand || "—";
+
+    const priceTxt = copUnit>0 ? `$${fmtCOP(copUnit)}/u` : "—";
+
+    return `
+      <div class="buyItem" data-k="${cssEscape(k)}">
+        <label class="buyChk">
+          <input type="checkbox" class="buyMark" ${s.buy ? "checked":""}/>
+          <span class="buyMarkTxt">${s.buy ? "Comprado" : "No comprado"}</span>
+        </label>
+
+        <div class="buyMeta">
+          <div class="buyItemName">${k}</div>
+          <div class="buyItemSub">${unit} · ${priceTxt} · ${brand} · ${store}</div>
+          <div class="buyItemNeed">Necesario hoy: <b>${fmt(nNeed)}</b> · Sobrante: <b>${fmt(nStock)}</b> · Falta: <b>${fmt(nBuyNeed)}</b></div>
+        </div>
+
+        <div class="buyControls">
+          <div class="buyCtrl">
+            <div class="muted small">Empaques</div>
+            <input class="buyNum buyMult" inputmode="decimal" value="${fmt(mult)}"/>
+          </div>
+          <div class="buyCtrl">
+            <div class="muted small">+ Inventario</div>
+            <div class="buyAddQty">${fmt(addQty)} ${unit}</div>
+          </div>
+          <button class="btn small buyEdit" type="button">Editar costo</button>
+          <label class="buySmallChk">
+            <input type="checkbox" class="buyUpdateCost" ${s.updateCost ? "checked":""}/>
+            Actualizar precio al guardar
+          </label>
+        </div>
+      </div>
+    `;
+  }).join("");
+
+  // Bloque informativo después de 3pm (si backend lo envía)
+  let lateHtml = "";
+  const late = ctx && ctx.late ? ctx.late : null;
+  if(late && late.byDessert){
+    const items = Object.entries(late.byDessert).map(([name, qty])=>`<li><b>${name}</b>: ${qty}</li>`).join("");
+    const total = late.totalQty ?? Object.values(late.byDessert).reduce((a,b)=>a+num(b),0);
+    lateHtml = `
+      <div class="lateBox">
+        <div class="lateTitle">Informativo: pedidos después de las 3:00 p.m.</div>
+        <ul class="lateList">${items || "<li class=\"muted\">Sin pedidos después de 3pm.</li>"}</ul>
+        <div class="lateTotal">Total general: <b>${total}</b> postres</div>
+      </div>
+    `;
+  }
+
+  panel.innerHTML = `
+    <div class="buyPanelHead">
+      <div>
+        <div class="buyPanelTitle">Registrar compras (por ingrediente)</div>
+        <div class="muted small">Marca lo que compraste, ajusta empaques y guarda todo en base de datos. (Si no hay backend, quedará local.)</div>
+      </div>
+      <button id="buySaveBatch" class="btn gold" type="button">Guardar compras en inventario</button>
+    </div>
+    ${lateHtml}
+    <div class="buyPanelList">${rows}</div>
+  `;
+
+  // Eventos
+  panel.querySelectorAll(".buyItem").forEach(el=>{
+    const key = unescapeCss(el.getAttribute("data-k")||"");
+    const mark = el.querySelector(".buyMark");
+    const multEl = el.querySelector(".buyMult");
+    const updEl = el.querySelector(".buyUpdateCost");
+    const editBtn = el.querySelector(".buyEdit");
+
+    function saveLocal(){
+      const cur = sel[key] || { buy:false, mult:1, updateCost:false };
+      cur.buy = !!mark.checked;
+      cur.mult = num(multEl.value || 1) || 1;
+      cur.updateCost = !!updEl.checked;
+      sel[key] = cur;
+      setPurchaseSelect_(sel);
+
+      // update label and addQty display
+      const row = findCostRow(key) || {};
+      const unit = normUnit(row.unit_type || "") || "unidad";
+      const packQty = num(row.pack_qty || 0);
+      el.querySelector(".buyMarkTxt").textContent = cur.buy ? "Comprado" : "No comprado";
+      el.querySelector(".buyAddQty").textContent = `${fmt(packQty*cur.mult)} ${unit}`;
+    }
+
+    mark.addEventListener("change", saveLocal);
+    multEl.addEventListener("input", saveLocal);
+    updEl.addEventListener("change", saveLocal);
+
+    editBtn.addEventListener("click", ()=>{
+      // Llevar al ingrediente en tabla de costos (si existe)
+      const rowEl = document.querySelector(`[data-ik="${cssEscape(key)}"]`);
+      if(rowEl){
+        try{ rowEl.scrollIntoView({behavior:"smooth", block:"center"});}catch(_e){}
+        rowEl.classList.add("flash");
+        setTimeout(()=>rowEl.classList.remove("flash"), 900);
+      }else{
+        // fallback: abrir acordeón correspondiente
+        showToast("Busca el ingrediente en la tabla y edítalo, luego guarda.", "ok");
+      }
+    });
+  });
+
+  const btn = document.getElementById("buySaveBatch");
+  if(btn && !btn.__amaredBound){
+    btn.__amaredBound = true;
+    btn.addEventListener("click", ()=> savePurchasesBatch_());
+  }
+}
+
+async function savePurchasesBatch_(){
+  if(!UNLOCKED_SECRET){
+    showToast("Primero desbloquea Costos con tu clave.", "err");
+    return;
+  }
+  const sel = getPurchaseSelect_();
+  const keys = Object.keys(sel).filter(k=>sel[k] && sel[k].buy);
+  if(keys.length === 0){
+    showToast("No marcaste compras. Selecciona ingredientes comprados.", "err");
+    return;
+  }
+
+  // Construir items
+  const items = keys.map(k=>{
+    const row = findCostRow(k) || {};
+    const unit = normUnit(row.unit_type || "") || "unidad";
+    const packQty = num(row.pack_qty || 0);
+    const mult = num(sel[k].mult || 1) || 1;
+    const qty = packQty * mult;
+    return {
+      ingredient_key: k,
+      qty,
+      unit,
+      cop_per_unit: num(row.cop_per_unit || 0),
+      pack_price: num(row.pack_price || 0),
+      brand: row.brand || "",
+      store: row.store || "",
+      updateCost: !!sel[k].updateCost,
+      costRow: row
+    };
+  });
+
+  showLoading("Guardando compras…", "Actualizando inventario y registrando movimientos.");
+  try{
+    // Intento batch en backend
+    let out = null
+    try{
+      out = await api({ action:"inventory_add_purchase_batch", costs_secret: UNLOCKED_SECRET, items: items.map(i=>({ ingredient_key:i.ingredient_key, qty:i.qty, unit:i.unit, cop_per_unit:i.cop_per_unit, pack_price:i.pack_price, brand:i.brand, store:i.store })) });
+    }catch(e){
+      console.warn("Batch no disponible, intento individual:", e);
+    }
+
+    // Fallback: individual
+    if(!out || out.ok === false){
+      for(const it of items){
+        await api({ action:"inventory_add_purchase", costs_secret: UNLOCKED_SECRET, ingredient_key: it.ingredient_key, qty: it.qty, unit: it.unit, source:"COSTS_UI_BATCH" });
+      }
+    }
+
+    // Actualizar costos si el usuario lo pidió (reutiliza upsert existente)
+    for(const it of items){
+      if(it.updateCost){
+        await upsertCostToSheets(it.costRow);
+      }
+    }
+
+    // Refrescar inventario desde BD
+    try{
+      const inv = await api({ action:"inventory_get", costs_secret: UNLOCKED_SECRET });
+      if(inv && inv.ok && inv.inventory){
+        lsWriteObj(STOCK_LS_KEY, inv.inventory);
+      }
+    }catch(e){}
+
+    // limpiar marcas compradas (las dejamos desmarcadas para siguiente compra)
+    const next = getPurchaseSelect_();
+    for(const k of keys){
+      if(next[k]) next[k].buy = false;
+    }
+    setPurchaseSelect_(next);
+
+    hideLoading();
+    showToast("Compras guardadas en inventario", "ok");
+    renderPurchases();
+  }catch(e){
+    hideLoading();
+    console.error(e);
+    showToast(e && e.message ? e.message : "No se pudo guardar compras", "err");
+  }
+}
