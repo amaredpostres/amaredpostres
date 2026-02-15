@@ -1,20 +1,43 @@
 
+window.amaredRefreshOrders = async function(ev){
+  try{ ev && ev.preventDefault && ev.preventDefault(); }catch(_e){}
+  try{
+    setNetDebug_("<b>AMARED</b> Ejecutando: Actualizar desde pedidos…", "info");
+    if(typeof showLoading === "function"){ showLoading("Calculando desde pedidos…", "Leyendo PEDIDOS (Pagado + No iniciar) y aplicando corte 3:00 p.m."); }
+    if(typeof loadNeedsFromPaidOrdersAndRender_ === "function"){
+      await loadNeedsFromPaidOrdersAndRender_();
+    }else{
+      throw new Error("No existe la función loadNeedsFromPaidOrdersAndRender_. El JS cargado no es el correcto.");
+    }
+    if(typeof hideLoading === "function"){ hideLoading(); }
+    if(typeof showToast === "function"){ showToast("Pedidos actualizados", "ok"); }
+    setNetDebug_("<b>AMARED</b> OK: tabla actualizada.", "ok");
+  }catch(e){
+    try{ if(typeof hideLoading === "function") hideLoading(); }catch(_e){}
+    console.error(e);
+    if(typeof showToast === "function"){ showToast(e && e.message ? e.message : "No se pudo actualizar desde pedidos", "err"); }
+    setNetDebug_("<b>AMARED</b> Error: " + (e && e.message ? e.message : "fallo") , "err");
+  }
+  return false;
+};
+
+
+function setNetDebug_(msg, type){
+  const el = document.getElementById("netDebug");
+  if(!el) return;
+  el.style.display = "block";
+  el.innerHTML = msg;
+  el.style.background = (type==="err") ? "#b00020" : (type==="ok" ? "#0b6e4f" : "#111");
+  clearTimeout(el.__t);
+  el.__t = setTimeout(()=>{ el.style.display="none"; }, 5500);
+}
+
+
 function initBuyButtons_(){
   const btnRefresh = document.getElementById("buyRefreshOrders") || document.getElementById("buyImport");
   if(btnRefresh && !btnRefresh.__amaredBound){
     btnRefresh.__amaredBound = true;
-    btnRefresh.addEventListener("click", async ()=>{
-      try{
-        showLoading("Calculando desde pedidos…", "Leyendo PEDIDOS (Pagado + No iniciar) y aplicando corte 3:00 p.m.");
-        await loadNeedsFromPaidOrdersAndRender_();
-        hideLoading();
-        showToast("Pedidos actualizados", "ok");
-      }catch(e){
-        hideLoading();
-        console.error(e);
-        showToast(e && e.message ? e.message : "No se pudo actualizar desde pedidos", "err");
-      }
-    });
+    btnRefresh.addEventListener("click", (ev)=> window.amaredRefreshOrders && window.amaredRefreshOrders(ev));
   }
   const btnReset = document.getElementById("buyReset");
   if(btnReset && !btnReset.__amaredBound){
