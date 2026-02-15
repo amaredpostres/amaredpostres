@@ -39,20 +39,12 @@ function initBuyButtons_(){
     btnRefresh.__amaredBound = true;
     btnRefresh.addEventListener("click", (ev)=> window.amaredRefreshOrders && window.amaredRefreshOrders(ev));
   }
+
+  // ✅ En esta versión la trazabilidad se maneja con INVENTARIO, por eso ocultamos "Reiniciar sobrantes".
   const btnReset = document.getElementById("buyReset");
-  if(btnReset && !btnReset.__amaredBound){
-    btnReset.__amaredBound = true;
-    btnReset.addEventListener("click", ()=>{
-      try{
-        lsWriteObj(STOCK_LS_KEY, {});
-        setPurchaseSelect_({});
-        renderPurchases();
-        showToast("Sobrantes reiniciados", "ok");
-      }catch(e){
-        console.error(e);
-        showToast("No se pudo reiniciar", "err");
-      }
-    });
+  if(btnReset){
+    btnReset.style.display = "none";
+    btnReset.disabled = true;
   }
 }
 
@@ -1092,8 +1084,32 @@ document.addEventListener("DOMContentLoaded", bootstrap);
 
 async function loadNeedsFromPaidOrdersAndRender_(){
   if(!UNLOCKED_SECRET) throw new Error("Primero desbloquea Costos con tu clave.");
-  // Backend debe devolver {needs:{ingredient:qty}, late:{byDessert:{}, total:{}}, meta:{...}}
-  const out = await api({ action:"costs_orders_for_purchases", costs_secret: UNLOCKED_SECRET });
+
+  // 1) Intento: cálculo directo desde PEDIDOS en backend (Worker/Apps Script)
+  let out = null;
+  try{
+    // Backend debe devolver {needs:{ingredient:qty}, late:{byDessert:{}, total:{}}, meta:{...}}
+    out = await api({ action:"costs_orders_for_purchases", costs_secret: UNLOCKED_SECRET });
+  }catch(e){
+    const msg = String(e && e.message ? e.message : "");
+    const low = msg.toLowerCase();
+
+    // 2) Fallback: si el Worker aún NO tiene esta acción, usamos la hoja COMPRAS_NEED
+    // (la misma que se guarda desde Cocina con action:"shopping_save")
+    if(low.includes("unknown action") || low.includes("costs_orders_for_purchases")){
+      if(typeof loadNeedsFromServerAndRender_ === "function"){
+        setNetDebug_(
+          "<b>AMARED</b> Nota: el servidor aún no tiene <code>costs_orders_for_purchases</code>. " +
+          "Usando <code>COMPRAS_NEED</code> (shopping_get) como alternativa para actualizar la sección Compras.",
+          "info"
+        );
+        await loadNeedsFromServerAndRender_({ saveBack: true });
+        return;
+      }
+    }
+    throw e;
+  }
+
   const needs = out.needs || out.needObj || (out.data && out.data.items ? out.data.items : null);
   if(!needs || typeof needs !== "object") throw new Error("No llegó la necesidad desde pedidos. Revisa Worker/Apps Script.");
   lsWriteObj(NEED_LS_KEY, needs);
