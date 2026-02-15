@@ -39,12 +39,20 @@ function initBuyButtons_(){
     btnRefresh.__amaredBound = true;
     btnRefresh.addEventListener("click", (ev)=> window.amaredRefreshOrders && window.amaredRefreshOrders(ev));
   }
-
-  // ✅ En esta versión la trazabilidad se maneja con INVENTARIO, por eso ocultamos "Reiniciar sobrantes".
   const btnReset = document.getElementById("buyReset");
-  if(btnReset){
-    btnReset.style.display = "none";
-    btnReset.disabled = true;
+  if(btnReset && !btnReset.__amaredBound){
+    btnReset.__amaredBound = true;
+    btnReset.addEventListener("click", ()=>{
+      try{
+        lsWriteObj(STOCK_LS_KEY, {});
+        setPurchaseSelect_({});
+        renderPurchases();
+        showToast("Sobrantes reiniciados", "ok");
+      }catch(e){
+        console.error(e);
+        showToast("No se pudo reiniciar", "err");
+      }
+    });
   }
 }
 
@@ -60,7 +68,7 @@ let UI = {};
 let SHEETS_ROWS = [];
 
 // ===== Helpers =====
-function getPurchaseSelect_(){ return lsReadObj(PURCHASE_SELECT_LS_KEY); }
+function getPurchaseSelect_(){ return lsReadObj(PURCHASE_SELECT_LS_KEY) || {}; }
 function setPurchaseSelect_(obj){ lsWriteObj(PURCHASE_SELECT_LS_KEY, obj||{}); }
 
 function showLoading(t,d){
@@ -664,6 +672,7 @@ async function saveAllToSheets(){
 // =========================
 const STOCK_LS_KEY = "amared_stock_ingredients_v1";
 const NEED_LS_KEY  = "amared_need_ingredients_v1";
+const PURCHASE_SELECT_LS_KEY = "amared_purchase_select_v1";
 // Keys alternos por compatibilidad (si Cocina guarda otro nombre)
 const NEED_LS_KEYS_FALLBACK = ["amared_required_ingredients", "amared_kitchen_batch_ingredients", "amared_latest_batch_ingredients_v1"];
 
@@ -1084,32 +1093,8 @@ document.addEventListener("DOMContentLoaded", bootstrap);
 
 async function loadNeedsFromPaidOrdersAndRender_(){
   if(!UNLOCKED_SECRET) throw new Error("Primero desbloquea Costos con tu clave.");
-
-  // 1) Intento: cálculo directo desde PEDIDOS en backend (Worker/Apps Script)
-  let out = null;
-  try{
-    // Backend debe devolver {needs:{ingredient:qty}, late:{byDessert:{}, total:{}}, meta:{...}}
-    out = await api({ action:"costs_orders_for_purchases", costs_secret: UNLOCKED_SECRET });
-  }catch(e){
-    const msg = String(e && e.message ? e.message : "");
-    const low = msg.toLowerCase();
-
-    // 2) Fallback: si el Worker aún NO tiene esta acción, usamos la hoja COMPRAS_NEED
-    // (la misma que se guarda desde Cocina con action:"shopping_save")
-    if(low.includes("unknown action") || low.includes("costs_orders_for_purchases")){
-      if(typeof loadNeedsFromServerAndRender_ === "function"){
-        setNetDebug_(
-          "<b>AMARED</b> Nota: el servidor aún no tiene <code>costs_orders_for_purchases</code>. " +
-          "Usando <code>COMPRAS_NEED</code> (shopping_get) como alternativa para actualizar la sección Compras.",
-          "info"
-        );
-        await loadNeedsFromServerAndRender_({ saveBack: true });
-        return;
-      }
-    }
-    throw e;
-  }
-
+  // Backend debe devolver {needs:{ingredient:qty}, late:{byDessert:{}, total:{}}, meta:{...}}
+  const out = await api({ action:"costs_orders_for_purchases", costs_secret: UNLOCKED_SECRET });
   const needs = out.needs || out.needObj || (out.data && out.data.items ? out.data.items : null);
   if(!needs || typeof needs !== "object") throw new Error("No llegó la necesidad desde pedidos. Revisa Worker/Apps Script.");
   lsWriteObj(NEED_LS_KEY, needs);
@@ -1118,7 +1103,10 @@ async function loadNeedsFromPaidOrdersAndRender_(){
   try{
     const inv = await api({ action:"inventory_get", costs_secret: UNLOCKED_SECRET });
     if(inv && inv.ok && inv.inventory && typeof inv.inventory === "object"){
-      lsWriteObj(STOCK_LS_KEY, inv.inventory);
+        // INVENTARIO llega como mapa { ingredient_key: {qty, unit} }. En el frontend necesitamos solo números.
+      const invMap = {};
+      Object.keys(inv.inventory).forEach(k=>{ invMap[k] = Number(inv.inventory[k]?.qty || 0); });
+      lsWriteObj(STOCK_LS_KEY, invMap);
     }
   }catch(e){
     console.warn("No se pudo leer INVENTARIO (se usará local):", e);
@@ -1322,7 +1310,10 @@ async function savePurchasesBatch_(){
     try{
       const inv = await api({ action:"inventory_get", costs_secret: UNLOCKED_SECRET });
       if(inv && inv.ok && inv.inventory){
-        lsWriteObj(STOCK_LS_KEY, inv.inventory);
+          // INVENTARIO llega como mapa { ingredient_key: {qty, unit} }. En el frontend necesitamos solo números.
+      const invMap = {};
+      Object.keys(inv.inventory).forEach(k=>{ invMap[k] = Number(inv.inventory[k]?.qty || 0); });
+      lsWriteObj(STOCK_LS_KEY, invMap);
       }
     }catch(e){}
 
