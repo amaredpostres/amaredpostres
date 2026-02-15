@@ -387,29 +387,48 @@ summary::marker{ content:""; }
 }
 
 
-/* === Compras (nuevo) === */
-.buyPurchasePanel{ margin-top:14px; }
-.buyPanelHead{ display:flex; gap:12px; align-items:flex-start; justify-content:space-between; margin:8px 0 10px; }
-.buyPanelTitle{ font-weight:800; font-size:16px; margin-bottom:2px; }
-.buyPanelList{ display:flex; flex-direction:column; gap:10px; }
-.buyItem{ background:#fff; border:1px solid rgba(0,0,0,.06); border-radius:16px; padding:12px; display:flex; gap:12px; align-items:flex-start; }
-.buyChk{ display:flex; gap:8px; align-items:center; min-width:130px; }
-.buyMarkTxt{ font-weight:700; }
-.buyMeta{ flex:1; }
-.buyItemName{ font-weight:800; }
-.buyItemSub{ font-size:12px; opacity:.75; margin-top:2px; }
-.buyItemNeed{ font-size:12px; opacity:.85; margin-top:6px; }
-.buyControls{ display:flex; flex-direction:column; gap:8px; align-items:flex-end; min-width:190px; }
-.buyCtrl{ text-align:right; }
-.buyAddQty{ font-weight:800; }
-.buySmallChk{ font-size:12px; opacity:.9; display:flex; gap:6px; align-items:center; justify-content:flex-end; }
-.lateBox{ background:#fff7eb; border:1px solid rgba(0,0,0,.05); border-radius:14px; padding:10px 12px; margin:8px 0 10px; }
-.lateTitle{ font-weight:800; }
-.lateList{ margin:6px 0 6px 18px; }
-.lateTotal{ font-weight:700; }
-.flash{ outline:3px solid rgba(242,91,143,.35); border-radius:10px; }
-@media (max-width: 720px){
-  .buyItem{ flex-direction:column; }
-  .buyControls{ align-items:flex-start; min-width:auto; }
-  .buyChk{ min-width:auto; }
+/* ===== Compras (v2 tabla) ===== */
+.buyPanelHead{
+  display:flex;
+  gap:12px;
+  align-items:flex-start;
+  justify-content:space-between;
+  margin:12px 0;
 }
+.buyPanelTitle{ font-weight:800; font-size:16px; }
+.buyTableWrap{ overflow:auto; border:1px solid rgba(0,0,0,.06); border-radius:14px; background:#fff; }
+.buyTable{ width:100%; border-collapse:separate; border-spacing:0; min-width:980px; }
+.buyTable thead th{
+  position:sticky; top:0;
+  background:#fff7ef;
+  padding:10px 12px;
+  text-align:left;
+  font-size:12px;
+  border-bottom:1px solid rgba(0,0,0,.06);
+}
+.buyTable tbody td{
+  padding:12px;
+  border-bottom:1px solid rgba(0,0,0,.06);
+  vertical-align:top;
+}
+.buyIngName{ font-weight:800; }
+.buyIngSub{ font-size:12px; opacity:.7; }
+.buyAuto{ font-weight:700; }
+.buyBought{ min-width:220px; }
+.buyRadio{ display:inline-flex; gap:6px; align-items:center; margin-right:10px; font-size:13px; }
+.buyQtyWrap{ margin-top:8px; display:flex; flex-direction:column; gap:8px; }
+.buyQtyInput{ width:140px; padding:8px 10px; border-radius:10px; border:1px solid rgba(0,0,0,.12); }
+.buySmallChk{ font-size:12px; opacity:.85; display:flex; gap:6px; align-items:center; }
+.hidden{ display:none !important; }
+
+.lateBox{
+  border:1px dashed rgba(0,0,0,.18);
+  background:rgba(255,255,255,.65);
+  border-radius:14px;
+  padding:12px 14px;
+  margin:10px 0 14px;
+}
+.lateTitle{ font-weight:900; margin-bottom:6px; }
+.lateList{ margin:0; padding-left:18px; }
+.lateTotal{ margin-top:8px; }
+.flash{ outline:3px solid rgba(242,91,143,.35); outline-offset:4px; border-radius:14px; }
