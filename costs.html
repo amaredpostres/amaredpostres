@@ -36,7 +36,6 @@
         <div class="costsRow">
           <input id="secret" class="costsField" type="password" placeholder="COSTS_SECRET" autocomplete="off" />
           <button id="unlock" class="btn">Desbloquear</button>
-          <button id="goBuyMode" class="btn secondary" type="button">Modo compras</button>
         </div>
 
         <div id="err" class="costsErr"></div>
@@ -71,21 +70,21 @@
             <div class="buyTop">
               <div class="buyHelp">
                 Registra lo que te queda en inventario (sobrantes) y calcula automáticamente cuánto debes comprar para completar próximos pedidos.
-                <span class="muted">Se guarda en este navegador.</span>
+                <span class="muted">Se calcula con base en PEDIDOS y recetas; inventario se guarda en Google Sheets.</span>
               </div>
 
               <div class="buyActions">
-                <button id="buyRefreshOrders" class="btn gold">Actualizar desde pedidos</button>
-                <button id="buyReset" class="btn gold">Reiniciar sobrantes</button>
+                <button id="buyRefreshOrders" class="btn secondary">Actualizar desde pedidos</button>
+                <button id="buyReset" class="btn secondary">Reiniciar sobrantes</button>
               </div>
             </div>
 
             <div id="buyTotals" class="buyTotals"></div>
             <div id="buyList" class="buyList"></div>
+            <div id="buyPurchasePanel" class="buyPurchasePanel"></div>
 
             <div class="buyFooter muted small">
-              Tip: si abres Cocina y generas un lote, luego vuelve aquí y usa “Importar desde cocina” para traer las cantidades calculadas.
-            </div>
+              Tip: usa "Actualizar desde pedidos" para calcular ingredientes desde la hoja PEDIDOS (corte 3:00 p.m. hora Colombia).</div>
           </div>
         </details>
       </section>
@@ -106,35 +105,5 @@
     <!-- ✅ LÓGICA COSTOS -->
     <script src="costs.js"></script>
   </div>
-
-    <script>
-      (function(){
-        const buyHash = "#compras";
-        function openBuyAndRefresh(){
-          const acc = document.getElementById("buyAcc");
-          if(acc) acc.open = true;
-          try{ acc && acc.scrollIntoView({ behavior:"smooth", block:"start" }); }catch(_e){}
-          const btn = document.getElementById("buyRefreshOrders");
-          if(btn) btn.click();
-        }
-        function ensureUnlockedThenOpenBuy(){
-          const editor = document.getElementById("editor");
-          if(!editor) return;
-          const visible = editor.style.display !== "none";
-          if(visible){ openBuyAndRefresh(); return; }
-          const topCard = document.querySelector("main.container .card");
-          try{ topCard && topCard.scrollIntoView({ behavior:"smooth", block:"start" }); }catch(_e){}
-          const obs = new MutationObserver(() => {
-            const vis = editor.style.display !== "none";
-            if(vis){ obs.disconnect(); setTimeout(openBuyAndRefresh, 50); }
-          });
-          obs.observe(editor, { attributes:true, attributeFilter:["style"] });
-        }
-        const b1 = document.getElementById("goBuyMode");
-        if(b1){ b1.addEventListener("click", () => { location.hash = buyHash; ensureUnlockedThenOpenBuy(); }); }
-        if(location.hash === buyHash){ ensureUnlockedThenOpenBuy(); }
-      })();
-    </script>
-
 </body>
 </html>
