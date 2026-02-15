@@ -54,7 +54,6 @@
 
           <div class="costsActions">
             <button id="saveAll" class="btn">Guardar</button>
-            <button id="goBuyMode2" class="btn secondary" type="button">Ir a compras</button>
           </div>
         </div>
 
@@ -76,8 +75,8 @@
               </div>
 
               <div class="buyActions">
-                <button id="buyRefreshOrders" class="btn secondary">Actualizar desde pedidos</button>
-                <button id="buyReset" class="btn secondary">Reiniciar sobrantes</button>
+                <button id="buyRefreshOrders" class="btn gold">Actualizar desde pedidos</button>
+                <button id="buyReset" class="btn gold">Reiniciar sobrantes</button>
               </div>
             </div>
 
@@ -85,7 +84,7 @@
             <div id="buyList" class="buyList"></div>
 
             <div class="buyFooter muted small">
-              Tip: usa “Actualizar desde pedidos” para calcular ingredientes desde la hoja PEDIDOS. Corte de compras: 3:00 p.m. (hora Colombia).
+              Tip: si abres Cocina y generas un lote, luego vuelve aquí y usa “Importar desde cocina” para traer las cantidades calculadas.
             </div>
           </div>
         </details>
@@ -106,65 +105,36 @@
 
     <!-- ✅ LÓGICA COSTOS -->
     <script src="costs.js"></script>
+  </div>
 
     <script>
       (function(){
         const buyHash = "#compras";
-
         function openBuyAndRefresh(){
           const acc = document.getElementById("buyAcc");
           if(acc) acc.open = true;
-
           try{ acc && acc.scrollIntoView({ behavior:"smooth", block:"start" }); }catch(_e){}
-
           const btn = document.getElementById("buyRefreshOrders");
           if(btn) btn.click();
         }
-
         function ensureUnlockedThenOpenBuy(){
           const editor = document.getElementById("editor");
           if(!editor) return;
-
           const visible = editor.style.display !== "none";
-          if(visible){
-            openBuyAndRefresh();
-            return;
-          }
-
+          if(visible){ openBuyAndRefresh(); return; }
           const topCard = document.querySelector("main.container .card");
           try{ topCard && topCard.scrollIntoView({ behavior:"smooth", block:"start" }); }catch(_e){}
-
           const obs = new MutationObserver(() => {
             const vis = editor.style.display !== "none";
-            if(vis){
-              obs.disconnect();
-              setTimeout(openBuyAndRefresh, 80);
-            }
+            if(vis){ obs.disconnect(); setTimeout(openBuyAndRefresh, 50); }
           });
           obs.observe(editor, { attributes:true, attributeFilter:["style"] });
         }
-
         const b1 = document.getElementById("goBuyMode");
-        if(b1){
-          b1.addEventListener("click", () => {
-            location.hash = buyHash;
-            ensureUnlockedThenOpenBuy();
-          });
-        }
-        const b2 = document.getElementById("goBuyMode2");
-        if(b2){
-          b2.addEventListener("click", () => {
-            location.hash = buyHash;
-            ensureUnlockedThenOpenBuy();
-          });
-        }
-
-        if(location.hash === buyHash){
-          ensureUnlockedThenOpenBuy();
-        }
+        if(b1){ b1.addEventListener("click", () => { location.hash = buyHash; ensureUnlockedThenOpenBuy(); }); }
+        if(location.hash === buyHash){ ensureUnlockedThenOpenBuy(); }
       })();
     </script>
 
-  </div>
 </body>
 </html>
