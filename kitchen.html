@@ -3,147 +3,222 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>AMARED · Costos</title>
+  <title>AMARED · Cocina</title>
 
-  <!-- ✅ favicon igual al resto -->
-  <link rel="icon" href="assets/favicon.ico" type="image/x-icon">
-
-  <!-- ✅ estilos globales AMARED -->
+  <link rel="icon" href="assets/favicon.ico" />
   <link rel="stylesheet" href="styles.css" />
 
-  <!-- ✅ estilos SOLO de costos -->
-  <link rel="stylesheet" href="costs.css" />
+  <style>
+    /* ✅ Solo estilos puntuales de esta vista (lo demás está en styles.css) */
+    .topActions{
+      max-width:1100px;
+      margin: 12px auto 0;
+      padding:12px 14px;
+      display:flex; align-items:center; justify-content:space-between; gap:10px;
+      flex-wrap:wrap;
+    }
+    .brandRow{display:flex; align-items:center; gap:10px;}
+    .brandLogo2{width:44px;height:44px;object-fit:contain;}
+    .ttl{font-weight:950; line-height:1;}
+    .sub{opacity:.7; font-weight:850; font-size:12px;}
+    .btnLinkLike{ text-decoration:none; display:inline-flex; align-items:center; justify-content:center; }
+      
+    /* ✅ FIX: Overlay de carga centrado y bonito */
+    .modalOverlay{
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,.25);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+      z-index: 9999;
+    }
+    
+    .modalBox{
+      width: 100%;
+      background: rgba(255,255,255,.92);
+      border: 1px solid rgba(64,17,2,.12);
+      border-radius: 22px;
+      padding: 18px;
+      box-shadow: 0 18px 40px rgba(0,0,0,.18);
+      backdrop-filter: blur(6px);
+    }
+
+      /* ✅ Login actions responsive */
+      .loginActions{
+        display: flex;
+        gap: 10px;
+        width: 100%;
+      }
+      
+      .loginActions .btn,
+      .loginActions .btnLinkLike{
+        flex: 1;
+        width: 100%;
+      }
+      
+      @media (max-width: 520px){
+        .loginActions{
+          flex-direction: column;
+        }
+      }
+    /* ✅ Loader centrado + dinámico */
+      .modalOverlay{
+        position: fixed;
+        inset: 0;
+        background: rgba(0,0,0,.25);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 16px;
+        z-index: 9999;
+      }
+      
+      .modalBox{
+        width: 100%;
+        background: rgba(255,255,255,.92);
+        border: 1px solid rgba(64,17,2,.12);
+        border-radius: 22px;
+        padding: 18px;
+        box-shadow: 0 18px 40px rgba(0,0,0,.18);
+        backdrop-filter: blur(6px);
+      }
+      
+      /* Spinner */
+      .spin{
+        width: 34px;
+        height: 34px;
+        border-radius: 999px;
+        border: 4px solid rgba(64,17,2,.15);
+        border-top-color: rgba(64,17,2,.85);
+        animation: spin 0.8s linear infinite;
+      }
+      @keyframes spin { to { transform: rotate(360deg); } }
+
+
+  </style>
 </head>
 
-<body class="costsPage">
-  <div class="page">
-    <header class="topbar">
-      <div class="topbarInner">
-        <div class="brand">
-          <img class="brandLogo" src="assets/Logo-Amared.svg" alt="AMARED Postres" />
+<body>
+  <header class="topbar">
+    <div class="topbarInner" style="justify-content:space-between;">
+      <div class="brandRow">
+        <img class="brandLogo2" src="assets/Logo-Isotipo-Amared.svg" alt="AMARED" />
+        <div>
+          <div class="ttl">AMARED</div>
+          <div class="sub">Cocina · Producción diaria</div>
         </div>
       </div>
-    </header>
 
-    <main class="container">
-      <!-- Unlock -->
-      <section class="card">
-        <h2 class="cardTitle">🔒 Costos de ingredientes</h2>
-        <p class="cardSubtitle">
-          Ingresa la clave de costos para ver y editar ingredientes. Esta clave se valida en el servidor.
-        </p>
-
-        <div class="costsRow">
-          <input id="secret" class="costsField" type="password" placeholder="COSTS_SECRET" autocomplete="off" />
-          <button id="unlock" class="btn">Desbloquear</button>
-          <button id="goBuyMode" class="btn secondary" type="button">Modo compras</button>
-        </div>
-
-        <div id="err" class="costsErr"></div>
-      </section>
-
-      <!-- Editor -->
-      <section id="editor" class="card" style="display:none;">
-        <div class="costsHeaderRow">
-          <div>
-            <h2 class="cardTitle">📌 Tabla de costos</h2>
-            <p class="cardSubtitle">
-              El cálculo se actualiza en tiempo real. Usa <b>Guardar</b> para dejarlo permanente en la base de datos.
-            </p>
-          </div>
-
-          <div class="costsActions">
-            <button id="saveAll" class="btn">Guardar</button>
-            <button id="goBuyMode2" class="btn secondary" type="button">Ir a compras</button>
-          </div>
-        </div>
-
-        <div id="topTools" class="costsTopTools"></div>
-        <div id="list" class="costsList"></div>
-
-        <!-- Compras / Sobrantes -->
-        <details id="buyAcc" class="costsAcc">
-          <summary class="costsAccSum">
-            <span>🛒 Compras y sobrantes</span>
-            <span class="costsAccHint" id="buySummaryHint">—</span>
-          </summary>
-
-          <div class="costsAccBody">
-            <div class="buyTop">
-              <div class="buyHelp">
-                Registra lo que te queda en inventario (sobrantes) y calcula automáticamente cuánto debes comprar para completar próximos pedidos.
-                <span class="muted">Se guarda en este navegador.</span>
-              </div>
-
-              <div class="buyActions">
-                <button id="buyImport" class="btn secondary">Importar desde cocina</button>
-                <button id="buyReset" class="btn secondary">Reiniciar sobrantes</button>
-              </div>
-            </div>
-
-            <div id="buyTotals" class="buyTotals"></div>
-            <div id="buyList" class="buyList"></div>
-
-            <div class="buyFooter muted small">
-              Tip: si abres Cocina y generas un lote, luego vuelve aquí y usa “Importar desde cocina” para traer las cantidades calculadas.
-            </div>
-          </div>
-        </details>
-      </section>
-    </main>
-
-    <!-- Loading -->
-    <div id="loading" class="costsLoading">
-      <div class="costsLoadingCard">
-        <div class="costsLoadingSpinner" aria-hidden="true"></div>
-        <div class="costsLoadingTitle" id="lt">Cargando…</div>
-        <div class="costsLoadingDesc" id="ld">Por favor espera.</div>
+      <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+        <button id="btnLogout" class="btn secondary" type="button" style="display:none;">Cerrar sesión</button>
+        <button id="btnRefresh" class="btn secondary" type="button" style="display:none;">Actualizar</button>
       </div>
     </div>
+  </header>
 
-    <!-- ✅ SECCIONES CANÓNICAS -->
-    <script src="kitchen-costs.js"></script>
+  <!-- LOGIN BOX -->
+  <div class="container">
+    <div id="loginBox" class="card" style="max-width:700px; margin: 16px auto;">
+      <div class="hero" style="padding: 0 0 8px;">
+        <h1 class="heroTitle" style="margin-top:6px;">Acceso Cocina</h1>
+        <p class="heroSubtitle">Selecciona un perfil aprobado e ingresa el PIN.</p>
+      </div>
 
-    <!-- ✅ LÓGICA COSTOS -->
-    <script src="costs.js"></script>
+      <div class="field">
+        <label class="muted small">Perfil</label>
+        <select id="selOperator" class="input" style="width:100%;"></select>
+      </div>
+
+      <div class="field" style="margin-top:10px;">
+        <label class="muted small">PIN</label>
+        <input id="inpPin" class="input" type="password" placeholder="••••••" />
+      </div>
+
+      <div class="field" style="margin-top:12px;">
+        <div class="loginActions">
+          <button id="btnLogin" class="btn primary" type="button">Ingresar</button>
+      
+          <a id="btnManageProfiles"
+             class="btn secondary btnLinkLike"
+             href="profiles.html"
+             target="_blank"
+             rel="noopener">
+            Gestionar perfiles
+          </a>
+        </div>
+      
+        <div id="loginErr" class="muted small" style="color:#b00020; margin-top:10px;"></div>
+   </div>
+
+
+    </div>
+
+    <!-- APP -->
+    <div id="app" style="display:none;">
+      <div class="layout">
+        <section class="card">
+          <h2 class="cardTitle">Producción de hoy</h2>
+          <div class="muted small" style="margin-bottom:10px;">
+            Regla: pedidos antes de las <b>3:00 p.m.</b> son para hoy; después de las 3:00 p.m. son informativos para mañana.
+          </div>
+
+          <div id="todayWrap"></div>
+        </section>
+
+        <section class="card">
+          <h2 class="cardTitle">Informativo (mañana)</h2>
+          <div class="muted small" style="margin-bottom:10px;">
+            Pedidos creados después de las 3:00 p.m. (hora Colombia).
+          </div>
+
+          <div id="tomorrowWrap"></div>
+        </section>
+      </div>
+
+      <section class="card" style="margin-top:14px;">
+        <h2 class="cardTitle">En proceso</h2>
+        <div id="inProgressWrap"></div>
+      </section>
+
+      <section class="card" style="margin-top:14px;">
+        <h2 class="cardTitle">Finalizados</h2>
+        <div id="doneWrap"></div>
+      </section>
+    </div>
   </div>
 
-    <script>
-      (function(){
-        const buyHash = "#compras";
-        function openBuy(){
-          const acc = document.getElementById("buyAcc");
-          if(acc) acc.open = true;
-          try{ acc && acc.scrollIntoView({ behavior:"smooth", block:"start" }); }catch(_e){}
-        }
-        function openBuyAndRefresh(){
-          openBuy();
-          const btn = document.getElementById("buyRefreshOrders");
-          if(btn) btn.click();
-        }
-        function ensureUnlockedThenOpenBuy(){
-          const editor = document.getElementById("editor");
-          if(!editor) return;
-          const visible = editor.style.display !== "none";
-          if(visible){ openBuyAndRefresh(); return; }
-          const topCard = document.querySelector("main.container .card");
-          try{ topCard && topCard.scrollIntoView({ behavior:"smooth", block:"start" }); }catch(_e){}
-          const obs = new MutationObserver(() => {
-            const vis = editor.style.display !== "none";
-            if(vis){
-              obs.disconnect();
-              setTimeout(openBuyAndRefresh, 80);
-            }
-          });
-          obs.observe(editor, { attributes:true, attributeFilter:["style"] });
-        }
-        const b1 = document.getElementById("goBuyMode");
-        if(b1) b1.addEventListener("click", ()=>{ location.hash = buyHash; ensureUnlockedThenOpenBuy(); });
-        const b2 = document.getElementById("goBuyMode2");
-        if(b2) b2.addEventListener("click", ()=>{ location.hash = buyHash; ensureUnlockedThenOpenBuy(); });
-        if(location.hash === buyHash){ ensureUnlockedThenOpenBuy(); }
-      })();
-    </script>
+  <!-- LOADING -->
+  <div id="loading" class="modalOverlay" aria-hidden="true" style="display:none;">
+    <div class="modalBox" style="max-width:520px;">
+      <div style="display:flex; gap:12px; align-items:center;">
+        <div id="loadingSpin" class="spin"></div>
+        <div>
+          <div style="font-weight:950; font-size:18px;" id="loadingTitle">Cargando…</div>
+          <div class="muted small" id="loadingMsg" style="margin-top:6px;">Procesando</div>
+ </div>
+  </div>
+</div>
+
+  </div>
+
+  <!-- COSTOS MODAL (si lo usas) -->
+  <div id="costsModal" class="modalOverlay" aria-hidden="true" style="display:none;">
+    <div class="modalBox" style="max-width:900px;">
+      <div class="rowBetween">
+        <div style="font-weight:950; font-size:18px;">Costos (solo lectura)</div>
+        <button id="btnCloseCosts" class="btn secondary" type="button">Cerrar</button>
+      </div>
+
+      <div id="costsEditor" style="margin-top:12px;"></div>
+      <div id="costsGateErr" class="muted small" style="margin-top:10px; color:#b00020;"></div>
+    </div>
+  </div>
+
+  <script src="kitchen-profiles.js?v=20260211"></script>
+  <script src="kitchen-costs.js?v=20260211"></script>
+  <script src="kitchen.js?v=20260211"></script>
 
 </body>
 </html>
