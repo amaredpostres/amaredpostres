@@ -1,3 +1,38 @@
+
+function initBuyButtons_(){
+  const btnRefresh = document.getElementById("buyRefreshOrders") || document.getElementById("buyImport");
+  if(btnRefresh && !btnRefresh.__amaredBound){
+    btnRefresh.__amaredBound = true;
+    btnRefresh.addEventListener("click", async ()=>{
+      try{
+        showLoading("Calculando desde pedidos…", "Leyendo PEDIDOS (Pagado + No iniciar) y aplicando corte 3:00 p.m.");
+        await loadNeedsFromPaidOrdersAndRender_();
+        hideLoading();
+        showToast("Pedidos actualizados", "ok");
+      }catch(e){
+        hideLoading();
+        console.error(e);
+        showToast(e && e.message ? e.message : "No se pudo actualizar desde pedidos", "err");
+      }
+    });
+  }
+  const btnReset = document.getElementById("buyReset");
+  if(btnReset && !btnReset.__amaredBound){
+    btnReset.__amaredBound = true;
+    btnReset.addEventListener("click", ()=>{
+      try{
+        lsWriteObj(STOCK_LS_KEY, {});
+        setPurchaseSelect_({});
+        renderPurchases();
+        showToast("Sobrantes reiniciados", "ok");
+      }catch(e){
+        console.error(e);
+        showToast("No se pudo reiniciar", "err");
+      }
+    });
+  }
+}
+
 const API_URL = "https://amared-orders.amaredpostres.workers.dev/";
 
 let UNLOCKED_SECRET = "";
@@ -10,6 +45,9 @@ let UI = {};
 let SHEETS_ROWS = [];
 
 // ===== Helpers =====
+function getPurchaseSelect_(){ return lsReadObj(PURCHASE_SELECT_LS_KEY); }
+function setPurchaseSelect_(obj){ lsWriteObj(PURCHASE_SELECT_LS_KEY, obj||{}); }
+
 function showLoading(t,d){
   const el=document.getElementById("loading");
   document.getElementById("lt").textContent=t||"Cargando...";
@@ -777,6 +815,8 @@ function renderPurchases(ctx){
   `;
   hint.textContent = `$${fmtCOP(totalCost)} · ${countNeed} ing.`;
 
+  renderPurchaseChecklist_({ keys, need, stock, ctx });
+
   // bind inputs (delegación)
   const tbody = listEl.querySelector("tbody");
   tbody.addEventListener("input", (ev)=>{
@@ -1026,3 +1066,240 @@ async function bootstrap(){
 }
 
 document.addEventListener("DOMContentLoaded", bootstrap);
+
+async function loadNeedsFromPaidOrdersAndRender_(){
+  if(!UNLOCKED_SECRET) throw new Error("Primero desbloquea Costos con tu clave.");
+  // Backend debe devolver {needs:{ingredient:qty}, late:{byDessert:{}, total:{}}, meta:{...}}
+  const out = await api({ action:"costs_orders_for_purchases", costs_secret: UNLOCKED_SECRET });
+  const needs = out.needs || out.needObj || (out.data && out.data.items ? out.data.items : null);
+  if(!needs || typeof needs !== "object") throw new Error("No llegó la necesidad desde pedidos. Revisa Worker/Apps Script.");
+  lsWriteObj(NEED_LS_KEY, needs);
+
+  // cargar inventario desde BD si está disponible
+  try{
+    const inv = await api({ action:"inventory_get", costs_secret: UNLOCKED_SECRET });
+    if(inv && inv.ok && inv.inventory && typeof inv.inventory === "object"){
+      lsWriteObj(STOCK_LS_KEY, inv.inventory);
+    }
+  }catch(e){
+    console.warn("No se pudo leer INVENTARIO (se usará local):", e);
+  }
+
+  renderPurchases(out);
+}
+
+function renderPurchaseChecklist_({ keys, need, stock, ctx }){
+  const panel = document.getElementById("buyPurchasePanel");
+  if(!panel) return;
+
+  const sel = getPurchaseSelect_();
+  const rows = keys.map(k=>{
+    const row = findCostRow(k) || {};
+    const unit = normUnit(row.unit_type || "") || "unidad";
+    const packQty = num(row.pack_qty || 0);
+    const packPrice = num(row.pack_price || 0);
+    const copUnit = num(row.cop_per_unit || 0);
+
+    const nNeed = num(need[k] ?? 0);
+    const nStock = num(stock[k] ?? 0);
+    const nBuyNeed = Math.max(0, nNeed - nStock);
+
+    const s = sel[k] || { buy:false, mult:1, updateCost:false };
+    const mult = num(s.mult || 1);
+
+    // Cantidad que entra a inventario si compro 1 empaque:
+    const addQty = packQty * (mult || 1);
+
+    const store = row.store || "—";
+    const brand = row.brand || "—";
+
+    const priceTxt = copUnit>0 ? `$${fmtCOP(copUnit)}/u` : "—";
+
+    return `
+      <div class="buyItem" data-k="${cssEscape(k)}">
+        <label class="buyChk">
+          <input type="checkbox" class="buyMark" ${s.buy ? "checked":""}/>
+          <span class="buyMarkTxt">${s.buy ? "Comprado" : "No comprado"}</span>
+        </label>
+
+        <div class="buyMeta">
+          <div class="buyItemName">${k}</div>
+          <div class="buyItemSub">${unit} · ${priceTxt} · ${brand} · ${store}</div>
+          <div class="buyItemNeed">Necesario hoy: <b>${fmt(nNeed)}</b> · Sobrante: <b>${fmt(nStock)}</b> · Falta: <b>${fmt(nBuyNeed)}</b></div>
+        </div>
+
+        <div class="buyControls">
+          <div class="buyCtrl">
+            <div class="muted small">Empaques</div>
+            <input class="buyNum buyMult" inputmode="decimal" value="${fmt(mult)}"/>
+          </div>
+          <div class="buyCtrl">
+            <div class="muted small">+ Inventario</div>
+            <div class="buyAddQty">${fmt(addQty)} ${unit}</div>
+          </div>
+          <button class="btn small buyEdit" type="button">Editar costo</button>
+          <label class="buySmallChk">
+            <input type="checkbox" class="buyUpdateCost" ${s.updateCost ? "checked":""}/>
+            Actualizar precio al guardar
+          </label>
+        </div>
+      </div>
+    `;
+  }).join("");
+
+  // Bloque informativo después de 3pm (si backend lo envía)
+  let lateHtml = "";
+  const late = ctx && ctx.late ? ctx.late : null;
+  if(late && late.byDessert){
+    const items = Object.entries(late.byDessert).map(([name, qty])=>`<li><b>${name}</b>: ${qty}</li>`).join("");
+    const total = late.totalQty ?? Object.values(late.byDessert).reduce((a,b)=>a+num(b),0);
+    lateHtml = `
+      <div class="lateBox">
+        <div class="lateTitle">Informativo: pedidos después de las 3:00 p.m.</div>
+        <ul class="lateList">${items || "<li class=\"muted\">Sin pedidos después de 3pm.</li>"}</ul>
+        <div class="lateTotal">Total general: <b>${total}</b> postres</div>
+      </div>
+    `;
+  }
+
+  panel.innerHTML = `
+    <div class="buyPanelHead">
+      <div>
+        <div class="buyPanelTitle">Registrar compras (por ingrediente)</div>
+        <div class="muted small">Marca lo que compraste, ajusta empaques y guarda todo en base de datos. (Si no hay backend, quedará local.)</div>
+      </div>
+      <button id="buySaveBatch" class="btn gold" type="button">Guardar compras en inventario</button>
+    </div>
+    ${lateHtml}
+    <div class="buyPanelList">${rows}</div>
+  `;
+
+  // Eventos
+  panel.querySelectorAll(".buyItem").forEach(el=>{
+    const key = unescapeCss(el.getAttribute("data-k")||"");
+    const mark = el.querySelector(".buyMark");
+    const multEl = el.querySelector(".buyMult");
+    const updEl = el.querySelector(".buyUpdateCost");
+    const editBtn = el.querySelector(".buyEdit");
+
+    function saveLocal(){
+      const cur = sel[key] || { buy:false, mult:1, updateCost:false };
+      cur.buy = !!mark.checked;
+      cur.mult = num(multEl.value || 1) || 1;
+      cur.updateCost = !!updEl.checked;
+      sel[key] = cur;
+      setPurchaseSelect_(sel);
+
+      // update label and addQty display
+      const row = findCostRow(key) || {};
+      const unit = normUnit(row.unit_type || "") || "unidad";
+      const packQty = num(row.pack_qty || 0);
+      el.querySelector(".buyMarkTxt").textContent = cur.buy ? "Comprado" : "No comprado";
+      el.querySelector(".buyAddQty").textContent = `${fmt(packQty*cur.mult)} ${unit}`;
+    }
+
+    mark.addEventListener("change", saveLocal);
+    multEl.addEventListener("input", saveLocal);
+    updEl.addEventListener("change", saveLocal);
+
+    editBtn.addEventListener("click", ()=>{
+      // Llevar al ingrediente en tabla de costos (si existe)
+      const rowEl = document.querySelector(`[data-ik="${cssEscape(key)}"]`);
+      if(rowEl){
+        try{ rowEl.scrollIntoView({behavior:"smooth", block:"center"});}catch(_e){}
+        rowEl.classList.add("flash");
+        setTimeout(()=>rowEl.classList.remove("flash"), 900);
+      }else{
+        // fallback: abrir acordeón correspondiente
+        showToast("Busca el ingrediente en la tabla y edítalo, luego guarda.", "ok");
+      }
+    });
+  });
+
+  const btn = document.getElementById("buySaveBatch");
+  if(btn && !btn.__amaredBound){
+    btn.__amaredBound = true;
+    btn.addEventListener("click", ()=> savePurchasesBatch_());
+  }
+}
+
+async function savePurchasesBatch_(){
+  if(!UNLOCKED_SECRET){
+    showToast("Primero desbloquea Costos con tu clave.", "err");
+    return;
+  }
+  const sel = getPurchaseSelect_();
+  const keys = Object.keys(sel).filter(k=>sel[k] && sel[k].buy);
+  if(keys.length === 0){
+    showToast("No marcaste compras. Selecciona ingredientes comprados.", "err");
+    return;
+  }
+
+  // Construir items
+  const items = keys.map(k=>{
+    const row = findCostRow(k) || {};
+    const unit = normUnit(row.unit_type || "") || "unidad";
+    const packQty = num(row.pack_qty || 0);
+    const mult = num(sel[k].mult || 1) || 1;
+    const qty = packQty * mult;
+    return {
+      ingredient_key: k,
+      qty,
+      unit,
+      cop_per_unit: num(row.cop_per_unit || 0),
+      pack_price: num(row.pack_price || 0),
+      brand: row.brand || "",
+      store: row.store || "",
+      updateCost: !!sel[k].updateCost,
+      costRow: row
+    };
+  });
+
+  showLoading("Guardando compras…", "Actualizando inventario y registrando movimientos.");
+  try{
+    // Intento batch en backend
+    let out = null
+    try{
+      out = await api({ action:"inventory_add_purchase_batch", costs_secret: UNLOCKED_SECRET, items: items.map(i=>({ ingredient_key:i.ingredient_key, qty:i.qty, unit:i.unit, cop_per_unit:i.cop_per_unit, pack_price:i.pack_price, brand:i.brand, store:i.store })) });
+    }catch(e){
+      console.warn("Batch no disponible, intento individual:", e);
+    }
+
+    // Fallback: individual
+    if(!out || out.ok === false){
+      for(const it of items){
+        await api({ action:"inventory_add_purchase", costs_secret: UNLOCKED_SECRET, ingredient_key: it.ingredient_key, qty: it.qty, unit: it.unit, source:"COSTS_UI_BATCH" });
+      }
+    }
+
+    // Actualizar costos si el usuario lo pidió (reutiliza upsert existente)
+    for(const it of items){
+      if(it.updateCost){
+        await upsertCostToSheets(it.costRow);
+      }
+    }
+
+    // Refrescar inventario desde BD
+    try{
+      const inv = await api({ action:"inventory_get", costs_secret: UNLOCKED_SECRET });
+      if(inv && inv.ok && inv.inventory){
+        lsWriteObj(STOCK_LS_KEY, inv.inventory);
+      }
+    }catch(e){}
+
+    // limpiar marcas compradas (las dejamos desmarcadas para siguiente compra)
+    const next = getPurchaseSelect_();
+    for(const k of keys){
+      if(next[k]) next[k].buy = false;
+    }
+    setPurchaseSelect_(next);
+
+    hideLoading();
+    showToast("Compras guardadas en inventario", "ok");
+    renderPurchases();
+  }catch(e){
+    hideLoading();
+    console.error(e);
+    showToast(e && e.message ? e.message : "No se pudo guardar compras", "err");
+  }
+}
