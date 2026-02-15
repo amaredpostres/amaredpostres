@@ -70,21 +70,21 @@
             <div class="buyTop">
               <div class="buyHelp">
                 Registra lo que te queda en inventario (sobrantes) y calcula automáticamente cuánto debes comprar para completar próximos pedidos.
-                <span class="muted">Se guarda en este navegador.</span>
+                <span class="muted">Se calcula con base en PEDIDOS y recetas; inventario se guarda en Google Sheets.</span>
               </div>
 
               <div class="buyActions">
-                <button id="buyImport" class="btn secondary">Actualizar desde pedidos</button>
+                <button id="buyRefreshOrders" class="btn secondary">Actualizar desde pedidos</button>
                 <button id="buyReset" class="btn secondary">Reiniciar sobrantes</button>
               </div>
             </div>
 
             <div id="buyTotals" class="buyTotals"></div>
             <div id="buyList" class="buyList"></div>
+            <div id="buyPurchasePanel" class="buyPurchasePanel"></div>
 
             <div class="buyFooter muted small">
-              Tip: si abres Cocina y generas un lote, luego vuelve aquí y usa “Importar desde cocina” para traer las cantidades calculadas.
-            </div>
+              Tip: usa "Actualizar desde pedidos" para calcular ingredientes desde la hoja PEDIDOS (corte 3:00 p.m. hora Colombia).</div>
           </div>
         </details>
       </section>
