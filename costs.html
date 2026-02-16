@@ -56,38 +56,14 @@
           </div>
         </div>
 
+        
+        <div class="costsNav">
+          <a class="btn secondary" href="purchases.html">🛒 Ir a Compras</a>
+        </div>
+
         <div id="topTools" class="costsTopTools"></div>
         <div id="list" class="costsList"></div>
-
-        <!-- Compras / Sobrantes -->
-        <details id="buyAcc" class="costsAcc">
-          <summary class="costsAccSum">
-            <span>🛒 Compras y sobrantes</span>
-            <span class="costsAccHint" id="buySummaryHint">—</span>
-          </summary>
-
-          <div class="costsAccBody">
-            <div class="buyTop">
-              <div class="buyHelp">
-                Registra lo que te queda en inventario (sobrantes) y calcula automáticamente cuánto debes comprar para completar próximos pedidos.
-                <span class="muted">Se calcula con base en PEDIDOS y recetas; inventario se guarda en Google Sheets.</span>
-              </div>
-
-              <div class="buyActions">
-                <button id="buyRefreshOrders" class="btn secondary" type="button" onclick="return window.amaredRefreshOrders && window.amaredRefreshOrders(event);">Actualizar desde pedidos</button>
-                <button id="buyReset" class="btn secondary">Reiniciar sobrantes</button>
-              </div>
-            </div>
-
-            <div id="buyTotals" class="buyTotals"></div>
-            <div id="buyList" class="buyList"></div>
-            <div id="buyPurchasePanel" class="buyPurchasePanel"></div>
-
-            <div class="buyFooter muted small">
-              Tip: usa "Actualizar desde pedidos" para calcular ingredientes desde la hoja PEDIDOS (corte 3:00 p.m. hora Colombia).</div>
-          </div>
-        </details>
-      </section>
+</section>
     
   <div id="netDebug" class="netDebug" style="display:none;"></div>
 </main>
@@ -102,10 +78,10 @@
     </div>
 
     <!-- ✅ SECCIONES CANÓNICAS -->
-    <script src="kitchen-costs.js?v=5.4.2"></script>
+    <script src="kitchen-costs.js?v=base1"></script>
 
     <!-- ✅ LÓGICA COSTOS -->
-    <script src="costs.js?v=5.4"></script>
+    <script src="costs.js?v=base1"></script>
   </div>
 </body>
 </html>
