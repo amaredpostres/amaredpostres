@@ -1,7 +1,8 @@
 // COSTS BUILD: v4b (cache-bust)
 console.log("[AMARED] costs.js cargado: v4b");
 
-function normDateOnly_(value){
+// ---- Helpers globales (evita errores por scope/caché) ----
+window.normDateOnly_ = function(value){
   if(!value) return "";
   // Si ya viene como YYYY-MM-DD...
   if(typeof value === "string" && /^\d{4}-\d{2}-\d{2}/.test(value)) return value.slice(0,10);
@@ -14,13 +15,22 @@ function normDateOnly_(value){
     });
     return fmt.format(d); // en-CA => YYYY-MM-DD
   }catch(_e){
-    // Fallback: usa componentes locales del Date (no ideal, pero evita crash)
     const y = d.getFullYear();
     const m = String(d.getMonth()+1).padStart(2,"0");
     const day = String(d.getDate()).padStart(2,"0");
     return `${y}-${m}-${day}`;
   }
-}
+};
+// Alias local (por compatibilidad con código existente que use normDateOnly_)
+const normDateOnly_ = window.normDateOnly_;
+
+(function forceHideBuyReset_(){
+  // Oculta SIEMPRE el botón global de "Reiniciar sobrantes"
+  const st = document.createElement("style");
+  st.textContent = "#buyReset{display:none !important;}";
+  document.head && document.head.appendChild(st);
+})();
+
 
 
 window.amaredRefreshOrders = async function(ev){
