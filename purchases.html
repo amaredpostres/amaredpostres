@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>AMARED · Compras</title>
+
+  <link rel="icon" href="assets/favicon.ico" type="image/x-icon">
+  <link rel="stylesheet" href="styles.css" />
+  <link rel="stylesheet" href="costs.css" />
+
+  <style>
+    /* Ajustes mínimos sin tocar tus CSS base */
+    .hideCostsEditor{ display:none !important; }
+    .costsNav{ display:flex; gap:10px; flex-wrap:wrap; margin-bottom:12px; }
+  </style>
+</head>
+
+<body class="costsPage">
+  <div class="page">
+    <header class="topbar">
+      <div class="topbarInner">
+        <div class="brand">
+          <img class="brandLogo" src="assets/Logo-Amared.svg" alt="AMARED Postres" />
+        </div>
+      </div>
+    </header>
+
+    <main class="container">
+      <!-- Unlock -->
+      <section class="card">
+        <h2 class="cardTitle">🔒 Compras (desde PEDIDOS)</h2>
+        <p class="cardSubtitle">
+          Ingresa la clave para consultar PEDIDOS pagados (estado cocina: <b>No iniciar</b>) y calcular compras vs inventario.
+        </p>
+
+        <div class="costsRow">
+          <input id="secret" class="costsField" type="password" placeholder="COSTS_SECRET" autocomplete="off" />
+          <button id="unlock" class="btn">Desbloquear</button>
+        </div>
+
+        <div id="err" class="costsErr"></div>
+
+        <div class="costsNav" style="margin-top:12px;">
+          <a class="btn secondary" href="costs.html">📌 Ir a Costos</a>
+        </div>
+      </section>
+
+      <!-- Editor (usamos el mismo bootstrap de costs.js, pero ocultamos la tabla) -->
+      <section id="editor" class="card" style="display:none;">
+        <div class="costsHeaderRow">
+          <div>
+            <h2 class="cardTitle">🛒 Compras y sobrantes</h2>
+            <p class="cardSubtitle">
+              Usa <b>Actualizar desde pedidos</b> para recalcular. Marca compras hechas para actualizar inventario.
+              <span class="muted">Corte: 3:00 p.m. (Colombia).</span>
+            </p>
+          </div>
+
+          <!-- Botón Guardar existe en el JS; lo dejamos oculto en Compras -->
+          <div class="costsActions hideCostsEditor">
+            <button id="saveAll" class="btn">Guardar</button>
+          </div>
+        </div>
+
+        <!-- elementos que costs.js espera, pero ocultos -->
+        <div id="topTools" class="costsTopTools hideCostsEditor"></div>
+        <div id="list" class="costsList hideCostsEditor"></div>
+
+        <!-- Compras -->
+        <details id="buyAcc" class="costsAcc" open>
+          <summary class="costsAccSum">
+            <span>🛒 Compras y sobrantes</span>
+            <span class="costsAccHint" id="buySummaryHint">—</span>
+          </summary>
+
+          <div class="costsAccBody">
+            <div class="buyTop">
+              <div class="buyHelp">
+                Registra lo que te queda en inventario (sobrantes) y calcula automáticamente cuánto debes comprar para completar próximos pedidos.
+                <span class="muted">Se calcula con base en PEDIDOS y recetas; inventario se guarda en Google Sheets.</span>
+              </div>
+
+              <div class="buyActions">
+                <button id="buyRefreshOrders" class="btn secondary" type="button"
+                  onclick="return window.amaredRefreshOrders && window.amaredRefreshOrders(event);">
+                  Actualizar desde pedidos
+                </button>
+                <button id="buyReset" class="btn secondary">Reiniciar sobrantes</button>
+              </div>
+            </div>
+
+            <div id="buyTotals" class="buyTotals"></div>
+            <div id="buyList" class="buyList"></div>
+            <div id="buyPurchasePanel" class="buyPurchasePanel"></div>
+
+            <div class="buyFooter muted small">
+              Tip: si tienes pedidos antiguos incompletos, el sistema ignora los que no cumplan "Pagado + No iniciar".
+            </div>
+          </div>
+        </details>
+      </section>
+
+      <div id="netDebug" class="netDebug" style="display:none;"></div>
+    </main>
+
+    <!-- Loading -->
+    <div id="loading" class="costsLoading">
+      <div class="costsLoadingCard">
+        <div class="costsLoadingSpinner" aria-hidden="true"></div>
+        <div class="costsLoadingTitle" id="lt">Cargando…</div>
+        <div class="costsLoadingDesc" id="ld">Por favor espera.</div>
+      </div>
+    </div>
+
+    <script src="kitchen-costs.js?v=base1"></script>
+    <script src="costs.js?v=base1"></script>
+  </div>
+</body>
+</html>
