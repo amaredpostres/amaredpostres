@@ -1,29 +1,27 @@
-// --- GLOBAL BINDING (VERY FIRST) ---
-/* Ensures normDateOnly_ exists as a real binding and as window/globalThis property.
-   This avoids ReferenceError in some build/cache scenarios. */
-var normDateOnly_ = (typeof normDateOnly_ === "function") ? normDateOnly_ :
-  (typeof globalThis !== "undefined" && typeof globalThis.normDateOnly_ === "function") ? globalThis.normDateOnly_ :
-  (typeof window !== "undefined" && typeof window.normDateOnly_ === "function") ? window.normDateOnly_ :
-  function(d){
-    try{
-      const dt = (d instanceof Date) ? d : new Date(d);
-      if (isNaN(dt)) return "";
-      const y = dt.getFullYear();
-      const m = String(dt.getMonth()+1).padStart(2,"0");
-      const day = String(dt.getDate()).padStart(2,"0");
-      return `${y}-${m}-${day}`;
-    }catch(_e){ return ""; }
-  };
-try{ if (typeof globalThis !== "undefined") globalThis.normDateOnly_ = normDateOnly_; }catch(_e){}
-try{ if (typeof window !== "undefined") window.normDateOnly_ = normDateOnly_; }catch(_e){}
-// --- END GLOBAL BINDING ---
-
 // ===============================
 // AMARED · purchases.js (Compras) — V3
 // FIX REAL: normDateOnly_ debe existir como *variable global* (binding),
 // no solo como window.normDateOnly_.
 // ===============================
-console.log("[AMARED] purchases.js cargado: P3-FIX");
+console.log("[AMARED] purchases.js cargado: P3");
+
+// --- GLOBAL BINDING (must be top-level) ---
+// eslint-disable-next-line no-var
+var normDateOnly_ = (typeof normDateOnly_ === "function") ? normDateOnly_ : function(d){
+  try{
+    const dt = (d instanceof Date) ? d : new Date(d);
+    if (isNaN(dt)) return "";
+    const y = dt.getFullYear();
+    const m = String(dt.getMonth()+1).padStart(2,"0");
+    const day = String(dt.getDate()).padStart(2,"0");
+    return `${y}-${m}-${day}`;
+  }catch(e){ return ""; }
+};
+
+try{ if (typeof globalThis !== "undefined") globalThis.normDateOnly_ = normDateOnly_; }catch(e){}
+try{ if (typeof window !== "undefined") window.normDateOnly_ = normDateOnly_; }catch(e){}
+// --- END GLOBAL BINDING ---
+
 
 window.amaredRefreshOrders = async function(ev){
   try{ ev && ev.preventDefault && ev.preventDefault(); }catch(_e){}
