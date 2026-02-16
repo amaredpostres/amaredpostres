@@ -3,115 +3,112 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>AMARED · Compras</title>
+  <title>AMARED · Compras (desde PEDIDOS)</title>
 
-  <link rel="icon" href="assets/favicon.ico" type="image/x-icon">
-  <link rel="stylesheet" href="styles.css" />
-  <link rel="stylesheet" href="costs.css" />
+  <!-- Si tienes favicon real, ponlo en /amaredpostres/favicon.ico -->
+  <link rel="icon" href="./favicon.ico" />
 
   <style>
-    /* Ajustes mínimos sin tocar tus CSS base */
-    .hideCostsEditor{ display:none !important; }
-    .costsNav{ display:flex; gap:10px; flex-wrap:wrap; margin-bottom:12px; }
+    :root{ --cream:#FEF6EF; --choco:#401102; --pink:#F25B8F; --caramel:#F6BA60; }
+    body{ margin:0; font-family:system-ui, -apple-system, Segoe UI, Roboto, Arial; background:var(--cream); color:#1b1b1b; }
+    header{ padding:18px 16px 10px; text-align:center; }
+    header img{ height:42px; }
+    .wrap{ max-width:980px; margin:0 auto; padding:0 16px 40px; }
+    .card{ background:#fff; border-radius:18px; padding:18px; box-shadow:0 10px 30px rgba(0,0,0,.06); border:1px solid rgba(64,17,2,.08); }
+    .card + .card{ margin-top:14px; }
+    .row{ display:flex; gap:12px; align-items:center; flex-wrap:wrap; }
+    .grow{ flex:1; }
+    input[type=text]{ width:100%; padding:12px 14px; border-radius:14px; border:1px solid rgba(0,0,0,.12); }
+    .btn{ padding:11px 14px; border-radius:14px; border:1px solid rgba(0,0,0,.12); background:#fff; cursor:pointer; font-weight:600; }
+    .btn.primary{ background:var(--caramel); border-color:rgba(0,0,0,.08); }
+    .muted{ color:#666; font-size:13px; }
+
+    table{ width:100%; border-collapse:separate; border-spacing:0; overflow:hidden; border-radius:14px; border:1px solid rgba(0,0,0,.08); }
+    th,td{ padding:10px 10px; border-bottom:1px solid rgba(0,0,0,.06); vertical-align:middle; }
+    th{ background:rgba(246,186,96,.25); text-align:left; font-size:13px; }
+    tr:last-child td{ border-bottom:none; }
+    .inp{ width:100%; padding:8px 10px; border-radius:12px; border:1px solid rgba(0,0,0,.12); }
+    .ingName{ font-weight:700; }
+    .ingMeta{ font-size:12px; color:#666; }
+    .buyVal{ font-weight:800; }
+    .costCell{ font-weight:700; }
+    .actCell{ white-space:nowrap; }
+    .chkLbl{ display:inline-flex; align-items:center; gap:8px; margin-right:8px; font-size:13px; }
+    .btnMini{ padding:7px 10px; border-radius:12px; border:1px solid rgba(0,0,0,.12); background:#fff; cursor:pointer; font-weight:600; font-size:12px; }
+    .btnMini.danger{ border-color:rgba(242,91,143,.45); }
+
+    /* loading */
+    #loading{ display:none; position:fixed; inset:0; background:rgba(0,0,0,.35); align-items:center; justify-content:center; z-index:9999; }
+    #loading .box{ background:#fff; padding:16px 18px; border-radius:16px; width:min(420px, calc(100% - 40px)); box-shadow:0 10px 30px rgba(0,0,0,.25); }
+    #lt{ font-weight:800; margin-bottom:6px; }
+    #ld{ color:#555; font-size:13px; }
+
+    /* toast */
+    #toast{ display:none; position:fixed; left:16px; bottom:16px; background:#111; color:#fff; padding:10px 12px; border-radius:12px; z-index:10000; max-width:min(520px, calc(100% - 32px)); }
+    #toast.err{ background:#b00020; }
   </style>
 </head>
+<body>
+  <header>
+    <!-- Ajusta la ruta si tu logo está en otra carpeta -->
+    <img src="./Logo-Isotipo.svg" alt="AMARED" onerror="this.style.display='none'" />
+  </header>
 
-<body class="costsPage">
-  <div class="page">
-    <header class="topbar">
-      <div class="topbarInner">
-        <div class="brand">
-          <img class="brandLogo" src="assets/Logo-Amared.svg" alt="AMARED Postres" />
-        </div>
+  <div class="wrap">
+    <div class="card" id="gate">
+      <h2 style="margin:0 0 6px">🛒 Compras (desde PEDIDOS)</h2>
+      <div class="muted" style="margin-bottom:12px">
+        Ingresa la clave para consultar PEDIDOS pagados (kitchen_status: <b>No iniciar</b>) y calcular compras vs inventario.
       </div>
-    </header>
-
-    <main class="container">
-      <!-- Unlock -->
-      <section class="card">
-        <h2 class="cardTitle">🔒 Compras (desde PEDIDOS)</h2>
-        <p class="cardSubtitle">
-          Ingresa la clave para consultar PEDIDOS pagados (estado cocina: <b>No iniciar</b>) y calcular compras vs inventario.
-        </p>
-
-        <div class="costsRow">
-          <input id="secret" class="costsField" type="password" placeholder="COSTS_SECRET" autocomplete="off" />
-          <button id="unlock" class="btn">Desbloquear</button>
+      <div class="row">
+        <div class="grow">
+          <input id="secret" type="text" placeholder="Clave de costos" autocomplete="off" />
         </div>
-
-        <div id="err" class="costsErr"></div>
-
-        <div class="costsNav" style="margin-top:12px;">
-          <a class="btn secondary" href="costs.html">📌 Ir a Costos</a>
-        </div>
-      </section>
-
-      <!-- Editor (usamos el mismo bootstrap de costs.js, pero ocultamos la tabla) -->
-      <section id="editor" class="card" style="display:none;">
-        <div class="costsHeaderRow">
-          <div>
-            <h2 class="cardTitle">🛒 Compras y sobrantes</h2>
-            <p class="cardSubtitle">
-              Usa <b>Actualizar desde pedidos</b> para recalcular. Marca compras hechas para actualizar inventario.
-              <span class="muted">Corte: 3:00 p.m. (Colombia).</span>
-            </p>
-          </div>
-
-          <!-- Botón Guardar existe en el JS; lo dejamos oculto en Compras -->
-          <div class="costsActions hideCostsEditor">
-            <button id="saveAll" class="btn">Guardar</button>
-          </div>
-        </div>
-
-        <!-- elementos que costs.js espera, pero ocultos -->
-        <div id="topTools" class="costsTopTools hideCostsEditor"></div>
-        <div id="list" class="costsList hideCostsEditor"></div>
-
-        <!-- Compras -->
-        <details id="buyAcc" class="costsAcc" open>
-          <summary class="costsAccSum">
-            <span>🛒 Compras y sobrantes</span>
-            <span class="costsAccHint" id="buySummaryHint">—</span>
-          </summary>
-
-          <div class="costsAccBody">
-            <div class="buyTop">
-              <div class="buyHelp">
-                Registra lo que te queda en inventario (sobrantes) y calcula automáticamente cuánto debes comprar para completar próximos pedidos.
-                <span class="muted">Se calcula con base en PEDIDOS y recetas; inventario se guarda en Google Sheets.</span>
-              </div>
-
-              <div class="buyActions">
-                <button id="buyRefreshOrders" class="btn secondary" type="button"
-                  onclick="return window.amaredRefreshOrders && window.amaredRefreshOrders(event);">
-                  Actualizar desde pedidos
-                </button>
-                <button id="buyReset" class="btn secondary">Reiniciar sobrantes</button>
-              </div>
-            </div>
-
-            <div id="buyTotals" class="buyTotals"></div>
-            <div id="buyList" class="buyList"></div>
-            <div id="buyPurchasePanel" class="buyPurchasePanel"></div>
-
-            <div class="buyFooter muted small">
-              Tip: si tienes pedidos antiguos incompletos, el sistema ignora los que no cumplan "Pagado + No iniciar".
-            </div>
-          </div>
-        </details>
-      </section>
-
-      <div id="netDebug" class="netDebug" style="display:none;"></div>
-    </main>
-
-    <!-- Loading -->
-    <div id="loading" class="costsLoading">
-      <div class="costsLoadingCard">
-        <div class="costsLoadingSpinner" aria-hidden="true"></div>
-        <div class="costsLoadingTitle" id="lt">Cargando…</div>
-        <div class="costsLoadingDesc" id="ld">Por favor espera.</div>
+        <button id="unlockBtn" class="btn">Desbloquear</button>
+        <a class="btn" href="./costs.html">📌 Ir a Costos</a>
       </div>
-    </div>  </div>
-    <script src="purchases.v2.1.hotfix.js?v=hotfix21"></script>
+    </div>
+
+    <div class="card" id="buyWrapper" style="display:none">
+      <div class="row" style="justify-content:space-between; margin-bottom:10px">
+        <div>
+          <h3 style="margin:0">Compras y sobrantes</h3>
+          <div class="muted">Usa <b>Actualizar desde pedidos</b> para recalcular. Corte: 3:00 p.m. (Colombia).</div>
+        </div>
+        <button id="buyRefresh" class="btn primary">Actualizar desde pedidos</button>
+      </div>
+
+      <div class="row" style="gap:10px; margin:10px 0 14px">
+        <div class="btn" style="cursor:default">Ingredientes con necesidad: <b id="buyCount">0</b></div>
+        <div class="btn" style="cursor:default">Total compra estimada: <b id="buyTotal">$0</b></div>
+      </div>
+
+      <table>
+        <thead>
+          <tr>
+            <th style="width:28%">Ingrediente</th>
+            <th style="width:14%">Necesario</th>
+            <th style="width:14%">Sobrante</th>
+            <th style="width:10%">Comprar</th>
+            <th style="width:14%">Costo estimado</th>
+            <th style="width:20%">Acciones</th>
+          </tr>
+        </thead>
+        <tbody id="buyTbody"></tbody>
+      </table>
+
+      <div class="muted" style="margin-top:10px">
+        Si al actualizar no ves datos, revisa: (1) que existan pedidos con <b>payment_status=Pagado</b> y <b>kitchen_status=No iniciar</b>,
+        (2) que el servidor soporte la acción <code>costs_orders_for_purchases</code>.
+      </div>
+    </div>
+  </div>
+
+  <div id="loading"><div class="box"><div id="lt">Cargando…</div><div id="ld">Un momento</div></div></div>
+  <div id="toast"></div>
+
+  <!-- IMPORTANTE: rutas relativas, GitHub Pages es case-sensitive -->
+  <script src="./amared.core.js?v=1"></script>
+  <script src="./purchases.js?v=1"></script>
 </body>
 </html>
