@@ -3,7 +3,7 @@
 // FIX REAL: normDateOnly_ debe existir como *variable global* (binding),
 // no solo como window.normDateOnly_.
 // ===============================
-console.log("[AMARED] purchases.js cargado: P3");
+console.log("[AMARED] purchases.js cargado: P6");
 
 // --- GLOBAL BINDING (must be top-level) ---
 // eslint-disable-next-line no-var
