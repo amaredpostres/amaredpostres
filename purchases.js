@@ -22,6 +22,18 @@ try{ if (typeof globalThis !== "undefined") globalThis.normDateOnly_ = normDateO
 try{ if (typeof window !== "undefined") window.normDateOnly_ = normDateOnly_; }catch(e){}
 // --- END GLOBAL BINDING ---
 
+// --- LS KEYS (fix missing constants) ---
+const PURCHASE_SELECT_LS_KEY = "amared_purchase_select_v1"; // compra hecha / no hecha por ingrediente
+// Compatibilidad con versiones anteriores (typo en algunos builds):
+const PURCHASE_SELECT__S_KEY = PURCHASE_SELECT_LS_KEY;
+
+const PURCHASES_LS_KEY = "amared_purchases_rows_v1"; // cache UI compras (opcional)
+const INVENTORY_LS_KEY = "amared_inventory_cache_v1"; // cache inventario (opcional)
+const PURCHASES_DONE_LS_KEY = "amared_purchases_done_v1"; // historial compras hechas (opcional)
+// --- END LS KEYS ---
+
+
+
 
 window.amaredRefreshOrders = async function(ev){
   try{ ev && ev.preventDefault && ev.preventDefault(); }catch(_e){}
@@ -1354,3 +1366,4 @@ async function savePurchasesBatch_(){
 
 // UI: ocultar botón global Reiniciar sobrantes en Compras
 document.addEventListener("DOMContentLoaded", ()=>{ const b=document.getElementById("buyReset"); if(b) b.style.display="none"; });
+
