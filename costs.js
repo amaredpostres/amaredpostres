@@ -1,3 +1,27 @@
+// COSTS BUILD: v4b (cache-bust)
+console.log("[AMARED] costs.js cargado: v4b");
+
+function normDateOnly_(value){
+  if(!value) return "";
+  // Si ya viene como YYYY-MM-DD...
+  if(typeof value === "string" && /^\d{4}-\d{2}-\d{2}/.test(value)) return value.slice(0,10);
+  const d = (value instanceof Date) ? value : new Date(value);
+  if(isNaN(d)) return "";
+  try{
+    const fmt = new Intl.DateTimeFormat("en-CA", {
+      timeZone: "America/Bogota",
+      year: "numeric", month: "2-digit", day: "2-digit"
+    });
+    return fmt.format(d); // en-CA => YYYY-MM-DD
+  }catch(_e){
+    // Fallback: usa componentes locales del Date (no ideal, pero evita crash)
+    const y = d.getFullYear();
+    const m = String(d.getMonth()+1).padStart(2,"0");
+    const day = String(d.getDate()).padStart(2,"0");
+    return `${y}-${m}-${day}`;
+  }
+}
+
 
 window.amaredRefreshOrders = async function(ev){
   try{ ev && ev.preventDefault && ev.preventDefault(); }catch(_e){}
@@ -97,26 +121,6 @@ function normUnit(u){
 
 // Normaliza una fecha a YYYY-MM-DD (zona horaria Colombia/Bogotá)
 // Se usa para filtros y claves consistentes aunque el navegador esté en otra zona.
-function normDateOnly_(value){
-  if(!value) return "";
-  // Si ya viene como YYYY-MM-DD...
-  if(typeof value === "string" && /^\d{4}-\d{2}-\d{2}/.test(value)) return value.slice(0,10);
-  const d = (value instanceof Date) ? value : new Date(value);
-  if(isNaN(d)) return "";
-  try{
-    const fmt = new Intl.DateTimeFormat("en-CA", {
-      timeZone: "America/Bogota",
-      year: "numeric", month: "2-digit", day: "2-digit"
-    });
-    return fmt.format(d); // en-CA => YYYY-MM-DD
-  }catch(_e){
-    // Fallback: usa componentes locales del Date (no ideal, pero evita crash)
-    const y = d.getFullYear();
-    const m = String(d.getMonth()+1).padStart(2,"0");
-    const day = String(d.getDate()).padStart(2,"0");
-    return `${y}-${m}-${day}`;
-  }
-}
 
 function money(n){ return Math.round(Number(n||0)).toLocaleString("es-CO"); }
 function roundCOP(n){ return Math.max(0, Math.round(Number(n||0))); }
