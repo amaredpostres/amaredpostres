@@ -1,67 +1,3 @@
-// --- GLOBAL BINDING (VERY FIRST) ---
-var normDateOnly_ = (typeof normDateOnly_ === "function") ? normDateOnly_ :
-  (typeof globalThis !== "undefined" && typeof globalThis.normDateOnly_ === "function") ? globalThis.normDateOnly_ :
-  (typeof window !== "undefined" && typeof window.normDateOnly_ === "function") ? window.normDateOnly_ :
-  function(d){
-    try{
-      const dt = (d instanceof Date) ? d : new Date(d);
-      if (isNaN(dt)) return "";
-      const y = dt.getFullYear();
-      const m = String(dt.getMonth()+1).padStart(2,"0");
-      const day = String(dt.getDate()).padStart(2,"0");
-      return `${y}-${m}-${day}`;
-    }catch(_e){ return ""; }
-  };
-try{ if (typeof globalThis !== "undefined") globalThis.normDateOnly_ = normDateOnly_; }catch(_e){}
-try{ if (typeof window !== "undefined") window.normDateOnly_ = normDateOnly_; }catch(_e){}
-
-// --- END GLOBAL BINDING ---
-
-// ===============================
-// AMARED - COSTOS (V5)
-// - Fix: define normDateOnly_ (global + hoisted) to stop ReferenceError
-// - Mantiene: Registrar compras + Editar ingrediente desde Compras
-// - UI: oculta botón global 'Reiniciar sobrantes' (no borra lógica)
-// ===============================
-console.log("[AMARED] costs.js cargado: V5.4-FINAL");
-
-
-
-
-// ===============================
-// GLOBAL: normDateOnly_
-// - Evita ReferenceError cambiando TODAS las llamadas a window.normDateOnly_(...)
-// - Deja un alias normDateOnly_ por compatibilidad (variable real)
-// ===============================
-(function(){
-  const fn = function(d){
-    try{
-      const dt = (d instanceof Date) ? d : new Date(d);
-      if (isNaN(dt)) return "";
-      const y = dt.getFullYear();
-      const m = String(dt.getMonth()+1).padStart(2,"0");
-      const day = String(dt.getDate()).padStart(2,"0");
-      return `${y}-${m}-${day}`;
-    }catch(e){ return ""; }
-  };
-  try{ if (typeof window !== "undefined") window.normDateOnly_ = window.normDateOnly_ || fn; }catch(e){}
-  try{ if (typeof globalThis !== "undefined") globalThis.normDateOnly_ = globalThis.normDateOnly_ || fn; }catch(e){}
-  // eslint-disable-next-line no-var
-  var normDateOnly_ = (typeof window !== "undefined" && typeof window.normDateOnly_ === "function") ? window.normDateOnly_
-                   : (typeof globalThis !== "undefined" && typeof globalThis.normDateOnly_ === "function") ? globalThis.normDateOnly_
-                   : fn;
-  try{ if (typeof window !== "undefined") window.normDateOnly_ = normDateOnly_; }catch(e){}
-  try{ if (typeof globalThis !== "undefined") globalThis.normDateOnly_ = normDateOnly_; }catch(e){}
-})();
-
-
-try{ if(typeof globalThis!=="undefined") globalThis.normDateOnly_ = normDateOnly_; }catch(_e){}
-try{ if(typeof window!=="undefined") window.normDateOnly_ = normDateOnly_; }catch(_e){}
-
-document.addEventListener("DOMContentLoaded", ()=>{
-  const btn = document.getElementById("buyReset");
-  if(btn) btn.style.display = "none";
-});
 
 window.amaredRefreshOrders = async function(ev){
   try{ ev && ev.preventDefault && ev.preventDefault(); }catch(_e){}
@@ -104,8 +40,20 @@ function initBuyButtons_(){
     btnRefresh.addEventListener("click", (ev)=> window.amaredRefreshOrders && window.amaredRefreshOrders(ev));
   }
   const btnReset = document.getElementById("buyReset");
-  // ✅ Ya no usamos "reiniciar sobrantes" global: el inventario mantiene trazabilidad.
-  if(btnReset){ btnReset.style.display = "none"; }
+  if(btnReset && !btnReset.__amaredBound){
+    btnReset.__amaredBound = true;
+    btnReset.addEventListener("click", ()=>{
+      try{
+        lsWriteObj(STOCK_LS_KEY, {});
+        setPurchaseSelect_({});
+        renderPurchases();
+        showToast("Sobrantes reiniciados", "ok");
+      }catch(e){
+        console.error(e);
+        showToast("No se pudo reiniciar", "err");
+      }
+    });
+  }
 }
 
 const API_URL = "https://amared-orders.amaredpostres.workers.dev/";
@@ -120,7 +68,7 @@ let UI = {};
 let SHEETS_ROWS = [];
 
 // ===== Helpers =====
-function getPurchaseSelect_(){ return lsReadObj(PURCHASE_SELECT_LS_KEY) || {}; }
+function getPurchaseSelect_(){ return lsReadObj(PURCHASE_SELECT_LS_KEY); }
 function setPurchaseSelect_(obj){ lsWriteObj(PURCHASE_SELECT_LS_KEY, obj||{}); }
 
 function showLoading(t,d){
@@ -180,133 +128,6 @@ async function upsertCostToSheets(row){
     unit_item_qty_type: row.unit_item_qty_type ?? "",
     updated_by: row.updated_by || "COSTS_UI"
   });
-
-}
-
-// ===== Compras: helpers =====
-async function refreshInventoryFromServer_(){
-  try{
-    const inv = await api({ action:"inventory_get", costs_secret: UNLOCKED_SECRET });
-    if(inv && inv.ok && inv.inventory && typeof inv.inventory === "object"){
-      const invMap = {};
-      Object.keys(inv.inventory).forEach(k=>{ invMap[k] = Number(inv.inventory[k]?.qty || 0); });
-      lsWriteObj(STOCK_LS_KEY, invMap);
-      return invMap;
-    }
-  }catch(e){
-    console.warn("refreshInventoryFromServer_ failed", e);
-  }
-  return lsReadObj(STOCK_LS_KEY) || {};
-}
-
-function openQuickEditFromPurchases_(ingredientKey){
-  const key = String(ingredientKey||"").trim();
-  if(!key) return;
-
-  const row = findCostRow(key) || {
-    ingredient_key: key,
-    unit_type: "g",
-    pack_qty: 1,
-    pack_price: 1,
-    cop_per_unit: 1,
-    brand: "",
-    store: ""
-  };
-
-  const unit = normUnit(row.unit_type || "") || "g";
-  const packQty = num(row.pack_qty || 0) || 0;
-  const packPrice = num(row.pack_price || 0) || 0;
-  const brand = row.brand || "";
-  const store = row.store || "";
-
-  const html = `
-    <div class="item">
-      <div class="k">Editar ingrediente (rápido)</div>
-      <div class="mini" style="margin-top:6px;">Esto actualiza el ingrediente en <b>Costos de ingredientes</b>. Si estás comprando una marca o presentación diferente, guarda aquí y ya quedará como la última compra.</div>
-
-      <div class="amRow" style="margin-top:12px; gap:10px; flex-wrap:wrap;">
-        <div style="flex:1; min-width:160px;">
-          <div class="mini muted">Unidad</div>
-          <select id="qe_unit" class="amInput">
-            ${makeSelectOptions(["g","ml","u","unidad","kg","l"], unit)}
-          </select>
-        </div>
-
-        <div style="flex:1; min-width:160px;">
-          <div class="mini muted">Cantidad empaque</div>
-          <input id="qe_pack_qty" class="amInput" inputmode="decimal" value="${fmt(packQty)}" />
-        </div>
-
-        <div style="flex:1; min-width:160px;">
-          <div class="mini muted">Precio empaque (COP)</div>
-          <input id="qe_pack_price" class="amInput" inputmode="decimal" value="${fmt(packPrice)}" />
-        </div>
-      </div>
-
-      <div class="amRow" style="margin-top:12px; gap:10px; flex-wrap:wrap;">
-        <div style="flex:1; min-width:200px;">
-          <div class="mini muted">Marca</div>
-          <input id="qe_brand" class="amInput" value="${escapeHtml_(brand)}" />
-        </div>
-        <div style="flex:1; min-width:200px;">
-          <div class="mini muted">Tienda</div>
-          <input id="qe_store" class="amInput" value="${escapeHtml_(store)}" />
-        </div>
-      </div>
-
-      <div class="amRow" style="margin-top:14px;">
-        <button id="qe_save" class="amBtn amBtnGold" type="button">Guardar cambios</button>
-        <button id="qe_cancel" class="amBtn amBtnSecondary" type="button">Cancelar</button>
-      </div>
-
-      <div class="mini muted" style="margin-top:10px;">
-        Nota: el <b>costo por unidad</b> se recalcula automáticamente (precio/qty).
-      </div>
-    </div>
-  `;
-
-  const m = openModal(`Editar · ${key}`, "Actualiza unidad, empaque y precio sin salir de Compras.", html);
-  const $ = (id)=> m.querySelector(id);
-
-  $("#qe_cancel").onclick = ()=> m.classList.remove("isOpen");
-
-  $("#qe_save").onclick = async ()=>{
-    try{
-      const unitSel = String($("#qe_unit").value || "").trim();
-      const pq = num($("#qe_pack_qty").value || 0);
-      const pp = num($("#qe_pack_price").value || 0);
-      const br = String($("#qe_brand").value || "").trim();
-      const st = String($("#qe_store").value || "").trim();
-
-      if(!unitSel) return showToast("Selecciona una unidad", "err");
-      if(!(pq>0)) return showToast("Cantidad empaque inválida", "err");
-      if(!(pp>0)) return showToast("Precio empaque inválido", "err");
-
-      row.unit_type = unitSel;
-      row.pack_qty = pq;
-      row.pack_price = pp;
-      row.brand = br;
-      row.store = st;
-      row.cop_per_unit = computeCopPerUnit(row);
-
-      showLoading("Guardando ingrediente…", "Actualizando COSTOS_INGREDIENTES en Google Sheets.");
-      const out = await upsertCostToSheets(row);
-      if(!out || !out.ok) throw new Error(out?.error || "No se pudo guardar");
-
-      // Actualizar en memoria (SHEETS_ROWS/UI) sin recargar toda la lista
-      upsertLocalCostRow_(row);
-
-      render();
-      renderPurchases();
-      showToast("Ingrediente actualizado", "ok");
-      m.classList.remove("isOpen");
-    }catch(e){
-      console.error(e);
-      showToast("No se pudo guardar", "err");
-    }finally{
-      hideLoading();
-    }
-  };
 }
 async function fetchCatalogsFromSheets(){
   const out = await api({ action:"catalog_list", costs_secret: UNLOCKED_SECRET });
@@ -851,7 +672,6 @@ async function saveAllToSheets(){
 // =========================
 const STOCK_LS_KEY = "amared_stock_ingredients_v1";
 const NEED_LS_KEY  = "amared_need_ingredients_v1";
-const PURCHASE_SELECT_LS_KEY = "amared_purchase_select_v1";
 // Keys alternos por compatibilidad (si Cocina guarda otro nombre)
 const NEED_LS_KEYS_FALLBACK = ["amared_required_ingredients", "amared_kitchen_batch_ingredients", "amared_latest_batch_ingredients_v1"];
 
@@ -1282,10 +1102,7 @@ async function loadNeedsFromPaidOrdersAndRender_(){
   try{
     const inv = await api({ action:"inventory_get", costs_secret: UNLOCKED_SECRET });
     if(inv && inv.ok && inv.inventory && typeof inv.inventory === "object"){
-        // INVENTARIO llega como mapa { ingredient_key: {qty, unit} }. En el frontend necesitamos solo números.
-      const invMap = {};
-      Object.keys(inv.inventory).forEach(k=>{ invMap[k] = Number(inv.inventory[k]?.qty || 0); });
-      lsWriteObj(STOCK_LS_KEY, invMap);
+      lsWriteObj(STOCK_LS_KEY, inv.inventory);
     }
   }catch(e){
     console.warn("No se pudo leer INVENTARIO (se usará local):", e);
@@ -1343,8 +1160,7 @@ function renderPurchaseChecklist_({ keys, need, stock, ctx }){
             <div class="muted small">+ Inventario</div>
             <div class="buyAddQty">${fmt(addQty)} ${unit}</div>
           </div>
-          <button class="btn small buyEdit" type="button">Editar</button>
-          <button class="btn small secondary buyResetOne" type="button" title="Reiniciar sobrante">Reiniciar sobrante</button>
+          <button class="btn small buyEdit" type="button">Editar costo</button>
           <label class="buySmallChk">
             <input type="checkbox" class="buyUpdateCost" ${s.updateCost ? "checked":""}/>
             Actualizar precio al guardar
@@ -1388,7 +1204,6 @@ function renderPurchaseChecklist_({ keys, need, stock, ctx }){
     const multEl = el.querySelector(".buyMult");
     const updEl = el.querySelector(".buyUpdateCost");
     const editBtn = el.querySelector(".buyEdit");
-    const resetOneBtn = el.querySelector(".buyResetOne");
 
     function saveLocal(){
       const cur = sel[key] || { buy:false, mult:1, updateCost:false };
@@ -1411,48 +1226,17 @@ function renderPurchaseChecklist_({ keys, need, stock, ctx }){
     updEl.addEventListener("change", saveLocal);
 
     editBtn.addEventListener("click", ()=>{
-      openQuickEditFromPurchases_(key);
+      // Llevar al ingrediente en tabla de costos (si existe)
+      const rowEl = document.querySelector(`[data-ik="${cssEscape(key)}"]`);
+      if(rowEl){
+        try{ rowEl.scrollIntoView({behavior:"smooth", block:"center"});}catch(_e){}
+        rowEl.classList.add("flash");
+        setTimeout(()=>rowEl.classList.remove("flash"), 900);
+      }else{
+        // fallback: abrir acordeón correspondiente
+        showToast("Busca el ingrediente en la tabla y edítalo, luego guarda.", "ok");
+      }
     });
-
-    if(resetOneBtn){
-      resetOneBtn.addEventListener("click", async ()=>{
-        const row = findCostRow(key) || {};
-        const unit = normUnit(row.unit_type || "") || "unidad";
-        const prev = num((lsReadObj(STOCK_LS_KEY)||{})[key] || 0);
-        const m = openModal(
-          `Reiniciar sobrante · ${key}`,
-          `Esto dejará el inventario de este ingrediente en 0 ${unit} y guardará un movimiento de ajuste para mantener trazabilidad.`,
-          `
-            <div class="item">
-              <div class="k">Sobrante actual (inventario): <b>${fmt(prev)}</b> ${unit}</div>
-              <div class="mini" style="margin-top:8px;">¿Deseas continuar?</div>
-              <div class="amRow" style="margin-top:10px;">
-                <button id="am_reset_one_ok" class="amBtn amBtnGold" type="button">Sí, reiniciar</button>
-                <button id="am_reset_one_no" class="amBtn amBtnSecondary" type="button">Cancelar</button>
-              </div>
-              <div class="mini muted" style="margin-top:10px;">Tip: si solo quieres ajustar cantidad, usa "Editar" y luego marca "Actualizar precio al guardar" solo si aplica.</div>
-            </div>
-          `
-        );
-        m.querySelector("#am_reset_one_no").onclick = ()=> m.classList.remove("isOpen");
-        m.querySelector("#am_reset_one_ok").onclick = async ()=>{
-          try{
-            showLoading("Reiniciando sobrante…", "Actualizando inventario en Google Sheets.");
-            const out = await api({ action:"inventory_reset_ingredient", costs_secret: UNLOCKED_SECRET, ingredient_key: key, updated_by:"COSTS_UI", source:"COSTS_RESET_ONE" });
-            if(!out || !out.ok) throw new Error(out?.error || "No se pudo reiniciar");
-            await refreshInventoryFromServer_();
-            renderPurchases(ctx);
-            showToast("Sobrante reiniciado", "ok");
-            m.classList.remove("isOpen");
-          }catch(e){
-            console.error(e);
-            showToast("No se pudo reiniciar", "err");
-          }finally{
-            hideLoading();
-          }
-        };
-      });
-    }
   });
 
   const btn = document.getElementById("buySaveBatch");
@@ -1522,10 +1306,7 @@ async function savePurchasesBatch_(){
     try{
       const inv = await api({ action:"inventory_get", costs_secret: UNLOCKED_SECRET });
       if(inv && inv.ok && inv.inventory){
-          // INVENTARIO llega como mapa { ingredient_key: {qty, unit} }. En el frontend necesitamos solo números.
-      const invMap = {};
-      Object.keys(inv.inventory).forEach(k=>{ invMap[k] = Number(inv.inventory[k]?.qty || 0); });
-      lsWriteObj(STOCK_LS_KEY, invMap);
+        lsWriteObj(STOCK_LS_KEY, inv.inventory);
       }
     }catch(e){}
 
@@ -1545,25 +1326,3 @@ async function savePurchasesBatch_(){
     showToast(e && e.message ? e.message : "No se pudo guardar compras", "err");
   }
 }
-function escapeHtml_(s){
-  return String(s||"")
-    .replaceAll("&","&amp;")
-    .replaceAll("<","&lt;")
-    .replaceAll(">","&gt;")
-    .replaceAll('"',"&quot;")
-    .replaceAll("'","&#39;");
-}
-
-function upsertLocalCostRow_(row){
-  const k = String(row.ingredient_key||"").trim();
-  if(!k) return;
-  // Actualizar SHEETS_ROWS
-  const i = SHEETS_ROWS.findIndex(r=>String(r.ingredient_key||"").trim()===k);
-  if(i>=0) SHEETS_ROWS[i] = { ...SHEETS_ROWS[i], ...row };
-  else SHEETS_ROWS.push({ ...row });
-
-  // Rebuild UI map quickly
-  UI[k] = UI[k] || {};
-  UI[k] = { ...UI[k], ...row };
-}
-
