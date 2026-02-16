@@ -1,34 +1,37 @@
-
 // ===============================
-// PATCH AMARED (FULLFIX v1)
-// - Define normDateOnly_ globally to avoid ReferenceError
-// - Hide global "Reiniciar sobrantes" button (#buyReset)
+// AMARED - COSTOS (PATCHED)
+// Mantiene todas las funciones existentes.
+// Fixes:
+//  - Define PURCHASE_SELECT_LS_KEY (checklist de compras)
+//  - Define normDateOnly_ (por compatibilidad si alguna versión lo llama)
+//  - Oculta botón global 'Reiniciar sobrantes'
 // ===============================
-console.log("[AMARED] costs.js cargado: FULLFIX v1");
 
-// Global date normalizer (YYYY-MM-DD) compatible with any scope
-(function(){
-  function _norm(value){
-    if(!value) return "";
-    // If already 'YYYY-MM-DD...'
-    if(typeof value === "string" && /^\d{4}-\d{2}-\d{2}/.test(value)) return value.slice(0,10);
-    const d = (value instanceof Date) ? value : new Date(value);
-    if(isNaN(d.getTime())) return "";
-    const y = d.getFullYear();
-    const m = String(d.getMonth()+1).padStart(2,"0");
-    const day = String(d.getDate()).padStart(2,"0");
-    return `${y}-${m}-${day}`;
-  }
-  // expose in all globals
-  globalThis.normDateOnly_ = globalThis.normDateOnly_ || _norm;
-  // also window alias (browser)
-  if(typeof window !== "undefined") window.normDateOnly_ = window.normDateOnly_;
-})();
+console.log("[AMARED] costs.js cargado: PATCH v1");
 
-// Hide the global reset button; we keep code but remove from UI
-document.addEventListener("DOMContentLoaded", ()=>{
-  const btn = document.getElementById("buyReset");
-  if(btn) btn.style.display = "none";
+const PURCHASE_SELECT_LS_KEY = "amared_purchase_select_v1";
+
+// Normaliza una fecha a YYYY-MM-DD usando hora local de Colombia (America/Bogota)
+// Nota: este archivo no depende de esta función, pero la dejamos global por compatibilidad.
+function normDateOnly_(d){
+  try{
+    const dt = (d instanceof Date) ? d : new Date(d);
+    // Ajuste aproximado a Bogotá usando Intl (evita depender del huso del navegador)
+    const parts = new Intl.DateTimeFormat('en-CA', { timeZone:'America/Bogota', year:'numeric', month:'2-digit', day:'2-digit' }).formatToParts(dt);
+    const y = parts.find(p=>p.type==='year')?.value;
+    const m = parts.find(p=>p.type==='month')?.value;
+    const day = parts.find(p=>p.type==='day')?.value;
+    if(y && m && day) return `${y}-${m}-${day}`;
+  }catch(_e){}
+  // fallback
+  try{ return new Date(d).toISOString().slice(0,10); }catch(_e){}
+  return "";
+}
+window.normDateOnly_ = normDateOnly_;
+
+document.addEventListener('DOMContentLoaded', ()=>{
+  const btn = document.getElementById('buyReset');
+  if(btn) btn.style.display = 'none';
 });
 
 window.amaredRefreshOrders = async function(ev){
