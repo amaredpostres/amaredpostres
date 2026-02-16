@@ -1,10 +1,29 @@
+// --- GLOBAL BINDING (VERY FIRST) ---
+var normDateOnly_ = (typeof normDateOnly_ === "function") ? normDateOnly_ :
+  (typeof globalThis !== "undefined" && typeof globalThis.normDateOnly_ === "function") ? globalThis.normDateOnly_ :
+  (typeof window !== "undefined" && typeof window.normDateOnly_ === "function") ? window.normDateOnly_ :
+  function(d){
+    try{
+      const dt = (d instanceof Date) ? d : new Date(d);
+      if (isNaN(dt)) return "";
+      const y = dt.getFullYear();
+      const m = String(dt.getMonth()+1).padStart(2,"0");
+      const day = String(dt.getDate()).padStart(2,"0");
+      return `${y}-${m}-${day}`;
+    }catch(_e){ return ""; }
+  };
+try{ if (typeof globalThis !== "undefined") globalThis.normDateOnly_ = normDateOnly_; }catch(_e){}
+try{ if (typeof window !== "undefined") window.normDateOnly_ = normDateOnly_; }catch(_e){}
+
+// --- END GLOBAL BINDING ---
+
 // ===============================
 // AMARED - COSTOS (V5)
 // - Fix: define normDateOnly_ (global + hoisted) to stop ReferenceError
 // - Mantiene: Registrar compras + Editar ingrediente desde Compras
 // - UI: oculta botón global 'Reiniciar sobrantes' (no borra lógica)
 // ===============================
-console.log("[AMARED] costs.js cargado: V5.3");
+console.log("[AMARED] costs.js cargado: V5.4");
 
 
 
