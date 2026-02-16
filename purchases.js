@@ -1,48 +1,27 @@
 // ===============================
-// AMARED · purchases.js (Compras)
-// FIX: evitar ReferenceError: normDateOnly_ is not defined
+// AMARED · purchases.js (Compras) — V3
+// FIX REAL: normDateOnly_ debe existir como *variable global* (binding),
+// no solo como window.normDateOnly_.
 // ===============================
-(function(){
-  const fn = function(d){
-    try{
-      const dt = (d instanceof Date) ? d : new Date(d);
-      if (isNaN(dt)) return "";
-      const y = dt.getFullYear();
-      const m = String(dt.getMonth()+1).padStart(2,"0");
-      const day = String(dt.getDate()).padStart(2,"0");
-      return `${y}-${m}-${day}`;
-    }catch(e){ return ""; }
-  };
+console.log("[AMARED] purchases.js cargado: P3");
 
-  // Asegurar propiedad global
+// --- GLOBAL BINDING (must be top-level) ---
+// eslint-disable-next-line no-var
+var normDateOnly_ = (typeof normDateOnly_ === "function") ? normDateOnly_ : function(d){
   try{
-    if (typeof globalThis !== "undefined" && typeof globalThis.normDateOnly_ !== "function"){
-      globalThis.normDateOnly_ = fn;
-    }
-  }catch(e){}
+    const dt = (d instanceof Date) ? d : new Date(d);
+    if (isNaN(dt)) return "";
+    const y = dt.getFullYear();
+    const m = String(dt.getMonth()+1).padStart(2,"0");
+    const day = String(dt.getDate()).padStart(2,"0");
+    return `${y}-${m}-${day}`;
+  }catch(e){ return ""; }
+};
 
-  try{
-    if (typeof window !== "undefined" && typeof window.normDateOnly_ !== "function"){
-      window.normDateOnly_ = (typeof globalThis !== "undefined" && typeof globalThis.normDateOnly_ === "function")
-        ? globalThis.normDateOnly_
-        : fn;
-    }
-  }catch(e){}
+try{ if (typeof globalThis !== "undefined") globalThis.normDateOnly_ = normDateOnly_; }catch(e){}
+try{ if (typeof window !== "undefined") window.normDateOnly_ = normDateOnly_; }catch(e){}
+// --- END GLOBAL BINDING ---
 
-  // Crear binding REAL (variable) para que normDateOnly_(...) no falle nunca.
-  // eslint-disable-next-line no-var
-  var normDateOnly_ = (typeof window !== "undefined" && typeof window.normDateOnly_ === "function")
-    ? window.normDateOnly_
-    : (typeof globalThis !== "undefined" && typeof globalThis.normDateOnly_ === "function")
-      ? globalThis.normDateOnly_
-      : fn;
-
-  // Re-exponer por compatibilidad
-  try{ window.normDateOnly_ = normDateOnly_; }catch(e){}
-  try{ globalThis.normDateOnly_ = normDateOnly_; }catch(e){}
-})();
-
-console.log("[AMARED] purchases.js cargado: P2");
 
 window.amaredRefreshOrders = async function(ev){
   try{ ev && ev.preventDefault && ev.preventDefault(); }catch(_e){}
