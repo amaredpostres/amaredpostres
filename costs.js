@@ -23,39 +23,17 @@ try{ if (typeof window !== "undefined") window.normDateOnly_ = normDateOnly_; }c
 // - Mantiene: Registrar compras + Editar ingrediente desde Compras
 // - UI: oculta botón global 'Reiniciar sobrantes' (no borra lógica)
 // ===============================
-console.log("[AMARED] costs.js cargado: V5.4");
+console.log("[AMARED] costs.js cargado: V5.4-FINAL");
 
 
 
-// ------------------------------
-// FIX FINAL: crear el *binding* real (identificador) en el scope global.
-// (window.normDateOnly_ solo crea propiedad; esto crea la variable)
-// ------------------------------
-var normDateOnly_ = (typeof globalThis !== "undefined" && typeof globalThis.normDateOnly_ === "function")
-  ? globalThis.normDateOnly_
-  : (typeof window !== "undefined" && typeof window.normDateOnly_ === "function")
-    ? window.normDateOnly_
-    : function(d){
-        try{
-          const dt = (d instanceof Date) ? d : new Date(d);
-          if (isNaN(dt)) return "";
-          const y = dt.getFullYear();
-          const m = String(dt.getMonth()+1).padStart(2,"0");
-          const day = String(dt.getDate()).padStart(2,"0");
-          return `${y}-${m}-${day}`;
-        }catch(_e){ return ""; }
-      };
 
-// también exponer como propiedad por compatibilidad
-try{ if (typeof globalThis !== "undefined") globalThis.normDateOnly_ = normDateOnly_; }catch(_e){}
-try{ if (typeof window !== "undefined") window.normDateOnly_ = normDateOnly_; }catch(_e){}
-
-// ------------------------------
-// FIX DEFINITIVO: garantizar normDateOnly_ como *binding* global
-// - Algunos navegadores/escenarios cargan scripts de forma que "window.normDateOnly_" existe
-//   pero el identificador "normDateOnly_" NO. Por eso creamos el binding con "var".
-// ------------------------------
-(function ensureNormDateOnlyBinding(){
+// ===============================
+// GLOBAL: normDateOnly_
+// - Evita ReferenceError cambiando TODAS las llamadas a window.normDateOnly_(...)
+// - Deja un alias normDateOnly_ por compatibilidad (variable real)
+// ===============================
+(function(){
   const fn = function(d){
     try{
       const dt = (d instanceof Date) ? d : new Date(d);
@@ -64,39 +42,18 @@ try{ if (typeof window !== "undefined") window.normDateOnly_ = normDateOnly_; }c
       const m = String(dt.getMonth()+1).padStart(2,"0");
       const day = String(dt.getDate()).padStart(2,"0");
       return `${y}-${m}-${day}`;
-    }catch(_e){ return ""; }
+    }catch(e){ return ""; }
   };
-
-  try{
-    if (typeof globalThis !== "undefined" && typeof globalThis.normDateOnly_ !== "function"){
-      globalThis.normDateOnly_ = fn;
-    }
-  }catch(_e){}
-
-  try{
-    if (typeof window !== "undefined" && typeof window.normDateOnly_ !== "function"){
-      window.normDateOnly_ = (typeof globalThis !== "undefined" && typeof globalThis.normDateOnly_ === "function")
-        ? globalThis.normDateOnly_
-        : fn;
-    }
-  }catch(_e){}
-
-  // Crear el binding real (identificador) accesible desde cualquier función en este archivo:
-  // "var" se hoistea y evita ReferenceError.
-  try{
-    if (typeof normDateOnly_ !== "function"){
-      // eslint-disable-next-line no-var
-      var normDateOnly_ = (typeof globalThis !== "undefined" && typeof globalThis.normDateOnly_ === "function")
-        ? globalThis.normDateOnly_
-        : fn;
-    }
-  }catch(_e){
-    // eslint-disable-next-line no-var
-    var normDateOnly_ = fn;
-    try{ window.normDateOnly_ = fn; }catch(_e2){}
-    try{ globalThis.normDateOnly_ = fn; }catch(_e2){}
-  }
+  try{ if (typeof window !== "undefined") window.normDateOnly_ = window.normDateOnly_ || fn; }catch(e){}
+  try{ if (typeof globalThis !== "undefined") globalThis.normDateOnly_ = globalThis.normDateOnly_ || fn; }catch(e){}
+  // eslint-disable-next-line no-var
+  var normDateOnly_ = (typeof window !== "undefined" && typeof window.normDateOnly_ === "function") ? window.normDateOnly_
+                   : (typeof globalThis !== "undefined" && typeof globalThis.normDateOnly_ === "function") ? globalThis.normDateOnly_
+                   : fn;
+  try{ if (typeof window !== "undefined") window.normDateOnly_ = normDateOnly_; }catch(e){}
+  try{ if (typeof globalThis !== "undefined") globalThis.normDateOnly_ = normDateOnly_; }catch(e){}
 })();
+
 
 try{ if(typeof globalThis!=="undefined") globalThis.normDateOnly_ = normDateOnly_; }catch(_e){}
 try{ if(typeof window!=="undefined") window.normDateOnly_ = normDateOnly_; }catch(_e){}
