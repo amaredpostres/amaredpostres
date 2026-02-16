@@ -1,3 +1,33 @@
+// ====================
+// AMARED - COSTOS (PATCH v2)
+// Fixes:
+//  - Define normDateOnly_ as REAL global (var + globalThis) to avoid ReferenceError in any scope
+//  - Keep Registrar Compras section
+//  - Hide global 'Reiniciar sobrantes' button in UI (without removing logic)
+// ====================
+console.log("[AMARED] costs.js cargado: PATCH v2");
+
+var normDateOnly_ = (typeof globalThis !== "undefined" && globalThis.normDateOnly_)
+  ? globalThis.normDateOnly_
+  : function(d){
+      try{
+        const dt = (d instanceof Date) ? d : new Date(d);
+        if (isNaN(dt)) return "";
+        // Normaliza a YYYY-MM-DD usando la fecha local del objeto Date
+        const y = dt.getFullYear();
+        const m = String(dt.getMonth()+1).padStart(2,"0");
+        const day = String(dt.getDate()).padStart(2,"0");
+        return `${y}-${m}-${day}`;
+      }catch(_e){
+        return "";
+      }
+    };
+
+// Exponer como global real (para scripts que lo llamen desde cualquier scope)
+try{ if (typeof globalThis !== "undefined") globalThis.normDateOnly_ = normDateOnly_; }catch(_e){}
+try{ if (typeof window !== "undefined") window.normDateOnly_ = normDateOnly_; }catch(_e){}
+
+
 // ===============================
 // AMARED - COSTOS (PATCHED)
 // Mantiene todas las funciones existentes.
@@ -7,28 +37,9 @@
 //  - Oculta botón global 'Reiniciar sobrantes'
 // ===============================
 
-console.log("[AMARED] costs.js cargado: PATCH v1");
-
 const PURCHASE_SELECT_LS_KEY = "amared_purchase_select_v1";
 
 // Normaliza una fecha a YYYY-MM-DD usando hora local de Colombia (America/Bogota)
-// Nota: este archivo no depende de esta función, pero la dejamos global por compatibilidad.
-function normDateOnly_(d){
-  try{
-    const dt = (d instanceof Date) ? d : new Date(d);
-    // Ajuste aproximado a Bogotá usando Intl (evita depender del huso del navegador)
-    const parts = new Intl.DateTimeFormat('en-CA', { timeZone:'America/Bogota', year:'numeric', month:'2-digit', day:'2-digit' }).formatToParts(dt);
-    const y = parts.find(p=>p.type==='year')?.value;
-    const m = parts.find(p=>p.type==='month')?.value;
-    const day = parts.find(p=>p.type==='day')?.value;
-    if(y && m && day) return `${y}-${m}-${day}`;
-  }catch(_e){}
-  // fallback
-  try{ return new Date(d).toISOString().slice(0,10); }catch(_e){}
-  return "";
-}
-window.normDateOnly_ = normDateOnly_;
-
 document.addEventListener('DOMContentLoaded', ()=>{
   const btn = document.getElementById('buyReset');
   if(btn) btn.style.display = 'none';
