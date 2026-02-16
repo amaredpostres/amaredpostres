@@ -4,7 +4,32 @@
 // - Mantiene: Registrar compras + Editar ingrediente desde Compras
 // - UI: oculta botón global 'Reiniciar sobrantes' (no borra lógica)
 // ===============================
-console.log("[AMARED] costs.js cargado: V5.2");
+console.log("[AMARED] costs.js cargado: V5.3");
+
+
+
+// ------------------------------
+// FIX FINAL: crear el *binding* real (identificador) en el scope global.
+// (window.normDateOnly_ solo crea propiedad; esto crea la variable)
+// ------------------------------
+var normDateOnly_ = (typeof globalThis !== "undefined" && typeof globalThis.normDateOnly_ === "function")
+  ? globalThis.normDateOnly_
+  : (typeof window !== "undefined" && typeof window.normDateOnly_ === "function")
+    ? window.normDateOnly_
+    : function(d){
+        try{
+          const dt = (d instanceof Date) ? d : new Date(d);
+          if (isNaN(dt)) return "";
+          const y = dt.getFullYear();
+          const m = String(dt.getMonth()+1).padStart(2,"0");
+          const day = String(dt.getDate()).padStart(2,"0");
+          return `${y}-${m}-${day}`;
+        }catch(_e){ return ""; }
+      };
+
+// también exponer como propiedad por compatibilidad
+try{ if (typeof globalThis !== "undefined") globalThis.normDateOnly_ = normDateOnly_; }catch(_e){}
+try{ if (typeof window !== "undefined") window.normDateOnly_ = normDateOnly_; }catch(_e){}
 
 // ------------------------------
 // FIX DEFINITIVO: garantizar normDateOnly_ como *binding* global
