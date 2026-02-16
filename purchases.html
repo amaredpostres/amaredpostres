@@ -1,102 +1,71 @@
-<!DOCTYPE html>
-
+<!doctype html>
 <html lang="es">
 <head>
-<meta charset="utf-8"/>
-<meta content="width=device-width, initial-scale=1" name="viewport"/>
-<title>AMARED · Compras</title>
-<link href="assets/favicon.ico" rel="icon" type="image/x-icon"/>
-<link href="styles.css" rel="stylesheet">
-<link href="costs.css" rel="stylesheet"/>
-<style>
-    /* Ajustes mínimos sin tocar tus CSS base */
-    .hideCostsEditor{ display:none !important; }
-    .costsNav{ display:flex; gap:10px; flex-wrap:wrap; margin-bottom:12px; }
-  </style>
-</link></head>
-<body class="costsPage">
-<div class="page">
-<header class="topbar">
-<div class="topbarInner">
-<div class="brand">
-<img alt="AMARED Postres" class="brandLogo" src="assets/Logo-Amared.svg"/>
-</div>
-</div>
-</header>
-<main class="container">
-<!-- Unlock -->
-<section class="card">
-<h2 class="cardTitle">🔒 Compras (desde PEDIDOS)</h2>
-<p class="cardSubtitle">
-          Ingresa la clave para consultar PEDIDOS pagados (estado cocina: <b>No iniciar</b>) y calcular compras vs inventario.
-        </p>
-<div class="costsRow">
-<input autocomplete="off" class="costsField" id="secret" placeholder="COSTS_SECRET" type="password"/>
-<button class="btn" id="unlock">Desbloquear</button>
-</div>
-<div class="costsErr" id="err"></div>
-<div class="costsNav" style="margin-top:12px;">
-<a class="btn secondary" href="costs.html">📌 Ir a Costos</a>
-</div>
-</section>
-<!-- Editor (usamos el mismo bootstrap de costs.js, pero ocultamos la tabla) -->
-<section class="card" id="editor" style="display:none;">
-<div class="costsHeaderRow">
-<div>
-<h2 class="cardTitle">🛒 Compras y sobrantes</h2>
-<p class="cardSubtitle">
-              Usa <b>Actualizar desde pedidos</b> para recalcular. Marca compras hechas para actualizar inventario.
-              <span class="muted">Corte: 3:00 p.m. (Colombia).</span>
-</p>
-</div>
-<!-- Botón Guardar existe en el JS; lo dejamos oculto en Compras -->
-<div class="costsActions hideCostsEditor">
-<button class="btn" id="saveAll">Guardar</button>
-</div>
-</div>
-<!-- elementos que costs.js espera, pero ocultos -->
-<div class="costsTopTools hideCostsEditor" id="topTools"></div>
-<div class="costsList hideCostsEditor" id="list"></div>
-<!-- Compras -->
-<details class="costsAcc" id="buyAcc" open="">
-<summary class="costsAccSum">
-<span>🛒 Compras y sobrantes</span>
-<span class="costsAccHint" id="buySummaryHint">—</span>
-</summary>
-<div class="costsAccBody">
-<div class="buyTop">
-<div class="buyHelp">
-                Registra lo que te queda en inventario (sobrantes) y calcula automáticamente cuánto debes comprar para completar próximos pedidos.
-                <span class="muted">Se calcula con base en PEDIDOS y recetas; inventario se guarda en Google Sheets.</span>
-</div>
-<div class="buyActions">
-<button class="btn secondary" id="buyRefreshOrders" onclick="return window.amaredRefreshOrders &amp;&amp; window.amaredRefreshOrders(event);" type="button">
-                  Actualizar desde pedidos
-                </button>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>AMARED · Compras</title>
+  <link rel="icon" href="favicon.ico" />
+  <link rel="stylesheet" href="styles.css" />
+  <link rel="stylesheet" href="costs.css" />
+</head>
+<body>
+  <header class="topbar">
+    <img src="Logo-Isotipo-Amared.svg" alt="AMARED" class="brand" />
+  </header>
 
-</div>
-</div>
-<div class="buyTotals" id="buyTotals"></div>
-<div class="buyList" id="buyList"></div>
-<div class="buyPurchasePanel" id="buyPurchasePanel"></div>
-<div class="buyFooter muted small">
-              Tip: si tienes pedidos antiguos incompletos, el sistema ignora los que no cumplan "Pagado + No iniciar".
-            </div>
-</div>
-</details>
-</section>
-<div class="netDebug" id="netDebug" style="display:none;"></div>
-</main>
-<!-- Loading -->
-<div class="costsLoading" id="loading">
-<div class="costsLoadingCard">
-<div aria-hidden="true" class="costsLoadingSpinner"></div>
-<div class="costsLoadingTitle" id="lt">Cargando…</div>
-<div class="costsLoadingDesc" id="ld">Por favor espera.</div>
-</div>
-</div>
-<script src="kitchen-costs.js?v=base1"></script>
-<script src="./purchases.fixed.js?v=p3fix"></script>
-</div>
+  <main class="wrap">
+    <section class="card">
+      <h2>🛒 Compras (desde PEDIDOS)</h2>
+      <p>
+        Ingresa la clave para consultar <b>PEDIDOS</b> pagados (estado cocina: <b>No iniciar</b>) y calcular compras vs inventario.
+      </p>
+
+      <div class="row" style="gap:12px; align-items:center;">
+        <input id="secret" type="password" placeholder="Clave de costos" class="input" style="flex:1;" />
+        <button id="unlockBtn" class="btn">Desbloquear</button>
+      </div>
+
+      <div style="margin-top:12px; display:flex; gap:10px; flex-wrap:wrap;">
+        <a class="btn" href="costs.html">📌 Ir a Costos</a>
+      </div>
+
+      <div id="netDebug" class="netDebug" style="display:none; margin-top:12px;"></div>
+    </section>
+
+    <!-- Wrapper que se muestra solo al desbloquear -->
+    <section id="buyWrapper" class="card" style="display:none;">
+      <h2>🧾 Compras y sobrantes</h2>
+      <p>
+        Usa <b>Actualizar desde pedidos</b> para recalcular. Marca compras hechas para actualizar inventario.
+        Corte: <b>3:00 p.m.</b> (Colombia).
+      </p>
+
+      <div class="buyTopRow" style="display:flex; gap:12px; flex-wrap:wrap; align-items:center; justify-content:space-between;">
+        <div id="buyTotals" class="buyTotals"></div>
+        <div style="display:flex; gap:10px;">
+          <button class="btn primary" id="buyRefresh" onclick="amaredRefreshOrders(event)">Actualizar desde pedidos</button>
+          <!-- Se elimina el botón global de reiniciar sobrantes (si luego quieres, lo hacemos por ingrediente) -->
+        </div>
+      </div>
+
+      <div id="buyList" class="buyList" style="margin-top:12px;"></div>
+
+      <!-- Panel donde se inyecta el botón de guardar compras -->
+      <div id="buyPurchasePanel"></div>
+    </section>
+  </main>
+
+  <!-- Loading overlay (si ya lo usas en costs.html, lo reutilizamos) -->
+  <div id="loading" class="loading" style="display:none;">
+    <div class="loadingBox">
+      <div id="lt" class="loadingTitle">Cargando…</div>
+      <div id="ld" class="loadingDesc">Procesando</div>
+    </div>
+  </div>
+
+  <!-- JS compartido (api + unlock) -->
+  <script src="costs.js?v=base"></script>
+  <!-- JS de compras (separado) -->
+  <script src="purchases.js?v=p3"></script>
 </body>
 </html>
