@@ -5,6 +5,23 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>AMARED · Compras</title>
 
+  <script>
+  // FIX GLOBAL: normDateOnly_ debe existir como variable global.
+  // (Evita ReferenceError si algún archivo lo usa antes de cargar otros scripts.)
+  var normDateOnly_ = (typeof normDateOnly_ === "function") ? normDateOnly_ : function(d){
+    try{
+      const dt = (d instanceof Date) ? d : new Date(d);
+      if (isNaN(dt)) return "";
+      const y = dt.getFullYear();
+      const m = String(dt.getMonth()+1).padStart(2,"0");
+      const day = String(dt.getDate()).padStart(2,"0");
+      return `${y}-${m}-${day}`;
+    }catch(_e){ return ""; }
+  };
+  try{ globalThis.normDateOnly_ = normDateOnly_; }catch(_e){}
+  try{ window.normDateOnly_ = normDateOnly_; }catch(_e){}
+  </script>
+
   <link rel="icon" href="assets/favicon.ico" type="image/x-icon">
   <link rel="stylesheet" href="styles.css" />
   <link rel="stylesheet" href="costs.css" />
