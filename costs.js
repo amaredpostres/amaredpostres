@@ -4,27 +4,55 @@
 // - Mantiene: Registrar compras + Editar ingrediente desde Compras
 // - UI: oculta botón global 'Reiniciar sobrantes' (no borra lógica)
 // ===============================
-console.log("[AMARED] costs.js cargado: V5.1");
-
+console.log("[AMARED] costs.js cargado: V5.2");
 
 // ------------------------------
-// Global helper (DECLARATION) to avoid ReferenceError anywhere.
-// Must be a real binding, not just window.normDateOnly_ property.
+// FIX DEFINITIVO: garantizar normDateOnly_ como *binding* global
+// - Algunos navegadores/escenarios cargan scripts de forma que "window.normDateOnly_" existe
+//   pero el identificador "normDateOnly_" NO. Por eso creamos el binding con "var".
 // ------------------------------
-function normDateOnly_(d){
+(function ensureNormDateOnlyBinding(){
+  const fn = function(d){
+    try{
+      const dt = (d instanceof Date) ? d : new Date(d);
+      if (isNaN(dt)) return "";
+      const y = dt.getFullYear();
+      const m = String(dt.getMonth()+1).padStart(2,"0");
+      const day = String(dt.getDate()).padStart(2,"0");
+      return `${y}-${m}-${day}`;
+    }catch(_e){ return ""; }
+  };
+
   try{
-    const dt = (d instanceof Date) ? d : new Date(d);
-    if (isNaN(dt)) return "";
-    const y = dt.getFullYear();
-    const m = String(dt.getMonth()+1).padStart(2,"0");
-    const day = String(dt.getDate()).padStart(2,"0");
-    return `${y}-${m}-${day}`;
+    if (typeof globalThis !== "undefined" && typeof globalThis.normDateOnly_ !== "function"){
+      globalThis.normDateOnly_ = fn;
+    }
+  }catch(_e){}
+
+  try{
+    if (typeof window !== "undefined" && typeof window.normDateOnly_ !== "function"){
+      window.normDateOnly_ = (typeof globalThis !== "undefined" && typeof globalThis.normDateOnly_ === "function")
+        ? globalThis.normDateOnly_
+        : fn;
+    }
+  }catch(_e){}
+
+  // Crear el binding real (identificador) accesible desde cualquier función en este archivo:
+  // "var" se hoistea y evita ReferenceError.
+  try{
+    if (typeof normDateOnly_ !== "function"){
+      // eslint-disable-next-line no-var
+      var normDateOnly_ = (typeof globalThis !== "undefined" && typeof globalThis.normDateOnly_ === "function")
+        ? globalThis.normDateOnly_
+        : fn;
+    }
   }catch(_e){
-    return "";
+    // eslint-disable-next-line no-var
+    var normDateOnly_ = fn;
+    try{ window.normDateOnly_ = fn; }catch(_e2){}
+    try{ globalThis.normDateOnly_ = fn; }catch(_e2){}
   }
-}
-try{ window.normDateOnly_ = normDateOnly_; }catch(_e){}
-try{ globalThis.normDateOnly_ = normDateOnly_; }catch(_e){}
+})();
 
 try{ if(typeof globalThis!=="undefined") globalThis.normDateOnly_ = normDateOnly_; }catch(_e){}
 try{ if(typeof window!=="undefined") window.normDateOnly_ = normDateOnly_; }catch(_e){}
