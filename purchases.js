@@ -149,6 +149,16 @@ function showLoading(t,d){
 function hideLoading(){ document.getElementById("loading").classList.remove("show"); }
 
 async function api(payload){
+  payload = payload || {};
+  // Auto-inyectar credenciales (usa la misma clave para COSTS_SECRET o ADMIN_PIN)
+  try{
+    const k = (typeof UNLOCKED_SECRET === "string" && UNLOCKED_SECRET.trim()) ? UNLOCKED_SECRET.trim() : "";
+    if(k){
+      if(!payload.costs_secret) payload.costs_secret = k;
+      if(!payload.admin_pin)  payload.admin_pin  = k;
+    }
+  }catch(_e){}
+
   const res = await fetch(API_URL,{
     method:"POST",
     headers:{ "Content-Type":"application/json" },
