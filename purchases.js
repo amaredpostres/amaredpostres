@@ -1,4 +1,48 @@
-console.log("[AMARED] purchases.js cargado: P1");
+// ===============================
+// AMARED · purchases.js (Compras)
+// FIX: evitar ReferenceError: normDateOnly_ is not defined
+// ===============================
+(function(){
+  const fn = function(d){
+    try{
+      const dt = (d instanceof Date) ? d : new Date(d);
+      if (isNaN(dt)) return "";
+      const y = dt.getFullYear();
+      const m = String(dt.getMonth()+1).padStart(2,"0");
+      const day = String(dt.getDate()).padStart(2,"0");
+      return `${y}-${m}-${day}`;
+    }catch(e){ return ""; }
+  };
+
+  // Asegurar propiedad global
+  try{
+    if (typeof globalThis !== "undefined" && typeof globalThis.normDateOnly_ !== "function"){
+      globalThis.normDateOnly_ = fn;
+    }
+  }catch(e){}
+
+  try{
+    if (typeof window !== "undefined" && typeof window.normDateOnly_ !== "function"){
+      window.normDateOnly_ = (typeof globalThis !== "undefined" && typeof globalThis.normDateOnly_ === "function")
+        ? globalThis.normDateOnly_
+        : fn;
+    }
+  }catch(e){}
+
+  // Crear binding REAL (variable) para que normDateOnly_(...) no falle nunca.
+  // eslint-disable-next-line no-var
+  var normDateOnly_ = (typeof window !== "undefined" && typeof window.normDateOnly_ === "function")
+    ? window.normDateOnly_
+    : (typeof globalThis !== "undefined" && typeof globalThis.normDateOnly_ === "function")
+      ? globalThis.normDateOnly_
+      : fn;
+
+  // Re-exponer por compatibilidad
+  try{ window.normDateOnly_ = normDateOnly_; }catch(e){}
+  try{ globalThis.normDateOnly_ = normDateOnly_; }catch(e){}
+})();
+
+console.log("[AMARED] purchases.js cargado: P2");
 
 window.amaredRefreshOrders = async function(ev){
   try{ ev && ev.preventDefault && ev.preventDefault(); }catch(_e){}
