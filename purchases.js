@@ -251,7 +251,7 @@ async function commit(rows){
 
 /* ------- Boot (usa tus ids actuales) ------- */
 function init(){
-  console.log("[AMARED] purchases.js cargado: P3");
+  console.log("[AMARED] purchases.js cargado: P3b");
 
   // prefill
   const secret = $("secret");
@@ -274,7 +274,12 @@ function init(){
   }
 
   // botón existente (tiene onclick)
-  window.amaredRefreshOrders = function(){
+  window.amaredRefreshOrders = function(ev){
+    try{
+      if(ev && ev.preventDefault) ev.preventDefault();
+      if(ev && ev.stopPropagation) ev.stopPropagation();
+      if(ev && ev.stopImmediatePropagation) ev.stopImmediatePropagation();
+    }catch(_e){}
     return refresh().catch(e=> setErr(String(e.message||e)));
   };
 
