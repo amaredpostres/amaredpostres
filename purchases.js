@@ -36,6 +36,7 @@
   // ---- State ----
   const state = {
     pin: "",
+    authField: "",   // "admin_pin" | "costs_secret"
     needs: {},        // ingredient_key -> qty needed (from backend)
     inventory: {},    // ingredient_key -> {qty, unit}
     costs: {},        // ingredient_key -> {cop_per_unit, unit}
@@ -150,16 +151,28 @@
     return out;
   }
 
-  async function validatePin(pin){
-    // Si el Worker no tiene validate_admin_pin, lo consideramos ok para no bloquear.
+  async function detectAuthField(pin){
+    // Preferimos probar una acción real protegida para no depender de validate_admin_pin.
     try{
-      const out = await api({action:"validate_admin_pin", admin_pin: pin});
-      return out.ok === true;
-    }catch(e){
-      const msg = String(e?.message||e);
-      if(msg.toLowerCase().includes("unknown action")) return true;
-      throw new Error("PIN inválido o no autorizado.");
-    }
+      await api({action:"costs_list", admin_pin: pin});
+      return "admin_pin";
+    }catch(_e1){}
+
+    try{
+      await api({action:"costs_list", costs_secret: pin});
+      return "costs_secret";
+    }catch(_e2){}
+
+    throw new Error("Clave inválida o no autorizada.");
+  }
+
+  function withAuth(payload){
+    const field = state.authField || "admin_pin";
+    return { ...(payload||{}), [field]: state.pin };
+  }
+
+  async function apiAuth(payload){
+    return api(withAuth(payload));
   }
 
   function showEditor(){
@@ -359,9 +372,8 @@
 
           if(items.length===0) throw new Error("No hay ítems seleccionados.");
 
-          await api({
+          await apiAuth({
             action:"inventory_add_purchase_batch",
-            admin_pin: state.pin,
             items,
             updated_by: "PURCHASES_UI",
             source: "PURCHASES_UI"
@@ -369,7 +381,7 @@
 
           if(msg) msg.textContent = "✅ Compra registrada. Actualizando inventario…";
           // recargar inventario y re-render
-          const inv = await api({action:"inventory_get", admin_pin: state.pin});
+          const inv = await apiAuth({action:"inventory_get"});
           state.inventory = inv.inventory || {};
           render();
           if(msg) msg.textContent = "✅ Listo. Inventario actualizado.";
@@ -403,9 +415,9 @@
     if(netDebug) netDebug.style.display="none";
 
     const [needsOut, invOut, costsOut] = await Promise.all([
-      fetchNeedsWithFallback(),
-      api({action:"inventory_get", admin_pin: state.pin}).catch(()=>api({action:"inventory_get", costs_secret: state.pin})),
-      api({action:"costs_list", admin_pin: state.pin}).catch(()=>api({action:"costs_list", costs_secret: state.pin})),
+      apiAuth({action:"costs_orders_for_purchases"}),
+      apiAuth({action:"inventory_get"}),
+      apiAuth({action:"costs_list"}),
     ]);
 
     const needsPack = normalizeNeedsOut(needsOut || {});
@@ -450,8 +462,9 @@
     try{
       const pin = String(secretInp?.value||"").trim();
       if(!pin) throw new Error("Ingresa la clave.");
-      await validatePin(pin);
+      const authField = await detectAuthField(pin);
       state.pin = pin;
+      state.authField = authField;
       setErr("");
       showEditor();
       await refreshFromBackend();
