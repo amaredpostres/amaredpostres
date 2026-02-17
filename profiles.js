@@ -1,228 +1,484 @@
-/* =========================================================
-   AMARED · Compras v2 (Backend-first)  [P2b]
-   - NO usa getSheet_ ni kitchen-costs.js
-   - Apps Script calcula needs; front solo renderiza
-   ========================================================= */
+// =================== CONFIG ===================
 const API_URL = "https://amared-orders.amaredpostres.workers.dev/";
 
-const $ = (sel) => document.querySelector(sel);
+// =================== STATE ===================
+let PROFILES_SECRET = null;
+let PROFILES_CACHE = [];
 
-function fmtCOP(n){
-  const v = Number(n||0);
-  return v.toLocaleString("es-CO", { style:"currency", currency:"COP", maximumFractionDigits:0 });
+// =================== DOM ===================
+const btnBack = document.getElementById("btnBack");
+
+const gateCard = document.getElementById("gateCard");
+const statusCard = document.getElementById("statusCard");
+const mgrCard = document.getElementById("mgrCard");
+
+const inpSecret = document.getElementById("inpSecret");
+const btnUnlock = document.getElementById("btnUnlock");
+const gateErr = document.getElementById("gateErr");
+
+const pillState = document.getElementById("pillState");
+const btnLogout = document.getElementById("btnLogout");
+
+const pillCount = document.getElementById("pillCount");
+const btnReload = document.getElementById("btnReload");
+const tbody = document.getElementById("tbody");
+const listMsg = document.getElementById("listMsg");
+
+const inpName = document.getElementById("inpName");
+const inpId = document.getElementById("inpId");
+const btnAdd = document.getElementById("btnAdd");
+const mgrErr = document.getElementById("mgrErr");
+
+const loading = document.getElementById("loading");
+const loadingTitle = document.getElementById("loadingTitle");
+const loadingMsg = document.getElementById("loadingMsg");
+
+// =================== HELPERS ===================
+function showLoading(title, msg){
+  if(!loading) return;
+  loadingTitle.textContent = title || "Cargando…";
+  loadingMsg.textContent = msg || "Procesando…";
+  loading.style.display = "flex";
+  loading.setAttribute("aria-hidden","false");
+}
+function hideLoading(){
+  if(!loading) return;
+  loading.style.display = "none";
+  loading.setAttribute("aria-hidden","true");
 }
 
-function num(v){ const x = Number(v); return (isFinite(x) ? x : 0); }
+function escapeHtml(s){
+  return String(s ?? "")
+    .replaceAll("&","&amp;")
+    .replaceAll("<","&lt;")
+    .replaceAll(">","&gt;")
+    .replaceAll('"',"&quot;")
+    .replaceAll("'","&#039;");
+}
 
-async function api(action, body={}){
+function slugifyNameToId(name){
+  const s = String(name || "")
+    .trim()
+    .toLowerCase()
+    .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9\s_-]/g, "")
+    .replace(/\s+/g, "_")
+    .replace(/_+/g, "_")
+    .replace(/^_+|_+$/g, "");
+  return s || "";
+}
+
+function getSelectedCategories(){
+  const checks = Array.from(document.querySelectorAll(".chips input[type=checkbox]"));
+  return checks.filter(c=>c.checked).map(c=>String(c.value||"").trim()).filter(Boolean);
+}
+
+async function api(payload){
   const res = await fetch(API_URL, {
     method: "POST",
-    headers: { "Content-Type":"application/json" },
-    body: JSON.stringify({ action, ...body })
+    headers: {"Content-Type":"application/json"},
+    body: JSON.stringify(payload || {})
   });
-  const data = await res.json().catch(()=> ({ok:false, error:"Respuesta no-JSON"}));
-  if(!res.ok || data.ok === false) throw new Error(data.error || `HTTP ${res.status}`);
+  const data = await res.json().catch(()=> ({}));
+  if(!res.ok || data.ok===false){
+    const msg = data.error || data.message || `HTTP ${res.status}`;
+    const err = new Error(msg);
+    err._raw = data;
+    err._status = res.status;
+    throw err;
+  }
   return data;
 }
 
-function getKey(){
-  return (sessionStorage.getItem("AMARED_COSTS_KEY") || "").trim();
-}
-function setKey(k){ sessionStorage.setItem("AMARED_COSTS_KEY", String(k||"").trim()); }
-
-function setStatus(msg, kind="") {
-  const el = $("#p2Status");
-  if(!el) return;
-  el.textContent = msg || "";
-  el.className = "p2-status " + (kind ? ("p2-" + kind) : "");
-}
-
-function strip00(x){
-  const v = num(x);
-  const s = v.toFixed(2);
-  return s.replace(/\.00$/,"");
+function setLockedUI(locked){
+  if(locked){
+    pillState.textContent = "🔒 Bloqueado";
+    btnLogout.disabled = true;
+    if(mgrCard) mgrCard.style.display = "none";
+    if(statusCard) statusCard.style.opacity = "1";
+  }else{
+    pillState.textContent = "🔓 Desbloqueado";
+    btnLogout.disabled = false;
+    if(mgrCard) mgrCard.style.display = "block";
+  }
 }
 
-function buildRows(needsMap, invMap, costItems){
-  const costMap = {};
-  (costItems||[]).forEach(it=>{
-    const k = String(it.ingredient_key||"").trim();
-    if(!k) return;
-    const cpu = num(it.cop_per_unit);
-    if(!costMap[k] || cpu > costMap[k].cop_per_unit) costMap[k] = { cop_per_unit: cpu, unit_type: it.unit_type || "" };
-  });
 
-  const keys = Object.keys(needsMap||{}).sort((a,b)=>a.localeCompare(b,"es"));
-  return keys.map(k=>{
-    const need = num(needsMap[k]);
-    const inv = invMap && invMap[k] ? invMap[k] : null;
-    const invQty = inv ? num(inv.qty) : 0;
-    const invUnit = inv ? String(inv.unit||"") : "";
-    const cpu = costMap[k] ? num(costMap[k].cop_per_unit) : 0;
-    const buy = Math.max(need - invQty, 0);
 
-    return {
-      ingredient_key: k,
-      need,
-      invQty,
-      invUnit,
-      buy,
-      cop_per_unit: cpu,
-      cop_total: cpu * buy
-    };
-  });
+// =================== CONFIRM MODAL (2s) ===================
+function ensureConfirmModal(){
+  if(document.getElementById("confirmModal")) return;
+
+  const style = document.createElement("style");
+  style.id = "confirmModalStyles";
+  style.textContent = `
+    .cmOverlay{
+      position: fixed; inset: 0;
+      display: none;
+      align-items: center; justify-content: center;
+      background: rgba(0,0,0,.28);
+      z-index: 9999;
+      padding: 16px;
+    }
+    .cmBox{
+      width: min(520px, 100%);
+      background: rgba(255,255,255,.92);
+      border: 1px solid rgba(0,0,0,.06);
+      border-radius: 18px;
+      box-shadow: 0 18px 45px rgba(0,0,0,.18);
+      padding: 18px;
+    }
+    .cmTitle{
+      font-weight: 800;
+      font-size: 20px;
+      color: #3b1a0d;
+      margin: 0 0 6px 0;
+    }
+    .cmMsg{
+      margin: 0 0 14px 0;
+      color: rgba(59,26,13,.85);
+      line-height: 1.35;
+    }
+    .cmRow{
+      display:flex; gap:10px; justify-content:flex-end; flex-wrap:wrap;
+    }
+    .cmBtn{
+      border: 0;
+      border-radius: 14px;
+      padding: 10px 14px;
+      font-weight: 800;
+      cursor: pointer;
+    }
+    .cmBtn:disabled{ opacity:.55; cursor:not-allowed; }
+    .cmCancel{
+      background: #f1e7df;
+      color: #3b1a0d;
+    }
+    .cmDanger{
+      background: linear-gradient(90deg, #ff6aa1, #ff9a5b);
+      color: white;
+      min-width: 160px;
+    }
+    .cmTimer{
+      display:flex; align-items:center; justify-content:space-between;
+      gap:10px;
+      margin: 10px 0 14px 0;
+      color: rgba(59,26,13,.8);
+      font-weight: 700;
+      font-size: 13px;
+    }
+    .cmBar{
+      flex:1;
+      height: 8px;
+      border-radius: 999px;
+      background: rgba(0,0,0,.08);
+      overflow:hidden;
+    }
+    .cmBar > div{
+      height: 100%;
+      width: 0%;
+      background: rgba(255,106,161,.75);
+      transition: width .15s linear;
+    }
+  `;
+  document.head.appendChild(style);
+
+  const overlay = document.createElement("div");
+  overlay.id = "confirmModal";
+  overlay.className = "cmOverlay";
+  overlay.setAttribute("aria-hidden","true");
+  overlay.innerHTML = `
+    <div class="cmBox" role="dialog" aria-modal="true" aria-labelledby="cmTitle">
+      <div class="cmTitle" id="cmTitle">Confirmar acción</div>
+      <p class="cmMsg" id="cmMsg"></p>
+
+      <div class="cmTimer">
+        <span id="cmCountdownText">Verificación…</span>
+        <div class="cmBar"><div id="cmBarFill"></div></div>
+      </div>
+
+      <div class="cmRow">
+        <button class="cmBtn cmCancel" id="cmCancelBtn" type="button">Cancelar</button>
+        <button class="cmBtn cmDanger" id="cmOkBtn" type="button" disabled>Eliminar (2s)</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(overlay);
+}
+
+function confirmWithTimer({title, message, okLabel="Eliminar", seconds=2}){
+  ensureConfirmModal();
+  const overlay = document.getElementById("confirmModal");
+  const elTitle = document.getElementById("cmTitle");
+  const elMsg = document.getElementById("cmMsg");
+  const btnCancel = document.getElementById("cmCancelBtn");
+  const btnOk = document.getElementById("cmOkBtn");
+  const txt = document.getElementById("cmCountdownText");
+  const bar = document.getElementById("cmBarFill");
+
+  let resolveFn;
+  const p = new Promise(res=> resolveFn = res);
+
+  elTitle.textContent = title || "Confirmar acción";
+  elMsg.textContent = message || "";
+  overlay.style.display = "flex";
+  overlay.setAttribute("aria-hidden","false");
+
+  // timer lock
+  const totalMs = Math.max(0, Number(seconds||0))*1000;
+  const start = performance.now();
+  btnOk.disabled = true;
+
+  const setBtnText = (leftMs)=>{
+    const left = Math.max(0, Math.ceil(leftMs/1000));
+    btnOk.textContent = `${okLabel} (${left}s)`;
+  };
+  setBtnText(totalMs);
+
+  let rafId = 0;
+  const tick = ()=>{
+    const now = performance.now();
+    const elapsed = now - start;
+    const left = totalMs - elapsed;
+    const pct = totalMs<=0 ? 100 : Math.min(100, (elapsed/totalMs)*100);
+    bar.style.width = `${pct}%`;
+    if(left > 0){
+      txt.textContent = "Espera para confirmar…";
+      setBtnText(left);
+      rafId = requestAnimationFrame(tick);
+    }else{
+      txt.textContent = "Listo para confirmar.";
+      bar.style.width = "100%";
+      btnOk.disabled = false;
+      btnOk.textContent = okLabel;
+    }
+  };
+  rafId = requestAnimationFrame(tick);
+
+  const cleanup = ()=>{
+    cancelAnimationFrame(rafId);
+    overlay.style.display = "none";
+    overlay.setAttribute("aria-hidden","true");
+    btnCancel.onclick = null;
+    btnOk.onclick = null;
+    overlay.onclick = null;
+    document.removeEventListener("keydown", onKey);
+  };
+
+  const done = (val)=>{
+    cleanup();
+    resolveFn(val);
+  };
+
+  const onKey = (e)=>{
+    if(e.key === "Escape") done(false);
+  };
+  document.addEventListener("keydown", onKey);
+
+  overlay.onclick = (e)=>{
+    if(e.target === overlay) done(false);
+  };
+  btnCancel.onclick = ()=> done(false);
+  btnOk.onclick = ()=> done(true);
+
+  return p;
+}
+
+// =================== RENDER ===================
+function normalizeId(p){
+  return String(p?.profile_id ?? p?.id ?? p?.profileId ?? "").trim();
+}
+
+function isActive(p){
+  const v = p?.is_active;
+  if(typeof v === "boolean") return v;
+  const s = String(v ?? "").trim().toLowerCase();
+  if(s === "false" || s === "0" || s === "no") return false;
+  return true; // por defecto activo
 }
 
 function renderTable(rows){
-  const tbody = $("#p2Tbody");
   tbody.innerHTML = "";
-  let total = 0;
-  let countNeed = 0;
+  const active = (rows||[]).filter(isActive);
+  pillCount.textContent = `${active.length} perfiles`;
 
-  rows.forEach((r, idx)=>{
-    if(r.buy > 0) countNeed++;
-    total += num(r.cop_total);
+  if(active.length===0){
+    tbody.innerHTML = `<tr><td colspan="4" class="muted small">Sin datos.</td></tr>`;
+    return;
+  }
+
+  for(const p of active){
+    const pid = normalizeId(p);
+    const cats = String(p.categories||"")
+      .split(",")
+      .map(s=>s.trim())
+      .filter(Boolean)
+      .map(c=>`<span class="badge">${escapeHtml(c)}</span>`)
+      .join(" ");
 
     const tr = document.createElement("tr");
     tr.innerHTML = `
-      <td class="p2-td-ing">
-        <label class="p2-check">
-          <input type="checkbox" class="p2-cb" data-k="${idx}">
-          <span>${r.ingredient_key}</span>
-        </label>
-        <div class="p2-sub">${r.invUnit ? r.invUnit : ""}</div>
-      </td>
-      <td class="p2-num">${strip00(r.need)}</td>
-      <td class="p2-num">${strip00(r.invQty)}</td>
-      <td class="p2-num">
-        <input class="p2-buy" data-k="${idx}" type="number" min="0" step="0.01" value="${strip00(r.buy)}">
-      </td>
-      <td class="p2-num p2-money" data-money="${idx}">${fmtCOP(r.cop_total)}</td>
+      <td><code>${escapeHtml(pid)}</code></td>
+      <td>${escapeHtml(p.label||"")}</td>
+      <td>${cats || `<span class="muted small">—</span>`}</td>
+      <td><button class="btn secondary btnDel" data-id="${escapeHtml(pid)}">Eliminar</button></td>
     `;
     tbody.appendChild(tr);
-  });
-
-  $("#p2NeedCount").textContent = String(countNeed);
-  $("#p2TotalCost").textContent = fmtCOP(total);
+  }
 }
 
-function bindBuyInputs(rows){
-  document.querySelectorAll(".p2-buy").forEach(inp=>{
-    inp.addEventListener("input", ()=>{
-      const idx = Number(inp.dataset.k);
-      const v = Math.max(num(inp.value), 0);
-      rows[idx].buy = v;
-      rows[idx].cop_total = num(rows[idx].cop_per_unit) * v;
+// Delegación de eventos: el botón Eliminar siempre funciona aunque la tabla se re-renderice
+tbody?.addEventListener("click", async (ev)=>{
+  const btn = ev.target?.closest?.(".btnDel");
+  if(!btn) return;
+  const id = String(btn.getAttribute("data-id")||"").trim();
+  if(!id) return;
 
-      const moneyEl = document.querySelector(`[data-money="${idx}"]`);
-      if(moneyEl) moneyEl.textContent = fmtCOP(rows[idx].cop_total);
+  const ok = await confirmWithTimer({
+    title: "Eliminar perfil",
+    message: `¿Seguro que deseas eliminar el perfil "${id}"? Se marcará como inactivo en la base de datos.`,
+    okLabel: "Eliminar",
+    seconds: 2
+  });
+  if(!ok) return;
 
-      const total = rows.reduce((s,x)=> s + num(x.cop_total), 0);
-      $("#p2TotalCost").textContent = fmtCOP(total);
-
-      const countNeed = rows.reduce((s,x)=> s + (x.buy>0 ? 1:0), 0);
-      $("#p2NeedCount").textContent = String(countNeed);
+  mgrErr.textContent = "";
+  try{
+    showLoading("Eliminando…", "Actualizando base de datos…");
+    await api({
+      action: "profiles_delete",
+      profiles_secret: PROFILES_SECRET,
+      profile_id: id
     });
-  });
+    await loadProfiles();
+  }catch(e){
+    mgrErr.textContent = e.message || "Error eliminando.";
+    console.error("delete error:", e, e._raw);
+  }finally{
+    hideLoading();
+  }
+});
+
+// =================== DATA ===================
+async function loadProfiles(){
+  if(!PROFILES_SECRET) throw new Error("No autorizado.");
+  listMsg.textContent = "";
+  mgrErr.textContent = "";
+
+  showLoading("Cargando…", "Leyendo perfiles…");
+  try{
+    const out = await api({
+      action: "profiles_list",
+      profiles_secret: PROFILES_SECRET
+    });
+    PROFILES_CACHE = Array.isArray(out.profiles) ? out.profiles : [];
+    renderTable(PROFILES_CACHE);
+    listMsg.textContent = `Actualizado: ${new Date().toLocaleString("es-CO")}`;
+  }finally{
+    hideLoading();
+  }
 }
 
-async function refresh(){
-  const key = getKey();
-  if(!key) throw new Error("Ingresa la clave de Costos y desbloquea.");
+// =================== EVENTS ===================
+btnBack?.addEventListener("click", ()=>{
+  if(history.length > 1) history.back();
+  else location.href = "index.html";
+});
 
-  setStatus("Calculando desde pedidos…", "loading");
+inpName?.addEventListener("input", ()=>{
+  inpId.value = slugifyNameToId(inpName.value);
+});
 
-  const needsRes = await api("costs_orders_for_purchases", { costs_secret: key });
-  const needsMap = needsRes.needs || {};
-  const meta = needsRes.meta || {};
-
-  const invRes = await api("inventory_get", { costs_secret: key });
-  const invMap = invRes.inventory || {};
-
-  let costItems = [];
-  try {
-    const costsRes = await api("costs_public_list", {});
-    costItems = costsRes.items || [];
-  } catch(e) {
-    costItems = [];
+btnUnlock?.addEventListener("click", async ()=>{
+  gateErr.textContent = "";
+  const secret = String(inpSecret.value||"").trim();
+  if(!secret){
+    gateErr.textContent = "Ingresa la clave.";
+    return;
   }
 
-  const rows = buildRows(needsMap, invMap, costItems);
-  renderTable(rows);
-  bindBuyInputs(rows);
+  try{
+    showLoading("Validando…", "Comprobando acceso…");
+    // Validación real: si profiles_list responde OK, la clave es válida
+    const out = await api({
+      action: "profiles_list",
+      profiles_secret: secret
+    });
 
-  $("#p2Meta").textContent = `Pedidos usados: ${meta.orders_used||0} (ventana: ${meta.window_hours||""}h, corte: ${meta.cutoff_hour||""}:00)`;
-  setStatus("Listo.", "ok");
+    PROFILES_SECRET = secret;
+    setLockedUI(false);
 
-  window.__P2_ROWS__ = rows;
-}
+    PROFILES_CACHE = Array.isArray(out.profiles) ? out.profiles : [];
+    renderTable(PROFILES_CACHE);
+    listMsg.textContent = "Acceso concedido.";
+    gateErr.textContent = "";
+  }catch(e){
+    PROFILES_SECRET = null;
+    setLockedUI(true);
+    gateErr.textContent = "Clave incorrecta o no autorizada.";
+    console.error("unlock error:", e, e._raw);
+  }finally{
+    hideLoading();
+  }
+});
 
-async function commitPurchases(){
-  const rows = window.__P2_ROWS__ || [];
-  const key = getKey();
-  if(!key) throw new Error("Clave no encontrada.");
+btnLogout?.addEventListener("click", ()=>{
+  PROFILES_SECRET = null;
+  inpSecret.value = "";
+  setLockedUI(true);
+});
 
-  const checked = Array.from(document.querySelectorAll(".p2-cb"))
-    .filter(cb => cb.checked)
-    .map(cb => Number(cb.dataset.k));
+btnReload?.addEventListener("click", async ()=>{
+  try{
+    await loadProfiles();
+  }catch(e){
+    mgrErr.textContent = e.message || "Error cargando perfiles.";
+  }
+});
 
-  if(!checked.length) throw new Error("Selecciona al menos 1 ingrediente para registrar la compra.");
+btnAdd?.addEventListener("click", async ()=>{
+  mgrErr.textContent = "";
+  const name = String(inpName.value||"").trim();
+  const id = String(inpId.value||"").trim();
+  const cats = getSelectedCategories();
 
-  const items = checked.map(i => {
-    const r = rows[i];
-    const qty = Math.max(num(r.buy), 0);
-    if(qty <= 0) return null;
-    return {
-      ingredient_key: r.ingredient_key,
-      qty,
-      unit: r.invUnit || "",
-      cop_per_unit: num(r.cop_per_unit)
-    };
-  }).filter(Boolean);
+  if(!PROFILES_SECRET){
+    mgrErr.textContent = "Primero ingresa la clave.";
+    return;
+  }
+  if(!name){
+    mgrErr.textContent = "Ingresa el nombre.";
+    return;
+  }
+  if(!id){
+    mgrErr.textContent = "ID inválido.";
+    return;
+  }
+  if(cats.length===0){
+    mgrErr.textContent = "Selecciona al menos una categoría.";
+    return;
+  }
 
-  if(!items.length) throw new Error("Las filas seleccionadas tienen compra en 0.");
+  try{
+    showLoading("Guardando…", "Creando perfil…");
+    await api({
+      action: "profiles_add",
+      profiles_secret: PROFILES_SECRET,
+      profile_id: id,
+      label: name,
+      categories: cats.join(",")
+    });
 
-  setStatus("Registrando compra y actualizando inventario…", "loading");
+    inpName.value = "";
+    inpId.value = "";
+    await loadProfiles();
+  }catch(e){
+    mgrErr.textContent = e.message || "Error agregando perfil.";
+    console.error("add error:", e, e._raw);
+  }finally{
+    hideLoading();
+  }
+});
 
-  await api("inventory_add_purchase_batch", {
-    costs_secret: key,
-    items,
-    updated_by: "COSTS_UI",
-    source: "PURCHASES_V2"
-  });
-
-  setStatus("Compra registrada. Inventario actualizado.", "ok");
-  await refresh();
-}
-
-function init(){
-  console.log("[AMARED] purchases2.js cargado: P2b");
-  const k = getKey();
-  if(k) $("#p2Key").value = k;
-
-  $("#p2Unlock").addEventListener("click", ()=>{
-    const key = String($("#p2Key").value||"").trim();
-    if(!key) return setStatus("Ingresa la clave.", "warn");
-    setKey(key);
-    setStatus("Desbloqueado.", "ok");
-  });
-
-  $("#p2Refresh").addEventListener("click", ()=>{
-    refresh().catch(err=> setStatus(String(err.message||err), "warn"));
-  });
-
-  $("#p2Commit").addEventListener("click", ()=>{
-    commitPurchases().catch(err=> setStatus(String(err.message||err), "warn"));
-  });
-}
-
-document.addEventListener("DOMContentLoaded", init);
-
-
-
-/* ---- Compat: soporta botones existentes en purchases.html ---- */
-window.amaredRefreshOrders = function(){
-  // mantiene el nombre que usa el HTML actual
-  return refresh();
-};
-/* ---- End compat ---- */
+// init UI locked
+setLockedUI(true);
