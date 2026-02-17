@@ -27,6 +27,7 @@
   const btnReset = $("buyReset");
 
   const totalsEl = $("buyTotals");
+  const ordersPanelEl = $("buyOrdersPanel");
   const listEl = $("buyList");
   const panelEl = $("buyPurchasePanel");
   const summaryHint = $("buySummaryHint");
@@ -35,10 +36,12 @@
   // ---- State ----
   const state = {
     pin: "",
+    authField: "",   // "admin_pin" | "costs_secret"
     needs: {},        // ingredient_key -> qty needed (from backend)
     inventory: {},    // ingredient_key -> {qty, unit}
     costs: {},        // ingredient_key -> {cop_per_unit, unit}
     uiRows: [],       // normalized rows rendered
+    orderMeta: null,   // breakdown de pedidos usados para el cálculo
   };
 
   // ---- Utils ----
@@ -47,6 +50,90 @@
   const fmt0 = (v)=> Math.round(num(v)).toLocaleString("es-CO");
   const fmt2 = (v)=> (Math.round(num(v)*100)/100).toLocaleString("es-CO");
   const normKey = (k)=> String(k||"").trim();
+
+  function boolFromAny(v){
+    const s = String(v ?? "").trim().toLowerCase();
+    return ["1","true","si","sí","yes","y","pagado","paid","ok"].includes(s);
+  }
+
+  function kitchenNotStarted(v){
+    const s = String(v ?? "").trim().toLowerCase();
+    return ["no iniciar","sin iniciar","pendiente","pending",""].includes(s);
+  }
+
+  function normalizeOrderItem(it){
+    return {
+      id: String(it?.id || it?.product_id || it?.productId || "").trim(),
+      name: String(it?.name || it?.product_name || "").trim(),
+      qty: num(it?.qty ?? it?.units ?? it?.quantity ?? 0),
+    };
+  }
+
+  function normalizeItemsFromOrder(order){
+    if(!order) return [];
+
+    const raw = order.items_json ?? order.itemsJson ?? order.itemsJSON;
+    if(raw){
+      try{
+        const parsed = typeof raw === "string" ? JSON.parse(raw) : raw;
+        if(Array.isArray(parsed)) return parsed.map(normalizeOrderItem).filter(it=>it.qty>0 && (it.id || it.name));
+      }catch(_e){}
+    }
+
+    const txt = String(order.items || "").trim();
+    if(!txt) return [];
+    const rows = [];
+    for(const line0 of txt.split("\n")){
+      const line = String(line0 || "").trim().replace(/^-+\s*/, "");
+      const m = line.match(/^(.+?)\s*:\s*(\d+(?:[\.,]\d+)?)$/);
+      if(!m) continue;
+      rows.push({ id:"", name:m[1].trim(), qty: num(String(m[2]).replace(",",".")) });
+    }
+    return rows.filter(it=>it.qty>0 && (it.id || it.name));
+  }
+
+  function orderMatchesFilters(order){
+    const paymentRaw = order?.payment_status ?? order?.estado_pago ?? order?.paymentStatus ?? order?.status_payment ?? order?.paid;
+    const kitchenRaw = order?.kitchen_status ?? order?.estado_cocina ?? order?.kitchenStatus ?? order?.status_kitchen;
+
+    const paymentText = String(paymentRaw ?? "").trim().toLowerCase();
+    const kitchenText = String(kitchenRaw ?? "").trim().toLowerCase();
+
+    const paymentOk = paymentText === "pagado" || paymentText === "paid" || boolFromAny(paymentRaw);
+    const kitchenOk = kitchenNotStarted(kitchenRaw) || kitchenText === "no iniciar";
+
+    return paymentOk && kitchenOk;
+  }
+
+  function normalizeNeedsOut(out){
+    const base = out?.needs || out?.needObj || out?.data?.needs || {};
+    const normalizedNeeds = {};
+    for(const [k,v] of Object.entries(base || {})){
+      const nk = normKey(k);
+      if(!nk) continue;
+      normalizedNeeds[nk] = num(v);
+    }
+
+    const meta = out?.meta || {};
+    const orders = Array.isArray(out?.orders) ? out.orders : (Array.isArray(out?.source_orders) ? out.source_orders : []);
+
+    const filteredOrders = orders.filter(orderMatchesFilters);
+    const totalDesserts = filteredOrders.reduce((acc,order)=>{
+      const items = normalizeItemsFromOrder(order);
+      return acc + items.reduce((s,it)=>s + num(it.qty),0);
+    },0);
+
+    return {
+      needs: normalizedNeeds,
+      meta: {
+        selected_orders: filteredOrders.length || num(meta.selected_orders || meta.orders_used || 0),
+        total_orders_received: orders.length || num(meta.total_orders_received || meta.orders_total || 0),
+        total_desserts: totalDesserts || num(meta.total_desserts || meta.total_units || 0),
+        used_cutoff_hour: meta.used_cutoff_hour || meta.cutoff_hour || 15,
+      },
+      rawOrders: filteredOrders
+    };
+  }
 
   function setErr(msg){
     if(!errBox) return;
@@ -64,16 +151,28 @@
     return out;
   }
 
-  async function validatePin(pin){
-    // Si el Worker no tiene validate_admin_pin, lo consideramos ok para no bloquear.
+  async function detectAuthField(pin){
+    // Preferimos probar una acción real protegida para no depender de validate_admin_pin.
     try{
-      const out = await api({action:"validate_admin_pin", admin_pin: pin});
-      return out.ok === true;
-    }catch(e){
-      const msg = String(e?.message||e);
-      if(msg.toLowerCase().includes("unknown action")) return true;
-      throw new Error("PIN inválido o no autorizado.");
-    }
+      await api({action:"costs_list", admin_pin: pin});
+      return "admin_pin";
+    }catch(_e1){}
+
+    try{
+      await api({action:"costs_list", costs_secret: pin});
+      return "costs_secret";
+    }catch(_e2){}
+
+    throw new Error("Clave inválida o no autorizada.");
+  }
+
+  function withAuth(payload){
+    const field = state.authField || "admin_pin";
+    return { ...(payload||{}), [field]: state.pin };
+  }
+
+  async function apiAuth(payload){
+    return api(withAuth(payload));
   }
 
   function showEditor(){
@@ -127,6 +226,18 @@
     state.uiRows = rows;
   }
 
+  function renderOrdersPanel(){
+    if(!ordersPanelEl) return;
+    const m = state.orderMeta || {};
+    const lines = [
+      `Pedidos recibidos: <b>${fmt0(m.total_orders_received || 0)}</b>`,
+      `Pedidos usados (Pagado + No iniciar): <b>${fmt0(m.selected_orders || 0)}</b>`,
+      `Postres totales por preparar: <b>${fmt0(m.total_desserts || 0)}</b>`,
+      `Corte aplicado: <b>${fmt0(m.used_cutoff_hour || 15)}:00</b>`,
+    ];
+    ordersPanelEl.innerHTML = `<div class="buyChip">${lines.join(" · ")}</div>`;
+  }
+
   function render(){
     buildRows();
 
@@ -143,6 +254,8 @@
         <div class="buyChip">Total compra estimada: <b>$${fmt0(totalEst)}</b></div>
       `;
     }
+
+    renderOrdersPanel();
 
     if(!listEl) return;
 
@@ -259,9 +372,8 @@
 
           if(items.length===0) throw new Error("No hay ítems seleccionados.");
 
-          await api({
+          await apiAuth({
             action:"inventory_add_purchase_batch",
-            admin_pin: state.pin,
             items,
             updated_by: "PURCHASES_UI",
             source: "PURCHASES_UI"
@@ -269,7 +381,7 @@
 
           if(msg) msg.textContent = "✅ Compra registrada. Actualizando inventario…";
           // recargar inventario y re-render
-          const inv = await api({action:"inventory_get", admin_pin: state.pin});
+          const inv = await apiAuth({action:"inventory_get"});
           state.inventory = inv.inventory || {};
           render();
           if(msg) msg.textContent = "✅ Listo. Inventario actualizado.";
@@ -291,12 +403,14 @@
     if(netDebug) netDebug.style.display="none";
 
     const [needsOut, invOut, costsOut] = await Promise.all([
-      api({action:"costs_orders_for_purchases", admin_pin: state.pin}),
-      api({action:"inventory_get", admin_pin: state.pin}),
-      api({action:"costs_list", admin_pin: state.pin}),
+      apiAuth({action:"costs_orders_for_purchases"}),
+      apiAuth({action:"inventory_get"}),
+      apiAuth({action:"costs_list"}),
     ]);
 
-    state.needs = needsOut.needs || {};
+    const needsPack = normalizeNeedsOut(needsOut || {});
+    state.needs = needsPack.needs || {};
+    state.orderMeta = needsPack.meta || null;
     state.inventory = invOut.inventory || {};
 
     // costs_list puede venir como array o map. Normalizamos a map {ingredient_key:{cop_per_unit,unit}}
@@ -317,7 +431,7 @@
 
     // Debug meta
     if(netDebug){
-      const meta = needsOut.meta || {};
+      const meta = state.orderMeta || needsOut.meta || {};
       netDebug.style.display="block";
       netDebug.textContent = "meta: " + JSON.stringify(meta);
     }
@@ -336,8 +450,9 @@
     try{
       const pin = String(secretInp?.value||"").trim();
       if(!pin) throw new Error("Ingresa la clave.");
-      await validatePin(pin);
+      const authField = await detectAuthField(pin);
       state.pin = pin;
+      state.authField = authField;
       setErr("");
       showEditor();
       await refreshFromBackend();
