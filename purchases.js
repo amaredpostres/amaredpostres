@@ -152,14 +152,15 @@
   }
 
   async function detectAuthField(pin){
-    // Preferimos probar una acción real protegida para no depender de validate_admin_pin.
+    // 1) Si es PIN admin válido, lo usamos.
     try{
-      await api({action:"costs_list", admin_pin: pin});
-      return "admin_pin";
-    }catch(_e1){}
+      const out = await api({action:"validate_admin_pin", admin_pin: pin});
+      if(out && out.valid === true) return "admin_pin";
+    }catch(_e){}
 
+    // 2) Si no, probamos la clave de costos contra una acción de compras.
     try{
-      await api({action:"costs_list", costs_secret: pin});
+      await api({action:"inventory_get", costs_secret: pin});
       return "costs_secret";
     }catch(_e2){}
 
@@ -396,15 +397,13 @@
     }
   }
 
-  async function fetchNeedsWithFallback(){
+  async function fetchCostsWithFallback(){
+    // Worker nuevo: usar endpoint público que ya inyecta COSTS_SECRET.
     try{
-      return await api({action:"costs_orders_for_purchases", admin_pin: state.pin});
-    }catch(e1){
-      try{
-        return await api({action:"costs_orders_for_purchases", costs_secret: state.pin});
-      }catch(_e2){
-        throw e1;
-      }
+      return await api({action:"costs_public_list"});
+    }catch(_e1){
+      // Compatibilidad con backend anterior.
+      return await apiAuth({action:"costs_list"});
     }
   }
 
@@ -417,7 +416,7 @@
     const [needsOut, invOut, costsOut] = await Promise.all([
       apiAuth({action:"costs_orders_for_purchases"}),
       apiAuth({action:"inventory_get"}),
-      apiAuth({action:"costs_list"}),
+      fetchCostsWithFallback(),
     ]);
 
     const needsPack = normalizeNeedsOut(needsOut || {});
