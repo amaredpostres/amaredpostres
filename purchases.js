@@ -15,8 +15,6 @@
 
   // ---- DOM helpers ----
   const $ = (id)=> document.getElementById(id);
-  const bySel = (q)=> document.querySelector(q);
-
   const secretInp = $("secret");
   const btnUnlock = $("unlock");
   const errBox = $("err");
@@ -32,6 +30,9 @@
   const panelEl = $("buyPurchasePanel");
   const summaryHint = $("buySummaryHint");
   const netDebug = $("netDebug");
+  const loadingEl = $("loading");
+  const loadingTitleEl = $("lt");
+  const loadingDescEl = $("ld");
 
   // ---- State ----
   const state = {
@@ -42,6 +43,7 @@
     costs: {},        // ingredient_key -> {cop_per_unit, unit}
     uiRows: [],       // normalized rows rendered
     orderMeta: null,   // breakdown de pedidos usados para el cálculo
+    isUnlocking: false,
   };
 
   // ---- Utils ----
@@ -140,14 +142,56 @@
     errBox.textContent = msg || "";
   }
 
+  function setLoading(show, title, desc){
+    if(!loadingEl) return;
+    if(loadingTitleEl && title) loadingTitleEl.textContent = title;
+    if(loadingDescEl && desc) loadingDescEl.textContent = desc;
+    loadingEl.classList.toggle("show", !!show);
+  }
+
+  function setUnlockBusy(isBusy){
+    if(!btnUnlock) return;
+    btnUnlock.disabled = !!isBusy;
+    btnUnlock.textContent = isBusy ? "Desbloqueando..." : "Desbloquear";
+  }
+
+  function formatApiError(status, fallbackText){
+    const raw = String(fallbackText || "").trim();
+    if(!raw) return `Error HTTP ${status}`;
+
+    const lowered = raw.toLowerCase();
+    const looksLikeHtml = lowered.includes("<!doctype html") || lowered.includes("<html") || lowered.includes("<head") || lowered.includes("google apps script");
+
+    if(raw.includes("The script completed but the returned value is not a supported return type")){
+      return "Webhook.gs devolvió un tipo no soportado por Apps Script. Revisa la acción 'costs_orders_for_purchases' y asegúrate de retornar json_(...) en todos los caminos.";
+    }
+
+    if(looksLikeHtml){
+      return `El webhook devolvió HTML (HTTP ${status}) en lugar de JSON. Revisa que doPost/doGet retornen json_(...).`;
+    }
+
+    return raw;
+  }
+
   async function api(payload){
     const res = await fetch(API_URL, {
       method:"POST",
       headers:{ "Content-Type":"application/json" },
       body: JSON.stringify(payload||{})
     });
-    const out = await res.json().catch(async()=>({ok:false,error: await res.text().catch(()=> "Error")}));    
-    if(!out || out.ok !== true) throw new Error(out?.error || "Error");
+
+    let out = null;
+    let rawText = "";
+    try{
+      rawText = await res.text();
+      out = rawText ? JSON.parse(rawText) : null;
+    }catch(_e){
+      out = { ok:false, error: formatApiError(res.status, rawText || "Error") };
+    }
+
+    const errMsg = formatApiError(res.status, out?.error ?? rawText ?? "");
+    if(!res.ok) throw new Error(errMsg || `HTTP ${res.status}`);
+    if(!out || out.ok !== true) throw new Error(errMsg || "Error");
     return out;
   }
 
@@ -407,18 +451,46 @@
     }
   }
 
+  async function fetchNeedsWithFallback(){
+    try{
+      const out = await apiAuth({action:"costs_orders_for_purchases"});
+      return { out, source: "costs_orders_for_purchases" };
+    }catch(primaryErr){
+      try{
+        const shopping = await apiAuth({action:"shopping_get"});
+        const fallbackNeeds = shopping?.data?.needs || shopping?.needs || shopping?.data?.payload?.needs || {};
+        const fallbackMeta = shopping?.data?.meta || shopping?.meta || {};
+        return {
+          out: {
+            ok: true,
+            needs: fallbackNeeds,
+            meta: {
+              ...fallbackMeta,
+              source: "shopping_get"
+            }
+          },
+          source: "shopping_get",
+          warning: String(primaryErr?.message || primaryErr || "")
+        };
+      }catch(_fallbackErr){
+        throw primaryErr;
+      }
+    }
+  }
+
   async function refreshFromBackend(){
     if(!state.pin) throw new Error("Primero desbloquea con el PIN.");
 
     setErr("");
     if(netDebug) netDebug.style.display="none";
 
-    const [needsOut, invOut, costsOut] = await Promise.all([
-      apiAuth({action:"costs_orders_for_purchases"}),
+    const [needsPackOut, invOut, costsOut] = await Promise.all([
+      fetchNeedsWithFallback(),
       apiAuth({action:"inventory_get"}),
       fetchCostsWithFallback(),
     ]);
 
+    const needsOut = needsPackOut?.out || {};
     const needsPack = normalizeNeedsOut(needsOut || {});
     state.needs = needsPack.needs || {};
     state.orderMeta = needsPack.meta || null;
@@ -445,6 +517,13 @@
       const meta = state.orderMeta || needsOut.meta || {};
       netDebug.style.display="block";
       netDebug.textContent = "meta: " + JSON.stringify(meta);
+      if(needsPackOut?.warning){
+        netDebug.textContent += "\nwarning: fallback a shopping_get por error en costs_orders_for_purchases.";
+      }
+    }
+
+    if(needsPackOut?.warning){
+      setErr("Aviso: se usó fallback de compras (shopping_get) porque falló costs_orders_for_purchases.");
     }
 
     showEditor();
@@ -458,6 +537,12 @@
   }
 
   async function onUnlock(){
+    if(state.isUnlocking) return;
+    state.isUnlocking = true;
+
+    setUnlockBusy(true);
+    setLoading(true, "Desbloqueando compras...", "Estamos validando la clave y consultando pedidos e inventario.");
+
     try{
       const pin = String(secretInp?.value||"").trim();
       if(!pin) throw new Error("Ingresa la clave.");
@@ -470,6 +555,10 @@
     }catch(e){
       hideEditor();
       setErr(String(e?.message||e));
+    }finally{
+      state.isUnlocking = false;
+      setLoading(false);
+      setUnlockBusy(false);
     }
   }
 
