@@ -140,13 +140,29 @@
     errBox.textContent = msg || "";
   }
 
+  function formatApiError(status, fallbackText){
+    const raw = String(fallbackText || "").trim();
+    if(!raw) return `Error HTTP ${status}`;
+
+    if(raw.includes("The script completed but the returned value is not a supported return type")){
+      return "Webhook.gs respondió con un tipo no soportado por Apps Script. En la acción 'costs_orders_for_purchases' debes retornar json_(...) y no un objeto plano.";
+    }
+
+    if(raw.startsWith("<!DOCTYPE html") || raw.startsWith("<html")){
+      return `El webhook devolvió HTML (HTTP ${status}) en lugar de JSON.`;
+    }
+
+    return raw;
+  }
+
   async function api(payload){
     const res = await fetch(API_URL, {
       method:"POST",
       headers:{ "Content-Type":"application/json" },
       body: JSON.stringify(payload||{})
     });
-    const out = await res.json().catch(async()=>({ok:false,error: await res.text().catch(()=> "Error")}));    
+    const out = await res.json().catch(async()=>({ ok:false, error: formatApiError(res.status, await res.text().catch(()=> "Error")) }));
+    if(!res.ok) throw new Error(out?.error || `HTTP ${res.status}`);
     if(!out || out.ok !== true) throw new Error(out?.error || "Error");
     return out;
   }
