@@ -1,9 +1,9 @@
 /* =========================================================
-   AMARED Purchases - TRUE GLOBAL BINDING (P12-FINAL)
-   - Define getSheet_ as REAL global identifier (no eval, CSP-safe)
-   - Keep window/globalThis in sync
+   AMARED Purchases - VARIANTE V2 (SIN getSheet_)  [P13b]
+   - Elimina por completo el identificador getSheet_
+   - Todo usa sheet_() (local o global) y NO depende de eval/CSP
    ========================================================= */
-var getSheet_ = (typeof getSheet_ === "function") ? getSheet_ : function(payload, name){
+var sheet_ = (typeof sheet_ === "function") ? sheet_ : function(payload, name){
   try{
     if (!payload) return [];
     if (payload.sheets && payload.sheets[name]) return payload.sheets[name];
@@ -11,55 +11,18 @@ var getSheet_ = (typeof getSheet_ === "function") ? getSheet_ : function(payload
     return [];
   }catch(_e){ return []; }
 };
-try{ globalThis.getSheet_ = getSheet_; }catch(_e){}
-try{ window.getSheet_ = getSheet_; }catch(_e){}
-
-
-/* =========================================================
-   AMARED Purchases - GLOBAL SHIM (P11)
-   - Garantiza que getSheet_ exista como IDENTIFICADOR global
-   - NO depende de window.getSheet_ (evita ReferenceError)
-   ========================================================= */
-(function(){
-  // Crea un binding global real (solo en scripts no-module)
-  try{
-    // Si ya existe como binding, no lo toques
-    if (typeof getSheet_ === "function") return;
-  }catch(_e){
-    // getSheet_ no existe como binding -> lo definimos abajo
-  }
-
-  // Definición segura
-  var fn = function(payload, name){
-    try{
-      if (!payload) return [];
-      if (payload.sheets && payload.sheets[name]) return payload.sheets[name];
-      if (payload[name]) return payload[name];
-      return [];
-    }catch(_e){ return []; }
-  };
-
-  // 1) Publica como propiedad global (window/globalThis)
-  try{ globalThis.getSheet_ = fn; }catch(_e){}
-  try{ window.getSheet_ = fn; }catch(_e){}
-
-  // 2) Intenta crear binding global con eval (funciona en script scope)
-  //    Si el archivo está envuelto dentro de otro IIFE, este eval sigue
-  //    creando un binding en el scope ACTUAL; por eso también dejamos
-  //    globalThis/window para accesos por propiedad.
-  try{ (0,eval)("var getSheet_ = globalThis.getSheet_;"); }catch(_e){}
-})();
-
+try{ globalThis.sheet_ = sheet_; }catch(_e){}
+try{ window.sheet_ = sheet_; }catch(_e){}
 
 // ===============================
-// AMARED - PURCHASES (P7 HOTFIX)
-// - Fix: define getSheet_ helper (legacy call safety) + normDateOnly_
+// AMARED - PURCHASES (P13b HOTFIX)
+// - Fix: define sheet_ helper (legacy call safety) + normDateOnly_
 // ===============================
 
 (function(){
-  // Legacy helper: some older blocks call getSheet_(payload, "SHEETNAME")
+  // Legacy helper: some older blocks call sheet_(payload, "SHEETNAME")
   // This safe version supports payload.sheets[name], payload[name], or returns [].
-  function getSheet_(payload, name){
+  function sheet_(payload, name){
     try{
       if (!payload) return [];
       if (payload.sheets && payload.sheets[name]) return payload.sheets[name];
@@ -67,8 +30,8 @@ try{ window.getSheet_ = getSheet_; }catch(_e){}
       return [];
     }catch(_e){ return []; }
   }
-  try{ globalThis.getSheet_ = globalThis.getSheet_ || getSheet_; }catch(_e){}
-  try{ window.getSheet_ = window.getSheet_ || getSheet_; }catch(_e){}
+  try{ globalThis.sheet_ = globalThis.sheet_ || sheet_; }catch(_e){}
+  try{ window.sheet_ = window.sheet_ || sheet_; }catch(_e){}
 
   function normDateOnly_(d){
     try{
@@ -89,7 +52,7 @@ try{ window.getSheet_ = getSheet_; }catch(_e){}
 // FIX REAL: normDateOnly_ debe existir como *variable global* (binding),
 // no solo como window.normDateOnly_.
 // ===============================
-console.log("[AMARED] purchases.js cargado: P12");
+console.log("[AMARED] purchases.js cargado: P13b");
 
 // --- GLOBAL BINDING (must be top-level) ---
 // eslint-disable-next-line no-var
