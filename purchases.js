@@ -1,297 +1,370 @@
-/* =========================================================
-   AMARED · purchases.js (Compras) — Variante Backend-first  [P3]
-   - Diseñado para TU purchases.html actual (ids: secret/unlock/buyList/buyTotals)
-   - NO usa getSheet_ ni depende de kitchen-costs.js
-   ========================================================= */
-const API_URL = "https://amared-orders.amaredpostres.workers.dev/";
+// ===============================
+// AMARED - PURCHASES (V4)
+// Objetivo: flujo estable SIN getSheet_ en frontend.
+// - Calcula necesidades desde backend: action "costs_orders_for_purchases"
+// - Lee inventario: action "inventory_get"
+// - Lee costos (COP/u y unidad): action "costs_list"
+// - Registra compras + suma a inventario + registra movimiento: action "inventory_add_purchase_batch"
+// Requisitos backend: Webhook.gs ya tiene esos actions.
+// ===============================
 
-const $ = (id) => document.getElementById(id);
+(function(){
+  "use strict";
 
-function fmtCOP(n){
-  const v = Number(n||0);
-  return v.toLocaleString("es-CO", { style:"currency", currency:"COP", maximumFractionDigits:0 });
-}
-function num(v){ const x = Number(v); return (isFinite(x) ? x : 0); }
-function strip00(x){
-  const v = num(x);
-  const s = v.toFixed(2);
-  return s.replace(/\.00$/,"");
-}
+  const API_URL = "https://amared-orders.amaredpostres.workers.dev/";
 
-function setErr(msg=""){
-  const el = $("err");
-  if(!el) return;
-  el.textContent = msg || "";
-}
+  // ---- DOM helpers ----
+  const $ = (id)=> document.getElementById(id);
+  const bySel = (q)=> document.querySelector(q);
 
-function showLoading(on, title="Cargando…", desc="Por favor espera."){
-  const box = $("loading");
-  const lt = $("lt");
-  const ld = $("ld");
-  if(lt) lt.textContent = title;
-  if(ld) ld.textContent = desc;
-  if(box) box.style.display = on ? "flex" : "none";
-}
+  const secretInp = $("secret");
+  const btnUnlock = $("unlock");
+  const errBox = $("err");
 
-function getKey(){
-  return (sessionStorage.getItem("AMARED_COSTS_KEY") || "").trim();
-}
-function setKey(k){ sessionStorage.setItem("AMARED_COSTS_KEY", String(k||"").trim()); }
+  const editor = $("editor");
 
-async function api(action, body={}){
-  const res = await fetch(API_URL, {
-    method: "POST",
-    headers: { "Content-Type":"application/json" },
-    body: JSON.stringify({ action, ...body })
-  });
-  const data = await res.json().catch(()=> ({ok:false, error:"Respuesta no-JSON"}));
-  if(!res.ok || data.ok === false) throw new Error(data.error || `HTTP ${res.status}`);
-  return data;
-}
+  const btnRefresh = $("buyRefreshOrders");
+  const btnReset = $("buyReset");
 
-function buildRows(needsMap, invMap, costItems){
-  const costMap = {};
-  (costItems||[]).forEach(it=>{
-    const k = String(it.ingredient_key||"").trim();
-    if(!k) return;
-    const cpu = num(it.cop_per_unit);
-    if(!costMap[k] || cpu > costMap[k].cop_per_unit){
-      costMap[k] = { cop_per_unit: cpu, unit_type: it.unit_type || "" };
-    }
-  });
+  const totalsEl = $("buyTotals");
+  const listEl = $("buyList");
+  const panelEl = $("buyPurchasePanel");
+  const summaryHint = $("buySummaryHint");
+  const netDebug = $("netDebug");
 
-  const keys = Object.keys(needsMap||{}).sort((a,b)=>a.localeCompare(b,"es"));
-  return keys.map(k=>{
-    const need = num(needsMap[k]);
-    const inv = invMap && invMap[k] ? invMap[k] : null;
-    const invQty = inv ? num(inv.qty) : 0;
-    const invUnit = inv ? String(inv.unit||"") : "";
-    const cpu = costMap[k] ? num(costMap[k].cop_per_unit) : 0;
-    const buy = Math.max(need - invQty, 0);
-
-    return {
-      ingredient_key: k,
-      need,
-      invQty,
-      invUnit,
-      buy,
-      cop_per_unit: cpu,
-      cop_total: cpu * buy
-    };
-  });
-}
-
-function render(rows){
-  const list = $("buyList");
-  const totals = $("buyTotals");
-  const panel = $("buyPurchasePanel");
-  if(!list) return;
-
-  let total = 0;
-  let needCount = 0;
-
-  const tableRows = rows.map((r, idx)=>{
-    total += num(r.cop_total);
-    if(r.buy > 0) needCount++;
-
-    return `
-      <tr>
-        <td style="min-width:240px;">
-          <label style="display:flex; gap:10px; align-items:center; cursor:pointer;">
-            <input type="checkbox" class="p3-cb" data-k="${idx}">
-            <span><b>${escapeHtml(r.ingredient_key)}</b><br><span class="muted small">${escapeHtml(r.invUnit||"")}</span></span>
-          </label>
-        </td>
-        <td style="text-align:right;">${strip00(r.need)}</td>
-        <td style="text-align:right;">${strip00(r.invQty)}</td>
-        <td style="text-align:right;">
-          <input class="p3-buy" data-k="${idx}" type="number" min="0" step="0.01"
-            value="${strip00(r.buy)}"
-            style="width:110px; text-align:right; padding:8px; border-radius:10px; border:1px solid rgba(0,0,0,.12); background:rgba(255,255,255,.8);">
-        </td>
-        <td style="text-align:right; font-weight:700;" data-money="${idx}">${fmtCOP(r.cop_total)}</td>
-      </tr>
-    `;
-  }).join("");
-
-  list.innerHTML = `
-    <div style="overflow:auto;">
-      <table class="table" style="width:100%; border-collapse:collapse;">
-        <thead>
-          <tr>
-            <th style="text-align:left;">Ingrediente</th>
-            <th style="text-align:right;">Necesario</th>
-            <th style="text-align:right;">Inventario</th>
-            <th style="text-align:right;">Comprar</th>
-            <th style="text-align:right;">Costo estimado</th>
-          </tr>
-        </thead>
-        <tbody>${tableRows}</tbody>
-      </table>
-    </div>
-  `;
-
-  if(totals){
-    totals.innerHTML = `
-      <div class="buyPills" style="display:flex; gap:10px; flex-wrap:wrap; margin:10px 0;">
-        <span class="pill">Ingredientes con necesidad: <b id="p3NeedCount">${needCount}</b></span>
-        <span class="pill">Total compra estimada: <b id="p3Total">${fmtCOP(total)}</b></span>
-      </div>
-    `;
-  }
-
-  if(panel){
-    panel.innerHTML = `
-      <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:center; margin-top:10px;">
-        <button id="p3Commit" class="btn">Registrar compra (seleccionados)</button>
-        <span class="muted small">Marca ingredientes y registra el movimiento + actualiza inventario.</span>
-      </div>
-    `;
-  }
-
-  // bind inputs
-  document.querySelectorAll(".p3-buy").forEach(inp=>{
-    inp.addEventListener("input", ()=>{
-      const idx = Number(inp.dataset.k);
-      const v = Math.max(num(inp.value), 0);
-      rows[idx].buy = v;
-      rows[idx].cop_total = num(rows[idx].cop_per_unit) * v;
-
-      const moneyEl = document.querySelector(`[data-money="${idx}"]`);
-      if(moneyEl) moneyEl.textContent = fmtCOP(rows[idx].cop_total);
-
-      const total2 = rows.reduce((s,x)=> s + num(x.cop_total), 0);
-      const need2 = rows.reduce((s,x)=> s + (x.buy>0 ? 1:0), 0);
-      const tEl = document.getElementById("p3Total");
-      const nEl = document.getElementById("p3NeedCount");
-      if(tEl) tEl.textContent = fmtCOP(total2);
-      if(nEl) nEl.textContent = String(need2);
-    });
-  });
-
-  const btn = $("p3Commit");
-  if(btn){
-    btn.addEventListener("click", ()=>{
-      commit(rows).catch(e=> setErr(String(e.message||e)));
-    });
-  }
-
-  window.__P3_ROWS__ = rows;
-}
-
-function escapeHtml(s){
-  return String(s||"").replace(/[&<>"']/g, m=>({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;" }[m]));
-}
-
-async function refresh(){
-  const key = getKey();
-  if(!key) throw new Error("Ingresa la clave y desbloquea.");
-  setErr("");
-
-  showLoading(true, "Calculando…", "Leyendo pedidos, recetas e inventario.");
-  try{
-    const needsRes = await api("costs_orders_for_purchases", { costs_secret: key });
-    const invRes   = await api("inventory_get", { costs_secret: key });
-
-    let costItems = [];
-    try{
-      const costsRes = await api("costs_public_list", {});
-      costItems = costsRes.items || [];
-    }catch(_e){ costItems = []; }
-
-    const rows = buildRows(needsRes.needs||{}, invRes.inventory||{}, costItems);
-    render(rows);
-
-    // mostrar editor
-    const ed = $("editor");
-    if(ed) ed.style.display = "block";
-  } finally {
-    showLoading(false);
-  }
-}
-
-async function commit(rows){
-  const key = getKey();
-  if(!key) throw new Error("Clave no encontrada.");
-
-  const checked = Array.from(document.querySelectorAll(".p3-cb"))
-    .filter(cb => cb.checked)
-    .map(cb => Number(cb.dataset.k));
-
-  if(!checked.length) throw new Error("Selecciona al menos 1 ingrediente.");
-
-  const items = checked.map(i=>{
-    const r = rows[i];
-    const qty = Math.max(num(r.buy), 0);
-    if(qty <= 0) return null;
-    return {
-      ingredient_key: r.ingredient_key,
-      qty,
-      unit: r.invUnit || "",
-      cop_per_unit: num(r.cop_per_unit)
-    };
-  }).filter(Boolean);
-
-  if(!items.length) throw new Error("Los seleccionados tienen compra en 0.");
-
-  showLoading(true, "Registrando compra…", "Actualizando inventario y guardando movimiento.");
-  try{
-    await api("inventory_add_purchase_batch", {
-      costs_secret: key,
-      items,
-      updated_by: "COSTS_UI",
-      source: "PURCHASES_MAIN"
-    });
-    setErr("✅ Compra registrada e inventario actualizado.");
-    await refresh();
-  } finally {
-    showLoading(false);
-  }
-}
-
-/* ------- Boot (usa tus ids actuales) ------- */
-function init(){
-  console.log("[AMARED] purchases.js cargado: P3b");
-
-  // prefill
-  const secret = $("secret");
-  if(secret){
-    const k = getKey();
-    if(k) secret.value = k;
-  }
-
-  const unlock = $("unlock");
-  if(unlock){
-    unlock.addEventListener("click", ()=>{
-      const k = secret ? String(secret.value||"").trim() : "";
-      if(!k) return setErr("Ingresa la clave.");
-      setKey(k);
-      setErr("✅ Desbloqueado.");
-      // mostrar editor
-      const ed = $("editor");
-      if(ed) ed.style.display = "block";
-    });
-  }
-
-  // botón existente (tiene onclick)
-  window.amaredRefreshOrders = function(ev){
-    try{
-      if(ev && ev.preventDefault) ev.preventDefault();
-      if(ev && ev.stopPropagation) ev.stopPropagation();
-      if(ev && ev.stopImmediatePropagation) ev.stopImmediatePropagation();
-    }catch(_e){}
-    return refresh().catch(e=> setErr(String(e.message||e)));
+  // ---- State ----
+  const state = {
+    pin: "",
+    needs: {},        // ingredient_key -> qty needed (from backend)
+    inventory: {},    // ingredient_key -> {qty, unit}
+    costs: {},        // ingredient_key -> {cop_per_unit, unit}
+    uiRows: [],       // normalized rows rendered
   };
 
-  // reset button (opcional)
-  const reset = $("buyReset");
-  if(reset){
-    reset.addEventListener("click", ()=>{
-      const rows = window.__P3_ROWS__ || [];
-      rows.forEach(r=>{ r.buy = Math.max(r.need - r.invQty, 0); r.cop_total = num(r.cop_per_unit)*r.buy; });
-      render(rows);
-    });
-  }
-}
+  // ---- Utils ----
+  const esc = (s)=> String(s??"").replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;").replaceAll('"',"&quot;").replaceAll("'","&#039;");
+  const num = (v)=> { const n = Number(v); return Number.isFinite(n) ? n : 0; };
+  const fmt0 = (v)=> Math.round(num(v)).toLocaleString("es-CO");
+  const fmt2 = (v)=> (Math.round(num(v)*100)/100).toLocaleString("es-CO");
+  const normKey = (k)=> String(k||"").trim();
 
-document.addEventListener("DOMContentLoaded", init);
+  function setErr(msg){
+    if(!errBox) return;
+    errBox.textContent = msg || "";
+  }
+
+  async function api(payload){
+    const res = await fetch(API_URL, {
+      method:"POST",
+      headers:{ "Content-Type":"application/json" },
+      body: JSON.stringify(payload||{})
+    });
+    const out = await res.json().catch(async()=>({ok:false,error: await res.text().catch(()=> "Error")}));    
+    if(!out || out.ok !== true) throw new Error(out?.error || "Error");
+    return out;
+  }
+
+  async function validatePin(pin){
+    // Si el Worker no tiene validate_admin_pin, lo consideramos ok para no bloquear.
+    try{
+      const out = await api({action:"validate_admin_pin", admin_pin: pin});
+      return out.ok === true;
+    }catch(e){
+      const msg = String(e?.message||e);
+      if(msg.toLowerCase().includes("unknown action")) return true;
+      throw new Error("PIN inválido o no autorizado.");
+    }
+  }
+
+  function showEditor(){
+    if(editor) editor.style.display = "block";
+  }
+  function hideEditor(){
+    if(editor) editor.style.display = "none";
+  }
+
+  function buildRows(){
+    const allKeys = new Set([
+      ...Object.keys(state.needs||{}),
+      ...Object.keys(state.inventory||{}),
+      ...Object.keys(state.costs||{}),
+    ]);
+
+    const rows = [];
+    for(const k of allKeys){
+      const key = normKey(k);
+      if(!key) continue;
+
+      const need = num(state.needs[key] || 0);
+      const inv = num(state.inventory[key]?.qty ?? 0);
+      const unit = String(state.costs[key]?.unit || state.inventory[key]?.unit || "").trim();
+      const cpu  = num(state.costs[key]?.cop_per_unit ?? 0);
+
+      const toBuy = Math.max(0, need - inv);
+      const est = toBuy * cpu;
+
+      rows.push({
+        ingredient_key: key,
+        need,
+        inv,
+        unit,
+        cpu,
+        toBuy,
+        est,
+        buyQty: toBuy, // por defecto
+        selected: toBuy > 0
+      });
+    }
+
+    // orden: primero los que necesitan compra, luego alfabético
+    rows.sort((a,b)=>{
+      const aN = a.toBuy>0 ? 0 : 1;
+      const bN = b.toBuy>0 ? 0 : 1;
+      if(aN !== bN) return aN - bN;
+      return a.ingredient_key.localeCompare(b.ingredient_key, "es");
+    });
+
+    state.uiRows = rows;
+  }
+
+  function render(){
+    buildRows();
+
+    const rows = state.uiRows;
+
+    const countNeed = rows.filter(r=>r.toBuy>0).length;
+    const totalEst = rows.reduce((s,r)=> s + (r.est||0), 0);
+
+    if(summaryHint) summaryHint.textContent = `${countNeed} ing. · $${fmt0(totalEst)}`;
+
+    if(totalsEl){
+      totalsEl.innerHTML = `
+        <div class="buyChip">Ingredientes con necesidad: <b>${countNeed}</b></div>
+        <div class="buyChip">Total compra estimada: <b>$${fmt0(totalEst)}</b></div>
+      `;
+    }
+
+    if(!listEl) return;
+
+    listEl.innerHTML = `
+      <div class="buyTable">
+        <div class="buyHead">
+          <div>Ingrediente</div>
+          <div>Necesario</div>
+          <div>Inventario</div>
+          <div>Comprar</div>
+          <div>Costo estimado</div>
+        </div>
+        <div class="buyBody">
+          ${rows.map((r,idx)=> rowHtml(r,idx)).join("")}
+        </div>
+      </div>
+    `;
+
+    // listeners qty + select
+    rows.forEach((r,idx)=>{
+      const chk = $("buy_chk_"+idx);
+      const qty = $("buy_qty_"+idx);
+
+      if(chk){
+        chk.checked = !!r.selected;
+        chk.addEventListener("change", ()=>{
+          r.selected = chk.checked;
+          repaintPanel();
+        });
+      }
+      if(qty){
+        qty.value = String(r.buyQty || 0);
+        qty.addEventListener("input", ()=>{
+          r.buyQty = Math.max(0, num(qty.value));
+          // auto-select si > 0
+          if(r.buyQty>0){
+            r.selected = true;
+            if(chk) chk.checked = true;
+          }
+          repaintPanel();
+        });
+      }
+    });
+
+    repaintPanel();
+  }
+
+  function rowHtml(r,idx){
+    const small = r.unit ? `<div class="muted small">${esc(r.unit)} · $${fmt0(r.cpu)}/u</div>` : `<div class="muted small">—</div>`;
+    const buy = (r.toBuy>0) ? `<b>${fmt2(r.toBuy)}</b>` : `<span class="muted">0</span>`;
+    const est = (r.est>0) ? `<b>$${fmt0(r.est)}</b>` : `<span class="muted">$0</span>`;
+
+    return `
+      <div class="buyRow">
+        <div class="buyIng">
+          <div class="buyName">${esc(r.ingredient_key)}</div>
+          ${small}
+        </div>
+
+        <div class="buyCell">
+          <input class="input" value="${fmt2(r.need)}" disabled />
+        </div>
+
+        <div class="buyCell">
+          <input class="input" value="${fmt2(r.inv)}" disabled />
+        </div>
+
+        <div class="buyCell buyBuy">
+          <label class="buyPick">
+            <input type="checkbox" id="buy_chk_${idx}" />
+            <span>Comprar</span>
+          </label>
+          <input class="input" id="buy_qty_${idx}" type="number" min="0" step="0.01" value="${fmt2(r.buyQty)}" />
+          <div class="muted small">Sugerido: ${buy}</div>
+        </div>
+
+        <div class="buyCell">
+          ${est}
+        </div>
+      </div>
+    `;
+  }
+
+  function repaintPanel(){
+    if(!panelEl) return;
+    const selected = state.uiRows.filter(r=>r.selected && num(r.buyQty)>0);
+    const total = selected.reduce((s,r)=> s + (num(r.buyQty)*num(r.cpu)), 0);
+
+    panelEl.innerHTML = `
+      <div class="buyPanel">
+        <div class="buyPanelTitle">✅ Registrar compra</div>
+        <div class="muted small" style="margin-bottom:10px;">
+          Seleccionados: <b>${selected.length}</b> · Total estimado: <b>$${fmt0(total)}</b>
+        </div>
+        <button id="btnRegisterPurchase" class="btn">Registrar compra (seleccionados)</button>
+        <div id="buyPanelMsg" class="muted small" style="margin-top:10px;"></div>
+      </div>
+    `;
+
+    const btn = $("btnRegisterPurchase");
+    if(btn){
+      btn.addEventListener("click", async ()=>{
+        const msg = $("buyPanelMsg");
+        try{
+          btn.disabled = true;
+          if(msg) msg.textContent = "Registrando compra…";
+
+          const items = selected.map(r=>({
+            ingredient_key: r.ingredient_key,
+            qty: num(r.buyQty),
+            unit: r.unit || "",
+            cop_per_unit: num(r.cpu),
+          }));
+
+          if(items.length===0) throw new Error("No hay ítems seleccionados.");
+
+          await api({
+            action:"inventory_add_purchase_batch",
+            admin_pin: state.pin,
+            items,
+            updated_by: "PURCHASES_UI",
+            source: "PURCHASES_UI"
+          });
+
+          if(msg) msg.textContent = "✅ Compra registrada. Actualizando inventario…";
+          // recargar inventario y re-render
+          const inv = await api({action:"inventory_get", admin_pin: state.pin});
+          state.inventory = inv.inventory || {};
+          render();
+          if(msg) msg.textContent = "✅ Listo. Inventario actualizado.";
+        }catch(e){
+          const em = String(e?.message||e);
+          if(msg) msg.textContent = "❌ " + em;
+          setErr(em);
+        }finally{
+          btn.disabled = false;
+        }
+      });
+    }
+  }
+
+  async function refreshFromBackend(){
+    if(!state.pin) throw new Error("Primero desbloquea con el PIN.");
+
+    setErr("");
+    if(netDebug) netDebug.style.display="none";
+
+    const [needsOut, invOut, costsOut] = await Promise.all([
+      api({action:"costs_orders_for_purchases", admin_pin: state.pin}),
+      api({action:"inventory_get", admin_pin: state.pin}),
+      api({action:"costs_list", admin_pin: state.pin}),
+    ]);
+
+    state.needs = needsOut.needs || {};
+    state.inventory = invOut.inventory || {};
+
+    // costs_list puede venir como array o map. Normalizamos a map {ingredient_key:{cop_per_unit,unit}}
+    const costs = {};
+    const items = costsOut.items || costsOut.costs || costsOut.rows || [];
+    if(Array.isArray(items)){
+      for(const r of items){
+        const k = normKey(r.ingredient_key || r.key || r.ingredient || "");
+        if(!k) continue;
+        costs[k] = { cop_per_unit: num(r.cop_per_unit ?? r.copPerUnit ?? r.value ?? 0), unit: String(r.unit||"").trim() };
+      }
+    }else if(items && typeof items === "object"){
+      for(const [k,v] of Object.entries(items)){
+        costs[normKey(k)] = { cop_per_unit: num(v?.cop_per_unit ?? v?.copPerUnit ?? v ?? 0), unit: String(v?.unit||"").trim() };
+      }
+    }
+    state.costs = costs;
+
+    // Debug meta
+    if(netDebug){
+      const meta = needsOut.meta || {};
+      netDebug.style.display="block";
+      netDebug.textContent = "meta: " + JSON.stringify(meta);
+    }
+
+    showEditor();
+    render();
+  }
+
+  function resetLocal(){
+    // En v4 no guardamos sobrantes locales. Si quieres, después agregamos edición local por ingrediente.
+    setErr("");
+    render();
+  }
+
+  async function onUnlock(){
+    try{
+      const pin = String(secretInp?.value||"").trim();
+      if(!pin) throw new Error("Ingresa la clave.");
+      await validatePin(pin);
+      state.pin = pin;
+      setErr("");
+      showEditor();
+      await refreshFromBackend();
+    }catch(e){
+      hideEditor();
+      setErr(String(e?.message||e));
+    }
+  }
+
+  function wire(){
+    console.log("[AMARED] purchases.js cargado: V4");
+
+    hideEditor();
+
+    if(btnUnlock) btnUnlock.addEventListener("click", (e)=>{ e.preventDefault(); onUnlock(); });
+    if(btnRefresh) btnRefresh.addEventListener("click", (e)=>{ e.preventDefault(); refreshFromBackend().catch(err=>setErr(String(err?.message||err))); });
+    if(btnReset) btnReset.addEventListener("click", (e)=>{ e.preventDefault(); resetLocal(); });
+
+    // Enter para desbloquear
+    if(secretInp){
+      secretInp.addEventListener("keydown",(ev)=>{
+        if(ev.key==="Enter"){ ev.preventDefault(); onUnlock(); }
+      });
+    }
+  }
+
+  if(document.readyState === "loading") document.addEventListener("DOMContentLoaded", wire);
+  else wire();
+
+})();
