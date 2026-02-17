@@ -3,6 +3,23 @@
 // - Fix: define getSheet_ helper (legacy call safety) + normDateOnly_
 // ===============================
 
+
+// --- GLOBAL BINDING: getSheet_ (must be top-level) ---
+// Algunos bloques llaman getSheet_(payload, "SHEETNAME") directamente.
+// Esta versión segura soporta payload.sheets[name], payload[name], o retorna [].
+// eslint-disable-next-line no-var
+var getSheet_ = (typeof getSheet_ === "function") ? getSheet_ : function(payload, name){
+  try{
+    if (!payload) return [];
+    if (payload.sheets && payload.sheets[name]) return payload.sheets[name];
+    if (payload[name]) return payload[name];
+    return [];
+  }catch(_e){ return []; }
+};
+try{ if (typeof globalThis !== "undefined") globalThis.getSheet_ = getSheet_; }catch(_e){}
+try{ if (typeof window !== "undefined") window.getSheet_ = getSheet_; }catch(_e){}
+// --- END GLOBAL BINDING: getSheet_ ---
+
 (function(){
   // Legacy helper: some older blocks call getSheet_(payload, "SHEETNAME")
   // This safe version supports payload.sheets[name], payload[name], or returns [].
