@@ -1,44 +1,58 @@
-// ===============================
-// AMARED - PURCHASES (P9 HOTFIX)
-// Fix: getSheet_ debe existir como IDENTIFICADOR global (no solo window.getSheet_)
-//      para evitar ReferenceError en cualquier bloque.
-// ===============================
-
+/* ===== AMARED purchases.js bootstrap (P10) =====
+   Fix: garantiza que getSheet_ exista como identificador global
+   (no solo window.getSheet_) para evitar ReferenceError.
+*/
 function getSheet_(payload, name){
   try{
-    if (!payload) return [];
-    if (payload.sheets && payload.sheets[name]) return payload.sheets[name];
-    if (payload[name]) return payload[name];
+    if(!payload) return [];
+    if(payload.sheets && payload.sheets[name]) return payload.sheets[name];
+    if(payload[name]) return payload[name];
     return [];
-  }catch(_e){ return []; }
+  }catch(e){ return []; }
 }
-try{ if (typeof globalThis !== "undefined") globalThis.getSheet_ = getSheet_; }catch(_e){}
-try{ if (typeof window !== "undefined") window.getSheet_ = getSheet_; }catch(_e){}
-
-function normDateOnly_(d){
-  try{
-    const dt = (d instanceof Date) ? d : new Date(d);
-    if (isNaN(dt)) return "";
-    const y = dt.getFullYear();
-    const m = String(dt.getMonth()+1).padStart(2,"0");
-    const day = String(dt.getDate()).padStart(2,"0");
-    return `${y}-${m}-${day}`;
-  }catch(_e){ return ""; }
-}
-try{ if (typeof globalThis !== "undefined") globalThis.normDateOnly_ = normDateOnly_; }catch(_e){}
-try{ if (typeof window !== "undefined") window.normDateOnly_ = normDateOnly_; }catch(_e){}
+try{ globalThis.getSheet_ = getSheet_; }catch(e){}
+try{ if (typeof window !== "undefined") window.getSheet_ = getSheet_; }catch(e){}
+/* ===== end bootstrap ===== */
 
 // ===============================
 // AMARED - PURCHASES (P7 HOTFIX)
 // - Fix: define getSheet_ helper (legacy call safety) + normDateOnly_
 // ===============================
 
+(function(){
+  // Legacy helper: some older blocks call getSheet_(payload, "SHEETNAME")
+  // This safe version supports payload.sheets[name], payload[name], or returns [].
+  function getSheet_(payload, name){
+    try{
+      if (!payload) return [];
+      if (payload.sheets && payload.sheets[name]) return payload.sheets[name];
+      if (payload[name]) return payload[name];
+      return [];
+    }catch(_e){ return []; }
+  }
+  try{ globalThis.getSheet_ = globalThis.getSheet_ || getSheet_; }catch(_e){}
+  try{ window.getSheet_ = window.getSheet_ || getSheet_; }catch(_e){}
+
+  function normDateOnly_(d){
+    try{
+      const dt = (d instanceof Date) ? d : new Date(d);
+      if (isNaN(dt)) return "";
+      const y = dt.getFullYear();
+      const m = String(dt.getMonth()+1).padStart(2,"0");
+      const day = String(dt.getDate()).padStart(2,"0");
+      return `${y}-${m}-${day}`;
+    }catch(_e){ return ""; }
+  }
+  try{ globalThis.normDateOnly_ = globalThis.normDateOnly_ || normDateOnly_; }catch(_e){}
+  try{ window.normDateOnly_ = window.normDateOnly_ || normDateOnly_; }catch(_e){}
+})();
+
 // ===============================
 // AMARED · purchases.js (Compras) — V3
 // FIX REAL: normDateOnly_ debe existir como *variable global* (binding),
 // no solo como window.normDateOnly_.
 // ===============================
-console.log("[AMARED] purchases.js cargado: P7");
+console.log("[AMARED] purchases.js cargado: P10");
 
 // --- GLOBAL BINDING (must be top-level) ---
 // eslint-disable-next-line no-var
