@@ -15,8 +15,6 @@
 
   // ---- DOM helpers ----
   const $ = (id)=> document.getElementById(id);
-  const bySel = (q)=> document.querySelector(q);
-
   const secretInp = $("secret");
   const btnUnlock = $("unlock");
   const errBox = $("err");
@@ -32,6 +30,9 @@
   const panelEl = $("buyPurchasePanel");
   const summaryHint = $("buySummaryHint");
   const netDebug = $("netDebug");
+  const loadingEl = $("loading");
+  const loadingTitleEl = $("lt");
+  const loadingDescEl = $("ld");
 
   // ---- State ----
   const state = {
@@ -42,6 +43,7 @@
     costs: {},        // ingredient_key -> {cop_per_unit, unit}
     uiRows: [],       // normalized rows rendered
     orderMeta: null,   // breakdown de pedidos usados para el cálculo
+    isUnlocking: false,
   };
 
   // ---- Utils ----
@@ -138,6 +140,19 @@
   function setErr(msg){
     if(!errBox) return;
     errBox.textContent = msg || "";
+  }
+
+  function setLoading(show, title, desc){
+    if(!loadingEl) return;
+    if(loadingTitleEl && title) loadingTitleEl.textContent = title;
+    if(loadingDescEl && desc) loadingDescEl.textContent = desc;
+    loadingEl.classList.toggle("show", !!show);
+  }
+
+  function setUnlockBusy(isBusy){
+    if(!btnUnlock) return;
+    btnUnlock.disabled = !!isBusy;
+    btnUnlock.textContent = isBusy ? "Desbloqueando..." : "Desbloquear";
   }
 
   function formatApiError(status, fallbackText){
@@ -487,6 +502,12 @@
   }
 
   async function onUnlock(){
+    if(state.isUnlocking) return;
+    state.isUnlocking = true;
+
+    setUnlockBusy(true);
+    setLoading(true, "Desbloqueando compras...", "Estamos validando la clave y consultando pedidos e inventario.");
+
     try{
       const pin = String(secretInp?.value||"").trim();
       if(!pin) throw new Error("Ingresa la clave.");
@@ -499,6 +520,10 @@
     }catch(e){
       hideEditor();
       setErr(String(e?.message||e));
+    }finally{
+      state.isUnlocking = false;
+      setLoading(false);
+      setUnlockBusy(false);
     }
   }
 
