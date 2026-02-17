@@ -140,14 +140,43 @@
     errBox.textContent = msg || "";
   }
 
+  function formatApiError(status, fallbackText){
+    const raw = String(fallbackText || "").trim();
+    if(!raw) return `Error HTTP ${status}`;
+
+    const lowered = raw.toLowerCase();
+    const looksLikeHtml = lowered.includes("<!doctype html") || lowered.includes("<html") || lowered.includes("<head") || lowered.includes("google apps script");
+
+    if(raw.includes("The script completed but the returned value is not a supported return type")){
+      return "Webhook.gs devolvió un tipo no soportado por Apps Script. Revisa la acción 'costs_orders_for_purchases' y asegúrate de retornar json_(...) en todos los caminos.";
+    }
+
+    if(looksLikeHtml){
+      return `El webhook devolvió HTML (HTTP ${status}) en lugar de JSON. Revisa que doPost/doGet retornen json_(...).`;
+    }
+
+    return raw;
+  }
+
   async function api(payload){
     const res = await fetch(API_URL, {
       method:"POST",
       headers:{ "Content-Type":"application/json" },
       body: JSON.stringify(payload||{})
     });
-    const out = await res.json().catch(async()=>({ok:false,error: await res.text().catch(()=> "Error")}));    
-    if(!out || out.ok !== true) throw new Error(out?.error || "Error");
+
+    let out = null;
+    let rawText = "";
+    try{
+      rawText = await res.text();
+      out = rawText ? JSON.parse(rawText) : null;
+    }catch(_e){
+      out = { ok:false, error: formatApiError(res.status, rawText || "Error") };
+    }
+
+    const errMsg = formatApiError(res.status, out?.error ?? rawText ?? "");
+    if(!res.ok) throw new Error(errMsg || `HTTP ${res.status}`);
+    if(!out || out.ok !== true) throw new Error(errMsg || "Error");
     return out;
   }
 
