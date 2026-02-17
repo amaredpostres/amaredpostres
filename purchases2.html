@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>AMARED · Compras (v2)</title>
+
+  <link rel="icon" href="assets/favicon.ico" type="image/x-icon">
+  <link rel="stylesheet" href="styles.css" />
+  <link rel="stylesheet" href="costs.css" />
+
+  <style>
+    .p2-wrap { max-width: 1100px; margin: 0 auto; padding: 18px; }
+    .p2-status { margin-top: 10px; font-size: 13px; opacity:.9; }
+    .p2-loading { color: #8a5b00; }
+    .p2-ok { color: #1f7a3a; }
+    .p2-warn { color: #b42318; }
+    .p2-card { background: rgba(255,255,255,.72); border: 1px solid rgba(0,0,0,.06); border-radius: 18px; padding: 16px; box-shadow: 0 10px 24px rgba(0,0,0,.06); }
+    .p2-row { display:flex; gap:12px; flex-wrap:wrap; align-items:center; }
+    .p2-row input { flex: 1 1 260px; }
+    .p2-actions { display:flex; gap:10px; flex-wrap:wrap; }
+    .p2-table { width:100%; border-collapse: collapse; }
+    .p2-table th, .p2-table td { padding: 10px 8px; border-bottom: 1px solid rgba(0,0,0,.06); vertical-align: top; }
+    .p2-table th { font-size: 12px; text-transform: uppercase; letter-spacing:.04em; opacity:.75; }
+    .p2-num { text-align: right; white-space: nowrap; }
+    .p2-money { font-weight: 700; }
+    .p2-td-ing { width: 38%; }
+    .p2-sub { font-size: 12px; opacity:.7; margin-top:4px; }
+    .p2-check { display:flex; gap:10px; align-items:center; cursor:pointer; }
+    .p2-buy { width: 110px; padding: 8px; border-radius: 10px; border: 1px solid rgba(0,0,0,.12); background: rgba(255,255,255,.8); text-align:right; }
+    .p2-pill { display:inline-block; padding: 6px 10px; border-radius: 999px; background: rgba(246,186,96,.25); font-size: 12px; }
+    .p2-meta { margin-top: 8px; font-size: 12px; opacity:.75; }
+  </style>
+</head>
+
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <img src="assets/logo.svg" alt="AMARED" class="logo" />
+    </div>
+  </header>
+
+  <main class="p2-wrap">
+    <section class="p2-card" style="margin-bottom:14px;">
+      <h2 style="margin:0 0 10px 0;">🔒 Compras (desde PEDIDOS) · v2</h2>
+      <p style="margin:0 0 12px 0; opacity:.85;">
+        Esta versión usa el backend para calcular necesidades y solo renderiza resultados.
+      </p>
+
+      <div class="p2-row">
+        <input id="p2Key" type="password" placeholder="Ingresa la clave de Costos" />
+        <button id="p2Unlock" class="btn">Desbloquear</button>
+      </div>
+
+      <div id="p2Status" class="p2-status"></div>
+    </section>
+
+    <section class="p2-card">
+      <div class="p2-row" style="justify-content:space-between;">
+        <div class="p2-actions">
+          <button id="p2Refresh" class="btn btn-primary">Actualizar desde pedidos</button>
+          <button id="p2Commit" class="btn">Registrar compra (seleccionados)</button>
+        </div>
+        <div style="display:flex; gap:10px; flex-wrap:wrap; justify-content:flex-end;">
+          <span class="p2-pill">Ingredientes con necesidad: <b id="p2NeedCount">0</b></span>
+          <span class="p2-pill">Total compra estimada: <b id="p2TotalCost">$0</b></span>
+        </div>
+      </div>
+
+      <div id="p2Meta" class="p2-meta"></div>
+
+      <div style="overflow:auto; margin-top:10px;">
+        <table class="p2-table">
+          <thead>
+            <tr>
+              <th>Ingrediente</th>
+              <th class="p2-num">Necesario</th>
+              <th class="p2-num">Inventario</th>
+              <th class="p2-num">Comprar</th>
+              <th class="p2-num">Costo estimado</th>
+            </tr>
+          </thead>
+          <tbody id="p2Tbody"></tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+
+  <script src="purchases2.js?v=p2"></script>
+</body>
+</html>
