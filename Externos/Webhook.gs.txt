@@ -1,0 +1,1390 @@
+/***************
+ * Webhook.gs
+ * AMARED - Pedidos + Admin + Cocina
+ ***************/
+
+const SPREADSHEET_ID = "1Ho7sTTWE6jjVf9tbjzWdGwl0zF8XC64puG-L9U0kboY";
+const SHEET_ACTIVE   = "PEDIDOS";
+const SHEET_EXPIRED  = "EXPIRADOS";
+const SHEET_LOTS     = "COCINA_LOTES";
+const SHEET_SHOPPING = "COMPRAS_NEED";
+
+const SHEET_COSTS   = "COSTOS_INGREDIENTES";
+const SHEET_CATALOG = "COSTOS_CATALOGOS";
+
+// Inventario + Recetas
+const SHEET_INVENTORY = "INVENTARIO";
+const SHEET_INV_MOV   = "INVENTARIO_MOVIMIENTOS";
+const SHEET_RECIPES   = "RECETAS";
+
+const SECRET_KEY     = "amared_9Fv3rQp1xL7kZ2wN8cT5mY0sJ4uH6gB3dRr";
+
+const REQUIRED_CREATE = ["order_id","customer_name","phone","address_text","items","subtotal","total_units"];
+
+// -------------------------------
+// 🛠️ Aliases y funciones faltantes para compras
+//
+// Algunos métodos (getSheet_, getRecipeRowsByDessertId_) y la constante
+// SHEET_ORDERS se utilizan en el cálculo de necesidades de compras. En la
+// implementación anterior no estaban definidos, lo que provocaba errores
+// cuando el backend intentaba acceder a ellos. Aquí los declaramos de
+// manera explícita para garantizar que los cálculos de compras funcionen
+// correctamente.
+
+// Alias para la hoja de pedidos. En este proyecto usamos la misma hoja
+// para los pedidos activos. Si se desea usar otra hoja en el futuro,
+// basta con actualizar esta constante.
+const SHEET_ORDERS = SHEET_ACTIVE;
+
+/**
+ * Obtiene una hoja de cálculo existente a partir de su nombre.
+ * Esta función es un alias del helper `sh_`, que ya valida la existencia
+ * de la hoja. Se declara por compatibilidad con funciones antiguas que
+ * referencian `getSheet_`.
+ *
+ * @param {string} name Nombre de la hoja a obtener
+ * @returns {GoogleAppsScript.Spreadsheet.Sheet}
+ */
+function getSheet_(name) {
+  return sh_(name);
+}
+
+/**
+ * Busca las filas de receta asociadas a un postre (por id o nombre) en
+ * la hoja de recetas (SHEET_RECIPES) y devuelve un arreglo de objetos
+ * con la clave de ingrediente y la cantidad necesaria por unidad.
+ *
+ * @param {string} dessertId Identificador o nombre del postre
+ * @returns {Array<{ingredient_key: string, qty: number}>}
+ */
+function getRecipeRowsByDessertId_(dessertId) {
+  const sheet = sh_(SHEET_RECIPES);
+  const data = sheet.getDataRange().getValues();
+  if (!data || data.length < 2) return [];
+  const headers = data[0].map(v => String(v || "").trim());
+  const idx = {};
+  headers.forEach((h, i) => { idx[h] = i; });
+  const idIdx = idx['dessert_id'];
+  const nameIdx = idx['dessert_name'];
+  const ingIdx = idx['ingredient_key'];
+  // La columna de cantidad puede llamarse qty o qty_per_unit. Si ninguna
+  // existe, asumimos el índice 3 (cuarta columna) como fallback.
+  const qtyIdx = (idx['qty'] !== undefined) ? idx['qty'] :
+                 (idx['qty_per_unit'] !== undefined ? idx['qty_per_unit'] : 3);
+  const out = [];
+  for (let r = 1; r < data.length; r++) {
+    const row = data[r];
+    const did = String(row[idIdx] || '').trim();
+    const dname = String(row[nameIdx] || '').trim();
+    if (dessertId === did || dessertId === dname) {
+      const ingKey = String(row[ingIdx] || '').trim();
+      const q = Number(row[qtyIdx] || 0);
+      if (ingKey && q > 0) {
+        out.push({ ingredient_key: ingKey, qty: q });
+      }
+    }
+  }
+  return out;
+}
+
+// ===== ENTRYPOINTS =====
+function doPost(e) {
+  var action = "unknown";
+  try {
+    var key = (e && e.parameter && e.parameter.key) ? e.parameter.key : "";
+    if (key !== SECRET_KEY) return json_({ ok:false, error:"Unauthorized", marker:"AMARED_POST_A" });
+
+    var raw = (e && e.postData && e.postData.contents) ? e.postData.contents : "{}";
+    var data = JSON.parse(raw);
+    action = String(data.action || "create_order");
+
+    // Ping para diagnóstico rápido
+    if (action === "ping") {
+      return json_({ ok:true, marker:"AMARED_POST_A", got:"ping" });
+    }
+
+    switch (action) {
+      case "create_order":            return createOrder_(data);
+
+      // Admin
+      case "list_orders":             return listOrders_(data);
+      case "get_order":               return getOrder_(data);
+      case "update_order":            return updateOrder_(data);
+      case "mark_paid":               return markPaid_(data);
+      case "cancel_order":            return cancelOrder_(data);
+
+      // Cocina
+      case "kitchen_bulk_update":     return kitchenBulkUpdate_(data);
+      case "kitchen_lot_upsert":      return kitchenLotUpsert_(data);
+
+      // Compras (lista de compra multi-dispositivo)
+      case "shopping_save":          return shoppingSave_(data);
+      case "shopping_get":           return shoppingGet_(data);
+
+      // Compras (cálculo desde PEDIDOS + RECETAS + INVENTARIO)
+      case "costs_orders_for_purchases": return costsOrdersForPurchases_(data);
+      case "inventory_get":             return inventoryGet_(data);
+      case "inventory_add_purchase_batch": return inventoryAddPurchaseBatch_(data);
+
+
+
+      // Costos + Catálogos
+      case "costs_list":              return costsList_(data);
+      case "costs_upsert":            return costsUpsert_(data);
+      case "catalog_list":            return catalogList_(data);
+      case "catalog_add":             return catalogAdd_(data);
+      case "catalog_delete":          return catalogDelete_(data);
+
+      // Costos públicos (solo lectura)
+      case "costs_public_list":       return costsPublicList_(data);
+
+      // Perfiles
+      case "profiles_list":           return profilesList_(data);
+      case "profiles_add":            return profilesAdd_(data);
+      case "profiles_delete":         return profilesDelete_(data);
+
+      default:
+        return json_({ ok:false, error:"Unknown action: " + action, marker:"AMARED_POST_A" });
+    }
+  } catch (err) {
+    return json_({
+      ok: false,
+      marker: "AMARED_POST_A",
+      action: action,
+      error: String(err),
+      stack: (err && err.stack) ? String(err.stack) : ""
+    });
+  }
+}
+
+function doGet(e) {
+  return json_({
+    ok: true,
+    status: "Webhook activo",
+    marker: "AMARED_WEBHOOK_V2026_02_11_A",
+    scriptId: ScriptApp.getScriptId(),
+    hasKey: !!(e && e.parameter && e.parameter.key),
+  });
+}
+
+
+// ===== HELPERS =====
+function json_(obj) {
+  return ContentService
+    .createTextOutput(JSON.stringify(obj))
+    .setMimeType(ContentService.MimeType.JSON);
+}
+
+function ss_() { return SpreadsheetApp.openById(SPREADSHEET_ID); }
+
+function sh_(name) {
+  const s = ss_().getSheetByName(name);
+  if (!s) throw new Error(`Missing sheet: ${name}`);
+  return s;
+}
+
+function ensureSheet_(name, headerRow) {
+  const ss = ss_();
+  let s = ss.getSheetByName(name);
+  if (!s) {
+    s = ss.insertSheet(name);
+    if (headerRow && headerRow.length) s.appendRow(headerRow);
+  }
+  return s;
+}
+
+function headers_(sheet) {
+  const lastCol = sheet.getLastColumn();
+  const heads = sheet.getRange(1,1,1,lastCol).getValues()[0].map(h => String(h).trim());
+  const map = {};
+  heads.forEach((h,i) => map[h] = i + 1);
+  return { heads, map, lastCol };
+}
+
+function nowIso_() { return new Date().toISOString(); }
+
+function fmt_(d, pattern) {
+  return Utilities.formatDate(d, Session.getScriptTimeZone(), pattern);
+}
+
+function findRowByOrderId_(sheet, hmap, orderId) {
+  const col = hmap["order_id"];
+  if (!col) throw new Error("Missing column: order_id");
+  const lastRow = sheet.getLastRow();
+  if (lastRow < 2) return null;
+  const vals = sheet.getRange(2, col, lastRow-1, 1).getValues();
+  for (let i=0; i<vals.length; i++) {
+    if (String(vals[i][0]) === String(orderId)) return i + 2;
+  }
+  return null;
+}
+
+function readRowObj_(sheet, heads, row) {
+  const data = sheet.getRange(row, 1, 1, heads.length).getValues()[0];
+  const obj = {};
+  heads.forEach((h,i) => obj[h] = data[i]);
+  return obj;
+}
+
+function setCell_(sheet, hmap, row, colName, value) {
+  const col = hmap[colName];
+  if (!col) return;
+  sheet.getRange(row, col).setValue(value);
+}
+
+function normalizeItems_(items) {
+  if (!Array.isArray(items)) return [];
+  return items
+    .map(it => ({
+      id: String(it.id || ""),
+      name: String(it.name || ""),
+      qty: Number(it.qty || 0),
+      unit_price: Number(it.price ?? it.unit_price ?? 0),
+    }))
+    .filter(it => it.id && it.qty > 0);
+}
+
+function itemsText_(itemsNorm) {
+  return itemsNorm.map(it => `- ${it.name}: ${it.qty}`).join("\n");
+}
+
+function calcTotals_(itemsNorm) {
+  const total_units = itemsNorm.reduce((s,it) => s + it.qty, 0);
+  const subtotal = itemsNorm.reduce((s,it) => s + it.qty * it.unit_price, 0);
+  return { total_units, subtotal };
+}
+
+function ensurePending_(orderObj) {
+  if (String(orderObj.payment_status) !== "Pendiente") {
+    return { ok:false, error:"Locked: order is not pending" };
+  }
+  return { ok:true };
+}
+
+function ensurePaid_(orderObj) {
+  if (String(orderObj.payment_status) !== "Pagado") {
+    return { ok:false, error:"Locked: order is not paid" };
+  }
+  return { ok:true };
+}
+
+// ===== ACTION: CREATE ORDER =====
+function createOrder_(data) {
+  for (const k of REQUIRED_CREATE) {
+    if (data[k] === undefined || data[k] === null || String(data[k]).trim() === "") {
+      return json_({ ok:false, error:`Falta ${k}` });
+    }
+  }
+
+  const locationMethod = String(data.location_method || "maps");
+  let mapsLink = String(data.maps_link || "");
+  if (locationMethod === "whatsapp") mapsLink = "WHATSAPP";
+  if (locationMethod === "maps" && !mapsLink) return json_({ ok:false, error:"Falta maps_link" });
+
+  const n = new Date();
+  const createdAt = fmt_(n, "yyyy-MM-dd HH:mm:ss");
+  const orderDate = fmt_(n, "yyyy-MM-dd");
+
+  const itemsNorm = normalizeItems_(data.items);
+  const totals = calcTotals_(itemsNorm);
+
+  const itemsText = itemsText_(itemsNorm);
+  const itemsJson = JSON.stringify(itemsNorm);
+
+  const sheet = sh_(SHEET_ACTIVE);
+  const { map: hm } = headers_(sheet);
+
+  const baseRow = [
+    data.order_id,
+    createdAt,
+    orderDate,
+    data.customer_name,
+    data.phone,
+    data.address_text,
+    mapsLink,
+    itemsText,
+    totals.total_units,
+    totals.subtotal,
+    "Pendiente",
+    "No iniciar",
+    "Pendiente",
+    data.notes || "",
+    data.email || "",
+    !!data.wa_opt_in
+  ];
+
+  sheet.appendRow(baseRow);
+
+  const newRow = sheet.getLastRow();
+  setCell_(sheet, hm, newRow, "items_json", itemsJson);
+  setCell_(sheet, hm, newRow, "last_updated_at", nowIso_());
+  setCell_(sheet, hm, newRow, "last_updated_by", "SYSTEM");
+
+  // cocina extra
+  setCell_(sheet, hm, newRow, "base_fridge_started_at", "");
+
+  return json_({ ok:true, order_id: data.order_id });
+}
+
+// ===== ACTION: LIST ORDERS =====
+function listOrders_(data) {
+  const status = String(data.payment_status || "Pendiente");
+  const sheet = sh_(SHEET_ACTIVE);
+  const { heads, lastCol } = headers_(sheet);
+
+  const lastRow = sheet.getLastRow();
+  if (lastRow < 2) return json_({ ok:true, orders: [] });
+
+  const rows = sheet.getRange(2,1,lastRow-1,lastCol).getValues();
+  const orders = rows.map(r => {
+    const o = {};
+    heads.forEach((h,i) => o[h] = r[i]);
+    return o;
+  }).filter(o => String(o.payment_status) === status);
+
+  return json_({ ok:true, orders });
+}
+
+// ===== ACTION: GET ORDER =====
+function getOrder_(data) {
+  const orderId = String(data.order_id || "");
+  if (!orderId) return json_({ ok:false, error:"Missing order_id" });
+
+  const sheet = sh_(SHEET_ACTIVE);
+  const { heads, map: hm } = headers_(sheet);
+  const row = findRowByOrderId_(sheet, hm, orderId);
+  if (!row) return json_({ ok:false, error:"Not found" });
+
+  return json_({ ok:true, order: readRowObj_(sheet, heads, row) });
+}
+
+// ===== ACTION: UPDATE ORDER (SOLO PENDIENTE) =====
+function updateOrder_(data) {
+  const orderId  = String(data.order_id || "");
+  const operator = String(data.operator || "ADMIN");
+  if (!orderId) return json_({ ok:false, error:"Missing order_id" });
+
+  const sheet = sh_(SHEET_ACTIVE);
+  const { heads, map: hm } = headers_(sheet);
+  const row = findRowByOrderId_(sheet, hm, orderId);
+  if (!row) return json_({ ok:false, error:"Not found" });
+
+  const current = readRowObj_(sheet, heads, row);
+  const chk = ensurePending_(current);
+  if (!chk.ok) return json_(chk);
+
+  const editable = ["customer_name","phone","address_text","maps_link","notes","email","wa_opt_in"];
+  editable.forEach(k => {
+    if (Object.prototype.hasOwnProperty.call(data, k)) setCell_(sheet, hm, row, k, data[k]);
+  });
+
+  if (Array.isArray(data.items)) {
+    const itemsNorm = normalizeItems_(data.items);
+    const totals = calcTotals_(itemsNorm);
+
+    setCell_(sheet, hm, row, "items", itemsText_(itemsNorm));
+    setCell_(sheet, hm, row, "items_json", JSON.stringify(itemsNorm));
+    setCell_(sheet, hm, row, "total_units", totals.total_units);
+    setCell_(sheet, hm, row, "subtotal", totals.subtotal);
+  }
+
+  setCell_(sheet, hm, row, "last_updated_at", nowIso_());
+  setCell_(sheet, hm, row, "last_updated_by", operator);
+
+  return json_({ ok:true });
+}
+
+// ===== ACTION: MARK PAID (SOLO PENDIENTE) =====
+function markPaid_(data) {
+  const orderId  = String(data.order_id || "");
+  const operator = String(data.operator || "ADMIN");
+  const method   = String(data.payment_method || "");
+  const ref      = String(data.payment_ref || "");
+
+  if (!orderId) return json_({ ok:false, error:"Missing order_id" });
+  if (!method)  return json_({ ok:false, error:"Missing payment_method" });
+
+  const sheet = sh_(SHEET_ACTIVE);
+  const { heads, map: hm } = headers_(sheet);
+  const row = findRowByOrderId_(sheet, hm, orderId);
+  if (!row) return json_({ ok:false, error:"Not found" });
+
+  const current = readRowObj_(sheet, heads, row);
+  const chk = ensurePending_(current);
+  if (!chk.ok) return json_(chk);
+
+  setCell_(sheet, hm, row, "payment_status", "Pagado");
+  setCell_(sheet, hm, row, "payment_method", method);
+  setCell_(sheet, hm, row, "payment_ref", ref);
+  setCell_(sheet, hm, row, "paid_at", nowIso_());
+  setCell_(sheet, hm, row, "paid_by", operator);
+
+  setCell_(sheet, hm, row, "last_updated_at", nowIso_());
+  setCell_(sheet, hm, row, "last_updated_by", operator);
+
+  return json_({ ok:true });
+}
+
+// ===== ACTION: CANCEL ORDER (SOLO PENDIENTE) =====
+function cancelOrder_(data) {
+  const orderId  = String(data.order_id || "");
+  const operator = String(data.operator || "ADMIN");
+  const reason   = String(data.cancel_reason || "Cliente canceló");
+
+  if (!orderId) return json_({ ok:false, error:"Missing order_id" });
+
+  const sheet = sh_(SHEET_ACTIVE);
+  const { heads, map: hm } = headers_(sheet);
+  const row = findRowByOrderId_(sheet, hm, orderId);
+  if (!row) return json_({ ok:false, error:"Not found" });
+
+  const current = readRowObj_(sheet, heads, row);
+  const chk = ensurePending_(current);
+  if (!chk.ok) return json_(chk);
+
+  setCell_(sheet, hm, row, "payment_status", "Cancelado");
+  setCell_(sheet, hm, row, "cancel_reason", reason);
+  setCell_(sheet, hm, row, "canceled_at", nowIso_());
+  setCell_(sheet, hm, row, "canceled_by", operator);
+
+  setCell_(sheet, hm, row, "last_updated_at", nowIso_());
+  setCell_(sheet, hm, row, "last_updated_by", operator);
+
+  return json_({ ok:true });
+}
+
+// ===== ACTION: kitchen_bulk_update =====
+// patch permitido:
+// - kitchen_status: "No iniciar" | "En proceso" | "Listo"
+// - base_fridge_started_at: ISO string (solo se setea si está vacío)
+function kitchenBulkUpdate_(data) {
+  const orderIds = Array.isArray(data.order_ids) ? data.order_ids.map(String).filter(Boolean) : [];
+  if (!orderIds.length) return json_({ ok:false, error:"Missing order_ids" });
+
+  const patch = data.patch || {};
+  const operator = String(data.operator || "COCINA").trim() || "COCINA";
+
+  const nextStatus = patch.kitchen_status !== undefined ? String(patch.kitchen_status) : null;
+  const baseFridge = patch.base_fridge_started_at !== undefined ? String(patch.base_fridge_started_at) : null;
+
+  const valid = new Set(["No iniciar","En proceso","Listo"]);
+  if (nextStatus !== null && !valid.has(nextStatus)) {
+    return json_({ ok:false, error:"Invalid kitchen_status" });
+  }
+
+  const sheet = sh_(SHEET_ACTIVE);
+  const { heads, map: hm } = headers_(sheet);
+
+  const results = [];
+  const nowIso = nowIso_();
+
+  for (const oid of orderIds) {
+    const row = findRowByOrderId_(sheet, hm, oid);
+    if (!row) {
+      results.push({ order_id: oid, ok:false, error:"Not found" });
+      continue;
+    }
+
+    const current = readRowObj_(sheet, heads, row);
+    const chk = ensurePaid_(current);
+    if (!chk.ok) {
+      results.push({ order_id: oid, ok:false, error: chk.error });
+      continue;
+    }
+
+    // kitchen_status
+    if (nextStatus !== null) {
+      const cur = String(current.kitchen_status || "No iniciar");
+      if (cur === "Listo" && nextStatus !== "Listo") {
+        results.push({ order_id: oid, ok:false, error:"Locked (already Listo)" });
+        continue;
+      }
+
+      setCell_(sheet, hm, row, "kitchen_status", nextStatus);
+
+      // ✅ trazabilidad en PEDIDOS
+      if (nextStatus === "En proceso") {
+        const ks = String(current.kitchen_started_at || "").trim();
+        if (!ks) {
+          setCell_(sheet, hm, row, "kitchen_started_at", nowIso);
+          setCell_(sheet, hm, row, "kitchen_started_by", operator);
+        }
+      }
+      if (nextStatus === "Listo") {
+        const kd = String(current.kitchen_done_at || "").trim();
+        if (!kd) {
+          setCell_(sheet, hm, row, "kitchen_done_at", nowIso);
+          setCell_(sheet, hm, row, "kitchen_done_by", operator);
+        }
+      }
+    }
+
+    // base_fridge_started_at (solo si está vacío)
+    if (baseFridge !== null) {
+      const existing = String(current.base_fridge_started_at || "").trim();
+      if (!existing) setCell_(sheet, hm, row, "base_fridge_started_at", baseFridge);
+    }
+
+    setCell_(sheet, hm, row, "last_updated_at", nowIso);
+    setCell_(sheet, hm, row, "last_updated_by", operator);
+
+    results.push({ order_id: oid, ok:true });
+  }
+
+  return json_({ ok:true, results });
+}
+
+// ===== ACTION: kitchen_lot_upsert =====
+// Hoja COCINA_LOTES: upsert por production_day
+// Columnas sugeridas: production_day, status, operator, updated_at, products_json
+function kitchenLotUpsert_(data){
+  const productionDay = String(data.production_day || "").trim();
+  const status = String(data.status || "in_progress").trim();
+  const operator = String(data.operator || "COCINA").trim();
+  const productsJson = String(data.products_json || "{}");
+
+  if(!productionDay) return json_({ ok:false, error:"Missing production_day" });
+
+  // Asegura hoja con headers mínimos
+  const lotSheet = ensureSheet_(SHEET_LOTS, ["production_day","status","operator","updated_at","products_json"]);
+
+  const { heads, map: hm } = headers_(lotSheet);
+
+  // Buscar row por production_day
+  const colPD = hm["production_day"];
+  const lastRow = lotSheet.getLastRow();
+  let foundRow = null;
+
+  if (lastRow >= 2) {
+    const vals = lotSheet.getRange(2, colPD, lastRow-1, 1).getValues();
+    for(let i=0;i<vals.length;i++){
+      if(String(vals[i][0]) === productionDay){
+        foundRow = i + 2;
+        break;
+      }
+    }
+  }
+
+  const nowIso = nowIso_();
+
+  if(!foundRow){
+    lotSheet.appendRow([productionDay, status, operator, nowIso, productsJson]);
+  } else {
+    setCell_(lotSheet, hm, foundRow, "status", status);
+    setCell_(lotSheet, hm, foundRow, "operator", operator);
+    setCell_(lotSheet, hm, foundRow, "updated_at", nowIso);
+    setCell_(lotSheet, hm, foundRow, "products_json", productsJson);
+  }
+
+  return json_({ ok:true });
+}
+
+// ==============================
+// ✅ COSTOS / CATÁLOGOS (Sheets)
+// ==============================
+
+// Headers esperados (si faltan, se crean/añaden al final)
+const COSTS_HEADERS = [
+  "ingredient_key",
+  "unit_type",
+  "pack_qty",
+  "pack_price",
+  "cop_per_unit",
+  "brand",
+  "store",
+  "updated_at",
+  "updated_by",
+  "unit_item_qty",       // opcional (cuando unit_type = "unidad")
+  "unit_item_qty_type"   // opcional (g | ml)
+];
+
+const CATALOG_HEADERS = [
+  "type",        // store | brand
+  "value",
+  "created_at",
+  "created_by"
+];
+
+// Abre o crea sheet (solo para costos/catalog)
+function shOrCreate_(name, headers) {
+  const ss = ss_();
+  let sh = ss.getSheetByName(name);
+  if (!sh) {
+    sh = ss.insertSheet(name);
+    sh.getRange(1, 1, 1, headers.length).setValues([headers]);
+    sh.setFrozenRows(1);
+    return sh;
+  }
+  ensureHeaders_(sh, headers);
+  return sh;
+}
+
+function ensureHeaders_(sh, headers) {
+  const lastCol = sh.getLastColumn() || 1;
+  const existing = sh.getRange(1,1,1,lastCol).getValues()[0].map(v=>String(v||"").trim());
+  const missing = headers.filter(h => existing.indexOf(h) === -1);
+  if (missing.length) {
+    sh.getRange(1, lastCol + 1, 1, missing.length).setValues([missing]);
+    sh.setFrozenRows(1);
+  }
+}
+
+function headerMap_(headers){
+  const map = {};
+  headers.forEach((h,i)=>{ map[String(h||"").trim()] = i; });
+  return map;
+}
+
+// -------- COSTS: LIST --------
+function costsList_() {
+  const sh = shOrCreate_(SHEET_COSTS, COSTS_HEADERS);
+  const values = sh.getDataRange().getValues();
+  if (values.length <= 1) return json_({ ok:true, items: [] });
+
+  const headers = values[0].map(v=>String(v||"").trim());
+  const idx = headerMap_(headers);
+
+  const out = [];
+  for (const r of values.slice(1)) {
+    const key = String(r[idx.ingredient_key] || "").trim();
+    if (!key) continue;
+
+    out.push({
+      ingredient_key: key,
+      unit_type: String(r[idx.unit_type] || "").trim(),
+      pack_qty: Number(r[idx.pack_qty] || 0),
+      pack_price: Number(r[idx.pack_price] || 0),
+      cop_per_unit: Number(r[idx.cop_per_unit] || 0),
+      brand: String(r[idx.brand] || "").trim(),
+      store: String(r[idx.store] || "").trim(),
+      updated_at: String(r[idx.updated_at] || "").trim(),
+      updated_by: String(r[idx.updated_by] || "").trim(),
+      unit_item_qty: (idx.unit_item_qty !== undefined) ? String(r[idx.unit_item_qty] || "").trim() : "",
+      unit_item_qty_type: (idx.unit_item_qty_type !== undefined) ? String(r[idx.unit_item_qty_type] || "").trim() : ""
+    });
+  }
+
+  return json_({ ok:true, items: out });
+}
+
+// -------- COSTS: UPSERT by ingredient_key --------
+function costsUpsert_(data) {
+  const sh = shOrCreate_(SHEET_COSTS, COSTS_HEADERS);
+  const values = sh.getDataRange().getValues();
+  const headers = values[0].map(v=>String(v||"").trim());
+  const idx = headerMap_(headers);
+
+  const ingredient_key = String(data.ingredient_key || "").trim();
+  const unit_type       = String(data.unit_type || "").trim();
+  const pack_qty        = Number(data.pack_qty || 0);
+  const pack_price      = Number(data.pack_price || 0);
+  const cop_per_unit    = Number(data.cop_per_unit || 0);
+  const brand           = String(data.brand || "").trim();
+  const store           = String(data.store || "").trim();
+  const updated_by      = String(data.updated_by || "COSTS_UI").trim();
+  const unit_item_qty   = (data.unit_item_qty === "" || data.unit_item_qty === null || data.unit_item_qty === undefined)
+                          ? "" : Number(data.unit_item_qty || 0);
+  const unit_item_qty_type = String(data.unit_item_qty_type || "").trim();
+
+  if (!ingredient_key) return json_({ ok:false, error:"Missing ingredient_key" });
+  if (!unit_type) return json_({ ok:false, error:"Missing unit_type" });
+  if (pack_qty <= 0) return json_({ ok:false, error:"Invalid pack_qty" });
+  if (pack_price <= 0) return json_({ ok:false, error:"Invalid pack_price" });
+
+  const updated_at = new Date().toISOString();
+
+  // buscar key en columna ingredient_key
+  const lastRow = sh.getLastRow();
+  const keyCol = (idx.ingredient_key || 0) + 1;
+  const rangeH = Math.max(0, lastRow - 1);
+  const keys = rangeH
+    ? sh.getRange(2, keyCol, rangeH, 1).getValues().map(r=>String(r[0]||"").trim())
+    : [];
+  const found = keys.findIndex(k => k === ingredient_key);
+
+  // preparar fila completa (misma longitud que headers)
+  const row = new Array(headers.length).fill("");
+
+  row[idx.ingredient_key] = ingredient_key;
+  row[idx.unit_type] = unit_type;
+  row[idx.pack_qty] = pack_qty;
+  row[idx.pack_price] = pack_price;
+  row[idx.cop_per_unit] = cop_per_unit;
+  row[idx.brand] = brand;
+  row[idx.store] = store;
+  row[idx.updated_at] = updated_at;
+  row[idx.updated_by] = updated_by;
+
+  if (idx.unit_item_qty !== undefined) row[idx.unit_item_qty] = unit_item_qty;
+  if (idx.unit_item_qty_type !== undefined) row[idx.unit_item_qty_type] = unit_item_qty_type;
+
+  if (found >= 0) {
+    sh.getRange(2 + found, 1, 1, headers.length).setValues([row]);
+  } else {
+    sh.appendRow(row);
+  }
+
+  return json_({ ok:true });
+}
+
+// -------- CATALOG: LIST --------
+function catalogList_() {
+  const sh = shOrCreate_(SHEET_CATALOG, CATALOG_HEADERS);
+  const values = sh.getDataRange().getValues();
+  if (values.length <= 1) return json_({ ok:true, catalog:{ stores:[], brands:[] } });
+
+  const headers = values[0].map(v=>String(v||"").trim());
+  const idx = headerMap_(headers);
+
+  const stores = [];
+  const brands = [];
+
+  for (const r of values.slice(1)) {
+    const type = String(r[idx.type] || "").trim();
+    const value = String(r[idx.value] || "").trim();
+    if (!type || !value) continue;
+    if (type === "store") stores.push(value);
+    if (type === "brand") brands.push(value);
+  }
+
+  return json_({ ok:true, catalog:{ stores: uniqList_(stores), brands: uniqList_(brands) } });
+}
+
+// -------- CATALOG: ADD (no dup) --------
+function catalogAdd_(data) {
+  const type = String(data.type || "").trim();
+  const value = String(data.value || "").trim();
+  const by = String(data.updated_by || data.created_by || "COSTS_UI").trim();
+
+  if (type !== "store" && type !== "brand") return json_({ ok:false, error:"Invalid type" });
+  if (!value) return json_({ ok:false, error:"Missing value" });
+
+  const sh = shOrCreate_(SHEET_CATALOG, CATALOG_HEADERS);
+  const values = sh.getDataRange().getValues();
+  const headers = values[0].map(v=>String(v||"").trim());
+  const idx = headerMap_(headers);
+
+  // evitar duplicado exacto
+  for (const r of values.slice(1)) {
+    const t = String(r[idx.type] || "").trim();
+    const v = String(r[idx.value] || "").trim();
+    if (t === type && v === value) return json_({ ok:true });
+  }
+
+  sh.appendRow([type, value, new Date().toISOString(), by]);
+  return json_({ ok:true });
+}
+
+// -------- CATALOG: DELETE (borra todas las coincidencias) --------
+function catalogDelete_(data) {
+  const type = String(data.type || "").trim();
+  const value = String(data.value || "").trim();
+  if (type !== "store" && type !== "brand") return json_({ ok:false, error:"Invalid type" });
+  if (!value) return json_({ ok:false, error:"Missing value" });
+
+  const sh = shOrCreate_(SHEET_CATALOG, CATALOG_HEADERS);
+  const values = sh.getDataRange().getValues();
+  if (values.length <= 1) return json_({ ok:true });
+
+  const headers = values[0].map(v=>String(v||"").trim());
+  const idx = headerMap_(headers);
+
+  // eliminar de abajo hacia arriba
+  for (let i = values.length; i >= 2; i--) {
+    const r = values[i-1];
+    const t = String(r[idx.type] || "").trim();
+    const v = String(r[idx.value] || "").trim();
+    if (t === type && v === value) sh.deleteRow(i);
+  }
+
+  return json_({ ok:true });
+}
+
+function uniqList_(arr) {
+  const seen = {};
+  const out = [];
+  for (const x of arr) {
+    const s = String(x||"").trim();
+    if (!s) continue;
+    if (seen[s]) continue;
+    seen[s] = true;
+    out.push(s);
+  }
+  out.sort((a,b)=>a.localeCompare(b,"es"));
+  return out;
+}
+
+
+/** ✅ Seed inicial: crea tiendas/marcas por defecto SOLO si la hoja de catálogos está vacía */
+function seedCatalogIfEmpty_() {
+  const sh = SpreadsheetApp.getActive().getSheetByName(SHEET_CATALOG);
+  const last = sh.getLastRow();
+  if (last > 1) return; // ya tiene datos
+
+  const defaultsStores = ["Salsamentaria Sinai", "Mercacentro", "Plaza"];
+  const defaultsBrands = ["Cowie","Mercacentro","Alpina","San Jorge","Levapan","Refisal","Ramo","Colanta","Colombina","Tostao"];
+
+  const now = new Date().toISOString();
+  const by = "SYSTEM_SEED";
+
+  const rows = [];
+  defaultsStores.forEach(v => rows.push(["store", v, now, by]));
+  defaultsBrands.forEach(v => rows.push(["brand", v, now, by]));
+
+  if (rows.length) {
+    sh.getRange(2, 1, rows.length, 4).setValues(rows);
+  }
+}
+
+
+// =======================
+// ✅ Costos públicos (solo lectura)
+// Nota: NO requiere COSTS_SECRET porque es solo lectura.
+// El Worker puede exponerlo como endpoint público sin revelar secretos.
+// =======================
+function costsPublicList_(data){
+  // Alias de costs_list (misma respuesta)
+  return costsList_(data);
+}
+
+// =======================
+// ✅ PERFILES (persistentes en Sheets)
+// Hoja: PERFILES
+// Campos: profile_id, label, categories, created_at, created_by, is_active
+// categories: lista separada por coma, ej: "kitchen,payments"
+// =======================
+const PROFILES_SHEET = "PERFILES";
+const PROFILES_HEADERS = ["profile_id","label","categories","created_at","created_by","is_active"];
+
+function profilesSheet_(){
+  const sh = ensureSheet_(PROFILES_SHEET, PROFILES_HEADERS);
+
+  // Asegurar headers faltantes si la hoja existía antes
+  const h = headers_(sh);
+  for (let i = 0; i < PROFILES_HEADERS.length; i++) {
+    const name = PROFILES_HEADERS[i];
+    if (!h.map[name]) {
+      sh.getRange(1, h.lastCol + 1).setValue(name);
+      h.lastCol++;
+      h.map[name] = h.lastCol;
+    }
+  }
+  return sh;
+}
+
+function normCats_(catsStr){
+  const parts = String(catsStr || "")
+    .split(",")
+    .map(s => String(s || "").trim().toLowerCase())
+    .filter(Boolean);
+
+  const seen = {};
+  const out = [];
+  for (const c of parts) {
+    if (!seen[c]) { seen[c] = 1; out.push(c); }
+  }
+  return out;
+}
+
+function profilesList_(data){
+  const sh = profilesSheet_();
+  const values = sh.getDataRange().getValues();
+  if (values.length <= 1) return json_({ ok:true, profiles: [] });
+
+  const headers = values[0].map(v=>String(v||"").trim());
+  const idx = {};
+  headers.forEach((h,i)=>idx[h]=i);
+
+  const wanted = String((data && data.category) ? data.category : "").trim().toLowerCase(); // opcional
+
+  const out = [];
+  for (const r of values.slice(1)) {
+    const id = String(r[idx.profile_id] || "").trim();
+    const label = String(r[idx.label] || "").trim();
+
+    const isActiveRaw = (idx.is_active !== undefined) ? String(r[idx.is_active]) : "true";
+    const isActive = !(isActiveRaw === "false" || isActiveRaw === "0");
+    if (!id || !label || !isActive) continue;
+
+    const catsStr = (idx.categories !== undefined) ? String(r[idx.categories] || "").trim() : "";
+    const cats = normCats_(catsStr);
+
+    if (wanted && cats.indexOf(wanted) === -1) continue;
+
+    out.push({ id, label, categories: cats });
+  }
+
+  out.sort((a,b)=>a.label.localeCompare(b.label,"es"));
+  return json_({ ok:true, profiles: out });
+}
+
+function profilesAdd_(data){
+  const sh = profilesSheet_();
+  const values = sh.getDataRange().getValues();
+  const headers = values[0].map(v=>String(v||"").trim());
+  const idx = {};
+  headers.forEach((h,i)=>idx[h]=i);
+
+  const id = String(data.profile_id || data.id || "").trim();
+  const label = String(data.label || "").trim();
+  const by = String(data.created_by || data.updated_by || "PROFILES_UI").trim();
+
+  // categories puede llegar como string "kitchen,payments" o array
+  let catsStr = "";
+  if (Array.isArray(data.categories)) catsStr = data.categories.join(",");
+  else catsStr = String(data.categories || data.category || "").trim();
+
+  const cats = normCats_(catsStr);
+  catsStr = cats.join(",");
+
+  if(!id) return json_({ ok:false, error:"Missing profile_id" });
+  if(!label) return json_({ ok:false, error:"Missing label" });
+
+  // Busca si existe
+  for (let i=2;i<=values.length;i++){
+    const r = values[i-1];
+    const rid = String(r[idx.profile_id] || "").trim();
+    if(rid === id){
+      if (idx.label !== undefined) sh.getRange(i, idx.label+1).setValue(label);
+      if (idx.categories !== undefined) sh.getRange(i, idx.categories+1).setValue(catsStr);
+      if (idx.is_active !== undefined) sh.getRange(i, idx.is_active+1).setValue(true);
+      if (idx.created_by !== undefined) sh.getRange(i, idx.created_by+1).setValue(by);
+      if (idx.created_at !== undefined) sh.getRange(i, idx.created_at+1).setValue(nowIso_());
+      return json_({ ok:true });
+    }
+  }
+
+  // Crear nuevo
+  const row = new Array(headers.length).fill("");
+  if (idx.profile_id !== undefined) row[idx.profile_id] = id;
+  if (idx.label !== undefined) row[idx.label] = label;
+  if (idx.categories !== undefined) row[idx.categories] = catsStr;
+  if (idx.created_at !== undefined) row[idx.created_at] = nowIso_();
+  if (idx.created_by !== undefined) row[idx.created_by] = by;
+  if (idx.is_active !== undefined) row[idx.is_active] = true;
+
+  sh.appendRow(row);
+  return json_({ ok:true });
+}
+
+function profilesDelete_(data){
+  const sh = profilesSheet_();
+  const values = sh.getDataRange().getValues();
+  const headers = values[0].map(v=>String(v||"").trim());
+  const idx = {};
+  headers.forEach((h,i)=>idx[h]=i);
+
+  const id = String(data.profile_id || data.id || "").trim();
+  if(!id) return json_({ ok:false, error:"Missing profile_id" });
+
+  if(values.length <= 1) return json_({ ok:true });
+
+  for(let i=2;i<=values.length;i++){
+    const r = values[i-1];
+    const rid = String(r[idx.profile_id] || "").trim();
+    if(rid === id){
+      if (idx.is_active !== undefined) sh.getRange(i, idx.is_active+1).setValue(false);
+      return json_({ ok:true });
+    }
+  }
+  return json_({ ok:true });
+}
+
+
+
+
+/* =======================
+ * 🛒 COMPRAS_NEED (multi-dispositivo)
+ * Hoja: COMPRAS_NEED
+ * Columnas: day_key | created_at | operator | payload_json
+ * ======================= */
+const SHOPPING_HEADERS = ["day_key","created_at","operator","payload_json"];
+
+function shoppingSave_(data){
+  const sh = shOrCreate_(SHEET_SHOPPING, SHOPPING_HEADERS);
+
+  const payload = data && data.payload ? data.payload : {};
+  const dayKey = String(payload.day_key || data.day_key || "") || Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "yyyy-MM-dd");
+  const createdAt = String(payload.created_at || data.created_at || "") || new Date().toISOString();
+  const operator = String(data.operator || payload.operator || "") || "";
+
+  const jsonStr = JSON.stringify(payload || {});
+
+  // Upsert por day_key (último gana)
+  const values = sh.getDataRange().getValues();
+  let row = -1;
+  if(values.length > 1){
+    const h = values[0];
+    const idxDay = h.indexOf("day_key");
+    for(let i=1;i<values.length;i++){
+      if(String(values[i][idxDay]||"") === dayKey){
+        row = i+1; // 1-based
+      }
+    }
+  }
+
+  const outRow = [dayKey, createdAt, operator, jsonStr];
+
+  if(row > 0){
+    sh.getRange(row,1,1,SHOPPING_HEADERS.length).setValues([outRow]);
+  }else{
+    sh.appendRow(outRow);
+  }
+
+  return json_({ ok:true, day_key: dayKey, saved:true });
+}
+
+function shoppingGet_(data){
+  const sh = shOrCreate_(SHEET_SHOPPING, SHOPPING_HEADERS);
+  const values = sh.getDataRange().getValues();
+  if(values.length <= 1) return json_({ ok:true, data:{ items:[], needs:[], day_key:"", created_at:"" }});
+
+  const h = values[0];
+  const idxDay = h.indexOf("day_key");
+  const idxCreated = h.indexOf("created_at");
+  const idxOper = h.indexOf("operator");
+  const idxPayload = h.indexOf("payload_json");
+
+  // último registro (por diseño el último es el más reciente)
+  const last = values[values.length - 1];
+  const dayKey = String(last[idxDay] || "");
+  const createdAt = String(last[idxCreated] || "");
+  const operator = String(last[idxOper] || "");
+  const payloadJson = String(last[idxPayload] || "{}");
+
+  let payload = {};
+  try { payload = JSON.parse(payloadJson || "{}"); } catch(e){ payload = {}; }
+
+  // ---- Normalización: SIEMPRE producir payload.needs ----
+  function toNum_(v){
+    const n = Number(String(v || "").replace(",", "."));
+    return isFinite(n) ? n : 0;
+  }
+
+  function normalizeNeeds_(p){
+    // 1) Si ya viene como needs
+    if(p && Array.isArray(p.needs)) return p.needs;
+
+    // 2) Si viene como needList
+    if(p && Array.isArray(p.needList)) return p.needList.map(x => ({
+      name: String(x.name || x.ingredient || x.ing || ""),
+      unit: String(x.unit || x.unidad || ""),
+      needed: toNum_(x.needed ?? x.need ?? x.qty ?? x.cantidad ?? 0)
+    })).filter(x => x.name);
+
+    // 3) Si viene como items (legacy)
+    if(p && Array.isArray(p.items)) return p.items.map(x => ({
+      name: String(x.name || x.ingredient || x.ing || ""),
+      unit: String(x.unit || x.unidad || ""),
+      needed: toNum_(x.needed ?? x.need ?? x.qty ?? x.cantidad ?? 0)
+    })).filter(x => x.name);
+
+    // 4) Si viene como mapa { "Azucar": {needed, unit} }
+    if(p && typeof p === "object"){
+      const keys = Object.keys(p);
+      // evitar "meta" y cosas raras
+      const filtered = keys.filter(k => typeof p[k] === "object" && p[k] && ("needed" in p[k] || "need" in p[k] || "qty" in p[k]));
+      if(filtered.length){
+        return filtered.map(k => ({
+          name: String(k),
+          unit: String(p[k].unit || p[k].unidad || ""),
+          needed: toNum_(p[k].needed ?? p[k].need ?? p[k].qty ?? 0)
+        })).filter(x => x.name);
+      }
+    }
+
+    return [];
+  }
+
+  const needs = normalizeNeeds_(payload);
+
+  // garantizamos que el payload también tenga needs
+  payload.needs = needs;
+
+  return json_({
+    ok:true,
+    data:{
+      day_key: dayKey,
+      created_at: createdAt,
+      operator,
+      needs,          // <- esto es clave para costs.js
+      payload,        // <- payload normalizado
+      raw: payload    // <- por compatibilidad
+    }
+  });
+}
+
+
+
+// =============================
+// ===== Inventario + Recetas ===
+// =============================
+function inventoryGet_(data){
+  const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+  const sh = getOrCreateSheet_(ss, SHEET_INVENTORY, ["ingredient_key","qty","unit","updated_at","updated_by"]);
+  const map = readInventoryMap_(sh);
+  return json_({ ok:true, inventory: map });
+}
+
+function inventoryAddPurchaseBatch_(data){
+  const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+  const invSh = getOrCreateSheet_(ss, SHEET_INVENTORY, ["ingredient_key","qty","unit","updated_at","updated_by"]);
+  const movSh = getOrCreateSheet_(ss, SHEET_INV_MOV, ["created_at","type","ingredient_key","qty","unit","cop_per_unit","cop_total","source","note"]);
+
+  const inv = readInventoryMap_(invSh);
+
+  const items = Array.isArray(data.items) ? data.items : [];
+  const now = new Date();
+  const ts = Utilities.formatDate(now, "America/Bogota", "yyyy-MM-dd HH:mm:ss");
+  const by = String(data.updated_by || "COSTS_UI");
+  const source = String(data.source || "COSTS_UI");
+
+  const moves = [];
+  let updated = 0;
+
+  items.forEach(it=>{
+    const k = String(it.ingredient_key || "").trim();
+    if(!k) return;
+    const qty = Number(it.qty || 0);
+    if(!isFinite(qty) || qty <= 0) return;
+    const unit = String(it.unit || "").trim() || (inv[k]?.unit || "");
+    const cpu = Number(it.cop_per_unit || 0);
+    const total = cpu * qty;
+
+    const prev = Number(inv[k]?.qty || 0);
+    const next = prev + qty;
+
+    inv[k] = { qty: next, unit: unit };
+
+    moves.push([ts, "PURCHASE", k, qty, unit, cpu, total, source, ""]);
+    updated++;
+  });
+
+  writeInventoryMap_(invSh, inv, ts, by);
+
+  if(moves.length){
+    movSh.getRange(movSh.getLastRow()+1, 1, moves.length, moves[0].length).setValues(moves);
+  }
+
+  return json_({ ok:true, updated });
+}
+
+/**
+ * Calcula ingredientes necesarios para compras desde:
+ * - PEDIDOS: pago=Pagado AND kitchen_status=No iniciar
+ * - Corte: 3:00 p.m. (America/Bogota)
+ * - RECETAS: define qty por ingrediente por cada postre (por unidad)
+ *
+ * Respuesta:
+ * { ok:true, needs:{ingredient_key:qty}, late:{byDessert:{name:qty}, totalQty:n}, meta:{date, cutoff} }
+ */
+function costsOrdersForPurchases_(payload){
+  // Devuelve necesidades agregadas desde PEDIDOS (pagados y no iniciados)
+  // y un "meta" para depuración (cuántos pedidos entraron al cálculo).
+  payload = payload || {};
+  var now = new Date();
+  var tz = "America/Bogota";
+  var cutoffHour = 15; // 3:00 p.m.
+
+  // Ventana flexible: últimas 36 horas (evita problemas de zona horaria / fechas)
+  var start = new Date(now.getTime() - 36 * 60 * 60 * 1000);
+
+  var shOrders = getSheet_(SHEET_ORDERS);
+  var values = shOrders.getDataRange().getValues();
+  if (!values || values.length < 2) return {ok:true, needs:{}, meta:{orders_total:0, orders_used:0}};
+
+  var h = values[0].map(function(x){ return String(x||"").trim(); });
+  var idx = {};
+  h.forEach(function(name,i){ idx[name]=i; });
+
+  // Campos esperados (según tu hoja)
+  var iCreated = idx["created_at"];
+  var iPayment = idx["payment_status"];
+  var iKitchen = idx["kitchen_status"];
+  var iItemsJson = idx["items_json"];
+  var iOrderDate = idx["order_date"];
+
+  var used = 0;
+  var total = 0;
+  var orderIdsUsed = [];
+
+  var needs = {}; // ingredient_key -> qty
+  for (var r=1; r<values.length; r++){
+    var row = values[r];
+    if (!row || row.length===0) continue;
+
+    // Validar estados
+    var pay = String(row[iPayment] || "").trim();
+    var kit = String(row[iKitchen] || "").trim();
+    if (pay !== "Pagado") continue;
+    if (kit !== "No iniciar") continue;
+
+    // Fecha/hora
+    var created = row[iCreated];
+    var dt = (created instanceof Date) ? created : new Date(created);
+    if (!dt || isNaN(dt.getTime())) continue;
+
+    total++;
+
+    // Filtro ventana (últimas 36h)
+    if (dt.getTime() < start.getTime()) continue;
+
+    // Filtro antes de 3pm (Bogotá)
+    var hh = Number(Utilities.formatDate(dt, tz, "H"));
+    if (hh >= cutoffHour) continue;
+
+    // (Opcional) si order_date existe y es diferente a hoy/ayer, lo ignoramos (pero no bloquea)
+    if (iOrderDate != null && row[iOrderDate]){
+      // solo para depuración, no filtra fuerte
+    }
+
+    // Items: preferir items_json
+    var items = parseItems_(row[iItemsJson]);
+    if (!items || items.length===0) continue;
+
+    used++;
+    try{
+      if (idx["order_id"]!=null) orderIdsUsed.push(String(row[idx["order_id"]]||""));
+    }catch(_e){}
+
+    // Acumular ingredientes desde recetas
+    for (var k=0; k<items.length; k++){
+      var it = items[k];
+      var dessertId = String(it.id || it.dessert_id || it.name || "").trim();
+      var qty = Number(it.qty || it.quantity || 0) || 0;
+      if (!dessertId || qty<=0) continue;
+
+      var recipeRows = getRecipeRowsByDessertId_(dessertId);
+      if (!recipeRows || recipeRows.length===0) continue;
+
+      for (var j=0; j<recipeRows.length; j++){
+        var rr = recipeRows[j];
+        var ingKey = String(rr.ingredient_key || "").trim();
+        var per = Number(rr.qty || rr.quantity || 0) || 0;
+        if (!ingKey || per<=0) continue;
+        needs[ingKey] = (needs[ingKey]||0) + (per * qty);
+      }
+    }
+  }
+
+  return {
+    ok:true,
+    needs: needs,
+    meta:{
+      window_hours: 36,
+      cutoff_hour: cutoffHour,
+      orders_total: total,
+      orders_used: used,
+      order_ids_used: orderIdsUsed.slice(0,30) // máximo 30 para no explotar respuesta
+    }
+  };
+}
+
+
+// ---------- Helpers ----------
+function getOrCreateSheet_(ss, name, headers){
+  let sh = ss.getSheetByName(name);
+  if(!sh){
+    sh = ss.insertSheet(name);
+    sh.getRange(1,1,1,headers.length).setValues([headers]);
+    return sh;
+  }
+  // Ensure headers in row 1 (do not destroy other content)
+  const cur = sh.getRange(1,1,1,headers.length).getValues()[0];
+  let ok = true;
+  for(let i=0;i<headers.length;i++){
+    if(String(cur[i]||"").trim() !== headers[i]){ ok=false; break; }
+  }
+  if(!ok){
+    sh.getRange(1,1,1,headers.length).setValues([headers]);
+  }
+  return sh;
+}
+
+function readInventoryMap_(sh){
+  const v = sh.getDataRange().getValues();
+  const map = {};
+  for(let i=1;i<v.length;i++){
+    const k = String(v[i][0]||"").trim();
+    if(!k) continue;
+    map[k] = { qty: Number(v[i][1]||0), unit: String(v[i][2]||"") };
+  }
+  return map;
+}
+
+function writeInventoryMap_(sh, map, ts, by){
+  // keep headers, rewrite body
+  const last = sh.getLastRow();
+  if(last > 1){
+    sh.getRange(2,1,last-1, Math.min(5, sh.getLastColumn())).clearContent();
+  }
+  const keys = Object.keys(map).sort((a,b)=>a.localeCompare(b,"es"));
+  const rows = keys.map(k=> [k, map[k].qty, map[k].unit, ts, by]);
+  if(rows.length){
+    sh.getRange(2,1,rows.length, rows[0].length).setValues(rows);
+  }
+}
+
+function readRecipes_(sh){
+  const v = sh.getDataRange().getValues();
+  const out = {}; // key (dessert_id or dessert_name) -> [{ingredient_key, qty_per_unit, unit}]
+  for(let i=1;i<v.length;i++){
+    const did = String(v[i][0]||"").trim();
+    const dname = String(v[i][1]||"").trim();
+    const ik = String(v[i][2]||"").trim();
+    const qpu = Number(v[i][3]||0);
+    const unit = String(v[i][4]||"").trim();
+    if(!ik || !isFinite(qpu) || qpu<=0) continue;
+    const row = { ingredient_key: ik, qty_per_unit: qpu, unit: unit };
+    if(did){
+      out[did] = out[did] || [];
+      out[did].push(row);
+    }
+    if(dname){
+      out[dname] = out[dname] || [];
+      out[dname].push(row);
+    }
+  }
+  return out;
+}
+
+function parseItems_(itemsJsonCell, itemsTextCell){
+  // Prefer items_json (JSON array)
+  try{
+    const raw = String(itemsJsonCell||"").trim();
+    if(raw){
+      const arr = JSON.parse(raw);
+      if(Array.isArray(arr)) return arr;
+    }
+  }catch(_e){}
+  // Fallback: none
+  return [];
+}
+
+function parseBogotaDateTime_(s){
+  // Acepta:
+  // - "YYYY-MM-DD HH:mm:ss" (SIN zona horaria) => se asume America/Bogota (UTC-5)
+  // - ISO con zona: "...Z" o "+/-HH:MM" => se respeta la zona (Date nativo)
+  const t = String(s||"").trim();
+  if(!t) return null;
+
+  // Si trae zona explícita (Z o ±HH:MM), NO aplicar el shift de Bogotá.
+  if (/[zZ]$/.test(t) || /[+-]\d{2}:?\d{2}$/.test(t)) {
+    const d = new Date(t);
+    return isNaN(d) ? null : d;
+  }
+
+  // Caso "YYYY-MM-DD HH:mm:ss" o "YYYY-MM-DDTHH:mm:ss" sin zona
+  const m = t.match(/(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})(?::(\d{2}))?/);
+  if(!m){
+    const d = new Date(t);
+    return isNaN(d) ? null : d;
+  }
+
+  const Y=Number(m[1]), Mo=Number(m[2])-1, D=Number(m[3]);
+  const h=Number(m[4]), mi=Number(m[5]), se=Number(m[6]||0);
+
+  // Construir como hora Bogotá (UTC-5) y convertir a UTC sumando 5 horas
+  const utc = Date.UTC(Y,Mo,D,h+5,mi,se);
+  return new Date(utc);
+}
