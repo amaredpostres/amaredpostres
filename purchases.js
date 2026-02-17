@@ -396,6 +396,18 @@
     }
   }
 
+  async function fetchNeedsWithFallback(){
+    try{
+      return await api({action:"costs_orders_for_purchases", admin_pin: state.pin});
+    }catch(e1){
+      try{
+        return await api({action:"costs_orders_for_purchases", costs_secret: state.pin});
+      }catch(_e2){
+        throw e1;
+      }
+    }
+  }
+
   async function refreshFromBackend(){
     if(!state.pin) throw new Error("Primero desbloquea con el PIN.");
 
