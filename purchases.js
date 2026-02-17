@@ -1,18 +1,38 @@
-/* ===== AMARED purchases.js bootstrap (P10) =====
-   Fix: garantiza que getSheet_ exista como identificador global
-   (no solo window.getSheet_) para evitar ReferenceError.
-*/
-function getSheet_(payload, name){
+/* =========================================================
+   AMARED Purchases - GLOBAL SHIM (P11)
+   - Garantiza que getSheet_ exista como IDENTIFICADOR global
+   - NO depende de window.getSheet_ (evita ReferenceError)
+   ========================================================= */
+(function(){
+  // Crea un binding global real (solo en scripts no-module)
   try{
-    if(!payload) return [];
-    if(payload.sheets && payload.sheets[name]) return payload.sheets[name];
-    if(payload[name]) return payload[name];
-    return [];
-  }catch(e){ return []; }
-}
-try{ globalThis.getSheet_ = getSheet_; }catch(e){}
-try{ if (typeof window !== "undefined") window.getSheet_ = getSheet_; }catch(e){}
-/* ===== end bootstrap ===== */
+    // Si ya existe como binding, no lo toques
+    if (typeof getSheet_ === "function") return;
+  }catch(_e){
+    // getSheet_ no existe como binding -> lo definimos abajo
+  }
+
+  // Definición segura
+  var fn = function(payload, name){
+    try{
+      if (!payload) return [];
+      if (payload.sheets && payload.sheets[name]) return payload.sheets[name];
+      if (payload[name]) return payload[name];
+      return [];
+    }catch(_e){ return []; }
+  };
+
+  // 1) Publica como propiedad global (window/globalThis)
+  try{ globalThis.getSheet_ = fn; }catch(_e){}
+  try{ window.getSheet_ = fn; }catch(_e){}
+
+  // 2) Intenta crear binding global con eval (funciona en script scope)
+  //    Si el archivo está envuelto dentro de otro IIFE, este eval sigue
+  //    creando un binding en el scope ACTUAL; por eso también dejamos
+  //    globalThis/window para accesos por propiedad.
+  try{ (0,eval)("var getSheet_ = globalThis.getSheet_;"); }catch(_e){}
+})();
+
 
 // ===============================
 // AMARED - PURCHASES (P7 HOTFIX)
@@ -52,7 +72,7 @@ try{ if (typeof window !== "undefined") window.getSheet_ = getSheet_; }catch(e){
 // FIX REAL: normDateOnly_ debe existir como *variable global* (binding),
 // no solo como window.normDateOnly_.
 // ===============================
-console.log("[AMARED] purchases.js cargado: P10");
+console.log("[AMARED] purchases.js cargado: P11");
 
 // --- GLOBAL BINDING (must be top-level) ---
 // eslint-disable-next-line no-var
