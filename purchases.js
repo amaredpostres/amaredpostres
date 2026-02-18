@@ -1,5 +1,5 @@
-const PURCHASES_VERSION = "20260218033938";
-console.log("Purchases PIN JS v", PURCHASES_VERSION);
+const PURCHASES_VERSION = "20260218172820";
+console.log("Purchases JS v", PURCHASES_VERSION);
 
 // AMARED · Purchases (Compras + Inventario)
 // Requiere Cloudflare Worker (API_URL) con acciones:
@@ -244,8 +244,14 @@ async function registerPurchases(){
 
 // ---------- Unlock modal ----------
 function openUnlock(){
-  document.getElementById("unlockMsg").textContent = "";
-  document.getElementById("secretInput").value = UNLOCKED_PIN || loadPinFromLS() || "";
+  const input = document.getElementById("secretInput");
+  const msg = document.getElementById("unlockMsg");
+  input.value = UNLOCKED_PIN || loadPinFromLS() || "";
+  if(UNLOCKED_PIN){
+    msg.textContent = "Ya estás desbloqueado. Si quieres, puedes revalidar el PIN.";
+  } else {
+    msg.textContent = "";
+  }
   setOverlayState({ modalOpen:true, loadingOpen:false });
 }
 function closeUnlock(){
@@ -253,29 +259,40 @@ function closeUnlock(){
 }
 
 async function doUnlock(){
+  const btn = document.getElementById("btnDoUnlock");
+  const msg = document.getElementById("unlockMsg");
   const s = String(document.getElementById("secretInput").value || "").trim();
+
   if(!s){
-    document.getElementById("unlockMsg").textContent = "Ingresa el PIN.";
+    msg.textContent = "Ingresa el PIN.";
     return;
   }
 
-  // Cerrar modal y validar
-  setOverlayState({ modalOpen:false, loadingOpen:true });
-  document.getElementById("loadingTitle").textContent = "Validando…";
-  document.getElementById("loadingSub").textContent = "Comprobando PIN…";
+  // evitar doble clic
+  btn.disabled = true;
+
+  showLoading("Validando…", "Comprobando PIN…");
 
   try{
     const r = await api({ action:"validate_admin_pin", admin_pin: s }, 12000);
     if(!r || r.valid !== true) throw new Error("PIN inválido.");
+
     UNLOCKED_PIN = s;
     savePinToLS(s);
+
+    // cerrar modal inmediatamente para dar feedback de desbloqueo
+    closeUnlock();
+
     await loadAll();
+    setMeta(`Desbloqueado. Pedidos usados: ${USED_ORDERS}/${TOTAL_ORDERS} · Ventana: ${WINDOW_HOURS}h`);
   } catch(e){
+    hideLoading();
+    // mantener modal abierto y mostrar error
     setOverlayState({ modalOpen:true, loadingOpen:false });
-    document.getElementById("unlockMsg").textContent = (e && e.message) ? e.message : "PIN inválido.";
-    return;
+    msg.textContent = (e && e.message) ? e.message : "PIN inválido.";
   } finally {
-    if(!document.getElementById("unlockBack").hidden) return;
+    btn.disabled = false;
+    // restaurar estado de overlay (si loadAll dejó loading)
     if(document.getElementById("loadingBack")) document.getElementById("loadingBack").hidden = true;
   }
 }
