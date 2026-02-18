@@ -15,6 +15,8 @@
 
   // ---- DOM helpers ----
   const $ = (id)=> document.getElementById(id);
+  const bySel = (q)=> document.querySelector(q);
+
   const secretInp = $("secret");
   const btnUnlock = $("unlock");
   const errBox = $("err");
@@ -25,25 +27,18 @@
   const btnReset = $("buyReset");
 
   const totalsEl = $("buyTotals");
-  const ordersPanelEl = $("buyOrdersPanel");
   const listEl = $("buyList");
   const panelEl = $("buyPurchasePanel");
   const summaryHint = $("buySummaryHint");
   const netDebug = $("netDebug");
-  const loadingEl = $("loading");
-  const loadingTitleEl = $("lt");
-  const loadingDescEl = $("ld");
 
   // ---- State ----
   const state = {
     pin: "",
-    authField: "",   // "admin_pin" | "costs_secret"
     needs: {},        // ingredient_key -> qty needed (from backend)
     inventory: {},    // ingredient_key -> {qty, unit}
     costs: {},        // ingredient_key -> {cop_per_unit, unit}
     uiRows: [],       // normalized rows rendered
-    orderMeta: null,   // breakdown de pedidos usados para el cálculo
-    isUnlocking: false,
   };
 
   // ---- Utils ----
@@ -53,124 +48,9 @@
   const fmt2 = (v)=> (Math.round(num(v)*100)/100).toLocaleString("es-CO");
   const normKey = (k)=> String(k||"").trim();
 
-  function boolFromAny(v){
-    const s = String(v ?? "").trim().toLowerCase();
-    return ["1","true","si","sí","yes","y","pagado","paid","ok"].includes(s);
-  }
-
-  function kitchenNotStarted(v){
-    const s = String(v ?? "").trim().toLowerCase();
-    return ["no iniciar","sin iniciar","pendiente","pending",""].includes(s);
-  }
-
-  function normalizeOrderItem(it){
-    return {
-      id: String(it?.id || it?.product_id || it?.productId || "").trim(),
-      name: String(it?.name || it?.product_name || "").trim(),
-      qty: num(it?.qty ?? it?.units ?? it?.quantity ?? 0),
-    };
-  }
-
-  function normalizeItemsFromOrder(order){
-    if(!order) return [];
-
-    const raw = order.items_json ?? order.itemsJson ?? order.itemsJSON;
-    if(raw){
-      try{
-        const parsed = typeof raw === "string" ? JSON.parse(raw) : raw;
-        if(Array.isArray(parsed)) return parsed.map(normalizeOrderItem).filter(it=>it.qty>0 && (it.id || it.name));
-      }catch(_e){}
-    }
-
-    const txt = String(order.items || "").trim();
-    if(!txt) return [];
-    const rows = [];
-    for(const line0 of txt.split("\n")){
-      const line = String(line0 || "").trim().replace(/^-+\s*/, "");
-      const m = line.match(/^(.+?)\s*:\s*(\d+(?:[\.,]\d+)?)$/);
-      if(!m) continue;
-      rows.push({ id:"", name:m[1].trim(), qty: num(String(m[2]).replace(",",".")) });
-    }
-    return rows.filter(it=>it.qty>0 && (it.id || it.name));
-  }
-
-  function orderMatchesFilters(order){
-    const paymentRaw = order?.payment_status ?? order?.estado_pago ?? order?.paymentStatus ?? order?.status_payment ?? order?.paid;
-    const kitchenRaw = order?.kitchen_status ?? order?.estado_cocina ?? order?.kitchenStatus ?? order?.status_kitchen;
-
-    const paymentText = String(paymentRaw ?? "").trim().toLowerCase();
-    const kitchenText = String(kitchenRaw ?? "").trim().toLowerCase();
-
-    const paymentOk = paymentText === "pagado" || paymentText === "paid" || boolFromAny(paymentRaw);
-    const kitchenOk = kitchenNotStarted(kitchenRaw) || kitchenText === "no iniciar";
-
-    return paymentOk && kitchenOk;
-  }
-
-  function normalizeNeedsOut(out){
-    const base = out?.needs || out?.needObj || out?.data?.needs || {};
-    const normalizedNeeds = {};
-    for(const [k,v] of Object.entries(base || {})){
-      const nk = normKey(k);
-      if(!nk) continue;
-      normalizedNeeds[nk] = num(v);
-    }
-
-    const meta = out?.meta || {};
-    const orders = Array.isArray(out?.orders) ? out.orders : (Array.isArray(out?.source_orders) ? out.source_orders : []);
-
-    const filteredOrders = orders.filter(orderMatchesFilters);
-    const totalDesserts = filteredOrders.reduce((acc,order)=>{
-      const items = normalizeItemsFromOrder(order);
-      return acc + items.reduce((s,it)=>s + num(it.qty),0);
-    },0);
-
-    return {
-      needs: normalizedNeeds,
-      meta: {
-        selected_orders: filteredOrders.length || num(meta.selected_orders || meta.orders_used || 0),
-        total_orders_received: orders.length || num(meta.total_orders_received || meta.orders_total || 0),
-        total_desserts: totalDesserts || num(meta.total_desserts || meta.total_units || 0),
-        used_cutoff_hour: meta.used_cutoff_hour || meta.cutoff_hour || 15,
-      },
-      rawOrders: filteredOrders
-    };
-  }
-
   function setErr(msg){
     if(!errBox) return;
     errBox.textContent = msg || "";
-  }
-
-  function setLoading(show, title, desc){
-    if(!loadingEl) return;
-    if(loadingTitleEl && title) loadingTitleEl.textContent = title;
-    if(loadingDescEl && desc) loadingDescEl.textContent = desc;
-    loadingEl.classList.toggle("show", !!show);
-  }
-
-  function setUnlockBusy(isBusy){
-    if(!btnUnlock) return;
-    btnUnlock.disabled = !!isBusy;
-    btnUnlock.textContent = isBusy ? "Desbloqueando..." : "Desbloquear";
-  }
-
-  function formatApiError(status, fallbackText){
-    const raw = String(fallbackText || "").trim();
-    if(!raw) return `Error HTTP ${status}`;
-
-    const lowered = raw.toLowerCase();
-    const looksLikeHtml = lowered.includes("<!doctype html") || lowered.includes("<html") || lowered.includes("<head") || lowered.includes("google apps script");
-
-    if(raw.includes("The script completed but the returned value is not a supported return type")){
-      return "Webhook.gs devolvió un tipo no soportado por Apps Script. Revisa la acción 'costs_orders_for_purchases' y asegúrate de retornar json_(...) en todos los caminos.";
-    }
-
-    if(looksLikeHtml){
-      return `El webhook devolvió HTML (HTTP ${status}) en lugar de JSON. Revisa que doPost/doGet retornen json_(...).`;
-    }
-
-    return raw;
   }
 
   async function api(payload){
@@ -179,45 +59,21 @@
       headers:{ "Content-Type":"application/json" },
       body: JSON.stringify(payload||{})
     });
-
-    let out = null;
-    let rawText = "";
-    try{
-      rawText = await res.text();
-      out = rawText ? JSON.parse(rawText) : null;
-    }catch(_e){
-      out = { ok:false, error: formatApiError(res.status, rawText || "Error") };
-    }
-
-    const errMsg = formatApiError(res.status, out?.error ?? rawText ?? "");
-    if(!res.ok) throw new Error(errMsg || `HTTP ${res.status}`);
-    if(!out || out.ok !== true) throw new Error(errMsg || "Error");
+    const out = await res.json().catch(async()=>({ok:false,error: await res.text().catch(()=> "Error")}));    
+    if(!out || out.ok !== true) throw new Error(out?.error || "Error");
     return out;
   }
 
-  async function detectAuthField(pin){
-    // 1) Si es PIN admin válido, lo usamos.
+  async function validatePin(pin){
+    // Si el Worker no tiene validate_admin_pin, lo consideramos ok para no bloquear.
     try{
       const out = await api({action:"validate_admin_pin", admin_pin: pin});
-      if(out && out.valid === true) return "admin_pin";
-    }catch(_e){}
-
-    // 2) Si no, probamos la clave de costos contra una acción de compras.
-    try{
-      await api({action:"inventory_get", costs_secret: pin});
-      return "costs_secret";
-    }catch(_e2){}
-
-    throw new Error("Clave inválida o no autorizada.");
-  }
-
-  function withAuth(payload){
-    const field = state.authField || "admin_pin";
-    return { ...(payload||{}), [field]: state.pin };
-  }
-
-  async function apiAuth(payload){
-    return api(withAuth(payload));
+      return out.ok === true;
+    }catch(e){
+      const msg = String(e?.message||e);
+      if(msg.toLowerCase().includes("unknown action")) return true;
+      throw new Error("PIN inválido o no autorizado.");
+    }
   }
 
   function showEditor(){
@@ -271,18 +127,6 @@
     state.uiRows = rows;
   }
 
-  function renderOrdersPanel(){
-    if(!ordersPanelEl) return;
-    const m = state.orderMeta || {};
-    const lines = [
-      `Pedidos recibidos: <b>${fmt0(m.total_orders_received || 0)}</b>`,
-      `Pedidos usados (Pagado + No iniciar): <b>${fmt0(m.selected_orders || 0)}</b>`,
-      `Postres totales por preparar: <b>${fmt0(m.total_desserts || 0)}</b>`,
-      `Corte aplicado: <b>${fmt0(m.used_cutoff_hour || 15)}:00</b>`,
-    ];
-    ordersPanelEl.innerHTML = `<div class="buyChip">${lines.join(" · ")}</div>`;
-  }
-
   function render(){
     buildRows();
 
@@ -299,8 +143,6 @@
         <div class="buyChip">Total compra estimada: <b>$${fmt0(totalEst)}</b></div>
       `;
     }
-
-    renderOrdersPanel();
 
     if(!listEl) return;
 
@@ -417,8 +259,9 @@
 
           if(items.length===0) throw new Error("No hay ítems seleccionados.");
 
-          await apiAuth({
+          await api({
             action:"inventory_add_purchase_batch",
+            admin_pin: state.pin,
             items,
             updated_by: "PURCHASES_UI",
             source: "PURCHASES_UI"
@@ -426,7 +269,7 @@
 
           if(msg) msg.textContent = "✅ Compra registrada. Actualizando inventario…";
           // recargar inventario y re-render
-          const inv = await apiAuth({action:"inventory_get"});
+          const inv = await api({action:"inventory_get", admin_pin: state.pin});
           state.inventory = inv.inventory || {};
           render();
           if(msg) msg.textContent = "✅ Listo. Inventario actualizado.";
@@ -441,16 +284,6 @@
     }
   }
 
-  async function fetchCostsWithFallback(){
-    // Worker nuevo: usar endpoint público que ya inyecta COSTS_SECRET.
-    try{
-      return await api({action:"costs_public_list"});
-    }catch(_e1){
-      // Compatibilidad con backend anterior.
-      return await apiAuth({action:"costs_list"});
-    }
-  }
-
   async function refreshFromBackend(){
     if(!state.pin) throw new Error("Primero desbloquea con el PIN.");
 
@@ -458,14 +291,12 @@
     if(netDebug) netDebug.style.display="none";
 
     const [needsOut, invOut, costsOut] = await Promise.all([
-      apiAuth({action:"costs_orders_for_purchases"}),
-      apiAuth({action:"inventory_get"}),
-      fetchCostsWithFallback(),
+      api({action:"costs_orders_for_purchases", admin_pin: state.pin}),
+      api({action:"inventory_get", admin_pin: state.pin}),
+      api({action:"costs_list", admin_pin: state.pin}),
     ]);
 
-    const needsPack = normalizeNeedsOut(needsOut || {});
-    state.needs = needsPack.needs || {};
-    state.orderMeta = needsPack.meta || null;
+    state.needs = needsOut.needs || {};
     state.inventory = invOut.inventory || {};
 
     // costs_list puede venir como array o map. Normalizamos a map {ingredient_key:{cop_per_unit,unit}}
@@ -486,7 +317,7 @@
 
     // Debug meta
     if(netDebug){
-      const meta = state.orderMeta || needsOut.meta || {};
+      const meta = needsOut.meta || {};
       netDebug.style.display="block";
       netDebug.textContent = "meta: " + JSON.stringify(meta);
     }
@@ -502,28 +333,17 @@
   }
 
   async function onUnlock(){
-    if(state.isUnlocking) return;
-    state.isUnlocking = true;
-
-    setUnlockBusy(true);
-    setLoading(true, "Desbloqueando compras...", "Estamos validando la clave y consultando pedidos e inventario.");
-
     try{
       const pin = String(secretInp?.value||"").trim();
       if(!pin) throw new Error("Ingresa la clave.");
-      const authField = await detectAuthField(pin);
+      await validatePin(pin);
       state.pin = pin;
-      state.authField = authField;
       setErr("");
       showEditor();
       await refreshFromBackend();
     }catch(e){
       hideEditor();
       setErr(String(e?.message||e));
-    }finally{
-      state.isUnlocking = false;
-      setLoading(false);
-      setUnlockBusy(false);
     }
   }
 
