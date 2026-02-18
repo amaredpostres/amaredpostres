@@ -25,7 +25,7 @@
     <section class="card">
       <div class="cardTitle">Estado (últimas 36h · pagado + no iniciar)</div>
       <div class="metaRow">
-        <div id="metaText" class="muted">Desbloquea con tu clave de Costos para iniciar.</div>
+        <div id="metaText" class="muted">Desbloquea con tu PIN de admin para iniciar.</div>
       </div>
     </section>
 
@@ -60,9 +60,9 @@
   <div class="modalBack" id="unlockBack" hidden>
     <div class="modal">
       <div class="modalTitle">Desbloquear Purchases</div>
-      <div class="muted small">Ingresa tu <b>COSTS_SECRET</b> (la misma clave que usas en Costos).</div>
+      <div class="muted small">Ingresa tu <b>ADMIN_PIN</b> (el PIN de administrador).</div>
       <div class="modalBody">
-        <input id="secretInput" class="inp" placeholder="COSTS_SECRET" autocomplete="off" />
+        <input id="secretInput" class="inp" placeholder="ADMIN_PIN" inputmode="numeric" autocomplete="off" />
         <div class="row">
           <button class="btn ghost" id="btnCancelUnlock">Cancelar</button>
           <button class="btn" id="btnDoUnlock">Desbloquear</button>
