@@ -1,3 +1,6 @@
+const PURCHASES_VERSION = "20260218025612";
+console.log("Purchases JS v", PURCHASES_VERSION);
+
 // AMARED · Purchases (Compras + Inventario)
 // Requiere Cloudflare Worker (API_URL) con acciones:
 // - costs_list (para catálogo de unidades/costos)
@@ -98,6 +101,8 @@ function setOverlayState({ modalOpen=false, loadingOpen=false }){
   const lb = document.getElementById("loadingBack");
   if(mb) mb.hidden = !modalOpen;
   if(lb) lb.hidden = !loadingOpen;
+  // Guard: nunca permitir ambos visibles
+  if(mb && lb && !mb.hidden && !lb.hidden){ lb.hidden = true; }
 }
 // ---------- Core flow ----------
 async function loadAll(){
