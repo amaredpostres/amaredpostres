@@ -1,5 +1,5 @@
-const PURCHASES_VERSION = "20260218175822";
-console.log("Purchases JS v", PURCHASES_VERSION, "(timeoutfix)");
+const PURCHASES_VERSION = "20260218181217";
+console.log("Purchases JS v", PURCHASES_VERSION, "(costslogin3)");
 
 // AMARED · Purchases (Compras + Inventario)
 // Requiere Cloudflare Worker (API_URL) con acciones:
@@ -9,9 +9,9 @@ console.log("Purchases JS v", PURCHASES_VERSION, "(timeoutfix)");
 // - inventory_add_purchase_batch (sumar compras al inventario)
 
 const API_URL = "https://amared-orders.amaredpostres.workers.dev/";
-const LS_PIN_KEY = "amared_admin_pin_v1";
+const LS_SECRET_KEY = "amared_costs_secret_v1";
 
-let UNLOCKED_PIN = "";
+let UNLOCKED_SECRET = "";
 let COSTS = [];          // filas de COSTOS_INGREDIENTES
 let NEEDS = {};          // {ingredient_key: qty}
 let INVENTORY = {};      // {ingredient_key: {qty, unit}}
@@ -78,13 +78,23 @@ function setMeta(text){
   document.getElementById("metaText").textContent = text || "";
 }
 
-function loadPinFromLS(){
-  try{ return localStorage.getItem(LS_PIN_KEY) || ""; }catch(_e){ return ""; }
+function setUnlockedUI(isUnlocked){
+  const btnReload = document.getElementById("btnReload");
+  const btnRegister = document.getElementById("btnRegister");
+  if(btnReload) btnReload.disabled = !isUnlocked;
+  if(btnRegister) btnRegister.disabled = !isUnlocked;
+  const btnUnlock = document.getElementById("btnUnlock");
+  if(btnUnlock) btnUnlock.textContent = isUnlocked ? "Desbloqueado" : "Desbloquear";
 }
-function savePinToLS(v){
+
+
+function loadSecretFromLS(){
+  try{ return localStorage.getItem(LS_SECRET_KEY) || ""; }catch(_e){ return ""; }
+}
+function saveSecretToLS(v){
   try{
-    if(v) localStorage.setItem(LS_PIN_KEY, v);
-    else localStorage.removeItem(LS_PIN_KEY);
+    if(v) localStorage.setItem(LS_SECRET_KEY, v);
+    else localStorage.removeItem(LS_SECRET_KEY);
   }catch(_e){}
 }
 
@@ -105,7 +115,7 @@ function setOverlayState({ modalOpen=false, loadingOpen=false }){
 }
 // ---------- Core flow ----------
 async function loadAll(){
-  if(!UNLOCKED_PIN) throw new Error("Primero desbloquea Purchases con tu PIN de admin.");
+  if(!UNLOCKED_SECRET) throw new Error("Primero desbloquea Purchases con tu clave de Costos.");
   showLoading("Calculando…","Leyendo pedidos/recetas e inventario…");
   try{
     // catálogo costos (para unidad y costo/u)
@@ -113,13 +123,13 @@ async function loadAll(){
     COSTS = Array.isArray(c.items) ? c.items : [];
 
     // necesidades (últimas 36h · pagado + no iniciar)
-    const n = await api({ action:"costs_orders_for_purchases", admin_pin: UNLOCKED_PIN }, 60000);
+    const n = await api({ action:"costs_orders_for_purchases", costs_secret: UNLOCKED_SECRET }, 60000);
     NEEDS = (n.needs && typeof n.needs === "object") ? n.needs : {};
     const meta = n.meta || {};
     setMeta(`Pedidos usados: ${meta.orders_used ?? "?"}/${meta.orders_total ?? "?"} · Ventana: ${meta.window_hours ?? 36}h`);
 
     // inventario actual
-    const inv = await api({ action:"inventory_get", admin_pin: UNLOCKED_PIN }, 60000);
+    const inv = await api({ action:"inventory_get", costs_secret: UNLOCKED_SECRET }, 60000);
     INVENTORY = (inv.inventory && typeof inv.inventory === "object") ? inv.inventory : {};
 
     buildRows();
@@ -202,13 +212,13 @@ function render(){
     }
   });
 
-  document.getElementById("btnReload").disabled = !UNLOCKED_PIN;
-  document.getElementById("btnRegister").disabled = !UNLOCKED_PIN;
+  document.getElementById("btnReload").disabled = !UNLOCKED_SECRET;
+  document.getElementById("btnRegister").disabled = !UNLOCKED_SECRET;
 }
 
 // ---------- Register purchases ----------
 async function registerPurchases(){
-  if(!UNLOCKED_PIN) return;
+  if(!UNLOCKED_SECRET) return;
 
   const items = UI_ROWS
     .filter(r => r.include && num(r.buyQty) > 0)
@@ -227,9 +237,9 @@ async function registerPurchases(){
 
   showLoading("Registrando compras…", "Sumando cantidades al inventario…");
   try{
-    await api({ action:"inventory_add_purchase_batch", admin_pin: UNLOCKED_PIN, items });
+    await api({ action:"inventory_add_purchase_batch", costs_secret: UNLOCKED_SECRET, items });
     // refrescar inventario y recalcular
-    const inv = await api({ action:"inventory_get", admin_pin: UNLOCKED_PIN }, 60000);
+    const inv = await api({ action:"inventory_get", costs_secret: UNLOCKED_SECRET }, 60000);
     INVENTORY = (inv.inventory && typeof inv.inventory === "object") ? inv.inventory : {};
     buildRows();
     render();
@@ -245,9 +255,9 @@ async function registerPurchases(){
 function openUnlock(){
   const input = document.getElementById("secretInput");
   const msg = document.getElementById("unlockMsg");
-  input.value = UNLOCKED_PIN || loadPinFromLS() || "";
-  if(UNLOCKED_PIN){
-    msg.textContent = "Ya estás desbloqueado. Si quieres, puedes revalidar el PIN.";
+  input.value = UNLOCKED_SECRET || loadSecretFromLS() || "";
+  if(UNLOCKED_SECRET){
+    msg.textContent = "Ya estás desbloqueado. Si quieres, puedes revalidar la clave.";
   } else {
     msg.textContent = "";
   }
@@ -263,38 +273,38 @@ async function doUnlock(){
   const s = String(document.getElementById("secretInput").value || "").trim();
 
   if(!s){
-    msg.textContent = "Ingresa el PIN.";
+    msg.textContent = "Ingresa la clave.";
     return;
   }
 
-  // evitar doble clic
   btn.disabled = true;
   msg.textContent = "";
 
-  showLoading("Validando…", "Comprobando PIN…");
+  showLoading("Validando…", "Comprobando clave…");
 
   try{
-    const r = await api({ action:"validate_admin_pin", admin_pin: s }, 20000);
-    if(!r || r.valid !== true) throw new Error("PIN inválido.");
+    // Validación rápida: acción protegida por COSTS_SECRET
+    await api({ action:"costs_list", costs_secret: s }, 20000);
 
-    UNLOCKED_PIN = s;
-    savePinToLS(s);
+    UNLOCKED_SECRET = s;
+    saveSecretToLS(s);
+    setUnlockedUI(true);
 
     // cerrar modal ya (aunque el cálculo tarde)
     closeUnlock();
 
-    // Intentar cargar todo. Si falla, NO volvemos a abrir el modal; dejamos desbloqueado y mostramos el error arriba.
-    try{
-      await loadAll();
-      setMeta(`Desbloqueado. ${document.getElementById("metaText").textContent || ""}`.trim());
-    } catch(inner){
-      const em = (inner && inner.message) ? inner.message : String(inner);
-      setMeta(`Desbloqueado, pero no se pudo cargar el cálculo: ${em}`);
-    }
+    // cargar en segundo plano
+    loadAll()
+      .then(()=>{ /* ok */ })
+      .catch(err=>{
+        const em = (err && err.message) ? err.message : String(err);
+        setMeta(`Desbloqueado, pero no se pudo cargar el cálculo: ${em}`);
+      });
   } catch(e){
     hideLoading();
     setOverlayState({ modalOpen:true, loadingOpen:false });
-    msg.textContent = (e && e.message) ? e.message : "PIN inválido.";
+    msg.textContent = (e && e.message) ? e.message : "Clave inválida.";
+    setUnlockedUI(false);
   } finally {
     btn.disabled = false;
     if(document.getElementById("loadingBack")) document.getElementById("loadingBack").hidden = true;
@@ -308,13 +318,37 @@ document.addEventListener("DOMContentLoaded", ()=>{
   document.getElementById("btnUnlock").addEventListener("click", openUnlock);
   document.getElementById("btnCancelUnlock").addEventListener("click", closeUnlock);
   document.getElementById("btnDoUnlock").addEventListener("click", doUnlock);
-  document.getElementById("btnReload").addEventListener("click", ()=>loadAll().catch(e=>alert(e.message||"Error")));
-  document.getElementById("btnRegister").addEventListener("click", registerPurchases);
 
-  // autoload si ya hay clave guardada
-  const saved = loadPinFromLS();
+  // botones dependen de desbloqueo
+  document.getElementById("btnReload").addEventListener("click", ()=>{
+    if(!UNLOCKED_SECRET) return openUnlock();
+    loadAll().catch(e=>alert(e.message||"Error"));
+  });
+  document.getElementById("btnRegister").addEventListener("click", ()=>{
+    if(!UNLOCKED_SECRET) return openUnlock();
+    registerPurchases();
+  });
+
+  setUnlockedUI(false);
+
+  // autoload si ya hay clave guardada (validamos rápido)
+  const saved = loadSecretFromLS();
   if(saved){
-    UNLOCKED_PIN = saved;
-    loadAll().catch(()=>{ setMeta("Clave guardada inválida o expirada. Presiona “Desbloquear”."); UNLOCKED_PIN=""; });
+    showLoading("Validando…", "Comprobando clave guardada…");
+    api({ action:"costs_list", costs_secret: saved }, 20000)
+      .then(()=>{
+        UNLOCKED_SECRET = saved;
+        setUnlockedUI(true);
+        return loadAll();
+      })
+      .catch(()=>{
+        setMeta("Clave guardada inválida o expirada. Presiona “Desbloquear”.");
+        UNLOCKED_SECRET = "";
+        saveSecretToLS("");
+        setUnlockedUI(false);
+      })
+      .finally(()=>{ if(document.getElementById("loadingBack")) document.getElementById("loadingBack").hidden = true; });
+  } else {
+    setMeta("Bloqueado. Presiona “Desbloquear” para cargar cálculo e inventario.");
   }
 });
