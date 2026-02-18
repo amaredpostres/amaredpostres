@@ -1,370 +1,251 @@
-// ===============================
-// AMARED - PURCHASES (V4)
-// Objetivo: flujo estable SIN getSheet_ en frontend.
-// - Calcula necesidades desde backend: action "costs_orders_for_purchases"
-// - Lee inventario: action "inventory_get"
-// - Lee costos (COP/u y unidad): action "costs_list"
-// - Registra compras + suma a inventario + registra movimiento: action "inventory_add_purchase_batch"
-// Requisitos backend: Webhook.gs ya tiene esos actions.
-// ===============================
+// AMARED · Purchases (Compras + Inventario)
+// Requiere Cloudflare Worker (API_URL) con acciones:
+// - costs_list (para catálogo de unidades/costos)
+// - costs_orders_for_purchases (necesidades desde PEDIDOS + RECETAS)
+// - inventory_get (mapa actual)
+// - inventory_add_purchase_batch (sumar compras al inventario)
 
-(function(){
-  "use strict";
+const API_URL = "https://amared-orders.amaredpostres.workers.dev/";
+const LS_SECRET_KEY = "amared_costs_secret_v1";
 
-  const API_URL = "https://amared-orders.amaredpostres.workers.dev/";
+let UNLOCKED_SECRET = "";
+let COSTS = [];          // filas de COSTOS_INGREDIENTES
+let NEEDS = {};          // {ingredient_key: qty}
+let INVENTORY = {};      // {ingredient_key: {qty, unit}}
+let UI_ROWS = [];        // render state
 
-  // ---- DOM helpers ----
-  const $ = (id)=> document.getElementById(id);
-  const bySel = (q)=> document.querySelector(q);
+// ---------- Helpers ----------
+async function api(payload){
+  const res = await fetch(API_URL, {
+    method:"POST",
+    headers:{ "Content-Type":"application/json" },
+    body: JSON.stringify(payload)
+  });
+  const out = await res.json().catch(async()=>({ok:false,error:await res.text().catch(()=> "Error")}));
+  if(!out.ok) throw new Error(out.error || "Error");
+  return out;
+}
+function num(x){ const n = Number(x); return isFinite(n) ? n : 0; }
+function fmt(n){ 
+  const v = num(n);
+  return (Math.round((v + Number.EPSILON)*1000)/1000).toString();
+}
+function fmtCOP(n){
+  const v = Math.round(num(n));
+  return v.toString().replace(/\B(?=(\d{3})+(?!\d))/g,".");
+}
+function esc(s){
+  return String(s||"").replace(/[&<>\"']/g, c=>({ "&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;" }[c]));
+}
 
-  const secretInp = $("secret");
-  const btnUnlock = $("unlock");
-  const errBox = $("err");
+function showLoading(title, sub){
+  document.getElementById("loadingTitle").textContent = title || "Cargando…";
+  document.getElementById("loadingSub").textContent = sub || "";
+  document.getElementById("loadingBack").hidden = false;
+}
+function hideLoading(){ document.getElementById("loadingBack").hidden = true; }
 
-  const editor = $("editor");
+function setMeta(text){
+  document.getElementById("metaText").textContent = text || "";
+}
 
-  const btnRefresh = $("buyRefreshOrders");
-  const btnReset = $("buyReset");
+function loadSecretFromLS(){
+  try{ return localStorage.getItem(LS_SECRET_KEY) || ""; }catch(_e){ return ""; }
+}
+function saveSecretToLS(v){
+  try{
+    if(v) localStorage.setItem(LS_SECRET_KEY, v);
+    else localStorage.removeItem(LS_SECRET_KEY);
+  }catch(_e){}
+}
 
-  const totalsEl = $("buyTotals");
-  const listEl = $("buyList");
-  const panelEl = $("buyPurchasePanel");
-  const summaryHint = $("buySummaryHint");
-  const netDebug = $("netDebug");
+function findCostRow(key){
+  key = String(key||"").trim();
+  if(!key) return null;
+  return COSTS.find(r => String(r.ingredient_key||"").trim() === key) || null;
+}
 
-  // ---- State ----
-  const state = {
-    pin: "",
-    needs: {},        // ingredient_key -> qty needed (from backend)
-    inventory: {},    // ingredient_key -> {qty, unit}
-    costs: {},        // ingredient_key -> {cop_per_unit, unit}
-    uiRows: [],       // normalized rows rendered
-  };
+// ---------- Core flow ----------
+async function loadAll(){
+  if(!UNLOCKED_SECRET) throw new Error("Primero desbloquea Purchases con tu clave.");
+  showLoading("Calculando…","Leyendo pedidos/recetas e inventario…");
+  try{
+    // catálogo costos (para unidad y costo/u)
+    const c = await api({ action:"costs_list", costs_secret: UNLOCKED_SECRET });
+    COSTS = Array.isArray(c.items) ? c.items : [];
 
-  // ---- Utils ----
-  const esc = (s)=> String(s??"").replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;").replaceAll('"',"&quot;").replaceAll("'","&#039;");
-  const num = (v)=> { const n = Number(v); return Number.isFinite(n) ? n : 0; };
-  const fmt0 = (v)=> Math.round(num(v)).toLocaleString("es-CO");
-  const fmt2 = (v)=> (Math.round(num(v)*100)/100).toLocaleString("es-CO");
-  const normKey = (k)=> String(k||"").trim();
+    // necesidades (últimas 36h · pagado + no iniciar)
+    const n = await api({ action:"costs_orders_for_purchases", costs_secret: UNLOCKED_SECRET });
+    NEEDS = (n.needs && typeof n.needs === "object") ? n.needs : {};
+    const meta = n.meta || {};
+    setMeta(`Pedidos usados: ${meta.orders_used ?? "?"}/${meta.orders_total ?? "?"} · Ventana: ${meta.window_hours ?? 36}h`);
 
-  function setErr(msg){
-    if(!errBox) return;
-    errBox.textContent = msg || "";
-  }
+    // inventario actual
+    const inv = await api({ action:"inventory_get", costs_secret: UNLOCKED_SECRET });
+    INVENTORY = (inv.inventory && typeof inv.inventory === "object") ? inv.inventory : {};
 
-  async function api(payload){
-    const res = await fetch(API_URL, {
-      method:"POST",
-      headers:{ "Content-Type":"application/json" },
-      body: JSON.stringify(payload||{})
-    });
-    const out = await res.json().catch(async()=>({ok:false,error: await res.text().catch(()=> "Error")}));    
-    if(!out || out.ok !== true) throw new Error(out?.error || "Error");
-    return out;
-  }
-
-  async function validatePin(pin){
-    // Si el Worker no tiene validate_admin_pin, lo consideramos ok para no bloquear.
-    try{
-      const out = await api({action:"validate_admin_pin", admin_pin: pin});
-      return out.ok === true;
-    }catch(e){
-      const msg = String(e?.message||e);
-      if(msg.toLowerCase().includes("unknown action")) return true;
-      throw new Error("PIN inválido o no autorizado.");
-    }
-  }
-
-  function showEditor(){
-    if(editor) editor.style.display = "block";
-  }
-  function hideEditor(){
-    if(editor) editor.style.display = "none";
-  }
-
-  function buildRows(){
-    const allKeys = new Set([
-      ...Object.keys(state.needs||{}),
-      ...Object.keys(state.inventory||{}),
-      ...Object.keys(state.costs||{}),
-    ]);
-
-    const rows = [];
-    for(const k of allKeys){
-      const key = normKey(k);
-      if(!key) continue;
-
-      const need = num(state.needs[key] || 0);
-      const inv = num(state.inventory[key]?.qty ?? 0);
-      const unit = String(state.costs[key]?.unit || state.inventory[key]?.unit || "").trim();
-      const cpu  = num(state.costs[key]?.cop_per_unit ?? 0);
-
-      const toBuy = Math.max(0, need - inv);
-      const est = toBuy * cpu;
-
-      rows.push({
-        ingredient_key: key,
-        need,
-        inv,
-        unit,
-        cpu,
-        toBuy,
-        est,
-        buyQty: toBuy, // por defecto
-        selected: toBuy > 0
-      });
-    }
-
-    // orden: primero los que necesitan compra, luego alfabético
-    rows.sort((a,b)=>{
-      const aN = a.toBuy>0 ? 0 : 1;
-      const bN = b.toBuy>0 ? 0 : 1;
-      if(aN !== bN) return aN - bN;
-      return a.ingredient_key.localeCompare(b.ingredient_key, "es");
-    });
-
-    state.uiRows = rows;
-  }
-
-  function render(){
     buildRows();
-
-    const rows = state.uiRows;
-
-    const countNeed = rows.filter(r=>r.toBuy>0).length;
-    const totalEst = rows.reduce((s,r)=> s + (r.est||0), 0);
-
-    if(summaryHint) summaryHint.textContent = `${countNeed} ing. · $${fmt0(totalEst)}`;
-
-    if(totalsEl){
-      totalsEl.innerHTML = `
-        <div class="buyChip">Ingredientes con necesidad: <b>${countNeed}</b></div>
-        <div class="buyChip">Total compra estimada: <b>$${fmt0(totalEst)}</b></div>
-      `;
-    }
-
-    if(!listEl) return;
-
-    listEl.innerHTML = `
-      <div class="buyTable">
-        <div class="buyHead">
-          <div>Ingrediente</div>
-          <div>Necesario</div>
-          <div>Inventario</div>
-          <div>Comprar</div>
-          <div>Costo estimado</div>
-        </div>
-        <div class="buyBody">
-          ${rows.map((r,idx)=> rowHtml(r,idx)).join("")}
-        </div>
-      </div>
-    `;
-
-    // listeners qty + select
-    rows.forEach((r,idx)=>{
-      const chk = $("buy_chk_"+idx);
-      const qty = $("buy_qty_"+idx);
-
-      if(chk){
-        chk.checked = !!r.selected;
-        chk.addEventListener("change", ()=>{
-          r.selected = chk.checked;
-          repaintPanel();
-        });
-      }
-      if(qty){
-        qty.value = String(r.buyQty || 0);
-        qty.addEventListener("input", ()=>{
-          r.buyQty = Math.max(0, num(qty.value));
-          // auto-select si > 0
-          if(r.buyQty>0){
-            r.selected = true;
-            if(chk) chk.checked = true;
-          }
-          repaintPanel();
-        });
-      }
-    });
-
-    repaintPanel();
+    render();
+  } finally {
+    hideLoading();
   }
+}
 
-  function rowHtml(r,idx){
-    const small = r.unit ? `<div class="muted small">${esc(r.unit)} · $${fmt0(r.cpu)}/u</div>` : `<div class="muted small">—</div>`;
-    const buy = (r.toBuy>0) ? `<b>${fmt2(r.toBuy)}</b>` : `<span class="muted">0</span>`;
-    const est = (r.est>0) ? `<b>$${fmt0(r.est)}</b>` : `<span class="muted">$0</span>`;
+function buildRows(){
+  const keys = new Set();
+  Object.keys(NEEDS||{}).forEach(k=>keys.add(k));
+  Object.keys(INVENTORY||{}).forEach(k=>keys.add(k));
+  COSTS.forEach(r=>{ if(r && r.ingredient_key) keys.add(String(r.ingredient_key)); });
 
+  const arr = Array.from(keys).map(k=>{
+    const cost = findCostRow(k) || {};
+    const needed = num(NEEDS[k] ?? 0);
+    const invQty = num((INVENTORY[k] && INVENTORY[k].qty) ?? 0);
+    const missing = Math.max(0, needed - invQty);
+    const unit = String((INVENTORY[k] && INVENTORY[k].unit) || cost.unit_type || "unidad").trim() || "unidad";
+    const cop = num(cost.cop_per_unit || 0);
+    return {
+      ingredient_key: String(k),
+      needed, invQty, missing,
+      unit,
+      cop_per_unit: cop,
+      buyQty: missing > 0 ? missing : 0,
+      include: missing > 0
+    };
+  });
+
+  // orden: primero faltantes, luego alfabético
+  arr.sort((a,b)=>{
+    const af = a.missing>0 ? 0 : 1;
+    const bf = b.missing>0 ? 0 : 1;
+    if(af!==bf) return af-bf;
+    return a.ingredient_key.localeCompare(b.ingredient_key, "es");
+  });
+
+  UI_ROWS = arr;
+}
+
+function render(){
+  const tb = document.getElementById("rows");
+  if(!tb) return;
+
+  tb.innerHTML = UI_ROWS.map((r, idx)=>{
+    const missClass = r.missing>0 ? "style='color:#fbbf24;font-weight:700'" : "style='color:#9ca3af'";
     return `
-      <div class="buyRow">
-        <div class="buyIng">
-          <div class="buyName">${esc(r.ingredient_key)}</div>
-          ${small}
-        </div>
-
-        <div class="buyCell">
-          <input class="input" value="${fmt2(r.need)}" disabled />
-        </div>
-
-        <div class="buyCell">
-          <input class="input" value="${fmt2(r.inv)}" disabled />
-        </div>
-
-        <div class="buyCell buyBuy">
-          <label class="buyPick">
-            <input type="checkbox" id="buy_chk_${idx}" />
-            <span>Comprar</span>
-          </label>
-          <input class="input" id="buy_qty_${idx}" type="number" min="0" step="0.01" value="${fmt2(r.buyQty)}" />
-          <div class="muted small">Sugerido: ${buy}</div>
-        </div>
-
-        <div class="buyCell">
-          ${est}
-        </div>
-      </div>
+      <tr data-i="${idx}">
+        <td>${esc(r.ingredient_key)}</td>
+        <td class="num">${fmt(r.needed)}</td>
+        <td class="num">${fmt(r.invQty)}</td>
+        <td class="num" ${missClass}>${fmt(r.missing)}</td>
+        <td>${esc(r.unit)}</td>
+        <td class="num">${r.cop_per_unit>0 ? fmtCOP(r.cop_per_unit) : "—"}</td>
+        <td class="num"><input class="inpNum" inputmode="decimal" value="${fmt(r.buyQty)}" /></td>
+        <td class="num"><input class="chk" type="checkbox" ${r.include ? "checked":""} /></td>
+      </tr>
     `;
-  }
+  }).join("");
 
-  function repaintPanel(){
-    if(!panelEl) return;
-    const selected = state.uiRows.filter(r=>r.selected && num(r.buyQty)>0);
-    const total = selected.reduce((s,r)=> s + (num(r.buyQty)*num(r.cpu)), 0);
-
-    panelEl.innerHTML = `
-      <div class="buyPanel">
-        <div class="buyPanelTitle">✅ Registrar compra</div>
-        <div class="muted small" style="margin-bottom:10px;">
-          Seleccionados: <b>${selected.length}</b> · Total estimado: <b>$${fmt0(total)}</b>
-        </div>
-        <button id="btnRegisterPurchase" class="btn">Registrar compra (seleccionados)</button>
-        <div id="buyPanelMsg" class="muted small" style="margin-top:10px;"></div>
-      </div>
-    `;
-
-    const btn = $("btnRegisterPurchase");
-    if(btn){
-      btn.addEventListener("click", async ()=>{
-        const msg = $("buyPanelMsg");
-        try{
-          btn.disabled = true;
-          if(msg) msg.textContent = "Registrando compra…";
-
-          const items = selected.map(r=>({
-            ingredient_key: r.ingredient_key,
-            qty: num(r.buyQty),
-            unit: r.unit || "",
-            cop_per_unit: num(r.cpu),
-          }));
-
-          if(items.length===0) throw new Error("No hay ítems seleccionados.");
-
-          await api({
-            action:"inventory_add_purchase_batch",
-            admin_pin: state.pin,
-            items,
-            updated_by: "PURCHASES_UI",
-            source: "PURCHASES_UI"
-          });
-
-          if(msg) msg.textContent = "✅ Compra registrada. Actualizando inventario…";
-          // recargar inventario y re-render
-          const inv = await api({action:"inventory_get", admin_pin: state.pin});
-          state.inventory = inv.inventory || {};
-          render();
-          if(msg) msg.textContent = "✅ Listo. Inventario actualizado.";
-        }catch(e){
-          const em = String(e?.message||e);
-          if(msg) msg.textContent = "❌ " + em;
-          setErr(em);
-        }finally{
-          btn.disabled = false;
-        }
+  // bind
+  tb.querySelectorAll("tr").forEach(tr=>{
+    const idx = Number(tr.getAttribute("data-i"));
+    const inp = tr.querySelector("input.inpNum");
+    const chk = tr.querySelector("input.chk");
+    if(inp){
+      inp.addEventListener("input", ()=>{
+        const v = num(inp.value);
+        UI_ROWS[idx].buyQty = v;
+        if(v>0) UI_ROWS[idx].include = true;
       });
     }
-  }
-
-  async function refreshFromBackend(){
-    if(!state.pin) throw new Error("Primero desbloquea con el PIN.");
-
-    setErr("");
-    if(netDebug) netDebug.style.display="none";
-
-    const [needsOut, invOut, costsOut] = await Promise.all([
-      api({action:"costs_orders_for_purchases", admin_pin: state.pin}),
-      api({action:"inventory_get", admin_pin: state.pin}),
-      api({action:"costs_list", admin_pin: state.pin}),
-    ]);
-
-    state.needs = needsOut.needs || {};
-    state.inventory = invOut.inventory || {};
-
-    // costs_list puede venir como array o map. Normalizamos a map {ingredient_key:{cop_per_unit,unit}}
-    const costs = {};
-    const items = costsOut.items || costsOut.costs || costsOut.rows || [];
-    if(Array.isArray(items)){
-      for(const r of items){
-        const k = normKey(r.ingredient_key || r.key || r.ingredient || "");
-        if(!k) continue;
-        costs[k] = { cop_per_unit: num(r.cop_per_unit ?? r.copPerUnit ?? r.value ?? 0), unit: String(r.unit||"").trim() };
-      }
-    }else if(items && typeof items === "object"){
-      for(const [k,v] of Object.entries(items)){
-        costs[normKey(k)] = { cop_per_unit: num(v?.cop_per_unit ?? v?.copPerUnit ?? v ?? 0), unit: String(v?.unit||"").trim() };
-      }
-    }
-    state.costs = costs;
-
-    // Debug meta
-    if(netDebug){
-      const meta = needsOut.meta || {};
-      netDebug.style.display="block";
-      netDebug.textContent = "meta: " + JSON.stringify(meta);
-    }
-
-    showEditor();
-    render();
-  }
-
-  function resetLocal(){
-    // En v4 no guardamos sobrantes locales. Si quieres, después agregamos edición local por ingrediente.
-    setErr("");
-    render();
-  }
-
-  async function onUnlock(){
-    try{
-      const pin = String(secretInp?.value||"").trim();
-      if(!pin) throw new Error("Ingresa la clave.");
-      await validatePin(pin);
-      state.pin = pin;
-      setErr("");
-      showEditor();
-      await refreshFromBackend();
-    }catch(e){
-      hideEditor();
-      setErr(String(e?.message||e));
-    }
-  }
-
-  function wire(){
-    console.log("[AMARED] purchases.js cargado: V4");
-
-    hideEditor();
-
-    if(btnUnlock) btnUnlock.addEventListener("click", (e)=>{ e.preventDefault(); onUnlock(); });
-    if(btnRefresh) btnRefresh.addEventListener("click", (e)=>{ e.preventDefault(); refreshFromBackend().catch(err=>setErr(String(err?.message||err))); });
-    if(btnReset) btnReset.addEventListener("click", (e)=>{ e.preventDefault(); resetLocal(); });
-
-    // Enter para desbloquear
-    if(secretInp){
-      secretInp.addEventListener("keydown",(ev)=>{
-        if(ev.key==="Enter"){ ev.preventDefault(); onUnlock(); }
+    if(chk){
+      chk.addEventListener("change", ()=>{
+        UI_ROWS[idx].include = chk.checked;
       });
     }
+  });
+
+  document.getElementById("btnReload").disabled = !UNLOCKED_SECRET;
+  document.getElementById("btnRegister").disabled = !UNLOCKED_SECRET;
+}
+
+// ---------- Register purchases ----------
+async function registerPurchases(){
+  if(!UNLOCKED_SECRET) return;
+
+  const items = UI_ROWS
+    .filter(r => r.include && num(r.buyQty) > 0)
+    .map(r => ({
+      ingredient_key: r.ingredient_key,
+      qty: num(r.buyQty),
+      unit: r.unit,
+      cop_per_unit: num(r.cop_per_unit || 0),
+      source: "PURCHASES_UI"
+    }));
+
+  if(items.length === 0){
+    alert("No hay compras para registrar.");
+    return;
   }
 
-  if(document.readyState === "loading") document.addEventListener("DOMContentLoaded", wire);
-  else wire();
+  showLoading("Registrando compras…", "Sumando cantidades al inventario…");
+  try{
+    await api({ action:"inventory_add_purchase_batch", costs_secret: UNLOCKED_SECRET, items });
+    // refrescar inventario y recalcular
+    const inv = await api({ action:"inventory_get", costs_secret: UNLOCKED_SECRET });
+    INVENTORY = (inv.inventory && typeof inv.inventory === "object") ? inv.inventory : {};
+    buildRows();
+    render();
+    alert("Listo: compras registradas en INVENTARIO.");
+  } catch(e){
+    alert(e.message || "No se pudo registrar");
+  } finally {
+    hideLoading();
+  }
+}
 
-})();
+// ---------- Unlock modal ----------
+function openUnlock(){
+  document.getElementById("unlockMsg").textContent = "";
+  document.getElementById("secretInput").value = UNLOCKED_SECRET || loadSecretFromLS() || "";
+  document.getElementById("unlockBack").hidden = false;
+}
+function closeUnlock(){
+  document.getElementById("unlockBack").hidden = true;
+}
+
+async function doUnlock(){
+  const s = String(document.getElementById("secretInput").value || "").trim();
+  if(!s){
+    document.getElementById("unlockMsg").textContent = "Ingresa la clave.";
+    return;
+  }
+  // Validación ligera: intentar una llamada que requiera secret
+  showLoading("Validando…","Comprobando acceso…");
+  try{
+    await api({ action:"costs_list", costs_secret: s });
+    UNLOCKED_SECRET = s;
+    saveSecretToLS(s);
+    closeUnlock();
+    await loadAll();
+  } catch(e){
+    document.getElementById("unlockMsg").textContent = "Clave inválida o sin permisos.";
+  } finally {
+    hideLoading();
+  }
+}
+
+// ---------- Bootstrap ----------
+document.addEventListener("DOMContentLoaded", ()=>{
+  document.getElementById("btnUnlock").addEventListener("click", openUnlock);
+  document.getElementById("btnCancelUnlock").addEventListener("click", closeUnlock);
+  document.getElementById("btnDoUnlock").addEventListener("click", doUnlock);
+  document.getElementById("btnReload").addEventListener("click", ()=>loadAll().catch(e=>alert(e.message||"Error")));
+  document.getElementById("btnRegister").addEventListener("click", registerPurchases);
+
+  // autoload si ya hay clave guardada
+  const saved = loadSecretFromLS();
+  if(saved){
+    UNLOCKED_SECRET = saved;
+    loadAll().catch(()=>{ setMeta("Clave guardada inválida o expirada. Presiona “Desbloquear”."); UNLOCKED_SECRET=""; });
+  }
+});
