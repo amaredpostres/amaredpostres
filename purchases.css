@@ -45,3 +45,8 @@ body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Arial;b
 .spinner{width:26px;height:26px;border-radius:50%;border:3px solid rgba(255,255,255,.18);border-top-color:white;animation:spin .9s linear infinite}
 @keyframes spin{to{transform:rotate(360deg)}}
 .loadingTitle{font-weight:800;margin-bottom:2px}
+
+
+/* Overlay stacking fix */
+.modalBack{z-index:60}
+.loadingBack{z-index:50}
