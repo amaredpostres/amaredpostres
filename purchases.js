@@ -9,9 +9,9 @@ console.log("Purchases JS v", PURCHASES_VERSION);
 // - inventory_add_purchase_batch (sumar compras al inventario)
 
 const API_URL = "https://amared-orders.amaredpostres.workers.dev/";
-const LS_SECRET_KEY = "amared_costs_secret_v1";
+const LS_PIN_KEY = "amared_admin_pin_v1";
 
-let UNLOCKED_SECRET = "";
+let UNLOCKED_PIN = "";
 let COSTS = [];          // filas de COSTOS_INGREDIENTES
 let NEEDS = {};          // {ingredient_key: qty}
 let INVENTORY = {};      // {ingredient_key: {qty, unit}}
@@ -79,13 +79,13 @@ function setMeta(text){
   document.getElementById("metaText").textContent = text || "";
 }
 
-function loadSecretFromLS(){
-  try{ return localStorage.getItem(LS_SECRET_KEY) || ""; }catch(_e){ return ""; }
+function loadPinFromLS(){
+  try{ return localStorage.getItem(LS_PIN_KEY) || ""; }catch(_e){ return ""; }
 }
-function saveSecretToLS(v){
+function savePinToLS(v){
   try{
-    if(v) localStorage.setItem(LS_SECRET_KEY, v);
-    else localStorage.removeItem(LS_SECRET_KEY);
+    if(v) localStorage.setItem(LS_PIN_KEY, v);
+    else localStorage.removeItem(LS_PIN_KEY);
   }catch(_e){}
 }
 
@@ -106,21 +106,21 @@ function setOverlayState({ modalOpen=false, loadingOpen=false }){
 }
 // ---------- Core flow ----------
 async function loadAll(){
-  if(!UNLOCKED_SECRET) throw new Error("Primero desbloquea Purchases con tu clave.");
+  if(!UNLOCKED_PIN) throw new Error("Primero desbloquea Purchases con tu PIN de admin.");
   showLoading("Calculando…","Leyendo pedidos/recetas e inventario…");
   try{
     // catálogo costos (para unidad y costo/u)
-    const c = await api({ action:"costs_list", costs_secret: UNLOCKED_SECRET });
+    const c = await api({ action:"costs_public_list" });
     COSTS = Array.isArray(c.items) ? c.items : [];
 
     // necesidades (últimas 36h · pagado + no iniciar)
-    const n = await api({ action:"costs_orders_for_purchases", costs_secret: UNLOCKED_SECRET });
+    const n = await api({ action:"costs_orders_for_purchases", admin_pin: UNLOCKED_PIN });
     NEEDS = (n.needs && typeof n.needs === "object") ? n.needs : {};
     const meta = n.meta || {};
     setMeta(`Pedidos usados: ${meta.orders_used ?? "?"}/${meta.orders_total ?? "?"} · Ventana: ${meta.window_hours ?? 36}h`);
 
     // inventario actual
-    const inv = await api({ action:"inventory_get", costs_secret: UNLOCKED_SECRET });
+    const inv = await api({ action:"inventory_get", admin_pin: UNLOCKED_PIN });
     INVENTORY = (inv.inventory && typeof inv.inventory === "object") ? inv.inventory : {};
 
     buildRows();
@@ -203,13 +203,13 @@ function render(){
     }
   });
 
-  document.getElementById("btnReload").disabled = !UNLOCKED_SECRET;
-  document.getElementById("btnRegister").disabled = !UNLOCKED_SECRET;
+  document.getElementById("btnReload").disabled = !UNLOCKED_PIN;
+  document.getElementById("btnRegister").disabled = !UNLOCKED_PIN;
 }
 
 // ---------- Register purchases ----------
 async function registerPurchases(){
-  if(!UNLOCKED_SECRET) return;
+  if(!UNLOCKED_PIN) return;
 
   const items = UI_ROWS
     .filter(r => r.include && num(r.buyQty) > 0)
@@ -228,9 +228,9 @@ async function registerPurchases(){
 
   showLoading("Registrando compras…", "Sumando cantidades al inventario…");
   try{
-    await api({ action:"inventory_add_purchase_batch", costs_secret: UNLOCKED_SECRET, items });
+    await api({ action:"inventory_add_purchase_batch", admin_pin: UNLOCKED_PIN, items });
     // refrescar inventario y recalcular
-    const inv = await api({ action:"inventory_get", costs_secret: UNLOCKED_SECRET });
+    const inv = await api({ action:"inventory_get", admin_pin: UNLOCKED_PIN });
     INVENTORY = (inv.inventory && typeof inv.inventory === "object") ? inv.inventory : {};
     buildRows();
     render();
@@ -245,7 +245,7 @@ async function registerPurchases(){
 // ---------- Unlock modal ----------
 function openUnlock(){
   document.getElementById("unlockMsg").textContent = "";
-  document.getElementById("secretInput").value = UNLOCKED_SECRET || loadSecretFromLS() || "";
+  document.getElementById("secretInput").value = UNLOCKED_PIN || loadPinFromLS() || "";
   setOverlayState({ modalOpen:true, loadingOpen:false });
 }
 function closeUnlock(){
@@ -255,28 +255,26 @@ function closeUnlock(){
 async function doUnlock(){
   const s = String(document.getElementById("secretInput").value || "").trim();
   if(!s){
-    document.getElementById("unlockMsg").textContent = "Ingresa la clave.";
+    document.getElementById("unlockMsg").textContent = "Ingresa el PIN.";
     return;
   }
 
-  // Cerrar el modal antes de cargar para evitar confusión visual
+  // Cerrar modal y validar
   setOverlayState({ modalOpen:false, loadingOpen:true });
   document.getElementById("loadingTitle").textContent = "Validando…";
-  document.getElementById("loadingSub").textContent = "Comprobando acceso…";
+  document.getElementById("loadingSub").textContent = "Comprobando PIN…";
 
   try{
-    // Validación: una llamada que requiera secret
-    await api({ action:"costs_list", costs_secret: s }, 12000);
-    UNLOCKED_SECRET = s;
-    saveSecretToLS(s);
+    const r = await api({ action:"validate_admin_pin", admin_pin: s }, 12000);
+    if(!r || r.valid !== true) throw new Error("PIN inválido.");
+    UNLOCKED_PIN = s;
+    savePinToLS(s);
     await loadAll();
   } catch(e){
-    // Mostrar error y reabrir modal para reintentar
     setOverlayState({ modalOpen:true, loadingOpen:false });
-    document.getElementById("unlockMsg").textContent = (e && e.message) ? e.message : "Clave inválida o sin permisos.";
+    document.getElementById("unlockMsg").textContent = (e && e.message) ? e.message : "PIN inválido.";
     return;
   } finally {
-    // Si quedó desbloqueado y loadAll terminó, loadAll ya ocultó loading; si no, aseguramos
     if(!document.getElementById("unlockBack").hidden) return;
     if(document.getElementById("loadingBack")) document.getElementById("loadingBack").hidden = true;
   }
@@ -292,9 +290,9 @@ document.addEventListener("DOMContentLoaded", ()=>{
   document.getElementById("btnRegister").addEventListener("click", registerPurchases);
 
   // autoload si ya hay clave guardada
-  const saved = loadSecretFromLS();
+  const saved = loadPinFromLS();
   if(saved){
-    UNLOCKED_SECRET = saved;
-    loadAll().catch(()=>{ setMeta("Clave guardada inválida o expirada. Presiona “Desbloquear”."); UNLOCKED_SECRET=""; });
+    UNLOCKED_PIN = saved;
+    loadAll().catch(()=>{ setMeta("Clave guardada inválida o expirada. Presiona “Desbloquear”."); UNLOCKED_PIN=""; });
   }
 });
