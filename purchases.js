@@ -15,15 +15,41 @@ let INVENTORY = {};      // {ingredient_key: {qty, unit}}
 let UI_ROWS = [];        // render state
 
 // ---------- Helpers ----------
-async function api(payload){
-  const res = await fetch(API_URL, {
-    method:"POST",
-    headers:{ "Content-Type":"application/json" },
-    body: JSON.stringify(payload)
-  });
-  const out = await res.json().catch(async()=>({ok:false,error:await res.text().catch(()=> "Error")}));
-  if(!out.ok) throw new Error(out.error || "Error");
-  return out;
+async function api(payload, timeoutMs = 15000){
+  const ctrl = new AbortController();
+  const t = setTimeout(() => ctrl.abort(), timeoutMs);
+
+  try{
+    const res = await fetch(API_URL, {
+      method:"POST",
+      headers:{ "Content-Type":"application/json" },
+      body: JSON.stringify(payload),
+      signal: ctrl.signal
+    });
+
+    let out;
+    const ct = (res.headers.get("content-type") || "").toLowerCase();
+    if(ct.includes("application/json")){
+      out = await res.json();
+    } else {
+      const text = await res.text().catch(()=> "");
+      try{ out = JSON.parse(text); }catch(_e){ out = { ok:false, error: text || ("HTTP "+res.status) }; }
+    }
+
+    if(out && out.ok === false) throw new Error(out.error || ("HTTP "+res.status));
+    if(!res.ok) throw new Error(out?.error || ("HTTP "+res.status));
+    return out;
+  } catch(e){
+    if(e && e.name === "AbortError"){
+      throw new Error("Tiempo de espera agotado (API). Revisa el Worker o tu conexión.");
+    }
+    if(String(e).includes("Failed to fetch")){
+      throw new Error("No se pudo conectar al Worker (CORS / red). Verifica ALLOWED_ORIGIN y que el Worker esté activo.");
+    }
+    throw e;
+  } finally {
+    clearTimeout(t);
+  }
 }
 function num(x){ const n = Number(x); return isFinite(n) ? n : 0; }
 function fmt(n){ 
@@ -228,7 +254,7 @@ async function doUnlock(){
     closeUnlock();
     await loadAll();
   } catch(e){
-    document.getElementById("unlockMsg").textContent = "Clave inválida o sin permisos.";
+    document.getElementById("unlockMsg").textContent = (e && e.message) ? e.message : "Clave inválida o sin permisos.";
   } finally {
     hideLoading();
   }
@@ -246,6 +272,6 @@ document.addEventListener("DOMContentLoaded", ()=>{
   const saved = loadSecretFromLS();
   if(saved){
     UNLOCKED_SECRET = saved;
-    loadAll().catch(()=>{ setMeta("Clave guardada inválida o expirada. Presiona “Desbloquear”."); UNLOCKED_SECRET=""; });
+    loadAll().catch((e)=>{ setMeta((e && e.message) ? e.message : "Clave guardada inválida o expirada. Presiona “Desbloquear”."); UNLOCKED_SECRET=""; });
   }
 });
