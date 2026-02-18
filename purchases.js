@@ -1,5 +1,5 @@
-const PURCHASES_VERSION = "20260218025612";
-console.log("Purchases JS v", PURCHASES_VERSION);
+const PURCHASES_VERSION = "20260218033938";
+console.log("Purchases PIN JS v", PURCHASES_VERSION);
 
 // AMARED · Purchases (Compras + Inventario)
 // Requiere Cloudflare Worker (API_URL) con acciones:
