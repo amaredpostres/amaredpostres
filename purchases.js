@@ -1,309 +1,298 @@
-/**
- * AMARED Cloudflare Worker — FULL (Compat: Service Worker syntax)
- * Fix: "Unexpected token 'async'" by avoiding module-only syntax issues.
- *
- * ✅ Supports both variable names:
- *   - APPS_SCRIPT_URL (or WEBHOOK_URL)
- *   - APPS_SCRIPT_KEY (key param expected by Apps Script)
- *
- * ✅ Public actions (no PIN in frontend):
- *   - profiles_public_list  -> forwards to Apps Script profiles_list with PROFILES_SECRET
- *   - costs_public_list     -> forwards to Apps Script costs_public_list with COSTS_SECRET
- *
- * ✅ Admin validation:
- *   - validate_admin_pin
- *
- * ✅ Proxies existing actions to Apps Script (requires admin_pin for admin actions on Apps Script side)
- *
- * REQUIRED SECRETS / VARS in Cloudflare Worker:
- *   - APPS_SCRIPT_URL  (Text)  OR WEBHOOK_URL (Text)
- *   - APPS_SCRIPT_KEY  (Secret)  (the same as SECRET_KEY in Apps Script)
- *   - ADMIN_PIN        (Secret)
- *   - PROFILES_SECRET  (Secret)
- *   - COSTS_SECRET     (Secret)
- * Optional:
- *   - ALLOWED_ORIGINS  (Text) CSV, e.g. "https://amaredpostres.github.io,https://...".
- *   - RATE_LIMIT_KV    (KV binding)  // If you have it; otherwise rate-limit is skipped.
- */
+const PURCHASES_VERSION = "20260218033938";
+console.log("Purchases PIN JS v", PURCHASES_VERSION);
 
-// ---------- Entry ----------
-addEventListener("fetch", (event) => {
-  event.respondWith(handleRequest(event.request));
-});
+// AMARED · Purchases (Compras + Inventario)
+// Requiere Cloudflare Worker (API_URL) con acciones:
+// - costs_list (para catálogo de unidades/costos)
+// - costs_orders_for_purchases (necesidades desde PEDIDOS + RECETAS)
+// - inventory_get (mapa actual)
+// - inventory_add_purchase_batch (sumar compras al inventario)
+
+const API_URL = "https://amared-orders.amaredpostres.workers.dev/";
+const LS_PIN_KEY = "amared_admin_pin_v1";
+
+let UNLOCKED_PIN = "";
+let COSTS = [];          // filas de COSTOS_INGREDIENTES
+let NEEDS = {};          // {ingredient_key: qty}
+let INVENTORY = {};      // {ingredient_key: {qty, unit}}
+let UI_ROWS = [];        // render state
 
 // ---------- Helpers ----------
-function jsonResponse(obj, status, corsHeaders) {
-  const body = JSON.stringify(obj ?? {});
-  return new Response(body, {
-    status: status || 200,
-    headers: {
-      "Content-Type": "application/json; charset=utf-8",
-      "Cache-Control": "no-store",
-      ...corsHeaders,
-    },
-  });
-}
+async function api(payload, timeoutMs = 15000){
+  const ctrl = new AbortController();
+  const t = setTimeout(() => ctrl.abort(), timeoutMs);
 
-function textResponse(text, status, corsHeaders) {
-  return new Response(text || "", {
-    status: status || 200,
-    headers: {
-      "Content-Type": "text/plain; charset=utf-8",
-      "Cache-Control": "no-store",
-      ...corsHeaders,
-    },
-  });
-}
-
-function getAllowedOrigins() {
-  try {
-    const raw = ((typeof ALLOWED_ORIGINS !== "undefined" && ALLOWED_ORIGINS) ? ALLOWED_ORIGINS : ((typeof ALLOWED_ORIGIN !== "undefined" && ALLOWED_ORIGIN) ? ALLOWED_ORIGIN : "")) || "";
-    return raw
-      .split(",")
-      .map((s) => s.trim())
-      .filter(Boolean);
-  } catch (_e) {
-    return [];
-  }
-}
-
-function normalizeOrigin(o) {
-  return (o || "").trim().replace(/\/$/, "").toLowerCase();
-}
-
-function buildCorsHeaders(request) {
-  const originRaw = request.headers.get("Origin") || "";
-  const origin = normalizeOrigin(originRaw);
-  const allowList = getAllowedOrigins().map(normalizeOrigin).filter(Boolean);
-
-  // If no allowlist configured, allow all (use with caution).
-  let allowOrigin = "*";
-  if (allowList.length > 0) {
-    allowOrigin = allowList.includes(origin) ? originRaw.replace(/\/$/, "") : "null";
-  }
-
-  return {
-    "Access-Control-Allow-Origin": allowOrigin,
-    "Access-Control-Allow-Methods": "POST, OPTIONS",
-    "Access-Control-Allow-Headers": "Content-Type",
-    "Access-Control-Max-Age": "86400",
-    "Vary": "Origin",
-  };
-}
-
-function mustHaveBinding(name) {
-  // In service-worker syntax, secrets/vars are global bindings
-  // We can check via typeof
-  try {
-    return typeof self[name] !== "undefined" && self[name] !== null && String(self[name]).length > 0;
-  } catch (_e) {
-    return false;
-  }
-}
-
-function getAppScriptBaseUrl() {
-  const url = (typeof WEBHOOK_URL !== "undefined" && WEBHOOK_URL) ? WEBHOOK_URL
-            : (typeof APPS_SCRIPT_URL !== "undefined" && APPS_SCRIPT_URL) ? APPS_SCRIPT_URL
-            : "";
-  return String(url || "").trim();
-}
-
-function getAppScriptKey() {
-  const key = ((typeof APPS_SCRIPT_KEY !== "undefined" && APPS_SCRIPT_KEY) ? APPS_SCRIPT_KEY : ((typeof AMARED_KEY !== "undefined" && AMARED_KEY) ? AMARED_KEY : ""));
-  return String(key || "").trim();
-}
-
-function getWebhookUrlWithKey() {
-  const base = getAppScriptBaseUrl();
-  const key = getAppScriptKey();
-  if (!base) return { ok: false, error: "Missing APPS_SCRIPT_URL (or WEBHOOK_URL)" };
-  if (!key) return { ok: false, error: "Missing APPS_SCRIPT_KEY (o AMARED_KEY)" };
-
-  const hasQ = base.includes("?");
-  const full = base + (hasQ ? "&" : "?") + "key=" + encodeURIComponent(key);
-  return { ok: true, url: full };
-}
-
-async function readJsonSafe(request) {
-  try {
-    const text = await request.text();
-    if (!text) return {};
-    return JSON.parse(text);
-  } catch (_e) {
-    return {};
-  }
-}
-
-// ---------- Rate limit (optional KV) ----------
-async function rateLimit(request, action) {
-  // If no KV binding, skip
-  if (typeof RATE_LIMIT_KV === "undefined" || !RATE_LIMIT_KV) return;
-
-  const ip =
-    request.headers.get("CF-Connecting-IP") ||
-    request.headers.get("X-Forwarded-For") ||
-    "0.0.0.0";
-
-  const key = `rl:${action}:${ip}`;
-  const now = Date.now();
-
-  // Simple window: 10 req / 10s per action+IP
-  const windowMs = 10_000;
-  const limit = 10;
-
-  const raw = await RATE_LIMIT_KV.get(key);
-  let data = raw ? JSON.parse(raw) : { count: 0, start: now };
-
-  if (now - data.start > windowMs) {
-    data = { count: 0, start: now };
-  }
-
-  data.count += 1;
-
-  await RATE_LIMIT_KV.put(key, JSON.stringify(data), { expirationTtl: 20 });
-
-  if (data.count > limit) {
-    throw new Error("Rate limit exceeded");
-  }
-}
-
-// ---------- Apps Script forward ----------
-async function forwardToAppsScript(payload, corsHeaders) {
-  const w = getWebhookUrlWithKey();
-  if (!w.ok) return jsonResponse({ ok: false, error: w.error }, 500, corsHeaders);
-
-  try {
-    const res = await fetch(w.url, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload || {}),
+  try{
+    const res = await fetch(API_URL, {
+      method:"POST",
+      headers:{ "Content-Type":"application/json" },
+      body: JSON.stringify(payload),
+      signal: ctrl.signal
     });
 
-    const contentType = res.headers.get("Content-Type") || "";
     let out;
-
-    if (contentType.includes("application/json")) {
+    const ct = (res.headers.get("content-type") || "").toLowerCase();
+    if(ct.includes("application/json")){
       out = await res.json();
     } else {
-      const t = await res.text();
-      out = { ok: false, error: t || "Non-JSON response from Apps Script" };
+      const text = await res.text().catch(()=> "");
+      try{ out = JSON.parse(text); }catch(_e){ out = { ok:false, error: text || ("HTTP "+res.status) }; }
     }
 
-    // Always return JSON to frontend
-    return jsonResponse(out, res.status || 200, corsHeaders);
-  } catch (e) {
-    return jsonResponse({ ok: false, error: String(e?.message || e) }, 502, corsHeaders);
+    if(out && out.ok === false) throw new Error(out.error || ("HTTP "+res.status));
+    if(!res.ok) throw new Error(out?.error || ("HTTP "+res.status));
+    return out;
+  } catch(e){
+    if(e && e.name === "AbortError"){
+      throw new Error("Tiempo de espera agotado (API). Revisa el Worker o tu conexión.");
+    }
+    if(String(e).includes("Failed to fetch")){
+      throw new Error("No se pudo conectar al Worker (CORS / red). Verifica ALLOWED_ORIGIN y que el Worker esté activo.");
+    }
+    throw e;
+  } finally {
+    clearTimeout(t);
+  }
+}
+function num(x){ const n = Number(x); return isFinite(n) ? n : 0; }
+function fmt(n){ 
+  const v = num(n);
+  return (Math.round((v + Number.EPSILON)*1000)/1000).toString();
+}
+function fmtCOP(n){
+  const v = Math.round(num(n));
+  return v.toString().replace(/\B(?=(\d{3})+(?!\d))/g,".");
+}
+function esc(s){
+  return String(s||"").replace(/[&<>\"']/g, c=>({ "&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;" }[c]));
+}
+
+function showLoading(title, sub){
+  document.getElementById("loadingTitle").textContent = title || "Cargando…";
+  document.getElementById("loadingSub").textContent = sub || "";
+  setOverlayState({ modalOpen:false, loadingOpen:true });
+}
+function hideLoading(){ setOverlayState({ modalOpen:false, loadingOpen:false }); }
+function hideLoading(){ document.getElementById("loadingBack").hidden = true; }
+
+function setMeta(text){
+  document.getElementById("metaText").textContent = text || "";
+}
+
+function loadPinFromLS(){
+  try{ return localStorage.getItem(LS_PIN_KEY) || ""; }catch(_e){ return ""; }
+}
+function savePinToLS(v){
+  try{
+    if(v) localStorage.setItem(LS_PIN_KEY, v);
+    else localStorage.removeItem(LS_PIN_KEY);
+  }catch(_e){}
+}
+
+function findCostRow(key){
+  key = String(key||"").trim();
+  if(!key) return null;
+  return COSTS.find(r => String(r.ingredient_key||"").trim() === key) || null;
+}
+
+
+function setOverlayState({ modalOpen=false, loadingOpen=false }){
+  const mb = document.getElementById("unlockBack");
+  const lb = document.getElementById("loadingBack");
+  if(mb) mb.hidden = !modalOpen;
+  if(lb) lb.hidden = !loadingOpen;
+  // Guard: nunca permitir ambos visibles
+  if(mb && lb && !mb.hidden && !lb.hidden){ lb.hidden = true; }
+}
+// ---------- Core flow ----------
+async function loadAll(){
+  if(!UNLOCKED_PIN) throw new Error("Primero desbloquea Purchases con tu PIN de admin.");
+  showLoading("Calculando…","Leyendo pedidos/recetas e inventario…");
+  try{
+    // catálogo costos (para unidad y costo/u)
+    const c = await api({ action:"costs_public_list" });
+    COSTS = Array.isArray(c.items) ? c.items : [];
+
+    // necesidades (últimas 36h · pagado + no iniciar)
+    const n = await api({ action:"costs_orders_for_purchases", admin_pin: UNLOCKED_PIN });
+    NEEDS = (n.needs && typeof n.needs === "object") ? n.needs : {};
+    const meta = n.meta || {};
+    setMeta(`Pedidos usados: ${meta.orders_used ?? "?"}/${meta.orders_total ?? "?"} · Ventana: ${meta.window_hours ?? 36}h`);
+
+    // inventario actual
+    const inv = await api({ action:"inventory_get", admin_pin: UNLOCKED_PIN });
+    INVENTORY = (inv.inventory && typeof inv.inventory === "object") ? inv.inventory : {};
+
+    buildRows();
+    render();
+  } finally {
+    hideLoading();
   }
 }
 
-function isValidAdminPin(pin) {
-  const admin = (typeof ADMIN_PIN !== "undefined" && ADMIN_PIN) ? String(ADMIN_PIN) : "";
-  return admin && String(pin || "") === admin;
-}
+function buildRows(){
+  const keys = new Set();
+  Object.keys(NEEDS||{}).forEach(k=>keys.add(k));
+  Object.keys(INVENTORY||{}).forEach(k=>keys.add(k));
+  COSTS.forEach(r=>{ if(r && r.ingredient_key) keys.add(String(r.ingredient_key)); });
 
-// ---------- Main handler ----------
-async function handleRequest(request) {
-  const corsHeaders = buildCorsHeaders(request);
-
-  if (request.method === "OPTIONS") {
-    return new Response("", { status: 204, headers: corsHeaders });
-  }
-
-  if (request.method !== "POST") {
-    return jsonResponse({ ok: false, error: "Method not allowed" }, 405, corsHeaders);
-  }
-
-  // Critical required bindings (except optional ALLOWED_ORIGINS, RATE_LIMIT_KV)
-  if (!getAppScriptBaseUrl()) return jsonResponse({ ok: false, error: "Missing APPS_SCRIPT_URL (or WEBHOOK_URL)" }, 500, corsHeaders);
-  if (!getAppScriptKey()) return jsonResponse({ ok: false, error: "Missing APPS_SCRIPT_KEY (o AMARED_KEY)" }, 500, corsHeaders);
-
-  const body = await readJsonSafe(request);
-  const action = String(body.action || "").trim();
-
-  if (!action) {
-    return jsonResponse({ ok: false, error: "Missing action" }, 400, corsHeaders);
-  }
-
-  // Rate limit per action (if KV configured)
-  try {
-    await rateLimit(request, action);
-  } catch (e) {
-    return jsonResponse({ ok: false, error: "Too Many Requests" }, 429, corsHeaders);
-  }
-
-  // ---- Public actions (no PIN, no secrets from frontend) ----
-  if (action === "profiles_public_list") {
-    if (!mustHaveBinding("PROFILES_SECRET")) {
-      return jsonResponse({ ok: false, error: "Missing PROFILES_SECRET" }, 500, corsHeaders);
-    }
-    const category = String(body.category || "kitchen").trim().toLowerCase();
-    const payload = {
-      action: "profiles_list",
-      category,
-      profiles_secret: String(PROFILES_SECRET),
+  const arr = Array.from(keys).map(k=>{
+    const cost = findCostRow(k) || {};
+    const needed = num(NEEDS[k] ?? 0);
+    const invQty = num((INVENTORY[k] && INVENTORY[k].qty) ?? 0);
+    const missing = Math.max(0, needed - invQty);
+    const unit = String((INVENTORY[k] && INVENTORY[k].unit) || cost.unit_type || "unidad").trim() || "unidad";
+    const cop = num(cost.cop_per_unit || 0);
+    return {
+      ingredient_key: String(k),
+      needed, invQty, missing,
+      unit,
+      cop_per_unit: cop,
+      buyQty: missing > 0 ? missing : 0,
+      include: missing > 0
     };
-    return forwardToAppsScript(payload, corsHeaders);
-  }
+  });
 
-  if (action === "costs_public_list") {
-    if (!mustHaveBinding("COSTS_SECRET")) {
-      return jsonResponse({ ok: false, error: "Missing COSTS_SECRET" }, 500, corsHeaders);
-    }
-    const payload = {
-      action: "costs_public_list",
-      costs_secret: String(COSTS_SECRET),
-    };
-    return forwardToAppsScript(payload, corsHeaders);
-  }
+  // orden: primero faltantes, luego alfabético
+  arr.sort((a,b)=>{
+    const af = a.missing>0 ? 0 : 1;
+    const bf = b.missing>0 ? 0 : 1;
+    if(af!==bf) return af-bf;
+    return a.ingredient_key.localeCompare(b.ingredient_key, "es");
+  });
 
-  // ---- Validation action (frontend uses to validate PIN) ----
-  if (action === "validate_admin_pin") {
-    const ok = isValidAdminPin(body.admin_pin);
-    return jsonResponse({ ok: true, valid: ok }, 200, corsHeaders);
-  }
-
-  // ---- Compras (shopping_*) ----
-  // Estas acciones deben poder ejecutarse desde la página de Costos usando la clave
-  // de costos (COSTS_SECRET) sin requerir el PIN admin.
-  // Permitimos: COSTS_SECRET **o** ADMIN_PIN.
-  const SHOPPING_ACTIONS = new Set(["shopping_get","shopping_save","shopping_reset","costs_orders_for_purchases","inventory_get","inventory_add_purchase","inventory_add_purchase_batch","inventory_reset_ingredient"]);
-
-  // Compras: permitir acceso con la clave de Costos (COSTS_SECRET) o con el PIN admin
-  // Si entra por PIN, el Worker inyecta COSTS_SECRET al Apps Script (el frontend nunca lo ve).
-  if (SHOPPING_ACTIONS.has(action)) {
-    const hasCosts = typeof body.costs_secret === "string" && body.costs_secret.length > 0;
-    const costsOk = hasCosts && String(body.costs_secret) === String(COSTS_SECRET);
-    const pinOk = isValidAdminPin(body.admin_pin);
-
-    if (!costsOk && !pinOk) {
-      return jsonResponse({ ok: false, error: "Unauthorized admin" }, 401, corsHeaders);
-    }
-
-    // Si se autenticó con PIN, inyectamos el secret real para que Apps Script autorice.
-    if (pinOk && !costsOk) {
-      body.costs_secret = String(COSTS_SECRET);
-    }
-
-    return await forwardToAppsScript(body, corsHeaders);
-  }
-
-  // ---- Protected admin-ish actions (require correct PIN at Worker layer) ----
-  const PIN_REQUIRED_ACTIONS = new Set([
-    "list_orders",
-    "update_order",
-    "kitchen_bulk_update",
-    "catalog_delete",
-  ]);
-
-  if (PIN_REQUIRED_ACTIONS.has(action)) {
-    if (!isValidAdminPin(body.admin_pin)) {
-      return jsonResponse({ ok: false, error: "Unauthorized admin" }, 401, corsHeaders);
-    }
-    // Forward as-is (Apps Script will also validate key, and other secrets if required)
-    return forwardToAppsScript(body, corsHeaders);
-  }
-
-  // ---- Public-ish actions (no PIN) ----
-  // create_order etc (Apps Script will validate key and handle)
-  return forwardToAppsScript(body, corsHeaders);
+  UI_ROWS = arr;
 }
+
+function render(){
+  const tb = document.getElementById("rows");
+  if(!tb) return;
+
+  tb.innerHTML = UI_ROWS.map((r, idx)=>{
+    const missClass = r.missing>0 ? "style='color:#fbbf24;font-weight:700'" : "style='color:#9ca3af'";
+    return `
+      <tr data-i="${idx}">
+        <td>${esc(r.ingredient_key)}</td>
+        <td class="num">${fmt(r.needed)}</td>
+        <td class="num">${fmt(r.invQty)}</td>
+        <td class="num" ${missClass}>${fmt(r.missing)}</td>
+        <td>${esc(r.unit)}</td>
+        <td class="num">${r.cop_per_unit>0 ? fmtCOP(r.cop_per_unit) : "—"}</td>
+        <td class="num"><input class="inpNum" inputmode="decimal" value="${fmt(r.buyQty)}" /></td>
+        <td class="num"><input class="chk" type="checkbox" ${r.include ? "checked":""} /></td>
+      </tr>
+    `;
+  }).join("");
+
+  // bind
+  tb.querySelectorAll("tr").forEach(tr=>{
+    const idx = Number(tr.getAttribute("data-i"));
+    const inp = tr.querySelector("input.inpNum");
+    const chk = tr.querySelector("input.chk");
+    if(inp){
+      inp.addEventListener("input", ()=>{
+        const v = num(inp.value);
+        UI_ROWS[idx].buyQty = v;
+        if(v>0) UI_ROWS[idx].include = true;
+      });
+    }
+    if(chk){
+      chk.addEventListener("change", ()=>{
+        UI_ROWS[idx].include = chk.checked;
+      });
+    }
+  });
+
+  document.getElementById("btnReload").disabled = !UNLOCKED_PIN;
+  document.getElementById("btnRegister").disabled = !UNLOCKED_PIN;
+}
+
+// ---------- Register purchases ----------
+async function registerPurchases(){
+  if(!UNLOCKED_PIN) return;
+
+  const items = UI_ROWS
+    .filter(r => r.include && num(r.buyQty) > 0)
+    .map(r => ({
+      ingredient_key: r.ingredient_key,
+      qty: num(r.buyQty),
+      unit: r.unit,
+      cop_per_unit: num(r.cop_per_unit || 0),
+      source: "PURCHASES_UI"
+    }));
+
+  if(items.length === 0){
+    alert("No hay compras para registrar.");
+    return;
+  }
+
+  showLoading("Registrando compras…", "Sumando cantidades al inventario…");
+  try{
+    await api({ action:"inventory_add_purchase_batch", admin_pin: UNLOCKED_PIN, items });
+    // refrescar inventario y recalcular
+    const inv = await api({ action:"inventory_get", admin_pin: UNLOCKED_PIN });
+    INVENTORY = (inv.inventory && typeof inv.inventory === "object") ? inv.inventory : {};
+    buildRows();
+    render();
+    alert("Listo: compras registradas en INVENTARIO.");
+  } catch(e){
+    alert(e.message || "No se pudo registrar");
+  } finally {
+    hideLoading();
+  }
+}
+
+// ---------- Unlock modal ----------
+function openUnlock(){
+  document.getElementById("unlockMsg").textContent = "";
+  document.getElementById("secretInput").value = UNLOCKED_PIN || loadPinFromLS() || "";
+  setOverlayState({ modalOpen:true, loadingOpen:false });
+}
+function closeUnlock(){
+  setOverlayState({ modalOpen:false, loadingOpen:false });
+}
+
+async function doUnlock(){
+  const s = String(document.getElementById("secretInput").value || "").trim();
+  if(!s){
+    document.getElementById("unlockMsg").textContent = "Ingresa el PIN.";
+    return;
+  }
+
+  // Cerrar modal y validar
+  setOverlayState({ modalOpen:false, loadingOpen:true });
+  document.getElementById("loadingTitle").textContent = "Validando…";
+  document.getElementById("loadingSub").textContent = "Comprobando PIN…";
+
+  try{
+    const r = await api({ action:"validate_admin_pin", admin_pin: s }, 12000);
+    if(!r || r.valid !== true) throw new Error("PIN inválido.");
+    UNLOCKED_PIN = s;
+    savePinToLS(s);
+    await loadAll();
+  } catch(e){
+    setOverlayState({ modalOpen:true, loadingOpen:false });
+    document.getElementById("unlockMsg").textContent = (e && e.message) ? e.message : "PIN inválido.";
+    return;
+  } finally {
+    if(!document.getElementById("unlockBack").hidden) return;
+    if(document.getElementById("loadingBack")) document.getElementById("loadingBack").hidden = true;
+  }
+}
+
+// ---------- Bootstrap ----------
+
+document.addEventListener("DOMContentLoaded", ()=>{
+  document.getElementById("btnUnlock").addEventListener("click", openUnlock);
+  document.getElementById("btnCancelUnlock").addEventListener("click", closeUnlock);
+  document.getElementById("btnDoUnlock").addEventListener("click", doUnlock);
+  document.getElementById("btnReload").addEventListener("click", ()=>loadAll().catch(e=>alert(e.message||"Error")));
+  document.getElementById("btnRegister").addEventListener("click", registerPurchases);
+
+  // autoload si ya hay clave guardada
+  const saved = loadPinFromLS();
+  if(saved){
+    UNLOCKED_PIN = saved;
+    loadAll().catch(()=>{ setMeta("Clave guardada inválida o expirada. Presiona “Desbloquear”."); UNLOCKED_PIN=""; });
+  }
+});
