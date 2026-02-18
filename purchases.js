@@ -67,8 +67,9 @@ function esc(s){
 function showLoading(title, sub){
   document.getElementById("loadingTitle").textContent = title || "Cargando…";
   document.getElementById("loadingSub").textContent = sub || "";
-  document.getElementById("loadingBack").hidden = false;
+  setOverlayState({ modalOpen:false, loadingOpen:true });
 }
+function hideLoading(){ setOverlayState({ modalOpen:false, loadingOpen:false }); }
 function hideLoading(){ document.getElementById("loadingBack").hidden = true; }
 
 function setMeta(text){
@@ -91,43 +92,33 @@ function findCostRow(key){
   return COSTS.find(r => String(r.ingredient_key||"").trim() === key) || null;
 }
 
+
+function setOverlayState({ modalOpen=false, loadingOpen=false }){
+  const mb = document.getElementById("unlockBack");
+  const lb = document.getElementById("loadingBack");
+  if(mb) mb.hidden = !modalOpen;
+  if(lb) lb.hidden = !loadingOpen;
+}
 // ---------- Core flow ----------
 async function loadAll(){
   if(!UNLOCKED_SECRET) throw new Error("Primero desbloquea Purchases con tu clave.");
-  showLoading("Calculando…","Leyendo PEDIDOS + RECETAS + INVENTARIO…");
+  showLoading("Calculando…","Leyendo pedidos/recetas e inventario…");
   try{
-    // Snapshot unificado (backend hace el merge)
-    const snap = await api({ action:"purchases_snapshot", costs_secret: UNLOCKED_SECRET }, 25000);
+    // catálogo costos (para unidad y costo/u)
+    const c = await api({ action:"costs_list", costs_secret: UNLOCKED_SECRET });
+    COSTS = Array.isArray(c.items) ? c.items : [];
 
-    const meta = snap.meta || {};
+    // necesidades (últimas 36h · pagado + no iniciar)
+    const n = await api({ action:"costs_orders_for_purchases", costs_secret: UNLOCKED_SECRET });
+    NEEDS = (n.needs && typeof n.needs === "object") ? n.needs : {};
+    const meta = n.meta || {};
     setMeta(`Pedidos usados: ${meta.orders_used ?? "?"}/${meta.orders_total ?? "?"} · Ventana: ${meta.window_hours ?? 36}h`);
 
-    // construir filas UI desde snap.rows
-    const rows = Array.isArray(snap.rows) ? snap.rows : [];
-    UI_ROWS = rows.map(r=>{
-      const needed = num(r.needed);
-      const invQty = num(r.inventory);
-      const missing = Math.max(0, num(r.missing));
-      const unit = String(r.unit || "unidad").trim() || "unidad";
-      const cop = num(r.cop_per_unit || 0);
-      return {
-        ingredient_key: String(r.ingredient_key || ""),
-        needed, invQty, missing,
-        unit,
-        cop_per_unit: cop,
-        buyQty: missing > 0 ? missing : 0,
-        include: missing > 0
-      };
-    });
+    // inventario actual
+    const inv = await api({ action:"inventory_get", costs_secret: UNLOCKED_SECRET });
+    INVENTORY = (inv.inventory && typeof inv.inventory === "object") ? inv.inventory : {};
 
-    // orden (faltantes primero)
-    UI_ROWS.sort((a,b)=>{
-      const af = a.missing>0 ? 0 : 1;
-      const bf = b.missing>0 ? 0 : 1;
-      if(af!==bf) return af-bf;
-      return a.ingredient_key.localeCompare(b.ingredient_key, "es");
-    });
-
+    buildRows();
     render();
   } finally {
     hideLoading();
@@ -230,36 +221,13 @@ async function registerPurchases(){
     return;
   }
 
-  showLoading("Registrando compras…", "Actualizando inventario…");
+  showLoading("Registrando compras…", "Sumando cantidades al inventario…");
   try{
-    const snap = await api({ action:"purchases_register_batch", costs_secret: UNLOCKED_SECRET, items }, 25000);
-    const meta = snap.meta || {};
-    setMeta(`Pedidos usados: ${meta.orders_used ?? "?"}/${meta.orders_total ?? "?"} · Ventana: ${meta.window_hours ?? 36}h`);
-
-    const rows = Array.isArray(snap.rows) ? snap.rows : [];
-    UI_ROWS = rows.map(r=>{
-      const needed = num(r.needed);
-      const invQty = num(r.inventory);
-      const missing = Math.max(0, num(r.missing));
-      const unit = String(r.unit || "unidad").trim() || "unidad";
-      const cop = num(r.cop_per_unit || 0);
-      return {
-        ingredient_key: String(r.ingredient_key || ""),
-        needed, invQty, missing,
-        unit,
-        cop_per_unit: cop,
-        buyQty: missing > 0 ? missing : 0,
-        include: missing > 0
-      };
-    });
-
-    UI_ROWS.sort((a,b)=>{
-      const af = a.missing>0 ? 0 : 1;
-      const bf = b.missing>0 ? 0 : 1;
-      if(af!==bf) return af-bf;
-      return a.ingredient_key.localeCompare(b.ingredient_key, "es");
-    });
-
+    await api({ action:"inventory_add_purchase_batch", costs_secret: UNLOCKED_SECRET, items });
+    // refrescar inventario y recalcular
+    const inv = await api({ action:"inventory_get", costs_secret: UNLOCKED_SECRET });
+    INVENTORY = (inv.inventory && typeof inv.inventory === "object") ? inv.inventory : {};
+    buildRows();
     render();
     alert("Listo: compras registradas en INVENTARIO.");
   } catch(e){
@@ -269,17 +237,14 @@ async function registerPurchases(){
   }
 }
 
-
-// ---------- Unlock modal ----------
-
 // ---------- Unlock modal ----------
 function openUnlock(){
   document.getElementById("unlockMsg").textContent = "";
   document.getElementById("secretInput").value = UNLOCKED_SECRET || loadSecretFromLS() || "";
-  document.getElementById("unlockBack").hidden = false;
+  setOverlayState({ modalOpen:true, loadingOpen:false });
 }
 function closeUnlock(){
-  document.getElementById("unlockBack").hidden = true;
+  setOverlayState({ modalOpen:false, loadingOpen:false });
 }
 
 async function doUnlock(){
@@ -288,22 +253,32 @@ async function doUnlock(){
     document.getElementById("unlockMsg").textContent = "Ingresa la clave.";
     return;
   }
-  // Validación ligera: intentar una llamada que requiera secret
-  showLoading("Validando…","Comprobando acceso…");
+
+  // Cerrar el modal antes de cargar para evitar confusión visual
+  setOverlayState({ modalOpen:false, loadingOpen:true });
+  document.getElementById("loadingTitle").textContent = "Validando…";
+  document.getElementById("loadingSub").textContent = "Comprobando acceso…";
+
   try{
-    await api({ action:"purchases_snapshot", costs_secret: s }, 25000);
+    // Validación: una llamada que requiera secret
+    await api({ action:"costs_list", costs_secret: s }, 12000);
     UNLOCKED_SECRET = s;
     saveSecretToLS(s);
-    closeUnlock();
     await loadAll();
   } catch(e){
+    // Mostrar error y reabrir modal para reintentar
+    setOverlayState({ modalOpen:true, loadingOpen:false });
     document.getElementById("unlockMsg").textContent = (e && e.message) ? e.message : "Clave inválida o sin permisos.";
+    return;
   } finally {
-    hideLoading();
+    // Si quedó desbloqueado y loadAll terminó, loadAll ya ocultó loading; si no, aseguramos
+    if(!document.getElementById("unlockBack").hidden) return;
+    if(document.getElementById("loadingBack")) document.getElementById("loadingBack").hidden = true;
   }
 }
 
 // ---------- Bootstrap ----------
+
 document.addEventListener("DOMContentLoaded", ()=>{
   document.getElementById("btnUnlock").addEventListener("click", openUnlock);
   document.getElementById("btnCancelUnlock").addEventListener("click", closeUnlock);
@@ -315,6 +290,6 @@ document.addEventListener("DOMContentLoaded", ()=>{
   const saved = loadSecretFromLS();
   if(saved){
     UNLOCKED_SECRET = saved;
-    loadAll().catch((e)=>{ setMeta((e && e.message) ? e.message : "Clave guardada inválida o expirada. Presiona “Desbloquear”."); UNLOCKED_SECRET=""; });
+    loadAll().catch(()=>{ setMeta("Clave guardada inválida o expirada. Presiona “Desbloquear”."); UNLOCKED_SECRET=""; });
   }
 });
