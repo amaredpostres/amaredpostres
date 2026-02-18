@@ -1,5 +1,5 @@
-const PURCHASES_VERSION = "20260218174418";
-console.log("Purchases JS v", PURCHASES_VERSION, "(unlockstatus)");
+const PURCHASES_VERSION = "20260218175822";
+console.log("Purchases JS v", PURCHASES_VERSION, "(timeoutfix)");
 
 // AMARED · Purchases (Compras + Inventario)
 // Requiere Cloudflare Worker (API_URL) con acciones:
@@ -18,7 +18,7 @@ let INVENTORY = {};      // {ingredient_key: {qty, unit}}
 let UI_ROWS = [];        // render state
 
 // ---------- Helpers ----------
-async function api(payload, timeoutMs = 15000){
+async function api(payload, timeoutMs = 60000){
   const ctrl = new AbortController();
   const t = setTimeout(() => ctrl.abort(), timeoutMs);
 
@@ -44,7 +44,7 @@ async function api(payload, timeoutMs = 15000){
     return out;
   } catch(e){
     if(e && e.name === "AbortError"){
-      throw new Error("Tiempo de espera agotado (API). Revisa el Worker o tu conexión.");
+      throw new Error(`Tiempo de espera agotado (API) en acción: ${payload && payload.action ? payload.action : "unknown"}. Revisa el Worker/Apps Script o tu conexión.`);
     }
     if(String(e).includes("Failed to fetch")){
       throw new Error("No se pudo conectar al Worker (CORS / red). Verifica ALLOWED_ORIGIN y que el Worker esté activo.");
@@ -109,17 +109,17 @@ async function loadAll(){
   showLoading("Calculando…","Leyendo pedidos/recetas e inventario…");
   try{
     // catálogo costos (para unidad y costo/u)
-    const c = await api({ action:"costs_public_list" });
+    const c = await api({ action:"costs_public_list" }, 60000);
     COSTS = Array.isArray(c.items) ? c.items : [];
 
     // necesidades (últimas 36h · pagado + no iniciar)
-    const n = await api({ action:"costs_orders_for_purchases", admin_pin: UNLOCKED_PIN });
+    const n = await api({ action:"costs_orders_for_purchases", admin_pin: UNLOCKED_PIN }, 60000);
     NEEDS = (n.needs && typeof n.needs === "object") ? n.needs : {};
     const meta = n.meta || {};
     setMeta(`Pedidos usados: ${meta.orders_used ?? "?"}/${meta.orders_total ?? "?"} · Ventana: ${meta.window_hours ?? 36}h`);
 
     // inventario actual
-    const inv = await api({ action:"inventory_get", admin_pin: UNLOCKED_PIN });
+    const inv = await api({ action:"inventory_get", admin_pin: UNLOCKED_PIN }, 60000);
     INVENTORY = (inv.inventory && typeof inv.inventory === "object") ? inv.inventory : {};
 
     buildRows();
@@ -229,7 +229,7 @@ async function registerPurchases(){
   try{
     await api({ action:"inventory_add_purchase_batch", admin_pin: UNLOCKED_PIN, items });
     // refrescar inventario y recalcular
-    const inv = await api({ action:"inventory_get", admin_pin: UNLOCKED_PIN });
+    const inv = await api({ action:"inventory_get", admin_pin: UNLOCKED_PIN }, 60000);
     INVENTORY = (inv.inventory && typeof inv.inventory === "object") ? inv.inventory : {};
     buildRows();
     render();
@@ -259,55 +259,45 @@ function closeUnlock(){
 
 async function doUnlock(){
   const btn = document.getElementById("btnDoUnlock");
-  const topBtn = document.getElementById("btnUnlock");
   const msg = document.getElementById("unlockMsg");
-  const input = document.getElementById("secretInput");
+  const s = String(document.getElementById("secretInput").value || "").trim();
 
-  const s = String(input.value || "").trim();
   if(!s){
     msg.textContent = "Ingresa el PIN.";
     return;
   }
 
+  // evitar doble clic
   btn.disabled = true;
-  msg.textContent = "Validando…";
-  console.log("[unlock] start");
+  msg.textContent = "";
+
+  showLoading("Validando…", "Comprobando PIN…");
 
   try{
-    const r = await api({ action:"validate_admin_pin", admin_pin: s }, 12000);
-    console.log("[unlock] validate_admin_pin =>", r);
-
+    const r = await api({ action:"validate_admin_pin", admin_pin: s }, 20000);
     if(!r || r.valid !== true) throw new Error("PIN inválido.");
 
     UNLOCKED_PIN = s;
     savePinToLS(s);
 
-    // Intentar cargar datos (ya con permisos). Esto también confirma que el Apps Script está OK.
-    await loadAll();
-
-    // Éxito: cerrar modal y reflejar estado
+    // cerrar modal ya (aunque el cálculo tarde)
     closeUnlock();
-    msg.textContent = "";
-    if(topBtn) topBtn.textContent = "Desbloqueado";
-    console.log("[unlock] success");
+
+    // Intentar cargar todo. Si falla, NO volvemos a abrir el modal; dejamos desbloqueado y mostramos el error arriba.
+    try{
+      await loadAll();
+      setMeta(`Desbloqueado. ${document.getElementById("metaText").textContent || ""}`.trim());
+    } catch(inner){
+      const em = (inner && inner.message) ? inner.message : String(inner);
+      setMeta(`Desbloqueado, pero no se pudo cargar el cálculo: ${em}`);
+    }
   } catch(e){
-    console.error("[unlock] error", e);
-
-    // Asegurar que no quede overlay bloqueando
     hideLoading();
-
-    // Reabrir modal y mostrar error legible
     setOverlayState({ modalOpen:true, loadingOpen:false });
-
-    const errText =
-      (e && typeof e.message === "string" && e.message.trim()) ? e.message :
-      (e && typeof e.error === "string" && e.error.trim()) ? e.error :
-      (typeof e === "string" ? e : String(e));
-
-    msg.textContent = errText || "Error al desbloquear.";
-    if(topBtn) topBtn.textContent = "Desbloquear";
+    msg.textContent = (e && e.message) ? e.message : "PIN inválido.";
   } finally {
     btn.disabled = false;
+    if(document.getElementById("loadingBack")) document.getElementById("loadingBack").hidden = true;
   }
 }
 
