@@ -2,77 +2,88 @@
 <html lang="es">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>AMARED - Purchases</title>
-  <link rel="stylesheet" href="purchases.css?v=20260218190526">
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>AMARED · Purchases</title>
+  <link rel="stylesheet" href="purchases.css" />
+  <!-- optional favicon; si no existe, no pasa nada -->
+  <link rel="icon" href="favicon.ico" />
 </head>
 <body>
+  <!-- LOGIN (pantalla completa). No se muestra NADA del sistema hasta validar la clave -->
+  <div id="loginBack" class="modalBack">
+    <div class="modal" style="max-width: 720px;">
+      <div class="modalTitle">Desbloquear Purchases</div>
+      <div class="muted small" style="margin-top:6px;">Ingresa tu <b>COSTS_SECRET</b> (la misma clave que usas en Costs).</div>
 
-<header class="topbar">
-  <div class="topbarInner">
-    <div>
-      <div class="brandTitle">AMARED</div>
-      <div class="brandSub">Purchases - Compras & Inventario</div>
-    </div>
-
-    <div id="appActions" class="topbarActions" hidden>
-      <button id="btnLogout" class="btn ghost">Salir</button>
-      <button id="btnReload" class="btn">Recargar cálculo</button>
-      <button id="btnRegister" class="btn">Registrar compras</button>
-    </div>
-  </div>
-</header>
-
-<main id="appView" class="wrap" hidden>
-  <section class="card">
-    <div class="cardTitle">Estado (últimas 36h · pagado + no iniciar)</div>
-    <div id="metaText" class="muted small">—</div>
-  </section>
-
-  <section class="card">
-    <div class="cardTitle">Ingredientes</div>
-    <div class="muted small" style="margin:-4px 0 10px;">
-      "Comprar (u)" suma directo al INVENTARIO. Si compras en empaques, escribe el total en unidades base (g/ml/unidad).
-    </div>
-    <div class="tableWrap">
-      <table id="tbl" class="tbl">
-        <thead>
-          <tr>
-            <th>Ingrediente</th>
-            <th class="num">Necesario</th>
-            <th class="num">Inventario</th>
-            <th class="num">Falta</th>
-            <th>Unidad</th>
-            <th class="num">Costo/u (COP)</th>
-            <th class="num">Comprar (u)</th>
-          </tr>
-        </thead>
-        <tbody></tbody>
-      </table>
-    </div>
-  </section>
-</main>
-
-<!-- LOGIN (pantalla completa) -->
-<div class="modalBack" id="loginBack" hidden>
-  <div class="modal">
-    <div class="modalTitle">Desbloquear Purchases</div>
-    <div class="muted small">Ingresa tu <b>COSTS_SECRET</b> (la misma clave que usas en Costos).</div>
-
-    <div class="modalBody">
-      <input id="inpSecret" class="inp" placeholder="COSTS_SECRET" autocomplete="off" />
-      <div class="row" style="display:flex;gap:10px;justify-content:flex-end">
-        <button id="btnLogin" class="btn">Entrar</button>
+      <div class="modalBody" style="margin-top:12px;">
+        <input id="loginSecret" class="inp" placeholder="COSTS_SECRET" autocomplete="current-password" />
       </div>
-      <div id="loginMsg" class="muted small"></div>
+
+      <div class="row" style="justify-content:flex-end; gap:10px; margin-top:14px;">
+        <button id="btnLogin" class="btn primary">Entrar</button>
+      </div>
+
+      <div id="loginMsg" class="muted small" style="margin-top:10px;"></div>
     </div>
   </div>
-</div>
 
-<div class="loadingBack" id="loadingBack" hidden>
-  <div class="loading"></div>
-</div>
+  <!-- APP (oculto hasta login ok) -->
+  <div id="app" hidden>
+    <header class="topbar">
+      <div class="brand">
+        <div class="brandTitle">AMARED</div>
+        <div class="brandSub">Purchases · Compras & Inventario</div>
+      </div>
 
-<script src="purchases.js?v=20260218190526"></script>
+      <div class="actions">
+        <button id="btnLogout" class="btn ghost">Salir</button>
+        <button id="btnRecalc" class="btn">Recargar cálculo</button>
+        <button id="btnRegister" class="btn primary">Registrar compras</button>
+      </div>
+    </header>
+
+    <main class="wrap">
+      <section class="card">
+        <div class="cardTitle">Estado (últimas 36h · pagado + no iniciar)</div>
+        <div id="status" class="muted small">—</div>
+      </section>
+
+      <section class="card">
+        <div class="cardTitle">Ingredientes</div>
+        <div class="muted small" style="margin-top:6px;">“Comprar (u)” suma directo al INVENTARIO. Si compras en empaques, escribe el total en unidades base (g/ml/unidad).</div>
+
+        <div class="tableWrap" style="margin-top:10px;">
+          <table class="tbl">
+            <thead>
+              <tr>
+                <th>Ingrediente</th>
+                <th class="num">Necesario</th>
+                <th class="num">Inventario</th>
+                <th class="num">Falta</th>
+                <th>Unidad</th>
+                <th class="num">Costo/u (COP)</th>
+                <th class="num">Comprar (u)</th>
+                <th class="num">In</th>
+              </tr>
+            </thead>
+            <tbody id="rows"></tbody>
+          </table>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <!-- LOADING -->
+  <div class="loadingBack" id="loadingBack" hidden>
+    <div class="loading">
+      <div class="spinner"></div>
+      <div>
+        <div id="loadingTitle" class="loadingTitle">Cargando…</div>
+        <div id="loadingSub" class="muted small">—</div>
+      </div>
+    </div>
+  </div>
+
+  <script src="purchases.js?v=20260218199999"></script>
 </body>
 </html>
