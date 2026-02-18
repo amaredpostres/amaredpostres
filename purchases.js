@@ -94,23 +94,40 @@ function findCostRow(key){
 // ---------- Core flow ----------
 async function loadAll(){
   if(!UNLOCKED_SECRET) throw new Error("Primero desbloquea Purchases con tu clave.");
-  showLoading("Calculando…","Leyendo pedidos/recetas e inventario…");
+  showLoading("Calculando…","Leyendo PEDIDOS + RECETAS + INVENTARIO…");
   try{
-    // catálogo costos (para unidad y costo/u)
-    const c = await api({ action:"costs_list", costs_secret: UNLOCKED_SECRET });
-    COSTS = Array.isArray(c.items) ? c.items : [];
+    // Snapshot unificado (backend hace el merge)
+    const snap = await api({ action:"purchases_snapshot", costs_secret: UNLOCKED_SECRET }, 25000);
 
-    // necesidades (últimas 36h · pagado + no iniciar)
-    const n = await api({ action:"costs_orders_for_purchases", costs_secret: UNLOCKED_SECRET });
-    NEEDS = (n.needs && typeof n.needs === "object") ? n.needs : {};
-    const meta = n.meta || {};
+    const meta = snap.meta || {};
     setMeta(`Pedidos usados: ${meta.orders_used ?? "?"}/${meta.orders_total ?? "?"} · Ventana: ${meta.window_hours ?? 36}h`);
 
-    // inventario actual
-    const inv = await api({ action:"inventory_get", costs_secret: UNLOCKED_SECRET });
-    INVENTORY = (inv.inventory && typeof inv.inventory === "object") ? inv.inventory : {};
+    // construir filas UI desde snap.rows
+    const rows = Array.isArray(snap.rows) ? snap.rows : [];
+    UI_ROWS = rows.map(r=>{
+      const needed = num(r.needed);
+      const invQty = num(r.inventory);
+      const missing = Math.max(0, num(r.missing));
+      const unit = String(r.unit || "unidad").trim() || "unidad";
+      const cop = num(r.cop_per_unit || 0);
+      return {
+        ingredient_key: String(r.ingredient_key || ""),
+        needed, invQty, missing,
+        unit,
+        cop_per_unit: cop,
+        buyQty: missing > 0 ? missing : 0,
+        include: missing > 0
+      };
+    });
 
-    buildRows();
+    // orden (faltantes primero)
+    UI_ROWS.sort((a,b)=>{
+      const af = a.missing>0 ? 0 : 1;
+      const bf = b.missing>0 ? 0 : 1;
+      if(af!==bf) return af-bf;
+      return a.ingredient_key.localeCompare(b.ingredient_key, "es");
+    });
+
     render();
   } finally {
     hideLoading();
@@ -213,13 +230,36 @@ async function registerPurchases(){
     return;
   }
 
-  showLoading("Registrando compras…", "Sumando cantidades al inventario…");
+  showLoading("Registrando compras…", "Actualizando inventario…");
   try{
-    await api({ action:"inventory_add_purchase_batch", costs_secret: UNLOCKED_SECRET, items });
-    // refrescar inventario y recalcular
-    const inv = await api({ action:"inventory_get", costs_secret: UNLOCKED_SECRET });
-    INVENTORY = (inv.inventory && typeof inv.inventory === "object") ? inv.inventory : {};
-    buildRows();
+    const snap = await api({ action:"purchases_register_batch", costs_secret: UNLOCKED_SECRET, items }, 25000);
+    const meta = snap.meta || {};
+    setMeta(`Pedidos usados: ${meta.orders_used ?? "?"}/${meta.orders_total ?? "?"} · Ventana: ${meta.window_hours ?? 36}h`);
+
+    const rows = Array.isArray(snap.rows) ? snap.rows : [];
+    UI_ROWS = rows.map(r=>{
+      const needed = num(r.needed);
+      const invQty = num(r.inventory);
+      const missing = Math.max(0, num(r.missing));
+      const unit = String(r.unit || "unidad").trim() || "unidad";
+      const cop = num(r.cop_per_unit || 0);
+      return {
+        ingredient_key: String(r.ingredient_key || ""),
+        needed, invQty, missing,
+        unit,
+        cop_per_unit: cop,
+        buyQty: missing > 0 ? missing : 0,
+        include: missing > 0
+      };
+    });
+
+    UI_ROWS.sort((a,b)=>{
+      const af = a.missing>0 ? 0 : 1;
+      const bf = b.missing>0 ? 0 : 1;
+      if(af!==bf) return af-bf;
+      return a.ingredient_key.localeCompare(b.ingredient_key, "es");
+    });
+
     render();
     alert("Listo: compras registradas en INVENTARIO.");
   } catch(e){
@@ -228,6 +268,9 @@ async function registerPurchases(){
     hideLoading();
   }
 }
+
+
+// ---------- Unlock modal ----------
 
 // ---------- Unlock modal ----------
 function openUnlock(){
@@ -248,7 +291,7 @@ async function doUnlock(){
   // Validación ligera: intentar una llamada que requiera secret
   showLoading("Validando…","Comprobando acceso…");
   try{
-    await api({ action:"costs_list", costs_secret: s });
+    await api({ action:"purchases_snapshot", costs_secret: s }, 25000);
     UNLOCKED_SECRET = s;
     saveSecretToLS(s);
     closeUnlock();
