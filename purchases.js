@@ -1,5 +1,5 @@
-const PURCHASES_VERSION = "20260218172820";
-console.log("Purchases JS v", PURCHASES_VERSION);
+const PURCHASES_VERSION = "20260218173238";
+console.log("Purchases JS v", PURCHASES_VERSION, "(usedorders-fix)");
 
 // AMARED · Purchases (Compras + Inventario)
 // Requiere Cloudflare Worker (API_URL) con acciones:
@@ -73,7 +73,6 @@ function showLoading(title, sub){
   setOverlayState({ modalOpen:false, loadingOpen:true });
 }
 function hideLoading(){ setOverlayState({ modalOpen:false, loadingOpen:false }); }
-function hideLoading(){ document.getElementById("loadingBack").hidden = true; }
 
 function setMeta(text){
   document.getElementById("metaText").textContent = text || "";
@@ -284,8 +283,7 @@ async function doUnlock(){
     closeUnlock();
 
     await loadAll();
-    setMeta(`Desbloqueado. Pedidos usados: ${USED_ORDERS}/${TOTAL_ORDERS} · Ventana: ${WINDOW_HOURS}h`);
-  } catch(e){
+} catch(e){
     hideLoading();
     // mantener modal abierto y mostrar error
     setOverlayState({ modalOpen:true, loadingOpen:false });
