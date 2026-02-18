@@ -1,5 +1,5 @@
-const PURCHASES_VERSION = "20260218173238";
-console.log("Purchases JS v", PURCHASES_VERSION, "(usedorders-fix)");
+const PURCHASES_VERSION = "20260218174418";
+console.log("Purchases JS v", PURCHASES_VERSION, "(unlockstatus)");
 
 // AMARED · Purchases (Compras + Inventario)
 // Requiere Cloudflare Worker (API_URL) con acciones:
@@ -259,41 +259,58 @@ function closeUnlock(){
 
 async function doUnlock(){
   const btn = document.getElementById("btnDoUnlock");
+  const topBtn = document.getElementById("btnUnlock");
   const msg = document.getElementById("unlockMsg");
-  const s = String(document.getElementById("secretInput").value || "").trim();
+  const input = document.getElementById("secretInput");
 
+  const s = String(input.value || "").trim();
   if(!s){
     msg.textContent = "Ingresa el PIN.";
     return;
   }
 
-  // evitar doble clic
   btn.disabled = true;
-
-  showLoading("Validando…", "Comprobando PIN…");
+  msg.textContent = "Validando…";
+  console.log("[unlock] start");
 
   try{
     const r = await api({ action:"validate_admin_pin", admin_pin: s }, 12000);
+    console.log("[unlock] validate_admin_pin =>", r);
+
     if(!r || r.valid !== true) throw new Error("PIN inválido.");
 
     UNLOCKED_PIN = s;
     savePinToLS(s);
 
-    // cerrar modal inmediatamente para dar feedback de desbloqueo
-    closeUnlock();
-
+    // Intentar cargar datos (ya con permisos). Esto también confirma que el Apps Script está OK.
     await loadAll();
-} catch(e){
+
+    // Éxito: cerrar modal y reflejar estado
+    closeUnlock();
+    msg.textContent = "";
+    if(topBtn) topBtn.textContent = "Desbloqueado";
+    console.log("[unlock] success");
+  } catch(e){
+    console.error("[unlock] error", e);
+
+    // Asegurar que no quede overlay bloqueando
     hideLoading();
-    // mantener modal abierto y mostrar error
+
+    // Reabrir modal y mostrar error legible
     setOverlayState({ modalOpen:true, loadingOpen:false });
-    msg.textContent = (e && e.message) ? e.message : "PIN inválido.";
+
+    const errText =
+      (e && typeof e.message === "string" && e.message.trim()) ? e.message :
+      (e && typeof e.error === "string" && e.error.trim()) ? e.error :
+      (typeof e === "string" ? e : String(e));
+
+    msg.textContent = errText || "Error al desbloquear.";
+    if(topBtn) topBtn.textContent = "Desbloquear";
   } finally {
     btn.disabled = false;
-    // restaurar estado de overlay (si loadAll dejó loading)
-    if(document.getElementById("loadingBack")) document.getElementById("loadingBack").hidden = true;
   }
 }
+
 
 // ---------- Bootstrap ----------
 
