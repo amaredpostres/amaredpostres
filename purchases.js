@@ -34,6 +34,10 @@
 
   // ---- State ----
   const state = {
+    // Clave de costos, ingresada por el usuario. Este valor se envía como
+    // costs_secret en las llamadas al backend.
+    costsSecret: "",
+    // PIN admin se mantiene por compatibilidad, pero no se usa en Compras.
     pin: "",
     needs: {},        // ingredient_key -> qty needed (from backend)
     inventory: {},    // ingredient_key -> {qty, unit}
@@ -64,16 +68,9 @@
     return out;
   }
 
+  // Validación de PIN no es necesaria para Compras. Retornamos true siempre.
   async function validatePin(pin){
-    // Si el Worker no tiene validate_admin_pin, lo consideramos ok para no bloquear.
-    try{
-      const out = await api({action:"validate_admin_pin", admin_pin: pin});
-      return out.ok === true;
-    }catch(e){
-      const msg = String(e?.message||e);
-      if(msg.toLowerCase().includes("unknown action")) return true;
-      throw new Error("PIN inválido o no autorizado.");
-    }
+    return true;
   }
 
   function showEditor(){
@@ -261,15 +258,16 @@
 
           await api({
             action:"inventory_add_purchase_batch",
-            admin_pin: state.pin,
+            // Enviamos costs_secret para registrar compras
+            costs_secret: state.costsSecret,
             items,
             updated_by: "PURCHASES_UI",
             source: "PURCHASES_UI"
           });
 
           if(msg) msg.textContent = "✅ Compra registrada. Actualizando inventario…";
-          // recargar inventario y re-render
-          const inv = await api({action:"inventory_get", admin_pin: state.pin});
+          // recargar inventario y re-render usando costs_secret
+          const inv = await api({action:"inventory_get", costs_secret: state.costsSecret});
           state.inventory = inv.inventory || {};
           render();
           if(msg) msg.textContent = "✅ Listo. Inventario actualizado.";
@@ -285,15 +283,16 @@
   }
 
   async function refreshFromBackend(){
-    if(!state.pin) throw new Error("Primero desbloquea con el PIN.");
+    if(!state.costsSecret) throw new Error("Primero desbloquea con la clave de costos.");
 
     setErr("");
     if(netDebug) netDebug.style.display="none";
 
+    // Usamos costs_secret en lugar de admin_pin para todos los endpoints relevantes
     const [needsOut, invOut, costsOut] = await Promise.all([
-      api({action:"costs_orders_for_purchases", admin_pin: state.pin}),
-      api({action:"inventory_get", admin_pin: state.pin}),
-      api({action:"costs_list", admin_pin: state.pin}),
+      api({action:"costs_orders_for_purchases", costs_secret: state.costsSecret}),
+      api({action:"inventory_get", costs_secret: state.costsSecret}),
+      api({action:"costs_list", costs_secret: state.costsSecret}),
     ]);
 
     state.needs = needsOut.needs || {};
@@ -334,10 +333,11 @@
 
   async function onUnlock(){
     try{
-      const pin = String(secretInp?.value||"").trim();
-      if(!pin) throw new Error("Ingresa la clave.");
-      await validatePin(pin);
-      state.pin = pin;
+      const secret = String(secretInp?.value||"").trim();
+      if(!secret) throw new Error("Ingresa la clave.");
+      // Guardamos la clave de costos y limpiamos cualquier PIN previo
+      state.costsSecret = secret;
+      state.pin = "";
       setErr("");
       showEditor();
       await refreshFromBackend();
