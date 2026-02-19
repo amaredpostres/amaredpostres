@@ -3,56 +3,62 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>AMARED · Purchases</title>
+  <title>AMARED – Purchases</title>
   <link rel="stylesheet" href="purchases.css" />
+  <style>
+    /* --- Login pantalla completa --- */
+    #appRoot{display:none;}
+    #unlockBack{
+      position:fixed; inset:0; z-index:1000;
+      display:flex; align-items:center; justify-content:center;
+      background: radial-gradient(1200px 600px at 30% 20%, rgba(37,99,235,.25), transparent 55%),
+                  radial-gradient(900px 500px at 20% 80%, rgba(16,185,129,.18), transparent 55%),
+                  #0b1020;
+      padding:24px;
+    }
+    #unlockModal{width:min(920px, 100%);}
+
+    /* --- Pantalla de carga --- */
+    #loadingBack{
+      position:fixed; inset:0; z-index:1100;
+      display:none; align-items:center; justify-content:center;
+      background: rgba(0,0,0,.55);
+      backdrop-filter: blur(6px);
+      padding:24px;
+    }
+    #loadingModal{width:min(720px, 100%);}
+
+    /* respeta hidden aunque haya estilos en purchases.css */
+    [hidden]{display:none !important;}
+
+    .spinner{width:18px;height:18px;border-radius:50%;border:2px solid rgba(255,255,255,.25);border-top-color:rgba(255,255,255,.9);animation:spin 1s linear infinite;}
+     spin{to{transform:rotate(360deg);}}
+  </style>
 </head>
 <body>
 
-  <!-- LOGIN (pantalla completa) -->
-  <div id="unlockBack" class="modalBack">
-    <div class="modal" style="max-width: 760px; width: min(92vw, 760px);">
-      <div class="modalTitle">Desbloquear Purchases</div>
-      <div class="muted small">Ingresa tu <b>COSTS_SECRET</b> (la misma clave que usas en Costs). La clave se valida en el servidor.</div>
-      <div class="modalBody" style="margin-top: 12px;">
-        <input id="secretInput" class="inp" placeholder="COSTS_SECRET" autocomplete="current-password" />
-        <div class="row" style="margin-top: 12px; justify-content: flex-end; gap: 10px;">
-          <button id="btnClear" class="btn ghost" type="button">Limpiar</button>
-          <button id="btnUnlockOk" class="btn" type="button">Entrar</button>
-        </div>
-        <div id="unlockMsg" class="muted small" style="margin-top: 10px;"></div>
-      </div>
-    </div>
-  </div>
-
-  <!-- APP (se muestra SOLO después de validar y cargar todo) -->
-  <div id="app" hidden>
+  <!-- APP (se muestra solo después de desbloquear) -->
+  <div id="appRoot">
     <header class="topbar">
-      <div class="topbarInner">
-        <div class="brand">
-          <div class="brandTitle">AMARED</div>
-          <div class="brandSub">Purchases · Compras &amp; Inventario</div>
-        </div>
-        <div class="topbarActions">
-          <button class="btn ghost" id="btnLogout">Salir</button>
-          <button class="btn" id="btnReload" disabled>Recargar cálculo</button>
-          <button class="btn" id="btnRegister" disabled>Registrar compras</button>
-        </div>
-      </div>
+      <div class="brand">AMARED</div>
+      <div class="subtitle">Purchases - Compras & Inventario</div>
+      <div class="spacer"></div>
+      <button id="btnExit" class="btn">Salir</button>
+      <button id="btnUnlockTop" class="btn">Desbloquear</button>
+      <button id="btnReload" class="btn primary">Recargar cálculo</button>
+      <button id="btnRegister" class="btn primary">Registrar compras</button>
     </header>
 
-    <main class="wrap">
+    <main class="container">
       <section class="card">
-        <div class="cardTitle">Estado (últimas 36h · pagado + no iniciar)</div>
-        <div class="metaRow">
-          <div id="metaText" class="muted">Cargando…</div>
-        </div>
+        <div class="metaTitle">Estado (últimas 36h - pagado + no iniciar)</div>
+        <div id="meta" class="meta">Desbloquea con tu clave de Costos para iniciar.</div>
       </section>
 
       <section class="card">
-        <div class="cardTitle">Ingredientes</div>
-        <div class="muted small" style="margin-bottom: 10px;">
-          <b>"Comprar (u)"</b> suma directo al INVENTARIO. Si compras en empaques, escribe el total en unidades base (g/ml/unidad).
-        </div>
+        <div class="sectionTitle">Ingredientes</div>
+        <div class="hint">"Comprar (u)" suma directo al INVENTARIO. Si compras en empaques, escribe el total en unidades base (g/ml/unidad).</div>
+
         <div class="tableWrap">
           <table class="tbl">
             <thead>
@@ -64,7 +70,7 @@
                 <th>Unidad</th>
                 <th class="num">Costo/u (COP)</th>
                 <th class="num">Comprar (u)</th>
-                <th>Incluir</th>
+                <th class="num">In</th>
               </tr>
             </thead>
             <tbody id="rows"></tbody>
@@ -72,16 +78,34 @@
         </div>
       </section>
     </main>
-
   </div>
 
-  <!-- LOADING GLOBAL (sirve para Validando y para Cargando datos) -->
-  <div id="loadingBack" class="loadingBack" hidden>
-    <div class="loadingCard">
-      <div class="spinner"></div>
-      <div>
-        <div id="loadingTitle" class="loadingTitle">Cargando…</div>
-        <div id="loadingSub" class="muted small">Un momento.</div>
+  <!-- LOGIN (pantalla completa) -->
+  <div id="unlockBack">
+    <div id="unlockModal" class="modal">
+      <div class="modalTitle">Desbloquear Purchases</div>
+      <div class="modalSub">Ingresa tu <b>COSTS_SECRET</b> (la misma clave que usas en Costs). La clave se valida en el server.</div>
+
+      <div class="row">
+        <input id="secretInput" class="inp" type="password" placeholder="COSTS_SECRET" autocomplete="current-password" />
+        <button id="btnDoUnlock" class="btn primary">Entrar</button>
+        <button id="btnClear" class="btn">Limpiar</button>
+      </div>
+
+      <div id="unlockMsg" class="modalMsg"></div>
+      <div class="modalHint">Tip: si ya iniciaste antes en este navegador, se intentará validar automáticamente.</div>
+    </div>
+  </div>
+
+  <!-- LOADING overlay -->
+  <div id="loadingBack">
+    <div id="loadingModal" class="modal">
+      <div class="row" style="gap:12px; align-items:center;">
+        <div class="spinner"></div>
+        <div>
+          <div id="loadingTitle" class="modalTitle" style="margin:0">Validando…</div>
+          <div id="loadingSub" class="modalSub" style="margin:0">Un momento.</div>
+        </div>
       </div>
     </div>
   </div>
