@@ -1,258 +1,320 @@
-// AMARED · Purchases (Compras + Inventario)
-// Requiere Cloudflare Worker (API_URL) con acciones:
-// - costs_list (para catálogo de unidades/costos)
-// - costs_orders_for_purchases (necesidades desde PEDIDOS + RECETAS)
-// - inventory_get (mapa actual)
-// - inventory_add_purchase_batch (sumar compras al inventario)
-
-const API_URL = "https://amared-orders.amaredpostres.workers.dev/";
-const LS_SECRET_KEY = "amared_costs_secret_v1";
+/* Purchases - Compras & Inventario (AMARED) */
+const WORKER_URL = "https://amared-orders.amaredpostres.workers.dev/";
+const STORAGE_KEY = "AMARED_PURCHASES_COSTS_SECRET";
+const WINDOW_HOURS = 36;
 
 let UNLOCKED_SECRET = "";
-let COSTS = [];          // filas de COSTOS_INGREDIENTES
-let NEEDS = {};          // {ingredient_key: qty}
-let INVENTORY = {};      // {ingredient_key: {qty, unit}}
-let UI_ROWS = [];        // render state
+let NEEDS = {};      // ingrediente -> necesario (u base)
+let INV = {};        // ingrediente -> inventario (u base)
+let UNIT = {};       // ingrediente -> unidad (g/ml/unidad)
+let COST_U = {};     // ingrediente -> costo por unidad base (COP)
+let USED_ORDERS = 0; // pedidos usados en cálculo
+let LOCK_EXPIRES_AT = 0;
 
-// ---------- Helpers ----------
-async function api(payload){
-  const res = await fetch(API_URL, {
-    method:"POST",
-    headers:{ "Content-Type":"application/json" },
-    body: JSON.stringify(payload)
+const $ = (id) => document.getElementById(id);
+
+const appWrap = $("appWrap");
+const meta = $("meta");
+const rows = $("rows");
+
+const btnUnlock = $("btnUnlock");           // en header (logout)
+const btnReload = $("btnReload");
+const btnRegister = $("btnRegister");
+
+const unlockBack = $("unlockBack");         // login modal
+const secretInput = $("secretInput");
+const btnCancelUnlock = $("btnCancelUnlock");
+const btnDoUnlock = $("btnDoUnlock");
+const unlockMsg = $("unlockMsg");
+
+const loadingBack = $("loadingBack");
+const loadingTitle = $("loadingTitle");
+const loadingMsg = $("loadingMsg");
+
+function setLoading(on, title = "Cargando…", msg = "Procesando…") {
+  loadingBack.hidden = !on;
+  if (!on) return;
+  loadingTitle.textContent = title;
+  loadingMsg.textContent = msg;
+}
+
+function setMeta(text) {
+  meta.textContent = text || "—";
+}
+
+function setUnlockMsg(text) {
+  unlockMsg.textContent = text || "";
+}
+
+function fmtInt(n) {
+  const x = Number(n || 0);
+  return x.toLocaleString("es-CO");
+}
+
+function showLogin() {
+  appWrap.hidden = true;
+  unlockBack.hidden = false;
+  setMeta("Desbloquea con tu clave de Costos para iniciar.");
+}
+
+function showApp() {
+  unlockBack.hidden = true;
+  appWrap.hidden = false;
+  btnUnlock.textContent = "Salir";
+}
+
+async function api(body) {
+  // Adjunta secret automáticamente si ya está desbloqueado (y no lo mandan explícito)
+  const payload = { ...(body || {}) };
+  if (UNLOCKED_SECRET && payload.costs_secret == null) payload.costs_secret = UNLOCKED_SECRET;
+
+  const res = await fetch(WORKER_URL, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
   });
-  const out = await res.json().catch(async()=>({ok:false,error:await res.text().catch(()=> "Error")}));
-  if(!out.ok) throw new Error(out.error || "Error");
-  return out;
-}
-function num(x){ const n = Number(x); return isFinite(n) ? n : 0; }
-function fmt(n){ 
-  const v = num(n);
-  return (Math.round((v + Number.EPSILON)*1000)/1000).toString();
-}
-function fmtCOP(n){
-  const v = Math.round(num(n));
-  return v.toString().replace(/\B(?=(\d{3})+(?!\d))/g,".");
-}
-function esc(s){
-  return String(s||"").replace(/[&<>\"']/g, c=>({ "&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;" }[c]));
+
+  const txt = await res.text();
+  let data = null;
+  try { data = JSON.parse(txt); } catch (_) {}
+
+  if (!res.ok) {
+    const msg = (data && (data.error || data.message)) || txt.slice(0, 180) || `HTTP ${res.status}`;
+    throw new Error(msg);
+  }
+  if (data && data.ok === false) {
+    throw new Error(data.error || "Error desconocido");
+  }
+  return data ?? { ok: true, raw: txt };
 }
 
-function showLoading(title, sub){
-  document.getElementById("loadingTitle").textContent = title || "Cargando…";
-  document.getElementById("loadingSub").textContent = sub || "";
-  document.getElementById("loadingBack").hidden = false;
-}
-function hideLoading(){ document.getElementById("loadingBack").hidden = true; }
-
-function setMeta(text){
-  document.getElementById("metaText").textContent = text || "";
+async function validateSecret(secret) {
+  // Validamos usando una llamada real protegida (igual que Costos).
+  // Si la clave es incorrecta, el Worker debe responder 401/ok:false.
+  await api({ action: "costs_list", costs_secret: secret });
+  return true;
 }
 
-function loadSecretFromLS(){
-  try{ return localStorage.getItem(LS_SECRET_KEY) || ""; }catch(_e){ return ""; }
-}
-function saveSecretToLS(v){
-  try{
-    if(v) localStorage.setItem(LS_SECRET_KEY, v);
-    else localStorage.removeItem(LS_SECRET_KEY);
-  }catch(_e){}
-}
-
-function findCostRow(key){
-  key = String(key||"").trim();
-  if(!key) return null;
-  return COSTS.find(r => String(r.ingredient_key||"").trim() === key) || null;
+function clearData() {
+  NEEDS = {};
+  INV = {};
+  UNIT = {};
+  COST_U = {};
+  USED_ORDERS = 0;
+  LOCK_EXPIRES_AT = 0;
+  rows.innerHTML = "";
 }
 
-// ---------- Core flow ----------
-async function loadAll(){
-  if(!UNLOCKED_SECRET) throw new Error("Primero desbloquea Purchases con tu clave.");
-  showLoading("Cargando…","Leyendo inventario y costos…");
-  try{
-    // 1) catálogo costos (unidad y costo/u)
-    const c = await api({ action:"costs_list", costs_secret: UNLOCKED_SECRET });
-    COSTS = Array.isArray(c.items) ? c.items : [];
+function buildRows() {
+  const keys = Array.from(new Set([...Object.keys(NEEDS), ...Object.keys(INV), ...Object.keys(COST_U)])).sort((a, b) => a.localeCompare(b, "es"));
+  return keys.map((k) => {
+    const need = Number(NEEDS[k] || 0);
+    const inv = Number(INV[k] || 0);
+    const falt = Math.max(0, need - inv);
+    const unit = UNIT[k] || "u";
+    const costu = Number(COST_U[k] || 0);
+    return { k, need, inv, falt, unit, costu };
+  });
+}
 
-    // 2) inventario actual
-    const inv = await api({ action:"inventory_get", costs_secret: UNLOCKED_SECRET });
-    INVENTORY = (inv.inventory && typeof inv.inventory === "object") ? inv.inventory : {};
+function render() {
+  const list = buildRows();
+  rows.innerHTML = "";
 
-    // 3) necesidades (puede fallar sin bloquear el acceso)
-    try{
-      const n = await api({ action:"costs_orders_for_purchases", costs_secret: UNLOCKED_SECRET });
-      NEEDS = (n.needs && typeof n.needs === "object") ? n.needs : {};
-      const meta = n.meta || {};
-      setMeta(`Pedidos usados: ${meta.orders_used ?? "?"}/${meta.orders_total ?? "?"} · Ventana: ${meta.window_hours ?? 36}h`);
-    }catch(e){
-      NEEDS = {};
-      setMeta(`Inventario y costos cargados. Error en necesidades: ${e.message || e}`);
-      console.error("[Purchases] needs calc error:", e);
-    }
+  for (const it of list) {
+    const tr = document.createElement("tr");
 
-    buildRows();
-    render();
-  } finally {
-    hideLoading();
+    const tdName = document.createElement("td");
+    tdName.textContent = it.k;
+    tr.appendChild(tdName);
+
+    const tdNeed = document.createElement("td");
+    tdNeed.className = "num";
+    tdNeed.textContent = fmtInt(it.need);
+    tr.appendChild(tdNeed);
+
+    const tdInv = document.createElement("td");
+    tdInv.className = "num";
+    tdInv.textContent = fmtInt(it.inv);
+    tr.appendChild(tdInv);
+
+    const tdF = document.createElement("td");
+    tdF.className = "num";
+    tdF.textContent = fmtInt(it.falt);
+    tr.appendChild(tdF);
+
+    const tdU = document.createElement("td");
+    tdU.textContent = it.unit;
+    tr.appendChild(tdU);
+
+    const tdC = document.createElement("td");
+    tdC.className = "num";
+    tdC.textContent = it.costu ? fmtInt(Math.round(it.costu)) : "—";
+    tr.appendChild(tdC);
+
+    const tdBuy = document.createElement("td");
+    tdBuy.className = "num";
+    const inp = document.createElement("input");
+    inp.className = "inp small num";
+    inp.inputMode = "numeric";
+    inp.placeholder = "0";
+    inp.dataset.ing = it.k;
+    tdBuy.appendChild(inp);
+    tr.appendChild(tdBuy);
+
+    const tdIn = document.createElement("td");
+    tdIn.className = "num";
+    tdIn.textContent = "0";
+    tr.appendChild(tdIn);
+
+    rows.appendChild(tr);
   }
 }
-(){
-  const keys = new Set();
-  Object.keys(NEEDS||{}).forEach(k=>keys.add(k));
-  Object.keys(INVENTORY||{}).forEach(k=>keys.add(k));
-  COSTS.forEach(r=>{ if(r && r.ingredient_key) keys.add(String(r.ingredient_key)); });
 
-  const arr = Array.from(keys).map(k=>{
-    const cost = findCostRow(k) || {};
-    const needed = num(NEEDS[k] ?? 0);
-    const invQty = num((INVENTORY[k] && INVENTORY[k].qty) ?? 0);
-    const missing = Math.max(0, needed - invQty);
-    const unit = String((INVENTORY[k] && INVENTORY[k].unit) || cost.unit_type || "unidad").trim() || "unidad";
-    const cop = num(cost.cop_per_unit || 0);
-    return {
-      ingredient_key: String(k),
-      needed, invQty, missing,
-      unit,
-      cop_per_unit: cop,
-      buyQty: missing > 0 ? missing : 0,
-      include: missing > 0
-    };
-  });
+async function loadAll() {
+  if (!UNLOCKED_SECRET) return;
 
-  // orden: primero faltantes, luego alfabético
-  arr.sort((a,b)=>{
-    const af = a.missing>0 ? 0 : 1;
-    const bf = b.missing>0 ? 0 : 1;
-    if(af!==bf) return af-bf;
-    return a.ingredient_key.localeCompare(b.ingredient_key, "es");
-  });
+  setLoading(true, "Cargando…", "Leyendo inventario, costos y necesidades…");
+  try {
+    const [invRes, costsRes, needsRes] = await Promise.all([
+      api({ action: "inventory_get" }),
+      api({ action: "costs_list" }),
+      api({ action: "costs_orders_for_purchases", window_hours: WINDOW_HOURS }),
+    ]);
 
-  UI_ROWS = arr;
+    // inventory_get
+    INV = (invRes && invRes.inventory) || {};
+    UNIT = (invRes && invRes.unit) || UNIT;
+
+    // costs_list
+    COST_U = (costsRes && costsRes.cost_u) || (costsRes && costsRes.costs_u) || {};
+    UNIT = (costsRes && costsRes.unit) || UNIT;
+
+    // needs from orders
+    NEEDS = (needsRes && (needsRes.needs || needsRes.need || needsRes.needed)) || {};
+    USED_ORDERS = Number(needsRes && (needsRes.used_orders || needsRes.used || needsRes.count)) || 0;
+    LOCK_EXPIRES_AT = Number(needsRes && needsRes.lock_expires_at) || 0;
+
+    render();
+    const usedTxt = `Pedidos usados: ${USED_ORDERS}/0 · Ventana: ${WINDOW_HOURS}h`;
+    setMeta(`Desbloqueado. ${usedTxt}`);
+  } catch (err) {
+    console.error("[Purchases] loadAll error", err);
+    setMeta(`Error cargando datos: ${err.message || err}`);
+  } finally {
+    setLoading(false);
+  }
 }
 
-function render(){
-  const tb = document.getElementById("rows");
-  if(!tb) return;
+async function registerPurchases() {
+  if (!UNLOCKED_SECRET) return;
 
-  tb.innerHTML = UI_ROWS.map((r, idx)=>{
-    const missClass = r.missing>0 ? "style='color:#fbbf24;font-weight:700'" : "style='color:#9ca3af'";
-    return `
-      <tr data-i="${idx}">
-        <td>${esc(r.ingredient_key)}</td>
-        <td class="num">${fmt(r.needed)}</td>
-        <td class="num">${fmt(r.invQty)}</td>
-        <td class="num" ${missClass}>${fmt(r.missing)}</td>
-        <td>${esc(r.unit)}</td>
-        <td class="num">${r.cop_per_unit>0 ? fmtCOP(r.cop_per_unit) : "—"}</td>
-        <td class="num"><input class="inpNum" inputmode="decimal" value="${fmt(r.buyQty)}" /></td>
-        <td class="num"><input class="chk" type="checkbox" ${r.include ? "checked":""} /></td>
-      </tr>
-    `;
-  }).join("");
+  const inputs = rows.querySelectorAll("input[data-ing]");
+  const buys = [];
+  for (const inp of inputs) {
+    const ing = inp.dataset.ing;
+    const val = Number(String(inp.value || "").replace(",", "."));
+    if (!val || val <= 0) continue;
+    buys.push({ ing, qty: val });
+  }
 
-  // bind
-  tb.querySelectorAll("tr").forEach(tr=>{
-    const idx = Number(tr.getAttribute("data-i"));
-    const inp = tr.querySelector("input.inpNum");
-    const chk = tr.querySelector("input.chk");
-    if(inp){
-      inp.addEventListener("input", ()=>{
-        const v = num(inp.value);
-        UI_ROWS[idx].buyQty = v;
-        if(v>0) UI_ROWS[idx].include = true;
-      });
-    }
-    if(chk){
-      chk.addEventListener("change", ()=>{
-        UI_ROWS[idx].include = chk.checked;
-      });
-    }
-  });
-
-  document.getElementById("btnReload").disabled = !UNLOCKED_SECRET;
-  document.getElementById("btnRegister").disabled = !UNLOCKED_SECRET;
-}
-
-// ---------- Register purchases ----------
-async function registerPurchases(){
-  if(!UNLOCKED_SECRET) return;
-
-  const items = UI_ROWS
-    .filter(r => r.include && num(r.buyQty) > 0)
-    .map(r => ({
-      ingredient_key: r.ingredient_key,
-      qty: num(r.buyQty),
-      unit: r.unit,
-      cop_per_unit: num(r.cop_per_unit || 0),
-      source: "PURCHASES_UI"
-    }));
-
-  if(items.length === 0){
-    alert("No hay compras para registrar.");
+  if (!buys.length) {
+    alert("No hay cantidades para registrar.");
     return;
   }
 
-  showLoading("Registrando compras…", "Sumando cantidades al inventario…");
-  try{
-    await api({ action:"inventory_add_purchase_batch", costs_secret: UNLOCKED_SECRET, items });
-    // refrescar inventario y recalcular
-    const inv = await api({ action:"inventory_get", costs_secret: UNLOCKED_SECRET });
-    INVENTORY = (inv.inventory && typeof inv.inventory === "object") ? inv.inventory : {};
-    buildRows();
-    render();
-    alert("Listo: compras registradas en INVENTARIO.");
-  } catch(e){
-    alert(e.message || "No se pudo registrar");
-  } finally {
-    hideLoading();
-  }
-}
-
-// ---------- Unlock modal ----------
-function openUnlock(){
-  document.getElementById("unlockMsg").textContent = "";
-  document.getElementById("secretInput").value = UNLOCKED_SECRET || loadSecretFromLS() || "";
-  document.getElementById("unlockBack").hidden = false;
-}
-function closeUnlock(){
-  document.getElementById("unlockBack").hidden = true;
-}
-
-async function doUnlock(){
-  const s = String(document.getElementById("secretInput").value || "").trim();
-  if(!s){
-    document.getElementById("unlockMsg").textContent = "Ingresa la clave.";
-    return;
-  }
-  // Validación ligera: intentar una llamada que requiera secret
-  showLoading("Validando…","Comprobando acceso…");
-  try{
-    await api({ action:"costs_list", costs_secret: s });
-    UNLOCKED_SECRET = s;
-    saveSecretToLS(s);
-    const main = document.getElementById("appMain");
-    if(main) main.hidden = false;
-    closeUnlock();
+  setLoading(true, "Registrando…", "Actualizando inventario en la base de datos…");
+  try {
+    await api({ action: "inventory_add_purchase_batch", purchases: buys });
+    // Limpia inputs
+    for (const inp of inputs) inp.value = "";
     await loadAll();
-  } catch(e){
-    document.getElementById("unlockMsg").textContent = "Clave inválida o sin permisos.";
+    alert("Compras registradas ✅");
+  } catch (err) {
+    console.error("[Purchases] registerPurchases error", err);
+    alert(`Error registrando compras: ${err.message || err}`);
   } finally {
-    hideLoading();
+    setLoading(false);
   }
 }
 
-// ---------- Bootstrap ----------
-document.addEventListener("DOMContentLoaded", ()=>{
-  document.getElementById("btnUnlock").addEventListener("click", openUnlock);
-  document.getElementById("btnCancelUnlock").addEventListener("click", closeUnlock);
-  document.getElementById("btnDoUnlock").addEventListener("click", doUnlock);
-  document.getElementById("btnReload").addEventListener("click", ()=>loadAll().catch(e=>alert(e.message||"Error")));
-  document.getElementById("btnRegister").addEventListener("click", registerPurchases);
-
-  // autoload si ya hay clave guardada
-  const saved = loadSecretFromLS();
-  if(saved){
-    UNLOCKED_SECRET = saved;
-    loadAll().catch(()=>{ setMeta("Clave guardada inválida o expirada. Presiona “Desbloquear”."); UNLOCKED_SECRET=""; });
+async function doUnlock(opts = {}) {
+  const secret = (opts.secretOverride ?? secretInput.value ?? "").trim();
+  if (!secret) {
+    setUnlockMsg("Ingresa tu clave.");
+    return;
   }
-});
+
+  btnDoUnlock.disabled = true;
+  setUnlockMsg("Validando clave…");
+
+  try {
+    await validateSecret(secret);
+
+    UNLOCKED_SECRET = secret;
+    localStorage.setItem(STORAGE_KEY, secret);
+
+    setUnlockMsg("");
+    showApp();
+
+    // Carga sin “volver a bloquear” si algo falla aquí
+    await loadAll();
+  } catch (err) {
+    console.error("[Purchases] unlock error", err);
+    UNLOCKED_SECRET = "";
+    localStorage.removeItem(STORAGE_KEY);
+    clearData();
+    showLogin();
+
+    setUnlockMsg(err.message || "Clave inválida.");
+    secretInput.focus();
+    secretInput.select();
+  } finally {
+    btnDoUnlock.disabled = false;
+  }
+}
+
+function logout() {
+  UNLOCKED_SECRET = "";
+  localStorage.removeItem(STORAGE_KEY);
+  clearData();
+  showLogin();
+  setUnlockMsg("");
+  secretInput.value = "";
+  secretInput.focus();
+}
+
+function boot() {
+  // En este modo, SIEMPRE arrancamos bloqueados (login visible, app oculta)
+  showLogin();
+
+  // Eventos
+  btnUnlock.addEventListener("click", logout);
+  btnReload.addEventListener("click", loadAll);
+  btnRegister.addEventListener("click", registerPurchases);
+
+  btnDoUnlock.addEventListener("click", () => doUnlock());
+  secretInput.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") doUnlock();
+  });
+
+  // Cancel no cierra el login (para que no se vea info sin clave)
+  if (btnCancelUnlock) {
+    btnCancelUnlock.addEventListener("click", () => {
+      secretInput.value = "";
+      setUnlockMsg("");
+      secretInput.focus();
+    });
+  }
+
+  // Auto-login si hay clave guardada
+  const saved = localStorage.getItem(STORAGE_KEY);
+  if (saved) {
+    secretInput.value = saved;
+    doUnlock({ secretOverride: saved, silent: true });
+  } else {
+    secretInput.focus();
+  }
+}
+
+document.addEventListener("DOMContentLoaded", boot);
