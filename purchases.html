@@ -3,183 +3,84 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>AMARED - Purchases</title>
-  <style>
-    :root{
-      --bg:#0b0f19;
-      --panel:#111a2e;
-      --panel2:#0f172a;
-      --text:#e5e7eb;
-      --muted:#94a3b8;
-      --accent:#3b82f6;
-      --accent2:#22c55e;
-      --danger:#ef4444;
-      --border:rgba(255,255,255,.08);
-      --shadow: 0 12px 40px rgba(0,0,0,.45);
-      --radius:16px;
-      --font: ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,"Apple Color Emoji","Segoe UI Emoji";
-    }
-    *{box-sizing:border-box}
-    body{margin:0;background:var(--bg);color:var(--text);font-family:var(--font)}
-    .topbar{
-      height:56px;display:flex;align-items:center;justify-content:space-between;
-      padding:0 16px;border-bottom:1px solid var(--border);background:rgba(10,15,25,.6);backdrop-filter: blur(10px);
-      position:sticky;top:0;z-index:5;
-    }
-    .brand{font-weight:800;letter-spacing:.5px}
-    .actions{display:flex;gap:10px;align-items:center}
-    .btn{
-      border:1px solid var(--border);background:rgba(255,255,255,.06);color:var(--text);
-      padding:8px 12px;border-radius:12px;cursor:pointer;font-weight:600;
-    }
-    .btn.primary{background:var(--accent);border-color:transparent}
-    .btn:disabled{opacity:.55;cursor:not-allowed}
-    .wrap{max-width:1100px;margin:20px auto;padding:0 16px}
-    .card{
-      background:linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.03));
-      border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow);
-      padding:16px;
-    }
-    .muted{color:var(--muted)}
-    .h1{font-size:18px;font-weight:800;margin:0 0 6px}
-    .small{font-size:12px}
-    table{width:100%;border-collapse:separate;border-spacing:0 8px}
-    th{font-size:12px;color:var(--muted);text-align:left;font-weight:700;padding:0 10px}
-    td{
-      background:rgba(255,255,255,.04);border-top:1px solid var(--border);border-bottom:1px solid var(--border);
-      padding:10px;
-    }
-    td:first-child{border-left:1px solid var(--border);border-top-left-radius:12px;border-bottom-left-radius:12px}
-    td:last-child{border-right:1px solid var(--border);border-top-right-radius:12px;border-bottom-right-radius:12px}
-    .input{
-      width:100%;padding:8px 10px;border-radius:10px;border:1px solid var(--border);
-      background:rgba(0,0,0,.25);color:var(--text);
-    }
-    .right{text-align:right}
-    .center{text-align:center}
-    .hidden{display:none !important}
-
-    /* Full-page login */
-    #loginScreen{
-      position:fixed;inset:0;display:flex;align-items:center;justify-content:center;
-      background:radial-gradient(900px 420px at 50% 15%, rgba(59,130,246,.25), transparent 60%),
-                 radial-gradient(900px 520px at 15% 85%, rgba(34,197,94,.20), transparent 55%),
-                 rgba(0,0,0,.75);
-      z-index:999;
-    }
-    .loginBox{
-      width:min(720px, calc(100vw - 28px));
-      background:linear-gradient(180deg, rgba(17,26,46,.92), rgba(15,23,42,.92));
-      border:1px solid var(--border);border-radius:22px;box-shadow:var(--shadow);
-      padding:22px;
-    }
-    .loginTitle{font-size:22px;font-weight:900;margin:0 0 6px}
-    .loginRow{display:flex;gap:12px;align-items:center;margin-top:14px}
-    .loginRow .input{flex:1}
-    .loginMsg{margin-top:10px;min-height:18px}
-    .pill{
-      display:inline-flex;gap:8px;align-items:center;
-      font-size:12px;color:var(--muted);
-      padding:6px 10px;border-radius:999px;border:1px solid var(--border);background:rgba(255,255,255,.05);
-    }
-
-    /* Loading overlay */
-    #loadingOverlay{
-      position:fixed;inset:0;display:flex;align-items:center;justify-content:center;
-      background:rgba(0,0,0,.55);z-index:50;
-    }
-    .loadingBox{
-      width:min(520px, calc(100vw - 28px));
-      background:rgba(17,26,46,.92);
-      border:1px solid var(--border);border-radius:20px;box-shadow:var(--shadow);
-      padding:18px;
-      display:flex;gap:14px;align-items:center;
-    }
-    .spinner{
-      width:28px;height:28px;border-radius:50%;
-      border:4px solid rgba(255,255,255,.18);
-      border-top-color:rgba(255,255,255,.75);
-      animation:spin 1s linear infinite;
-    }
-    @keyframes spin{to{transform:rotate(360deg)}}
-  </style>
+  <title>AMARED · Purchases</title>
+  <link rel="stylesheet" href="purchases.css" />
 </head>
 <body>
-
-  <!-- Login (full page) -->
-  <div id="loginScreen">
-    <div class="loginBox">
-      <div class="pill">🔒 Acceso requerido</div>
-      <h1 class="loginTitle">Desbloquear Purchases</h1>
-      <div class="muted">Ingresa tu <b>COSTS_SECRET</b> (la misma clave que usas en Costs). La clave se valida en el servidor.</div>
-
-      <div class="loginRow">
-        <input id="secretInput" class="input" type="password" placeholder="COSTS_SECRET" autocomplete="current-password" />
-        <button id="btnEnter" class="btn primary">Entrar</button>
-        <button id="btnClear" class="btn">Limpiar</button>
+  <div id="appWrap" hidden>
+  <header class="topbar">
+    <div class="topbarInner">
+      <div class="brand">
+        <div class="brandTitle">AMARED</div>
+        <div class="brandSub">Purchases · Compras & Inventario</div>
       </div>
-
-      <div id="loginMsg" class="loginMsg muted small"></div>
-      <div class="muted small" style="margin-top:10px">Tip: si ya iniciaste antes en este navegador, se intentará desbloquear automáticamente.</div>
-    </div>
-  </div>
-
-  <!-- Loading overlay -->
-  <div id="loadingOverlay" class="hidden">
-    <div class="loadingBox">
-      <div class="spinner"></div>
-      <div>
-        <div style="font-weight:800" id="loadingTitle">Cargando…</div>
-        <div class="muted small" id="loadingSub">Leyendo inventario, costos y necesidades.</div>
+      <div class="topbarActions">
+        <button class="btn ghost" id="btnUnlock">Salir</button>
+        <button class="btn" id="btnReload" disabled>Recargar cálculo</button>
+        <button class="btn" id="btnRegister" disabled>Registrar compras</button>
       </div>
     </div>
-  </div>
+  </header>
 
-  <!-- Main app -->
-  <div id="app" class="hidden">
-    <header class="topbar">
-      <div>
-        <div class="brand">AMARED</div>
-        <div class="muted small">Purchases · Compras & Inventario</div>
+  <main class="wrap">
+    <section class="card">
+      <div class="cardTitle">Estado (últimas 36h · pagado + no iniciar)</div>
+      <div class="metaRow">
+        <div id="metaText" class="muted">Desbloquea con tu clave de Costos para iniciar.</div>
       </div>
-      <div class="actions">
-        <button id="btnLogout" class="btn">Salir</button>
-        <button id="btnReload" class="btn primary">Recargar cálculo</button>
-        <button id="btnSave" class="btn">Registrar compras</button>
+    </section>
+
+    <section class="card">
+      <div class="cardTitle">Ingredientes</div>
+      <div class="tableWrap">
+        <table class="tbl">
+          <thead>
+            <tr>
+              <th>Ingrediente</th>
+              <th class="num">Necesario</th>
+              <th class="num">Inventario</th>
+              <th class="num">Falta</th>
+              <th>Unidad</th>
+              <th class="num">Costo/u (COP)</th>
+              <th class="num">Comprar (u)</th>
+              <th>Incluir</th>
+            </tr>
+          </thead>
+          <tbody id="rows"></tbody>
+        </table>
       </div>
-    </header>
-
-    <main class="wrap">
-      <section class="card" style="margin-bottom:14px">
-        <div class="h1">Estado (últimas <span id="windowHours">36</span>h · pagado + no iniciar)</div>
-        <div class="muted small" id="stateLine">Pedidos usados: 0/0 · Ventana: 36h</div>
-        <div class="muted small" id="stateHint"></div>
-      </section>
-
-      <section class="card">
-        <div class="h1">Ingredientes</div>
-        <div class="muted small" style="margin-bottom:10px">
+      <div class="footRow">
+        <div class="muted small">
           “Comprar (u)” suma directo al INVENTARIO. Si compras en empaques, escribe el total en unidades base (g/ml/unidad).
         </div>
-
-        <div style="overflow:auto">
-          <table>
-            <thead>
-              <tr>
-                <th style="min-width:260px">Ingrediente</th>
-                <th class="right">Necesario</th>
-                <th class="right">Inventario</th>
-                <th class="right">Falta</th>
-                <th class="center">Unidad</th>
-                <th class="right">Costo/u (COP)</th>
-                <th class="right" style="min-width:140px">Comprar (u)</th>
-              </tr>
-            </thead>
-            <tbody id="rowsTbody"></tbody>
-          </table>
+      </div>
+    </section>
+  </main>
+  </div>
+<!-- Unlock Modal -->
+  <div class="modalBack" id="unlockBack">
+    <div class="modal">
+      <div class="modalTitle">Desbloquear Purchases</div>
+      <div class="muted small">Ingresa tu <b>COSTS_SECRET</b> (la misma clave que usas en Costos).</div>
+      <div class="modalBody">
+        <input id="secretInput" class="inp" placeholder="COSTS_SECRET" type="password" autocomplete="current-password" spellcheck="false" />
+        <div class="row">
+          <button class="btn ghost" id="btnCancelUnlock">Cancelar</button>
+          <button class="btn" id="btnDoUnlock">Entrar</button>
         </div>
-      </section>
-    </main>
+        <div id="unlockMsg" class="muted small"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="loadingBack" id="loadingBack" hidden>
+    <div class="loading">
+      <div class="spinner"></div>
+      <div>
+        <div id="loadingTitle" class="loadingTitle">Cargando…</div>
+        <div id="loadingSub" class="muted small">Un momento.</div>
+      </div>
+    </div>
   </div>
 
   <script src="purchases.js"></script>
