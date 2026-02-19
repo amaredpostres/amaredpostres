@@ -5,22 +5,32 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>AMARED · Purchases</title>
   <link rel="stylesheet" href="purchases.css" />
-  <style>
-    #appRoot[hidden]{ display:none !important; }
-    #unlockBack{ position:fixed; inset:0; display:flex; align-items:center; justify-content:center; padding:24px; background:rgba(0,0,0,.72); z-index:9999; }
-    #unlockBack[hidden]{ display:none !important; }
-    #loadingBack{ z-index:10000; }
-  </style>
 </head>
 <body>
 
-  <!-- APP (se muestra solo después de desbloquear) -->
-  <div id="appRoot" hidden>
+  <!-- LOGIN (pantalla completa) -->
+  <div id="unlockBack" class="modalBack">
+    <div class="modal" style="max-width: 760px; width: min(92vw, 760px);">
+      <div class="modalTitle">Desbloquear Purchases</div>
+      <div class="muted small">Ingresa tu <b>COSTS_SECRET</b> (la misma clave que usas en Costs). La clave se valida en el servidor.</div>
+      <div class="modalBody" style="margin-top: 12px;">
+        <input id="secretInput" class="inp" placeholder="COSTS_SECRET" autocomplete="current-password" />
+        <div class="row" style="margin-top: 12px; justify-content: flex-end; gap: 10px;">
+          <button id="btnClear" class="btn ghost" type="button">Limpiar</button>
+          <button id="btnUnlockOk" class="btn" type="button">Entrar</button>
+        </div>
+        <div id="unlockMsg" class="muted small" style="margin-top: 10px;"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- APP (se muestra SOLO después de validar y cargar todo) -->
+  <div id="app" hidden>
     <header class="topbar">
       <div class="topbarInner">
         <div class="brand">
           <div class="brandTitle">AMARED</div>
-          <div class="brandSub">Purchases · Compras & Inventario</div>
+          <div class="brandSub">Purchases · Compras &amp; Inventario</div>
         </div>
         <div class="topbarActions">
           <button class="btn ghost" id="btnLogout">Salir</button>
@@ -40,6 +50,9 @@
 
       <section class="card">
         <div class="cardTitle">Ingredientes</div>
+        <div class="muted small" style="margin-bottom: 10px;">
+          <b>"Comprar (u)"</b> suma directo al INVENTARIO. Si compras en empaques, escribe el total en unidades base (g/ml/unidad).
+        </div>
         <div class="tableWrap">
           <table class="tbl">
             <thead>
@@ -57,42 +70,17 @@
             <tbody id="rows"></tbody>
           </table>
         </div>
-        <div class="footRow">
-          <div class="muted small">
-            “Comprar (u)” suma directo al INVENTARIO. Si compras en empaques, escribe el total en unidades base (g/ml/unidad).
-          </div>
-        </div>
       </section>
     </main>
+
   </div>
 
-  <!-- LOGIN (pantalla completa) -->
-  <div class="modalBack" id="unlockBack">
-    <div class="modal" style="max-width:720px; width:min(720px, 100%);">
-      <div class="modalTitle">Desbloquear Purchases</div>
-      <div class="muted small">
-        Ingresa tu <b>COSTS_SECRET</b> (la misma clave que usas en Costos). La clave se valida en el servidor.
-      </div>
-      <div class="modalBody">
-        <input id="secretInput" class="inp" placeholder="COSTS_SECRET" autocomplete="off" />
-        <div class="row">
-          <button class="btn ghost" id="btnClearSecret">Limpiar</button>
-          <button class="btn" id="btnDoUnlock">Entrar</button>
-        </div>
-        <div id="unlockMsg" class="muted small"></div>
-        <div class="muted small" style="margin-top:8px;">
-          Tip: si ya iniciaste antes en este navegador, se intentará desbloquear automáticamente.
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- LOADING -->
-  <div class="loadingBack" id="loadingBack" hidden>
-    <div class="loading">
+  <!-- LOADING GLOBAL (sirve para Validando y para Cargando datos) -->
+  <div id="loadingBack" class="loadingBack" hidden>
+    <div class="loadingCard">
       <div class="spinner"></div>
       <div>
-        <div id="loadingTitle" class="loadingTitle">Validando…</div>
+        <div id="loadingTitle" class="loadingTitle">Cargando…</div>
         <div id="loadingSub" class="muted small">Un momento.</div>
       </div>
     </div>
