@@ -7,22 +7,22 @@
   <link rel="stylesheet" href="purchases.css" />
 </head>
 <body>
-  <div id="appWrap" hidden>
-  <header class="topbar">
+  <!-- App UI (hidden until login succeeds) -->
+  <header class="topbar" id="appHeader" hidden>
     <div class="topbarInner">
       <div class="brand">
         <div class="brandTitle">AMARED</div>
         <div class="brandSub">Purchases · Compras & Inventario</div>
       </div>
       <div class="topbarActions">
-        <button class="btn ghost" id="btnUnlock">Salir</button>
+        <button class="btn ghost" id="btnUnlock">Desbloquear</button>
         <button class="btn" id="btnReload" disabled>Recargar cálculo</button>
         <button class="btn" id="btnRegister" disabled>Registrar compras</button>
       </div>
     </div>
   </header>
 
-  <main class="wrap">
+  <main class="wrap" id="appMain" hidden>
     <section class="card">
       <div class="cardTitle">Estado (últimas 36h · pagado + no iniciar)</div>
       <div class="metaRow">
@@ -56,17 +56,18 @@
       </div>
     </section>
   </main>
-  </div>
-<!-- Unlock Modal -->
+
+  <!-- Unlock Modal -->
+  <!-- Login UI (visible by default to avoid flashing protected content) -->
   <div class="modalBack" id="unlockBack">
     <div class="modal">
       <div class="modalTitle">Desbloquear Purchases</div>
       <div class="muted small">Ingresa tu <b>COSTS_SECRET</b> (la misma clave que usas en Costos).</div>
       <div class="modalBody">
-        <input id="secretInput" class="inp" placeholder="COSTS_SECRET" type="password" autocomplete="current-password" spellcheck="false" />
+        <input id="secretInput" class="inp" placeholder="COSTS_SECRET" autocomplete="off" />
         <div class="row">
           <button class="btn ghost" id="btnCancelUnlock">Cancelar</button>
-          <button class="btn" id="btnDoUnlock">Entrar</button>
+          <button class="btn" id="btnDoUnlock">Desbloquear</button>
         </div>
         <div id="unlockMsg" class="muted small"></div>
       </div>
