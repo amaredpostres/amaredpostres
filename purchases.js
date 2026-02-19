@@ -204,31 +204,16 @@ async function registerPurchases(){
 }
 
 // ---------- Unlock modal ----------
-function hideApp(){
-  const h = document.getElementById("appHeader");
-  const m = document.getElementById("appMain");
-  if(h) h.hidden = true;
-  if(m) m.hidden = true;
-}
-
-function showApp(){
-  const h = document.getElementById("appHeader");
-  const m = document.getElementById("appMain");
-  if(h) h.hidden = false;
-  if(m) m.hidden = false;
-}
-
 function openUnlock(){
   document.getElementById("unlockMsg").textContent = "";
   document.getElementById("secretInput").value = UNLOCKED_SECRET || loadSecretFromLS() || "";
   document.getElementById("unlockBack").hidden = false;
-  hideApp();
 }
 function closeUnlock(){
   document.getElementById("unlockBack").hidden = true;
 }
 
-async function doUnlock(opts={}){
+async function doUnlock(){
   const s = String(document.getElementById("secretInput").value || "").trim();
   if(!s){
     document.getElementById("unlockMsg").textContent = "Ingresa la clave.";
@@ -240,19 +225,10 @@ async function doUnlock(opts={}){
     await api({ action:"costs_list", costs_secret: s });
     UNLOCKED_SECRET = s;
     saveSecretToLS(s);
-
-    // Mantén el login visible mientras carga todo (así no se ve info parcial)
-    document.getElementById("unlockMsg").textContent = "Cargando datos…";
-    await loadAll();
-
-    // Si todo salió bien, ahora sí muestra la app y cierra login
-    showApp();
     closeUnlock();
+    await loadAll();
   } catch(e){
-    // Si falla, mantener el login y NO mostrar la app
-    UNLOCKED_SECRET = "";
-    if(!opts.silent) document.getElementById("unlockMsg").textContent = (e && e.message) ? e.message : "Clave inválida o sin permisos.";
-    hideApp();
+    document.getElementById("unlockMsg").textContent = "Clave inválida o sin permisos.";
   } finally {
     hideLoading();
   }
@@ -260,17 +236,8 @@ async function doUnlock(opts={}){
 
 // ---------- Bootstrap ----------
 document.addEventListener("DOMContentLoaded", ()=>{
-  // Por seguridad: nunca mostrar el contenido hasta estar desbloqueado
-  hideApp();
   document.getElementById("btnUnlock").addEventListener("click", openUnlock);
-  // En modo "solo login", cancelar solo limpia (no oculta la pantalla)
-  document.getElementById("btnCancelUnlock").addEventListener("click", ()=>{
-    document.getElementById("secretInput").value = "";
-    document.getElementById("unlockMsg").textContent = "";
-    UNLOCKED_SECRET = "";
-    clearSecretLS();
-    openUnlock();
-  });
+  document.getElementById("btnCancelUnlock").addEventListener("click", closeUnlock);
   document.getElementById("btnDoUnlock").addEventListener("click", doUnlock);
   document.getElementById("btnReload").addEventListener("click", ()=>loadAll().catch(e=>alert(e.message||"Error")));
   document.getElementById("btnRegister").addEventListener("click", registerPurchases);
@@ -278,10 +245,7 @@ document.addEventListener("DOMContentLoaded", ()=>{
   // autoload si ya hay clave guardada
   const saved = loadSecretFromLS();
   if(saved){
-    // Intenta iniciar automáticamente (misma experiencia que Costs)
-    document.getElementById("secretInput").value = saved;
-    doUnlock({ silent: true });
-  } else {
-    openUnlock();
+    UNLOCKED_SECRET = saved;
+    loadAll().catch(()=>{ setMeta("Clave guardada inválida o expirada. Presiona “Desbloquear”."); UNLOCKED_SECRET=""; });
   }
 });
