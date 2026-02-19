@@ -14,7 +14,8 @@ let LOCK_EXPIRES_AT = 0;
 const $ = (id) => document.getElementById(id);
 
 const appWrap = $("appWrap");
-const meta = $("meta");
+// IDs reales del HTML
+const meta = $("metaText");
 const rows = $("rows");
 
 const btnUnlock = $("btnUnlock");           // en header (logout)
@@ -29,16 +30,17 @@ const unlockMsg = $("unlockMsg");
 
 const loadingBack = $("loadingBack");
 const loadingTitle = $("loadingTitle");
-const loadingMsg = $("loadingMsg");
+const loadingMsg = $("loadingSub");
 
 function setLoading(on, title = "Cargando…", msg = "Procesando…") {
   loadingBack.hidden = !on;
   if (!on) return;
-  loadingTitle.textContent = title;
-  loadingMsg.textContent = msg;
+  if (loadingTitle) loadingTitle.textContent = title;
+  if (loadingMsg) loadingMsg.textContent = msg;
 }
 
 function setMeta(text) {
+  if (!meta) return;
   meta.textContent = text || "—";
 }
 
