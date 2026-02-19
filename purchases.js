@@ -1,289 +1,334 @@
-/* Purchases (login + load) */
+/* AMARED Purchases (single-page) */
+
 const API_URL = "https://amared-orders.amaredpostres.workers.dev/";
-const LS_KEY = "AMARED_PURCHASES_COSTS_SECRET";
+const STORAGE_KEY = "AMARED_COSTS_SECRET";
+
+let UNLOCKED_SECRET = "";
+let STATE = {
+  costsByKey: new Map(),
+  inventoryByKey: new Map(),
+  needsByKey: new Map(),
+  meta: null,
+};
 
 const $ = (id) => document.getElementById(id);
 
-function asString(v) {
-  if (typeof v === "string") return v;
-  if (v == null) return "";
-  if (typeof v === "object") {
-    if (typeof v.value === "string") return v.value;
-    if (typeof v.secret === "string") return v.secret;
-  }
-  try { return String(v); } catch { return ""; }
-}
-
-function setText(id, text) {
-  const el = $(id);
-  if (el) el.textContent = text ?? "";
-}
-
 function showLoading(title, sub) {
-  setText("loadingTitle", title);
-  setText("loadingSub", sub);
-  $("loadingBack").hidden = false;
+  const back = $("loadingBack");
+  if (!back) return;
+  $("loadingTitle").textContent = title || "Cargando…";
+  $("loadingSub").textContent = sub || "Un momento.";
+  back.hidden = false;
 }
-function hideLoading() { $("loadingBack").hidden = true; }
 
-function showLogin(msg = "") {
-  $("appRoot").hidden = true;
-  $("unlockBack").hidden = false;
-  setText("unlockMsg", msg);
-  setTimeout(() => { try { $("secretInput").focus(); } catch {} }, 0);
+function hideLoading() {
+  const back = $("loadingBack");
+  if (!back) return;
+  back.hidden = true;
 }
-function hideLogin() { $("unlockBack").hidden = true; }
-function showApp() { $("appRoot").hidden = false; }
 
-async function api(body, { timeoutMs = 20000 } = {}) {
-  const ctrl = new AbortController();
-  const t = setTimeout(() => ctrl.abort(), timeoutMs);
+function setLoginMsg(msg) {
+  const el = $("unlockMsg");
+  if (el) el.textContent = msg || "";
+}
 
-  let res, text;
+function fmtInt(n) {
+  const x = Number(n || 0);
+  return x.toLocaleString("es-CO");
+}
+
+function fmtQty(n) {
+  const x = Number(n || 0);
+  // hasta 3 decimales, sin ceros a la derecha
+  const s = (Math.round(x * 1000) / 1000).toString();
+  return s;
+}
+
+async function api(payload, secretOverride) {
+  const secret = typeof secretOverride === "string" ? secretOverride : UNLOCKED_SECRET;
+  const body = {
+    ...payload,
+    ...(secret ? { costs_secret: secret } : {}),
+  };
+
+  const res = await fetch(API_URL, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+
+  let json = null;
   try {
-    res = await fetch(API_URL, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body || {}),
-      signal: ctrl.signal,
-    });
-    text = await res.text();
-  } catch (err) {
-    clearTimeout(t);
-    throw new Error(err?.name === "AbortError"
-      ? "Tiempo de espera agotado (API)."
-      : ("Error de red: " + (err?.message || String(err))));
-  } finally {
-    clearTimeout(t);
+    json = await res.json();
+  } catch {
+    // ignore
   }
 
-  let json;
-  try { json = JSON.parse(text); }
-  catch { json = { ok: false, error: "Respuesta no-JSON del servidor.", raw: text }; }
+  if (!res.ok) {
+    const msg = (json && (json.error || json.message)) ? (json.error || json.message) : `HTTP ${res.status}`;
+    const err = new Error(msg);
+    err.status = res.status;
+    err.json = json;
+    throw err;
+  }
 
-  if (!res.ok && typeof json.ok !== "boolean") json.ok = false;
-  if (!res.ok && !json.error) json.error = `HTTP ${res.status}`;
+  if (json && json.ok === false) {
+    const err = new Error(json.error || "Error" );
+    err.json = json;
+    throw err;
+  }
+
   return json;
 }
 
-let COSTS_SECRET = "";
-let unlocked = false;
-
-function formatNum(n) {
-  if (!isFinite(n)) return "—";
-  return Math.round(n).toLocaleString("es-CO");
-}
-function safeUnit(u) { return (u || "").toString().trim() || "u"; }
-function rowKey(name) { return (name || "").toString().trim().toLowerCase(); }
-
-function setButtonsEnabled(enabled) {
-  $("btnReload").disabled = !enabled;
-  $("btnRegister").disabled = !enabled;
+function showLoginScreen() {
+  $("app").hidden = true;
+  $("unlockBack").hidden = false;
+  $("btnReload").disabled = true;
+  $("btnRegister").disabled = true;
 }
 
-function buildRow(ing, needed, inv, unit, costPerUnit) {
-  const missing = Math.max(0, needed - inv);
-  const tr = document.createElement("tr");
-  tr.innerHTML = `
-    <td>${ing}</td>
-    <td class="num">${formatNum(needed)}</td>
-    <td class="num">${formatNum(inv)}</td>
-    <td class="num">${formatNum(missing)}</td>
-    <td>${unit}</td>
-    <td class="num">${costPerUnit > 0 ? formatNum(costPerUnit) : "—"}</td>
-    <td class="num"><input class="inp small num" data-ingredient="${ing}" data-unit="${unit}" value="0" inputmode="decimal" /></td>
-    <td>
-      <label class="chk">
-        <input type="checkbox" data-include="${ing}" checked />
-        <span>✔</span>
-      </label>
-    </td>
-  `;
-  return tr;
+function showAppScreen() {
+  $("unlockBack").hidden = true;
+  $("app").hidden = false;
+  $("btnReload").disabled = false;
+  $("btnRegister").disabled = false;
 }
 
-function collectPurchasesFromTable() {
-  const inputs = Array.from(document.querySelectorAll('input[data-ingredient]'));
-  const checks = new Map(
-    Array.from(document.querySelectorAll('input[type="checkbox"][data-include]'))
-      .map(ch => [ch.getAttribute("data-include"), ch.checked])
-  );
-  const items = [];
-  for (const inp of inputs) {
-    const ing = inp.getAttribute("data-ingredient");
-    const unit = inp.getAttribute("data-unit") || "u";
-    const include = checks.get(ing) !== false;
-    const qty = Number(String(inp.value).replace(",", "."));
-    if (!include) continue;
-    if (!isFinite(qty) || qty <= 0) continue;
-    items.push({ ingredient: ing, qty, unit });
-  }
-  return items;
+function clearTable() {
+  $("rows").innerHTML = "";
+  $("metaText").textContent = "";
 }
 
-async function loadAll(secret) {
-  const [ordersRes, costsRes, invRes] = await Promise.all([
-    api({ action: "costs_orders_for_purchases", costs_secret: secret }),
-    api({ action: "costs_list", costs_secret: secret }),
-    api({ action: "inventory_get", costs_secret: secret }),
+async function validateSecret(secret) {
+  // Validación rápida: si la clave es correcta, costs_list responde OK.
+  await api({ action: "costs_list", limit: 1 }, secret);
+}
+
+async function loadAll() {
+  const [costs, inv, ordersNeeds] = await Promise.all([
+    api({ action: "costs_list" }),
+    api({ action: "inventory_get" }),
+    api({ action: "costs_orders_for_purchases", window_hours: 36 }),
   ]);
 
-  if (!ordersRes?.ok) throw new Error(ordersRes?.error || "No se pudieron leer necesidades.");
-  if (!costsRes?.ok) throw new Error(costsRes?.error || "No se pudieron leer costos.");
-  if (!invRes?.ok) throw new Error(invRes?.error || "No se pudo leer inventario.");
-
-  const used = Number(ordersRes.ordersUsed || 0);
-  const limit = Number(ordersRes.ordersLimit || 0);
-  const winH = Number(ordersRes.windowH || 36);
-  setText("metaText", `Desbloqueado. Pedidos usados: ${used}/${limit}. Ventana: ${winH}h`);
-
-  const costsMap = new Map();
-  const rows = Array.isArray(costsRes.rows) ? costsRes.rows : [];
-  for (const r of rows) {
-    const ing = (r.ingredient || r.name || "").toString().trim();
-    if (!ing) continue;
-    const unit = safeUnit(r.unit || r.unidad);
-    const cpu = Number(r.cost_per_unit || r.costPerUnit || r.cost_u || r.costo_u || 0);
-    costsMap.set(rowKey(ing), { unit, cpu: isFinite(cpu) ? cpu : 0, label: ing });
+  // costs
+  STATE.costsByKey = new Map();
+  const items = (costs && costs.items) ? costs.items : [];
+  for (const it of items) {
+    const k = it.ingredient_key || it.key || it.ingredient || it.name;
+    if (!k) continue;
+    STATE.costsByKey.set(k, it);
   }
 
-  const invMap = new Map();
-  const invRows = Array.isArray(invRes.rows) ? invRes.rows : [];
-  for (const r of invRows) {
-    const ing = (r.ingredient || r.name || "").toString().trim();
-    if (!ing) continue;
-    const qty = Number(r.qty || r.quantity || r.stock || 0);
-    invMap.set(rowKey(ing), isFinite(qty) ? qty : 0);
+  // inventory
+  STATE.inventoryByKey = new Map();
+  const invObj = (inv && inv.inventory) ? inv.inventory : {};
+  for (const [k, v] of Object.entries(invObj)) {
+    STATE.inventoryByKey.set(k, v);
   }
 
-  const needMap = new Map();
-  const byIng = ordersRes.byIngredient && typeof ordersRes.byIngredient === "object" ? ordersRes.byIngredient : {};
-  for (const [ing, obj] of Object.entries(byIng)) {
-    const needed = Number(obj?.needed || obj?.qty || obj || 0);
-    needMap.set(rowKey(ing), isFinite(needed) ? needed : 0);
+  // needs
+  STATE.needsByKey = new Map();
+  const needsObj = (ordersNeeds && ordersNeeds.needs) ? ordersNeeds.needs : {};
+  for (const [k, v] of Object.entries(needsObj)) {
+    STATE.needsByKey.set(k, Number(v || 0));
   }
 
-  const keys = new Set([...needMap.keys(), ...invMap.keys(), ...costsMap.keys()]);
+  STATE.meta = (ordersNeeds && ordersNeeds.meta) ? ordersNeeds.meta : null;
+
+  render();
+}
+
+function render() {
+  const keys = new Set();
+  for (const k of STATE.costsByKey.keys()) keys.add(k);
+  for (const k of STATE.inventoryByKey.keys()) keys.add(k);
+  for (const k of STATE.needsByKey.keys()) keys.add(k);
+
   const sorted = Array.from(keys).sort((a, b) => a.localeCompare(b, "es"));
 
   const tbody = $("rows");
   tbody.innerHTML = "";
-  for (const k of sorted) {
-    const label = costsMap.get(k)?.label || k;
-    const needed = needMap.get(k) ?? 0;
-    const inv = invMap.get(k) ?? 0;
-    const unit = costsMap.get(k)?.unit || "u";
-    const cpu = costsMap.get(k)?.cpu || 0;
-    tbody.appendChild(buildRow(label, needed, inv, unit, cpu));
+
+  for (const key of sorted) {
+    const c = STATE.costsByKey.get(key) || {};
+    const inv = STATE.inventoryByKey.get(key) || {};
+
+    const name = c.display_name || c.ingredient_name || c.ingredient || key;
+    const unit = c.unit || inv.unit || "";
+
+    const needed = Number(STATE.needsByKey.get(key) || 0);
+    const inStock = Number(inv.qty || 0);
+    const missing = Math.max(0, needed - inStock);
+    const cop = Number(c.cop_per_unit || 0);
+
+    const tr = document.createElement("tr");
+    tr.dataset.key = key;
+    tr.innerHTML = `
+      <td class="name">${escapeHtml(name)}</td>
+      <td class="num">${fmtQty(needed)}</td>
+      <td class="num">${fmtQty(inStock)}</td>
+      <td class="num"><b>${fmtQty(missing)}</b></td>
+      <td>${escapeHtml(unit)}</td>
+      <td class="num">${cop ? fmtInt(cop) : "—"}</td>
+      <td class="num"><input class="inp inpNum" inputmode="decimal" placeholder="0" value="${missing ? fmtQty(missing) : ""}" /></td>
+      <td><label class="chk"><input type="checkbox" checked /> Incluir</label></td>
+    `;
+    tbody.appendChild(tr);
   }
 
-  setButtonsEnabled(true);
+  // meta
+  const meta = STATE.meta || {};
+  const used = meta.used_orders ?? 0;
+  const total = meta.total_orders ?? 0;
+  const hrs = meta.window_hours ?? 36;
+  $("metaText").textContent = `Pedidos usados: ${used}/${total} · Ventana: ${hrs}h`;
 }
 
-async function doUnlock({ silent = false } = {}) {
-  const secret = asString($("secretInput")?.value || COSTS_SECRET).trim();
+function escapeHtml(s) {
+  return String(s ?? "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
+}
+
+function getRowEntries() {
+  const out = [];
+  for (const tr of $("rows").querySelectorAll("tr")) {
+    const key = tr.dataset.key;
+    const c = STATE.costsByKey.get(key) || {};
+    const unit = c.unit || (STATE.inventoryByKey.get(key) || {}).unit || "";
+    const cop = Number(c.cop_per_unit || 0) || null;
+
+    const qtyInp = tr.querySelector("input.inpNum");
+    const chk = tr.querySelector("input[type=checkbox]");
+
+    const qty = Number((qtyInp?.value || "").toString().replace(",", "."));
+    if (!chk?.checked) continue;
+    if (!qty || qty <= 0) continue;
+
+    out.push({ ingredient_key: key, qty, unit, cop_per_unit: cop });
+  }
+  return out;
+}
+
+async function doUnlock() {
+  const btn = $("btnUnlockOk");
+  const input = $("secretInput");
+
+  const secret = (input?.value || "").trim();
   if (!secret) {
-    if (!silent) setText("unlockMsg", "Ingresa la clave.");
-    throw new Error("Ingresa la clave.");
+    setLoginMsg("Ingresa la clave.");
+    return;
   }
 
-  showLoading("Validando…", "Verificando clave en el servidor.");
-  setText("unlockMsg", "");
+  btn.disabled = true;
+  input.disabled = true;
+  setLoginMsg("");
 
-  const test = await api({ action: "costs_list", costs_secret: secret }, { timeoutMs: 20000 });
-  if (!test?.ok) {
+  try {
+    showLoading("Validando…", "Un momento.");
+    await validateSecret(secret);
+
+    UNLOCKED_SECRET = secret;
+    // Guardamos para que NO tengas que volver a pegarla, pero NO intentamos auto-desbloquear.
+    try {
+      sessionStorage.setItem(STORAGE_KEY, secret);
+    } catch {}
+
+    showLoading("Cargando…", "Leyendo inventario y necesidades.");
+    await loadAll();
+
     hideLoading();
-    if (!silent) setText("unlockMsg", test?.error || "Clave inválida o sin permisos.");
-    throw new Error(test?.error || "Clave inválida o sin permisos.");
+    showAppScreen();
+  } catch (e) {
+    console.error("[Purchases] unlock error:", e);
+
+    hideLoading();
+    UNLOCKED_SECRET = "";
+
+    if (e && e.status === 401) {
+      setLoginMsg("Clave inválida o sin permisos.");
+    } else {
+      setLoginMsg(`Error: ${e?.message || e}`);
+    }
+
+    showLoginScreen();
+  } finally {
+    btn.disabled = false;
+    input.disabled = false;
+  }
+}
+
+async function reloadAll() {
+  try {
+    showLoading("Cargando…", "Actualizando datos.");
+    await loadAll();
+  } catch (e) {
+    console.error("[Purchases] reload error:", e);
+    alert(`Error cargando datos: ${e?.message || e}`);
+  } finally {
+    hideLoading();
+  }
+}
+
+async function registerPurchases() {
+  const items = getRowEntries();
+  if (!items.length) {
+    alert("No hay compras para registrar.");
+    return;
   }
 
-  COSTS_SECRET = secret;
-  try { localStorage.setItem(LS_KEY, secret); } catch {}
-
-  showLoading("Cargando…", "Leyendo necesidades, costos e inventario.");
-  await loadAll(secret);
-
-  unlocked = true;
-  hideLoading();
-  hideLogin();
-  showApp();
+  try {
+    showLoading("Registrando…", "Guardando compras en inventario.");
+    await api({ action: "inventory_add_purchase_batch", items });
+    await loadAll();
+  } catch (e) {
+    console.error("[Purchases] register error:", e);
+    alert(`Error registrando compras: ${e?.message || e}`);
+  } finally {
+    hideLoading();
+  }
 }
 
 function logout() {
-  unlocked = false;
-  COSTS_SECRET = "";
-  try { localStorage.removeItem(LS_KEY); } catch {}
-  setButtonsEnabled(false);
-  $("rows").innerHTML = "";
-  setText("metaText", "Desbloquea con tu clave de Costos para iniciar.");
-  showLogin("");
+  UNLOCKED_SECRET = "";
+  try { sessionStorage.removeItem(STORAGE_KEY); } catch {}
+  clearTable();
+  setLoginMsg("Ingresa tu clave de Costs para iniciar.");
+  showLoginScreen();
 }
 
-async function boot() {
-  $("btnDoUnlock").addEventListener("click", async () => { try { await doUnlock({ silent: false }); } catch {} });
-  $("btnClearSecret").addEventListener("click", () => {
+function boot() {
+  // Estado inicial
+  showLoginScreen();
+  clearTable();
+  setLoginMsg("Ingresa tu clave de Costs para iniciar.");
+
+  // Prefill (sin auto-validar)
+  try {
+    const saved = sessionStorage.getItem(STORAGE_KEY) || "";
+    if (saved) $("secretInput").value = saved;
+  } catch {}
+
+  // Eventos login
+  $("btnUnlockOk").addEventListener("click", doUnlock);
+  $("btnClear").addEventListener("click", () => {
     $("secretInput").value = "";
-    setText("unlockMsg", "");
-    try { localStorage.removeItem(LS_KEY); } catch {}
+    setLoginMsg("");
+    try { sessionStorage.removeItem(STORAGE_KEY); } catch {}
   });
-  $("secretInput").addEventListener("keydown", async (ev) => {
-    if (ev.key === "Enter") { ev.preventDefault(); try { await doUnlock({ silent: false }); } catch {} }
-  });
-
-  $("btnLogout").addEventListener("click", () => logout());
-
-  $("btnReload").addEventListener("click", async () => {
-    if (!unlocked) return;
-    try {
-      showLoading("Cargando…", "Actualizando información.");
-      await loadAll(COSTS_SECRET);
-    } catch (e) {
-      console.error("[Purchases] reload error:", e);
-      setText("metaText", "Error recargando: " + (e?.message || String(e)));
-    } finally {
-      hideLoading();
-    }
+  $("secretInput").addEventListener("keydown", (e) => {
+    if (e.key === "Enter") doUnlock();
   });
 
-  $("btnRegister").addEventListener("click", async () => {
-    if (!unlocked) return;
-    const items = collectPurchasesFromTable();
-    if (!items.length) { setText("metaText", "No hay compras para registrar."); return; }
-
-    try {
-      showLoading("Registrando…", "Enviando compras al servidor.");
-      const res = await api({ action: "inventory_add_purchase_batch", costs_secret: COSTS_SECRET, items }, { timeoutMs: 30000 });
-      if (!res?.ok) throw new Error(res?.error || "No se pudo registrar.");
-      setText("metaText", "Compras registradas. Actualizando…");
-      await loadAll(COSTS_SECRET);
-    } catch (e) {
-      console.error("[Purchases] register error:", e);
-      setText("metaText", "Error registrando: " + (e?.message || String(e)));
-    } finally {
-      hideLoading();
-    }
-  });
-
-  showLogin("Ingresa tu clave de Costos para iniciar.");
-  setButtonsEnabled(false);
-  setText("metaText", "Desbloquea con tu clave de Costos para iniciar.");
-
-  let saved = "";
-  try { saved = asString(localStorage.getItem(LS_KEY)); } catch {}
-  saved = asString(saved).trim();
-
-  if (saved) {
-    COSTS_SECRET = saved;
-    $("secretInput").value = saved;
-    try { await doUnlock({ silent: true }); }
-    catch (e) {
-      console.warn("[Purchases] auto-unlock failed:", e);
-      try { localStorage.removeItem(LS_KEY); } catch {}
-      COSTS_SECRET = "";
-      hideLoading();
-      showLogin("Clave guardada inválida o expirada. Ingresa nuevamente.");
-    }
-  }
+  // Eventos app
+  $("btnReload").addEventListener("click", reloadAll);
+  $("btnRegister").addEventListener("click", registerPurchases);
+  $("btnLogout").addEventListener("click", logout);
 }
 
 document.addEventListener("DOMContentLoaded", boot);
