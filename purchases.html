@@ -7,63 +7,65 @@
   <link rel="stylesheet" href="purchases.css" />
 </head>
 <body>
+  <!-- APP (se muestra solo después de validar la clave) -->
   <div id="appWrap" hidden>
-  <header class="topbar">
-    <div class="topbarInner">
-      <div class="brand">
-        <div class="brandTitle">AMARED</div>
-        <div class="brandSub">Purchases · Compras & Inventario</div>
-      </div>
-      <div class="topbarActions">
-        <button class="btn ghost" id="btnUnlock">Salir</button>
-        <button class="btn" id="btnReload" disabled>Recargar cálculo</button>
-        <button class="btn" id="btnRegister" disabled>Registrar compras</button>
-      </div>
-    </div>
-  </header>
-
-  <main class="wrap">
-    <section class="card">
-      <div class="cardTitle">Estado (últimas 36h · pagado + no iniciar)</div>
-      <div class="metaRow">
-        <div id="metaText" class="muted">Desbloquea con tu clave de Costos para iniciar.</div>
-      </div>
-    </section>
-
-    <section class="card">
-      <div class="cardTitle">Ingredientes</div>
-      <div class="tableWrap">
-        <table class="tbl">
-          <thead>
-            <tr>
-              <th>Ingrediente</th>
-              <th class="num">Necesario</th>
-              <th class="num">Inventario</th>
-              <th class="num">Falta</th>
-              <th>Unidad</th>
-              <th class="num">Costo/u (COP)</th>
-              <th class="num">Comprar (u)</th>
-              <th>Incluir</th>
-            </tr>
-          </thead>
-          <tbody id="rows"></tbody>
-        </table>
-      </div>
-      <div class="footRow">
-        <div class="muted small">
-          “Comprar (u)” suma directo al INVENTARIO. Si compras en empaques, escribe el total en unidades base (g/ml/unidad).
+    <header class="topbar">
+      <div class="topbarInner">
+        <div class="brand">
+          <div class="brandTitle">AMARED</div>
+          <div class="brandSub">Purchases · Compras &amp; Inventario</div>
+        </div>
+        <div class="topbarActions">
+          <button class="btn ghost" id="btnUnlock">Desbloquear</button>
+          <button class="btn" id="btnReload" disabled>Recargar cálculo</button>
+          <button class="btn" id="btnRegister" disabled>Registrar compras</button>
         </div>
       </div>
-    </section>
-  </main>
+    </header>
+
+    <main class="wrap">
+      <section class="card">
+        <div class="cardTitle">Estado (últimas 36h · pagado + no iniciar)</div>
+        <div class="metaRow">
+          <div id="metaText" class="muted">—</div>
+        </div>
+      </section>
+
+      <section class="card">
+        <div class="cardTitle">Ingredientes</div>
+        <div class="tableWrap">
+          <table class="tbl">
+            <thead>
+              <tr>
+                <th>Ingrediente</th>
+                <th class="num">Necesario</th>
+                <th class="num">Inventario</th>
+                <th class="num">Falta</th>
+                <th>Unidad</th>
+                <th class="num">Costo/u (COP)</th>
+                <th class="num">Comprar (u)</th>
+                <th>Incluir</th>
+              </tr>
+            </thead>
+            <tbody id="rows"></tbody>
+          </table>
+        </div>
+        <div class="footRow">
+          <div class="muted small">
+            “Comprar (u)” suma directo al INVENTARIO. Si compras en empaques, escribe el total en unidades base (g/ml/unidad).
+          </div>
+        </div>
+      </section>
+    </main>
   </div>
-<!-- Unlock Modal -->
+
+  <!-- LOGIN (se muestra al cargar, antes del APP) -->
   <div class="modalBack" id="unlockBack">
     <div class="modal">
       <div class="modalTitle">Desbloquear Purchases</div>
       <div class="muted small">Ingresa tu <b>COSTS_SECRET</b> (la misma clave que usas en Costos).</div>
       <div class="modalBody">
-        <input id="secretInput" class="inp" placeholder="COSTS_SECRET" type="password" autocomplete="current-password" spellcheck="false" />
+        <input id="secretInput" class="inp" placeholder="COSTS_SECRET" autocomplete="off" />
         <div class="row">
           <button class="btn ghost" id="btnCancelUnlock">Cancelar</button>
           <button class="btn" id="btnDoUnlock">Entrar</button>
