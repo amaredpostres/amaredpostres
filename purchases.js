@@ -1,4 +1,4 @@
-/* AMARED Purchases - client (patched)
+/* AMARED Purchases - client (patched v2)
    Objetivo:
    - Cargar correctamente INVENTARIO + NECESIDADES (pedidos pagados + no iniciar en últimas N horas)
    - Mostrar faltantes por ingrediente usando el mismo ingredient_key del backend
