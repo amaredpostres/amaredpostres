@@ -37,11 +37,17 @@ function showLoading(title, desc){
   const ld = document.getElementById("ld");
   if(lt) lt.textContent = title || "Cargando…";
   if(ld) ld.textContent = desc || "Por favor espera.";
-  if(el) el.classList.add("show");
+  if(el){
+    el.style.display = "flex";
+    el.classList.add("show");
+  }
 }
 function hideLoading(){
   const el = document.getElementById("loading");
-  if(el) el.classList.remove("show");
+  if(el){
+    el.classList.remove("show");
+    el.style.display = "none";
+  }
 }
 
 async function api(payload){
@@ -395,22 +401,22 @@ function isCompleteRow(r){
   return true;
 }
 
-function computeCopPerUnit(row){
-  const r = row || {};
-  const u = normUnit(r.unit_type);
-  const qty = Number(r.pack_qty||0);
-  const price = Number(r.pack_price||0);
+function computeCopPerUnit(packQty, packPrice, unitType, unitItemQty){
+  const qty = Number(packQty||0);
+  const price = Number(packPrice||0);
   if(!(qty>0) || !(price>0)) return 0;
 
-  // Si es "unidad": el empaque trae N unidades, y cada unidad equivale a X g/ml
-  // => COP por g/ml = pack_price / (pack_qty * unit_item_qty)
+  const u = normUnit(unitType);
+
+  // Si viene por "unidad" pero cada unidad tiene contenido (g/ml), calculamos por g/ml
   if(u === "unidad"){
-    const itemQty = Number(r.unit_item_qty||0);
-    if(!(itemQty>0)) return 0;
-    return price / (qty * itemQty);
+    const itemQty = Number(unitItemQty||0);
+    if(itemQty > 0){
+      const totalQty = qty * itemQty; // ej: 6 unidades * 900 ml = 5400 ml
+      if(totalQty > 0) return price / totalQty;
+    }
   }
 
-  // Caso normal (g/ml/u): COP por unidad base = pack_price / pack_qty
   return price / qty;
 }
 
@@ -430,12 +436,9 @@ function setRowField(key, field, value){
   }
 
   // auto cálculo
-  const cpu = computeCopPerUnit(r);
-  if(cpu > 0) {
-    // Mantener más precisión cuando el cálculo es por g/ml (unit_type = unidad)
-    if(u === "unidad") r.cop_per_unit = String(Math.round(cpu*1000)/1000);
-    else r.cop_per_unit = String(roundCOP(cpu));
-  } else r.cop_per_unit = "";
+  const cpu = computeCopPerUnit(r.pack_qty, r.pack_price, r.unit_type, r.unit_item_qty);
+  if(cpu > 0) r.cop_per_unit = String(roundCOP(cpu));
+  else r.cop_per_unit = "";
 }
 
 // ====== Mantener acordeones abiertos ======
@@ -667,6 +670,24 @@ async function saveAllToSheets(){
         String(r.brand||"").trim() ||
         String(r.store||"").trim();
       if(!hasAny) continue;
+      // Normalización: si el proveedor vende en "unidades" pero cada unidad tiene contenido (g/ml),
+      // guardamos en Sheets el costo por g/ml para que recetas (ml/g) calculen exacto.
+      const u2 = normUnit(r.unit_type);
+      const itemQty = Number(r.unit_item_qty||0);
+      const itemType = normUnit(r.unit_item_qty_type);
+      if(u2 === "unidad" && itemQty>0 && (itemType==="g" || itemType==="ml")){
+        const units = Number(r.pack_qty||0);
+        const packPrice = Number(r.pack_price||0);
+        const totalQty = units * itemQty;
+        if(totalQty>0 && packPrice>0){
+          r.unit_type = itemType;          // pasa a g/ml
+          r.pack_qty = String(totalQty);   // total g/ml del empaque
+          r.cop_per_unit = String(roundCOP(packPrice / totalQty)); // costo por g/ml
+          r.unit_item_qty = "";
+          r.unit_item_qty_type = "";
+        }
+      }
+
       await upsertCostToSheets(r);
     }
   }finally{
