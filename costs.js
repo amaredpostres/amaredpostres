@@ -656,6 +656,41 @@ function render(){
 }
 
 // =================== SAVE ===================
+
+function normalizeRowForSave(row){
+  // Clona para no mutar referencias accidentalmente
+  const r = Object.assign({}, row || {});
+  const u2 = normUnit(r.unit_type);
+  const packPrice = Number(r.pack_price||0);
+  const packQty = Number(r.pack_qty||0);
+
+  // ✅ Caso: proveedor vende "unidades" pero cada unidad contiene g/ml.
+  // Guardamos en BD como g/ml para que RECETAS (g/ml) calcule exacto.
+  const itemQty = Number(r.unit_item_qty||0);
+  const itemType = normUnit(r.unit_item_qty_type);
+  if(u2 === "unidad" && itemQty>0 && (itemType==="g" || itemType==="ml") && packQty>0){
+    const totalQty = packQty * itemQty; // g/ml totales del empaque
+    if(totalQty>0){
+      r.unit_type = itemType;
+      r.pack_qty = String(totalQty);
+      if(packPrice>0){
+        r.cop_per_unit = String(roundCOP(packPrice / totalQty));
+      }
+      // Mantenemos metadata por si quieres verla en UI (no afecta el cálculo).
+      // r.unit_item_qty / r.unit_item_qty_type se quedan.
+    }
+    return r;
+  }
+
+  // ✅ Si ya está en g/ml, y el usuario no puso cop_per_unit, lo calculamos.
+  const uBase = normUnit(r.unit_type);
+  const hasCop = String(r.cop_per_unit||"").trim() !== "";
+  if((uBase==="g" || uBase==="ml") && !hasCop && packQty>0 && packPrice>0){
+    r.cop_per_unit = String(roundCOP(packPrice / packQty));
+  }
+  return r;
+}
+
 async function saveAllToSheets(){
   const keys = Object.keys(UI||{});
   showLoading("Guardando…","Actualizando información en la base de datos.");
@@ -670,25 +705,9 @@ async function saveAllToSheets(){
         String(r.brand||"").trim() ||
         String(r.store||"").trim();
       if(!hasAny) continue;
-      // Normalización: si el proveedor vende en "unidades" pero cada unidad tiene contenido (g/ml),
-      // guardamos en Sheets el costo por g/ml para que recetas (ml/g) calculen exacto.
-      const u2 = normUnit(r.unit_type);
-      const itemQty = Number(r.unit_item_qty||0);
-      const itemType = normUnit(r.unit_item_qty_type);
-      if(u2 === "unidad" && itemQty>0 && (itemType==="g" || itemType==="ml")){
-        const units = Number(r.pack_qty||0);
-        const packPrice = Number(r.pack_price||0);
-        const totalQty = units * itemQty;
-        if(totalQty>0 && packPrice>0){
-          r.unit_type = itemType;          // pasa a g/ml
-          r.pack_qty = String(totalQty);   // total g/ml del empaque
-          r.cop_per_unit = String(roundCOP(packPrice / totalQty)); // costo por g/ml
-          r.unit_item_qty = "";
-          r.unit_item_qty_type = "";
-        }
-      }
-
-      await upsertCostToSheets(r);
+      // Normalización (unidad -> g/ml cuando aplique) + cálculo de COP por unidad base
+      const toSave = normalizeRowForSave(r);
+      await upsertCostToSheets(toSave);
     }
   }finally{
     hideLoading();
