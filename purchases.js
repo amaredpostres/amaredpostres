@@ -280,6 +280,61 @@ function prettyDessertName(id){
   return s.replace(/[_-]+/g," ").replace(/\w/g, c=>c.toUpperCase());
 }
 
+
+function normDessertId(id){
+  const s = String(id||"").trim().toLowerCase();
+  const map = {
+    "mousse_maracuya":"mousse_maracuya",
+    "mousse":"mousse_maracuya",
+    "mousse_de_maracuya":"mousse_maracuya",
+    "cheesecake_cafe_panela":"cheesecake_cafe_panela",
+    "cheesecake_cafe":"cheesecake_cafe_panela",
+    "cheesecake":"cheesecake_cafe_panela",
+    "cheesecake_de_cafe_con_panela":"cheesecake_cafe_panela",
+    "arroz_con_leche":"arroz_con_leche",
+    "arroz":"arroz_con_leche",
+  };
+  return map[s] || s;
+}
+
+function renderDessertSummary(){
+  const card = el("dessertCard");
+  const tbody = el("dessertRows");
+  if(!card || !tbody) return;
+
+  const src = state.ordersByDessert || {};
+  const counts = {
+    mousse_maracuya: 0,
+    cheesecake_cafe_panela: 0,
+    arroz_con_leche: 0,
+  };
+
+  for(const [k,v] of Object.entries(src)){
+    const id = normDessertId(k);
+    const n = Number(v || 0) || 0;
+    if(Object.prototype.hasOwnProperty.call(counts, id)){
+      counts[id] += n;
+    }
+  }
+
+  const order = ["mousse_maracuya","cheesecake_cafe_panela","arroz_con_leche"];
+  const total = order.reduce((s,id)=>s + (Number(counts[id]||0)||0), 0);
+
+  tbody.innerHTML = order.map(id=>{
+    const qty = Number(counts[id]||0) || 0;
+    return `<tr>
+      <td>${escapeHtml(prettyDessertName(id))}</td>
+      <td class="num">${fmtNum(qty)}</td>
+    </tr>`;
+  }).join("") + `<tr>
+    <td><b>Total</b></td>
+    <td class="num"><b>${fmtNum(total)}</b></td>
+  </tr>`;
+
+  show(card, "block");
+}
+
+
 function renderLateSection(){
   const card = el("lateCard");
   const tbody = el("lateRows");
@@ -360,6 +415,7 @@ async function loadAll(){
   setMeta(`Ventana: ${winText} · ${ordersText}`);
 
   renderTable();
+  renderDessertSummary();
   renderLateSection();
 }
 
