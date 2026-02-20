@@ -4,7 +4,9 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>AMARED – Purchases</title>
-  <link rel="icon" href="/amaredpostres/favicon.ico" />
+  <!-- favicon (usa assets; si aún ves 404 de /favicon.ico, copia assets/favicon.ico a la raíz como favicon.ico) -->
+  <link rel="icon" href="assets/favicon.ico" />
+  <link rel="shortcut icon" href="assets/favicon.ico" />
   <link rel="stylesheet" href="purchases.css" />
   <style>
     /* --- Login pantalla completa --- */
@@ -52,6 +54,22 @@
       <section class="card">
         <div class="metaTitle">Estado (ayer 3:00 p.m. → hoy 3:00 p.m.) · Pagado + No iniciar</div>
         <div id="meta" class="meta">Desbloquea con tu clave de Costos para iniciar.</div>
+      </section>
+
+      <section id="dessertCard" class="card" hidden>
+        <div class="sectionTitle">Postres confirmados (para cálculo de ingredientes)</div>
+        <div class="hint">Sumatoria de postres pagados y en estado “No iniciar” dentro de la ventana principal.</div>
+        <div class="tableWrap">
+          <table class="tbl">
+            <thead>
+              <tr>
+                <th>Postre</th>
+                <th class="num">Cantidad</th>
+              </tr>
+            </thead>
+            <tbody id="dessertRows"></tbody>
+          </table>
+        </div>
       </section>
 
 
