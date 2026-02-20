@@ -4,8 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>AMARED – Purchases</title>
-  <link rel="icon" href="favicon.ico" />
-  <link rel="icon" href="assets/favicon.ico" />
+  <link rel="icon" href="/amaredpostres/favicon.ico" />
   <link rel="stylesheet" href="purchases.css" />
   <style>
     /* --- Login pantalla completa --- */
@@ -34,7 +33,7 @@
     [hidden]{display:none !important;}
 
     .spinner{width:18px;height:18px;border-radius:50%;border:2px solid rgba(255,255,255,.25);border-top-color:rgba(255,255,255,.9);animation:spin 1s linear infinite;}
-     spin{to{transform:rotate(360deg);}}
+    @keyframes spin{to{transform:rotate(360deg);}}
   </style>
 </head>
 <body>
@@ -45,16 +44,32 @@
       <div class="brand">AMARED</div>
       <div class="subtitle">Purchases - Compras & Inventario</div>
       <div class="spacer"></div>
-      <button id="btnExit" class="btn">Salir</button>
-      <button id="btnUnlockTop" class="btn">Desbloquear</button>
-      <button id="btnReload" class="btn primary">Recargar cálculo</button>
+      <button id="btnExit" class="btn">Salir</button>      <button id="btnReload" class="btn primary">Recargar cálculo</button>
       <button id="btnRegister" class="btn primary">Registrar compras</button>
     </header>
 
     <main class="container">
       <section class="card">
-        <div class="metaTitle">Estado (últimas 36h - pagado + no iniciar)</div>
+        <div class="metaTitle">Estado (ayer 3:00 p.m. → hoy 3:00 p.m.) · Pagado + No iniciar</div>
         <div id="meta" class="meta">Desbloquea con tu clave de Costos para iniciar.</div>
+      </section>
+
+
+      <section id="lateCard" class="card" hidden>
+        <div class="sectionTitle">Pedidos después de las 3:00 p.m.</div>
+        <div class="hint">Pedidos pagados y "No iniciar" hechos después del corte (3:00 p.m.). Te sirve para saber si ya toca comprar hoy o dejarlo para mañana.</div>
+        <div class="tableWrap">
+          <table class="tbl">
+            <thead>
+              <tr>
+                <th>Postre</th>
+                <th class="num">Cantidad</th>
+              </tr>
+            </thead>
+            <tbody id="lateRows"></tbody>
+          </table>
+        </div>
+        <div id="lateMeta" class="meta" style="margin-top:10px;"></div>
       </section>
 
       <section class="card">
