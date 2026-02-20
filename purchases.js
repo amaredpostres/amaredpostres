@@ -76,8 +76,9 @@ function setMeta(msg){
 function updateBuyMeta(){
   const selectedKeys = Object.keys(state.buyPlan || {}).filter(k => state.buyPlan[k] && state.buyPlan[k].selected);
   const n = selectedKeys.length;
-  if(n === 0) return;
+  if(n === 0){ updateTotalCostUI(); return; }
   const totalQty = selectedKeys.reduce((s,k)=> s + (computePlannedQty(k) || 0), 0);
+  const totalCop = selectedKeys.reduce((s,k)=> s + (computePlannedCost(k) || 0), 0);
   const unitHint = "(en unidad base g/ml)";
   const used = Number(state.meta?.orders_used || 0);
   const lim  = Number(state.meta?.orders_limit || 0);
@@ -85,7 +86,7 @@ function updateBuyMeta(){
   const w1   = String(state.meta?.window_end || "").trim();
   const winText = (w0&&w1) ? (w0+" → "+w1) : "";
   const ordersText = lim ? `Pedidos: ${used}/${lim}` : `Pedidos: ${used}`;
-  setMeta(`🧾 Seleccionados: ${n} ingrediente(s) · Cantidad total ${unitHint}: ${fmtNum(totalQty)} · ${ordersText}${winText?(' · Ventana: '+winText):''}`);
+  setMeta(`🧾 Seleccionados: ${n} ingrediente(s) · Cantidad total ${unitHint}: ${fmtNum(totalQty)} · Total aprox: $${moneyCOP(totalCop)} · ${ordersText}${winText?(' · Ventana: '+winText):''}`);
 }
 
 async function api(body, {timeoutMs=30000} = {}){
@@ -124,6 +125,15 @@ function fmtNum(n){
   return new Intl.NumberFormat("es-CO", { maximumFractionDigits: 3 }).format(v);
 }
 
+
+function moneyCOP(n){
+  const v = Math.max(0, Math.round(Number(n || 0)));
+  return v.toLocaleString("es-CO");
+}
+function roundCOP(n){
+  const v = Math.round(Number(n || 0));
+  return isFinite(v) ? v : 0;
+}
 function escapeHtml(s){
   return String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#039;"}[c]));
 }
@@ -289,6 +299,59 @@ function computePlannedQty(key){
   return 0;
 }
 
+
+function generatePurchaseId(){
+  const d = new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth()+1).padStart(2,"0");
+  const day = String(d.getDate()).padStart(2,"0");
+  const hh = String(d.getHours()).padStart(2,"0");
+  const mm = String(d.getMinutes()).padStart(2,"0");
+  const ss = String(d.getSeconds()).padStart(2,"0");
+  const rnd = String(Math.floor(Math.random()*9000)+1000);
+  return `PUR-${y}${m}${day}-${hh}${mm}${ss}-${rnd}`;
+}
+
+function computePlannedCost(key){
+  const plan = getPlan(key);
+  if(!plan.selected) return 0;
+
+  const qty = computePlannedQty(key);
+  if(!(qty > 0)) return 0;
+
+  const spec = getCostSpec(key);
+  const base = baseFromSpec(spec);
+
+  // Si se está comprando por empaques y tenemos precio de empaque, usamos eso.
+  const packs = Number(plan.packs || 0);
+  if(base.pack_qty > 0 && packs > 0 && Number(base.pack_price || 0) > 0){
+    return roundCOP(Number(base.pack_price || 0) * packs);
+  }
+
+  // Fallback: costo por unidad base * qty
+  const cpu = getCostPerUnit(key);
+  if(cpu && isFinite(cpu) && cpu > 0){
+    return roundCOP(cpu * qty);
+  }
+  return 0;
+}
+
+function computeTotalPlannedCost(){
+  let sum = 0;
+  for(const k of Object.keys(state.buyPlan || {})){
+    sum += computePlannedCost(k);
+  }
+  return roundCOP(sum);
+}
+
+function updateTotalCostUI(){
+  const total = computeTotalPlannedCost();
+  const top = el("totalCostTop");
+  if(top){
+    top.textContent = total > 0 ? (`Total aprox: $${moneyCOP(total)}`) : "";
+    top.hidden = !(total > 0);
+  }
+}
 function computeRow(key){
   const need = Number(state.needs?.[key] || 0) || 0;
 
@@ -482,10 +545,12 @@ function renderTable(){
       plan.qty_manual = v;
       plan.selected = v > 0;
       updateBuyMeta();
+      updateTotalCostUI();
     });
   });
 
   updateBuyMeta();
+  updateTotalCostUI();
 }
 
 function prettyDessertName(id){
@@ -580,34 +645,110 @@ async function loadAll(){
 }
 
 // =================== compras -> inventario (Sheets) ===================
+
 function buildPurchaseBatch(){
-  const entries = [];
+  const purchase_id = generatePurchaseId();
+
+  const items = [];
+  let total_cop = 0;
+
   for(const [k,plan] of Object.entries(state.buyPlan || {})){
     if(!plan || !plan.selected) continue;
+
     const qty = computePlannedQty(k);
     if(!qty || qty <= 0) continue;
 
     const unit = getUnitFor(k);
     const cpu = getCostPerUnit(k);
 
-    const row = { ingredient_key: k, qty, unit };
-    if(cpu !== null) row.cop_per_unit = cpu;
-    entries.push(row);
+    const spec = getCostSpec(k);
+    const base = baseFromSpec(spec);
+
+    const packs = (base.pack_qty > 0) ? Math.max(0, Math.floor(Number(plan.packs || 0))) : 0;
+    const cop_total = computePlannedCost(k);
+
+    total_cop += cop_total;
+
+    const row = {
+      ingredient_key: k,
+      qty,
+      unit,
+      // para inventario + movimientos
+      cop_per_unit: (cpu && isFinite(cpu) && cpu>0) ? cpu : 0,
+      cop_total: cop_total || 0,
+      // para historial de compras (opcional en backend)
+      purchase_id,
+      packs: packs || "",
+      pack_price: Number(base.pack_price || 0) || "",
+      pack_qty: Number(base.pack_qty || 0) || "",
+      brand: base.brand || "",
+      store: base.store || "",
+    };
+
+    items.push(row);
   }
-  return entries;
+
+  return { purchase_id, total_cop: roundCOP(total_cop), items };
 }
 
-async function registerPurchases(){
+let CONFIRM_BATCH = null;
+
+function openConfirmModal(batch){
+  const back = el("confirmBack");
+  const rows = el("confirmRows");
+  const total = el("confirmTotal");
+  const sub = el("confirmSub");
+  if(!back || !rows || !total) return false;
+
+  CONFIRM_BATCH = batch;
+
+  const items = batch.items || [];
+  rows.innerHTML = items.map(it=>{
+    const name = String(it.ingredient_key || "");
+    const qty = Number(it.qty || 0);
+    const unit = String(it.unit || "");
+    const cost = Number(it.cop_total || 0);
+    const packsTxt = (it.packs ? `${it.packs} empaque(s)` : "");
+    return `<tr>
+      <td>${escapeHtml(name)}</td>
+      <td class="num">${fmtNum(qty)}</td>
+      <td>${escapeHtml(unit)}</td>
+      <td class="num">$${moneyCOP(cost)}</td>
+      <td class="small muted">${escapeHtml(packsTxt)}</td>
+    </tr>`;
+  }).join("");
+
+  const t = Number(batch.total_cop || 0) || 0;
+  total.textContent = `$${moneyCOP(t)}`;
+  if(sub){
+    sub.textContent = `Se registrarán ${items.length} ingrediente(s) en INVENTARIO y se guardará el historial de compra.`;
+  }
+
+  show(back, "flex");
+  return true;
+}
+
+function closeConfirmModal(){
+  const back = el("confirmBack");
+  if(back) hide(back);
+  CONFIRM_BATCH = null;
+}
+
+async function confirmRegisterPurchases(){
   if(!UNLOCKED_SECRET){
+    closeConfirmModal();
     openUnlock("Desbloquea con tu clave de Costos para iniciar.");
     return;
   }
 
-  const items = buildPurchaseBatch();
-  if(items.length === 0){
+  const batch = CONFIRM_BATCH;
+  if(!batch || !Array.isArray(batch.items) || batch.items.length === 0){
+    closeConfirmModal();
     setMeta("No hay ingredientes marcados para comprar.");
     return;
   }
+
+  closeConfirmModal();
 
   showLoading("Registrando compras…", "Actualizando inventario en la base de datos.");
   try{
@@ -616,17 +757,42 @@ async function registerPurchases(){
       costs_secret: UNLOCKED_SECRET,
       updated_by: "PURCHASES_UI",
       source: "PURCHASES_UI",
-      items
+      purchase_id: batch.purchase_id,
+      total_cop: batch.total_cop,
+      items: batch.items
     }, {timeoutMs: 60000});
 
     // refresca
+    const total = Number(batch.total_cop || 0) || 0;
     state.buyPlan = {};
     await loadAll();
-    setMeta("✅ Compras registradas y inventario actualizado.");
+    setMeta(`✅ Compras registradas y inventario actualizado. Total aprox: $${moneyCOP(total)}`);
   } catch(err){
     setMeta(`❌ Error registrando compras: ${(err && err.message) ? err.message : "Error"}`);
   } finally { hideLoading(); }
 }
+
+async function registerPurchases(){
+  if(!UNLOCKED_SECRET){
+    openUnlock("Desbloquea con tu clave de Costos para iniciar.");
+    return;
+  }
+
+  const batch = buildPurchaseBatch();
+  if(!batch.items.length){
+    setMeta("No hay ingredientes marcados para comprar.");
+    return;
+  }
+
+  // mostrar total y confirmar
+  const ok = openConfirmModal(batch);
+  if(!ok){
+    // fallback si el modal no existe
+    CONFIRM_BATCH = batch;
+    return confirmRegisterPurchases();
+  }
+}
+
 
 // =================== COST MODAL ===================
 let CM = { key:null };
@@ -821,6 +987,13 @@ async function boot(){
   });
 
   if(el("btnRegister")) el("btnRegister").addEventListener("click", registerPurchases);
+
+  // confirmar compras
+  if(el("btnConfirmCancel")) el("btnConfirmCancel").addEventListener("click", closeConfirmModal);
+  if(el("btnConfirmOk")) el("btnConfirmOk").addEventListener("click", confirmRegisterPurchases);
+  const cBack = el("confirmBack");
+  if(cBack) cBack.addEventListener("click", (ev)=>{ if(ev.target === cBack) closeConfirmModal(); });
+
   if(el("btnExit")) el("btnExit").addEventListener("click", ()=>{ window.location.href = "index.html"; });
 
   if(el("btnDoUnlock")) el("btnDoUnlock").addEventListener("click", ()=>doUnlock(false));
