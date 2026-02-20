@@ -395,10 +395,22 @@ function isCompleteRow(r){
   return true;
 }
 
-function computeCopPerUnit(packQty, packPrice){
-  const qty = Number(packQty||0);
-  const price = Number(packPrice||0);
+function computeCopPerUnit(row){
+  const r = row || {};
+  const u = normUnit(r.unit_type);
+  const qty = Number(r.pack_qty||0);
+  const price = Number(r.pack_price||0);
   if(!(qty>0) || !(price>0)) return 0;
+
+  // Si es "unidad": el empaque trae N unidades, y cada unidad equivale a X g/ml
+  // => COP por g/ml = pack_price / (pack_qty * unit_item_qty)
+  if(u === "unidad"){
+    const itemQty = Number(r.unit_item_qty||0);
+    if(!(itemQty>0)) return 0;
+    return price / (qty * itemQty);
+  }
+
+  // Caso normal (g/ml/u): COP por unidad base = pack_price / pack_qty
   return price / qty;
 }
 
@@ -418,9 +430,12 @@ function setRowField(key, field, value){
   }
 
   // auto cálculo
-  const cpu = computeCopPerUnit(r.pack_qty, r.pack_price);
-  if(cpu > 0) r.cop_per_unit = String(roundCOP(cpu));
-  else r.cop_per_unit = "";
+  const cpu = computeCopPerUnit(r);
+  if(cpu > 0) {
+    // Mantener más precisión cuando el cálculo es por g/ml (unit_type = unidad)
+    if(u === "unidad") r.cop_per_unit = String(Math.round(cpu*1000)/1000);
+    else r.cop_per_unit = String(roundCOP(cpu));
+  } else r.cop_per_unit = "";
 }
 
 // ====== Mantener acordeones abiertos ======
