@@ -45,7 +45,9 @@
       <div class="brand">AMARED</div>
       <div class="subtitle">Purchases - Compras & Inventario</div>
       <div class="spacer"></div>
-      <button id="btnExit" class="btn">Salir</button>      <button id="btnReload" class="btn primary">Recargar cálculo</button>
+      <button id="btnExit" class="btn">Salir</button>
+      <button id="btnReload" class="btn primary">Recargar cálculo</button>
+      <div id="totalCostTop" class="small muted" style="font-weight:900;" hidden></div>
       <button id="btnRegister" class="btn primary">Registrar compras</button>
     </header>
 
@@ -210,7 +212,39 @@
   </style>
 
 
-  <!-- LOADING overlay -->
+  
+  <!-- MODAL: confirmar compras -->
+  <div id="confirmBack" class="modalBack" hidden>
+    <div class="modal" style="width:min(920px, 100%);">
+      <div class="modalTitle">Confirmar compras</div>
+      <div id="confirmSub" class="small muted">—</div>
+
+      <div class="tableWrap" style="margin-top:10px;">
+        <table class="tbl" style="min-width:720px;">
+          <thead>
+            <tr>
+              <th>Ingrediente</th>
+              <th class="num">Cantidad</th>
+              <th>Unidad</th>
+              <th class="num">Costo (COP)</th>
+              <th class="small muted">Detalle</th>
+            </tr>
+          </thead>
+          <tbody id="confirmRows"></tbody>
+        </table>
+      </div>
+
+      <div class="row" style="justify-content:space-between; align-items:center; margin-top:12px; gap:10px;">
+        <div style="font-weight:900;">Total: <span id="confirmTotal">$0</span></div>
+        <div style="display:flex; gap:10px; justify-content:flex-end; flex-wrap:wrap;">
+          <button id="btnConfirmCancel" class="btn">Volver</button>
+          <button id="btnConfirmOk" class="btn primary">Confirmar</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+<!-- LOADING overlay -->
   <div id="loadingBack">
     <div id="loadingModal" class="modal">
       <div class="row" style="gap:12px; align-items:center;">
