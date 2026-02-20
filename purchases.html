@@ -4,9 +4,8 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>AMARED – Purchases</title>
-  <!-- favicon (usa assets; si aún ves 404 de /favicon.ico, copia assets/favicon.ico a la raíz como favicon.ico) -->
-  <link rel="icon" href="assets/favicon.ico" />
-  <link rel="shortcut icon" href="assets/favicon.ico" />
+  <link rel="icon" href="assets/favicon.ico" type="image/x-icon" />
+  <link rel="shortcut icon" href="assets/favicon.ico" type="image/x-icon" />
   <link rel="stylesheet" href="purchases.css" />
   <style>
     /* --- Login pantalla completa --- */
@@ -56,9 +55,9 @@
         <div id="meta" class="meta">Desbloquea con tu clave de Costos para iniciar.</div>
       </section>
 
-      <section id="dessertCard" class="card" hidden>
-        <div class="sectionTitle">Postres confirmados (para cálculo de ingredientes)</div>
-        <div class="hint">Sumatoria de postres pagados y en estado “No iniciar” dentro de la ventana principal.</div>
+      <section id="dessertsCard" class="card" hidden>
+        <div class="sectionTitle">Postres confirmados (ventana de cálculo)</div>
+        <div class="hint">Estos son los postres que se tomaron para calcular ingredientes (Pagado + No iniciar).</div>
         <div class="tableWrap">
           <table class="tbl">
             <thead>
@@ -70,6 +69,7 @@
             <tbody id="dessertRows"></tbody>
           </table>
         </div>
+        <div id="dessertsMeta" class="meta" style="margin-top:10px;"></div>
       </section>
 
 
@@ -92,7 +92,7 @@
 
       <section class="card">
         <div class="sectionTitle">Ingredientes</div>
-        <div class="hint">"Comprar (u)" suma directo al INVENTARIO. Si compras en empaques, escribe el total en unidades base (g/ml/unidad).</div>
+        <div class="hint">El valor de "Comprar" se registra en INVENTARIO usando la unidad base (g/ml). Si un ingrediente estaba en "unidad", se convertirá a g/ml según COSTOS_INGREDIENTES.</div>
 
         <div class="tableWrap">
           <table class="tbl">
@@ -104,8 +104,9 @@
                 <th class="num">Falta</th>
                 <th>Unidad</th>
                 <th class="num">Costo/u (COP)</th>
-                <th class="num">Comprar (u)</th>
-                <th class="num">In</th>
+                <th>Detalle</th>
+                <th class="num">Comprar</th>
+                <th class="num">+</th>
               </tr>
             </thead>
             <tbody id="rows"></tbody>
@@ -132,6 +133,84 @@
     </div>
   </div>
 
+
+  <!-- MODAL: detalle/edición de costo -->
+  <div id="costModalBack" class="modalBack" hidden>
+    <div id="costModal" class="modal" style="width:min(920px, 100%);">
+      <div class="modalTitle" id="costModalTitle">Detalle de ingrediente</div>
+      <div class="modalSub" id="costModalSub">Edita la última presentación guardada (se actualizará en COSTOS_INGREDIENTES).</div>
+
+      <div class="row" style="flex-wrap:wrap; gap:10px;">
+        <div style="flex:1; min-width:180px;">
+          <div class="fieldLbl">Unidad</div>
+          <select id="cmUnitType" class="inp">
+            <option value="g">g</option>
+            <option value="ml">ml</option>
+            <option value="unidad">unidad</option>
+          </select>
+        </div>
+        <div style="flex:1; min-width:180px;">
+          <div class="fieldLbl">Cantidad empaque</div>
+          <input id="cmPackQty" class="inp" type="number" step="any" min="0" placeholder="Ej: 1000" />
+        </div>
+        <div style="flex:1; min-width:180px;">
+          <div class="fieldLbl">Precio empaque (COP)</div>
+          <input id="cmPackPrice" class="inp" type="number" step="any" min="0" placeholder="Ej: 9500" />
+        </div>
+      </div>
+
+      <div id="cmUnitExtra" style="margin-top:10px; display:none;">
+        <div class="hint">Si compras por <b>unidades</b>, define cuánto trae cada unidad (g/ml) para guardar el costo en unidad base.</div>
+        <div class="row" style="flex-wrap:wrap; gap:10px;">
+          <div style="flex:1; min-width:180px;">
+            <div class="fieldLbl">Cantidad por unidad</div>
+            <input id="cmUnitItemQty" class="inp" type="number" step="any" min="0" placeholder="Ej: 20" />
+          </div>
+          <div style="flex:1; min-width:180px;">
+            <div class="fieldLbl">Tipo</div>
+            <select id="cmUnitItemType" class="inp">
+              <option value="">—</option>
+              <option value="g">g</option>
+              <option value="ml">ml</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <div class="row" style="flex-wrap:wrap; gap:10px; margin-top:10px;">
+        <div style="flex:1; min-width:180px;">
+          <div class="fieldLbl">Marca</div>
+          <input id="cmBrand" class="inp" type="text" placeholder="Opcional" />
+        </div>
+        <div style="flex:1; min-width:180px;">
+          <div class="fieldLbl">Tienda</div>
+          <input id="cmStore" class="inp" type="text" placeholder="Opcional" />
+        </div>
+      </div>
+
+      <div class="meta" id="cmComputed" style="margin-top:10px;"></div>
+      <div id="cmErr" class="modalMsg" style="color:#ef4444;"></div>
+
+      <div class="row" style="justify-content:flex-end; gap:10px; margin-top:12px;">
+        <a class="btn" href="costs.html" target="_blank" rel="noopener">Abrir Costos</a>
+        <button id="cmCancel" class="btn">Cerrar</button>
+        <button id="cmSave" class="btn primary">Guardar cambios</button>
+      </div>
+    </div>
+  </div>
+
+  <style>
+    .modalBack{
+      position:fixed; inset:0; z-index:1200;
+      display:flex; align-items:center; justify-content:center;
+      background: rgba(0,0,0,.55);
+      backdrop-filter: blur(6px);
+      padding:24px;
+    }
+    .fieldLbl{ font-size:12px; opacity:.8; margin:0 0 6px; }
+  </style>
+
+
   <!-- LOADING overlay -->
   <div id="loadingBack">
     <div id="loadingModal" class="modal">
@@ -145,6 +224,7 @@
     </div>
   </div>
 
+  <script src="kitchen-costs.js?v=20260220-01"></script>
   <script src="purchases.js"></script>
 </body>
 </html>
