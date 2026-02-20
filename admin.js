@@ -8,7 +8,8 @@ const PRODUCT_CATALOG = [
 ];
 
 // =================== SESSION / STATE ===================
-let SESSION = { operator: null, pin: null };
+let SESSION = { operator: null, operatorId: null, pin: null };
+let LOGIN_PROFILES = [];
 let REQUEST_IN_FLIGHT = false;
 
 let pendingOrdersCache = [];
@@ -155,6 +156,57 @@ async function api(body, retries = 2) {
   return out;
 }
 
+// =================== PROFILES (login) ===================
+async function fetchProfilesPublic(category) {
+  const out = await api({ action: "profiles_public_list", category });
+  const list = Array.isArray(out.profiles) ? out.profiles : (Array.isArray(out.items) ? out.items : []);
+  // Normaliza: {id,label,pin?}
+  return list
+    .map(p => ({
+      id: String(p.id || p.profile_id || ""),
+      label: String(p.label || p.name || p.display_name || "").trim(),
+      is_active: (p.is_active !== false),
+    }))
+    .filter(p => p.id && p.label && p.is_active);
+}
+
+function renderLoginProfiles(profiles) {
+  if (!loginOperator) return;
+  loginOperator.innerHTML = "";
+  const opt0 = document.createElement("option");
+  opt0.value = "";
+  opt0.textContent = profiles.length ? "Seleccionar..." : "No hay perfiles activos (Pagos)";
+  loginOperator.appendChild(opt0);
+
+  for (const p of profiles) {
+    const opt = document.createElement("option");
+    opt.value = p.id;
+    opt.textContent = p.label;
+    loginOperator.appendChild(opt);
+  }
+}
+
+function getSelectedProfile() {
+  const id = String(loginOperator?.value || "").trim();
+  if (!id) return null;
+  return LOGIN_PROFILES.find(p => p.id === id) || null;
+}
+
+async function loadPaymentProfiles() {
+  try {
+    // Intento principal: payments. Si viene vacío, intenta "pago".
+    LOGIN_PROFILES = await fetchProfilesPublic("payments");
+    if (!LOGIN_PROFILES.length) LOGIN_PROFILES = await fetchProfilesPublic("pago");
+    renderLoginProfiles(LOGIN_PROFILES);
+  } catch (e) {
+    LOGIN_PROFILES = [];
+    renderLoginProfiles([]);
+    // Mensaje amigable: el Worker debe habilitar profiles_public_list
+    loginError.textContent = `No se pudieron cargar perfiles. ${String(e.message || e)}`;
+  }
+}
+
+
 // =================== NAV (login/panel) ===================
 function showPanel() {
   if (loginView) loginView.classList.add("hidden");
@@ -257,23 +309,23 @@ function calcTotals(items) {
 // =================== LOGIN ===================
 btnLogin?.addEventListener("click", async () => {
   loginError.textContent = "";
-  const operator = (loginOperator?.value || "").trim();
+  const prof = getSelectedProfile();
   const pin = (loginPin?.value || "").trim();
 
-  if (!operator || !pin) {
-    loginError.textContent = "Completa todos los campos.";
+  if (!prof || !pin) {
+    loginError.textContent = "Selecciona un perfil y escribe el PIN.";
     return;
   }
 
   try {
     showLoading("Verificando acceso...");
-    SESSION = { operator, pin };
+    SESSION = { operator: prof.label, operatorId: prof.id, pin };
     sessionStorage.setItem("AMARED_ADMIN", JSON.stringify(SESSION));
 
     showPanel();
-    await loadPendientes(false); // valida login
+    await loadPendientes(false); // valida login (PIN)
   } catch (e) {
-    SESSION = { operator: null, pin: null };
+    SESSION = { operator: null, operatorId: null, pin: null };
     sessionStorage.removeItem("AMARED_ADMIN");
     showLogin();
     loginError.textContent = `Error: ${String(e.message || e)}`;
@@ -283,7 +335,7 @@ btnLogin?.addEventListener("click", async () => {
 });
 
 btnLogout?.addEventListener("click", () => {
-  SESSION = { operator: null, pin: null };
+  SESSION = { operator: null, operatorId: null, pin: null };
   sessionStorage.removeItem("AMARED_ADMIN");
   closeDrawer();
   showLogin();
@@ -978,18 +1030,29 @@ btnCancelConfirm?.addEventListener("click", async () => {
 });
 
 // =================== INIT ===================
-(function init() {
+(async function init() {
+  // Cargar perfiles de pagos apenas abre
+  await loadPaymentProfiles();
+
   const saved = sessionStorage.getItem("AMARED_ADMIN");
   if (saved) {
     try {
-      SESSION = JSON.parse(saved);
-      if (SESSION?.operator && SESSION?.pin) {
-        showPanel();
-        loadPendientes(false).catch(() => {
-          SESSION = { operator: null, pin: null };
-          sessionStorage.removeItem("AMARED_ADMIN");
-          showLogin();
-        });
+      const s = JSON.parse(saved);
+      if (s?.pin) {
+        // Preselecciona perfil si existe
+        if (s.operatorId && loginOperator) loginOperator.value = String(s.operatorId);
+        if (loginPin) loginPin.value = String(s.pin || "");
+        const prof = s.operatorId ? (LOGIN_PROFILES.find(p => p.id === String(s.operatorId)) || null) : null;
+        SESSION = { operator: prof?.label || String(s.operator || ""), operatorId: prof?.id || String(s.operatorId || ""), pin: String(s.pin || "") };
+
+        if (SESSION.operator && SESSION.pin) {
+          showPanel();
+          loadPendientes(false).catch(() => {
+            SESSION = { operator: null, operatorId: null, pin: null };
+            sessionStorage.removeItem("AMARED_ADMIN");
+            showLogin();
+          });
+        }
       }
     } catch {}
   }
