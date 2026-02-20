@@ -193,6 +193,11 @@ function getSelectedProfile() {
 }
 
 async function loadPaymentProfiles() {
+  // Full-screen loading mientras se cargan perfiles
+  showLoading("Cargando perfiles...");
+  if (loginOperator) loginOperator.disabled = true;
+  if (loginPin) loginPin.disabled = true;
+  if (btnLogin) btnLogin.disabled = true;
   try {
     // Intento principal: payments. Si viene vacío, intenta "pago".
     LOGIN_PROFILES = await fetchProfilesPublic("payments");
@@ -202,7 +207,12 @@ async function loadPaymentProfiles() {
     LOGIN_PROFILES = [];
     renderLoginProfiles([]);
     // Mensaje amigable: el Worker debe habilitar profiles_public_list
-    loginError.textContent = `No se pudieron cargar perfiles. ${String(e.message || e)}`;
+    if (loginError) loginError.textContent = `No se pudieron cargar perfiles. ${String(e.message || e)}`;
+  } finally {
+    if (loginOperator) loginOperator.disabled = false;
+    if (loginPin) loginPin.disabled = false;
+    if (btnLogin) btnLogin.disabled = false;
+    hideLoading();
   }
 }
 
