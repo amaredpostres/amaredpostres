@@ -141,20 +141,72 @@ function getCostItem(key){
   return state.costsByKey?.[key] || null;
 }
 
-function getUnitFor(key){
+function normUnit(u){
+  const s = String(u||"").trim().toLowerCase();
+  if(s === "g") return "g";
+  if(s === "ml") return "ml";
+  if(s === "unidad" || s === "u" || s === "und" || s === "unid") return "unidad";
+  return "";
+}
+
+function getUnitMeta(key){
   const it = getCostItem(key);
-  const u1 = String(it?.unit || "").trim();
-  if(u1) return u1;
   const inv = getInvEntry(key);
-  if(inv.unit) return inv.unit;
-  return "g";
+
+  const unitType = normUnit(it?.unit_type || it?.unit || "");
+  const cpuRaw = Number(it?.cop_per_unit ?? it?.cost_per_unit ?? 0);
+  const unitItemQty = Number(it?.unit_item_qty || 0);
+  const unitItemType = normUnit(it?.unit_item_qty_type || "");
+
+  let baseUnit = unitType;
+  let factor = 1;
+  let cpuBase = (cpuRaw > 0 && isFinite(cpuRaw)) ? cpuRaw : null;
+
+  // Si en costos está "unidad" pero sabemos cuántos g/ml tiene 1 unidad,
+  // en Purchases trabajamos SIEMPRE en la unidad base (g/ml).
+  if(unitType === "unidad" && unitItemQty > 0 && isFinite(unitItemQty)){
+    baseUnit = unitItemType || "g"; // default seguro
+    factor = unitItemQty;
+    cpuBase = (cpuRaw > 0 && isFinite(cpuRaw)) ? (cpuRaw / factor) : null;
+  }
+
+  // fallback si no hay unit en costos
+  if(!baseUnit){
+    const invUnit = normUnit(inv.unit);
+    if(invUnit && invUnit !== "unidad") baseUnit = invUnit;
+    else baseUnit = "g";
+  }
+
+  return { baseUnit, sourceUnitType: unitType || "", unitFactor: factor, cpuBase };
+}
+
+function getUnitFor(key){
+  return getUnitMeta(key).baseUnit;
 }
 
 function getCostPerUnit(key){
-  const it = getCostItem(key);
-  const v = it?.cop_per_unit ?? it?.cost_per_unit;
-  const n = Number(v);
-  return (typeof n === "number" && isFinite(n)) ? n : null;
+  // costo por unidad BASE (g/ml)
+  return getUnitMeta(key).cpuBase;
+}
+
+function invQtyInBaseUnit(key){
+  const inv = getInvEntry(key);
+  const invUnit = normUnit(inv.unit);
+  const meta = getUnitMeta(key);
+
+  if(invUnit === meta.baseUnit) return inv.qty;
+
+  // convertir unidades -> g/ml si aplica
+  if(invUnit === "unidad" && meta.sourceUnitType === "unidad" && meta.unitFactor > 1){
+    return inv.qty * meta.unitFactor;
+  }
+
+  // heurística: inventario sin unidad pero costos dicen "unidad" con factor => asumimos que inv está en unidades
+  if(!invUnit && meta.sourceUnitType === "unidad" && meta.unitFactor > 1){
+    return inv.qty * meta.unitFactor;
+  }
+
+  return inv.qty;
 }
 
 function collectAllKeys(){
@@ -204,7 +256,7 @@ function buildCanon(allKeys){
 function computeRow(key){
   const need = Number(state.needs?.[key] || 0) || 0;
 
-  const invBase = getInvEntry(key).qty;
+  const invBase = invQtyInBaseUnit(key);
   const pending = Number(state.pending?.[key] || 0) || 0;
   const invShown = invBase + pending;
 
@@ -236,7 +288,7 @@ function renderTable(){
       <td class="num">${fmtNum(r.invShown)}</td>
       <td class="num">${fmtNum(r.missing)}</td>
       <td>${escapeHtml(r.unit)}</td>
-      <td class="num">${r.cpu === null ? "—" : fmtNum(Math.round(r.cpu))}</td>
+      <td class="num">${r.cpu === null ? "—" : fmtNum(r.cpu)}</td>
       <td class="num"><input class="inp inpSm" data-buy="${escapeAttr(r.key)}" type="number" min="0" step="any" placeholder="0"/></td>
       <td class="num"><button class="btn" data-add="${escapeAttr(r.key)}">+</button></td>
     `;
@@ -279,61 +331,6 @@ function prettyDessertName(id){
   if(map[s]) return map[s];
   return s.replace(/[_-]+/g," ").replace(/\w/g, c=>c.toUpperCase());
 }
-
-
-function normDessertId(id){
-  const s = String(id||"").trim().toLowerCase();
-  const map = {
-    "mousse_maracuya":"mousse_maracuya",
-    "mousse":"mousse_maracuya",
-    "mousse_de_maracuya":"mousse_maracuya",
-    "cheesecake_cafe_panela":"cheesecake_cafe_panela",
-    "cheesecake_cafe":"cheesecake_cafe_panela",
-    "cheesecake":"cheesecake_cafe_panela",
-    "cheesecake_de_cafe_con_panela":"cheesecake_cafe_panela",
-    "arroz_con_leche":"arroz_con_leche",
-    "arroz":"arroz_con_leche",
-  };
-  return map[s] || s;
-}
-
-function renderDessertSummary(){
-  const card = el("dessertCard");
-  const tbody = el("dessertRows");
-  if(!card || !tbody) return;
-
-  const src = state.ordersByDessert || {};
-  const counts = {
-    mousse_maracuya: 0,
-    cheesecake_cafe_panela: 0,
-    arroz_con_leche: 0,
-  };
-
-  for(const [k,v] of Object.entries(src)){
-    const id = normDessertId(k);
-    const n = Number(v || 0) || 0;
-    if(Object.prototype.hasOwnProperty.call(counts, id)){
-      counts[id] += n;
-    }
-  }
-
-  const order = ["mousse_maracuya","cheesecake_cafe_panela","arroz_con_leche"];
-  const total = order.reduce((s,id)=>s + (Number(counts[id]||0)||0), 0);
-
-  tbody.innerHTML = order.map(id=>{
-    const qty = Number(counts[id]||0) || 0;
-    return `<tr>
-      <td>${escapeHtml(prettyDessertName(id))}</td>
-      <td class="num">${fmtNum(qty)}</td>
-    </tr>`;
-  }).join("") + `<tr>
-    <td><b>Total</b></td>
-    <td class="num"><b>${fmtNum(total)}</b></td>
-  </tr>`;
-
-  show(card, "block");
-}
-
 
 function renderLateSection(){
   const card = el("lateCard");
@@ -415,7 +412,6 @@ async function loadAll(){
   setMeta(`Ventana: ${winText} · ${ordersText}`);
 
   renderTable();
-  renderDessertSummary();
   renderLateSection();
 }
 
