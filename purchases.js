@@ -1,4 +1,4 @@
-/* AMARED Purchases - client (patched v2)
+/* AMARED Purchases - client (patched)
    Objetivo:
    - Cargar correctamente INVENTARIO + NECESIDADES (pedidos pagados + no iniciar en últimas N horas)
    - Mostrar faltantes por ingrediente usando el mismo ingredient_key del backend
@@ -16,6 +16,8 @@ let state = {
   inventory: {},      // inventory_get (map)
   needs: {},          // costs_orders_for_purchases (map)
   meta: {},           // costs_orders_for_purchases.meta
+  ordersByDessert: {},// costs_orders_for_purchases.orders_by_dessert (map)
+  late: {},           // costs_orders_for_purchases.late
   pending: {},        // compras pendientes: ingredient_key -> qty
   window_h: 36,
 };
@@ -261,6 +263,61 @@ function renderTable(){
   });
 }
 
+function prettyDessertName(id){
+  const s = String(id||"").trim();
+  if(!s) return "";
+  // casos comunes
+  const map = {
+    "mousse_maracuya":"Mousse de maracuyá",
+    "mousse":"Mousse de maracuyá",
+    "cheesecake_cafe":"Cheesecake de café con panela",
+    "cheesecake_cafe_panela":"Cheesecake de café con panela",
+    "cheesecake":"Cheesecake de café con panela",
+    "arroz_con_leche":"Arroz con leche",
+    "arroz":"Arroz con leche",
+  };
+  if(map[s]) return map[s];
+  return s.replace(/[_-]+/g," ").replace(/\w/g, c=>c.toUpperCase());
+}
+
+function renderLateSection(){
+  const card = el("lateCard");
+  const tbody = el("lateRows");
+  const meta = el("lateMeta");
+  if(!card || !tbody) return;
+
+  const by = state.late?.byDessert || {};
+  const keys = Object.keys(by).filter(k => Number(by[k]||0) > 0);
+  if(keys.length === 0){
+    hide(card);
+    if(tbody) tbody.innerHTML = "";
+    if(meta) meta.textContent = "";
+    return;
+  }
+
+  // ordenar por cantidad desc
+  keys.sort((a,b)=>Number(by[b]||0)-Number(by[a]||0));
+
+  tbody.innerHTML = keys.map(k=>{
+    const qty = Number(by[k]||0);
+    return `<tr>
+      <td>${escapeHtml(prettyDessertName(k))}</td>
+      <td class="num">${fmtNum(qty)}</td>
+    </tr>`;
+  }).join("");
+
+  const used = Number(state.late?.orders_used || 0);
+  const w0 = String(state.meta?.late_window_start || "").trim();
+  const w1 = String(state.meta?.late_window_end || "").trim();
+  if(meta){
+    meta.textContent = `Pedidos: ${used}${(w0&&w1)?(" · Ventana: "+w0+" → "+w1):""}`;
+  }
+
+  show(card, "block");
+}
+
+
+
 // =================== data ===================
 function indexCosts(items){
   const map = {};
@@ -286,16 +343,24 @@ async function loadAll(){
   state.inventory = invOut.inventory || {};
   state.needs = needsOut.needs || {};
   state.meta = needsOut.meta || {};
+  state.ordersByDessert = needsOut.orders_by_dessert || needsOut.ordersByDessert || {};
+  state.late = needsOut.late || {};
   state.items = costsOut.items || [];
   indexCosts(state.items);
 
   // no borramos pendientes (si estabas digitando), pero los recalculamos en pantalla
   const used = Number(state.meta?.orders_used || 0);
   const lim  = Number(state.meta?.orders_limit || 0);
+  const w0   = String(state.meta?.window_start || "").trim();
+  const w1   = String(state.meta?.window_end || "").trim();
   const wh   = Number(state.meta?.window_hours || state.window_h);
 
-  setMeta(`Pedidos usados: ${used}/${lim} · Ventana: ${wh}h`);
+  const winText = (w0 && w1) ? `${w0} → ${w1}` : `${wh}h`;
+  const ordersText = lim ? `Pedidos: ${used}/${lim}` : `Pedidos: ${used}`;
+  setMeta(`Ventana: ${winText} · ${ordersText}`);
+
   renderTable();
+  renderLateSection();
 }
 
 // =================== compras -> inventario (Sheets) ===================
@@ -399,8 +464,6 @@ async function boot(){
   });
 
   if(el("btnRegister")) el("btnRegister").addEventListener("click", registerPurchases);
-
-  if(el("btnUnlockTop")) el("btnUnlockTop").addEventListener("click", ()=>openUnlock());
   if(el("btnExit")) el("btnExit").addEventListener("click", ()=>{ window.location.href = "index.html"; });
 
   if(el("btnDoUnlock")) el("btnDoUnlock").addEventListener("click", ()=>doUnlock(false));
