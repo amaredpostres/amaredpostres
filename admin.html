@@ -21,6 +21,15 @@
     .field{ display:grid; gap:6px; margin-bottom:12px; }
     .mutedSmall{ opacity:.72; font-weight:800; font-size:13px; }
 
+    .loginActions{ display:flex; gap:10px; }
+    .btnLinkLike{ text-decoration:none; display:flex; align-items:center; justify-content:center; }
+    .loginActions .btn{ flex:1; }
+    @media (max-width:520px){
+      .loginActions{ flex-direction:column; }
+      .loginActions .btn{ width:100%; }
+    }
+
+
     /* PANEL */
     .panelTop{
       display:flex; justify-content:space-between; align-items:center;
@@ -167,11 +176,13 @@
     <!-- LOGIN -->
     <div id="loginView" class="loginBox">
       <h2>Panel de Pagos</h2>
-      <p>Acceso restringido</p>
+      <p>Selecciona un perfil aprobado y escribe el PIN.</p>
 
       <div class="field">
-        <label>Nombre del operador</label>
-        <input id="loginOperator" class="input" placeholder="Ej: Cristian / Caja1" />
+        <label>Perfil (Pagos)</label>
+        <select id="loginOperator" class="input">
+          <option value="">Cargando perfiles...</option>
+        </select>
       </div>
 
       <div class="field">
@@ -179,7 +190,10 @@
         <input id="loginPin" type="password" class="input" placeholder="••••••" />
       </div>
 
-      <button id="btnLogin" class="btn primary" style="width:100%;">Ingresar</button>
+      <div class="loginActions">
+        <button id="btnLogin" class="btn primary" type="button">Ingresar</button>
+        <a id="btnManageProfiles" class="btn secondary btnLinkLike" href="profiles.html" target="_blank" rel="noopener">Gestionar perfiles</a>
+      </div>
       <p id="loginError" class="mutedSmall" style="color:#b00020; text-align:center; margin-top:10px;"></p>
     </div>
 
@@ -299,7 +313,7 @@
     </div>
   </div>
 
-  <script src="admin.js?v=20260206-03"></script>
+  <script src="admin.js?v=20260220-01"></script>
 </body>
 </html>
 
