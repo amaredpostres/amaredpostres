@@ -4,7 +4,9 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>AMARED – Purchases</title>
-  <link rel="icon" href="/amaredpostres/favicon.ico" />
+  <!-- favicon (usa assets; si aún ves 404 de /favicon.ico, copia assets/favicon.ico a la raíz como favicon.ico) -->
+  <link rel="icon" href="assets/favicon.ico" />
+  <link rel="shortcut icon" href="assets/favicon.ico" />
   <link rel="stylesheet" href="purchases.css" />
   <style>
     /* --- Login pantalla completa --- */
@@ -54,6 +56,22 @@
         <div id="meta" class="meta">Desbloquea con tu clave de Costos para iniciar.</div>
       </section>
 
+      <section id="dessertCard" class="card" hidden>
+        <div class="sectionTitle">Postres confirmados (para cálculo de ingredientes)</div>
+        <div class="hint">Sumatoria de postres pagados y en estado “No iniciar” dentro de la ventana principal.</div>
+        <div class="tableWrap">
+          <table class="tbl">
+            <thead>
+              <tr>
+                <th>Postre</th>
+                <th class="num">Cantidad</th>
+              </tr>
+            </thead>
+            <tbody id="dessertRows"></tbody>
+          </table>
+        </div>
+      </section>
+
 
       <section id="lateCard" class="card" hidden>
         <div class="sectionTitle">Pedidos después de las 3:00 p.m.</div>
@@ -74,7 +92,7 @@
 
       <section class="card">
         <div class="sectionTitle">Ingredientes</div>
-        <div class="hint">"Comprar" suma directo al INVENTARIO. Escribe la cantidad en la unidad base del ingrediente (g o ml). Si un ingrediente estaba en "unidad", aquí se convierte a g/ml según tu configuración en Costos.</div>
+        <div class="hint">"Comprar (u)" suma directo al INVENTARIO. Si compras en empaques, escribe el total en unidades base (g/ml/unidad).</div>
 
         <div class="tableWrap">
           <table class="tbl">
@@ -85,8 +103,8 @@
                 <th class="num">Inventario</th>
                 <th class="num">Falta</th>
                 <th>Unidad</th>
-                <th class="num">Costo (COP)</th>
-                <th class="num">Comprar</th>
+                <th class="num">Costo/u (COP)</th>
+                <th class="num">Comprar (u)</th>
                 <th class="num">In</th>
               </tr>
             </thead>
