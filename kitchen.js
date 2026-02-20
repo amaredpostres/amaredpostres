@@ -177,7 +177,7 @@
   const btnLogout = $("btnLogout");
   const btnRefresh = $("btnRefresh");
   let btnShopping = $("btnShopping"); // se crea si no existe
-  const btnCosts = $("btnCosts"); // si no existe, se crea
+  let btnCosts = $("btnCosts"); // si no existe, se crea
 
   const todayWrap = $("todayWrap");
   const tomorrowWrap = $("tomorrowWrap");
@@ -399,7 +399,7 @@ const apiPost = (payload) => api(payload);
     if(app) app.style.display="block";
     if(btnLogout) btnLogout.style.display="inline-flex";
     if(btnRefresh) btnRefresh.style.display="inline-flex";
-    if(btnShopping) btnShopping.style.display="inline-flex";
+    if(btnShopping) btnShopping.style.display="none";
     if(btnCosts) btnCosts.style.display="inline-flex";
     if(btnHistory) btnHistory.style.display="inline-flex";
   }
@@ -1405,21 +1405,36 @@ function renderProfilesSelect(list, selectedId){
 
 // ========= Costs modal (solo lectura) =========
   function ensureCostsButton(){
-    if(btnCosts) return;
-    // Si tu HTML no trae btnCosts, lo creamos al lado de Actualizar
     const headerBtns = btnRefresh?.parentElement;
     if(!headerBtns) return;
+
+    // Si existe en DOM, solo aseguramos el handler
+    if(btnCosts){
+      btnCosts.onclick = ()=>openCostsModal();
+      return;
+    }
+
+    // Si no existe, lo creamos al lado de Actualizar
     const btn=document.createElement("button");
     btn.id="btnCosts";
     btn.className="btn secondary";
     btn.type="button";
     btn.innerHTML = `<span class="ico" style="display:none;">💰</span><span class="txt">Costos</span>`;
     headerBtns.insertBefore(btn, btnRefresh);
-    btn.onclick=openCostsModal;
+    btnCosts = btn;
+    btn.onclick = ()=>openCostsModal();
   }
-  function openCostsModal(){
+  async function openCostsModal(){
     if(!costsModal) return;
     costsGateErr.textContent="";
+    try{
+      showLoading("Sincronizando…","Actualizando costos desde la base de datos.");
+      await fetchCostsPublic();
+    }catch(e){
+      costsGateErr.textContent = (e && e.message) ? e.message : "No se pudieron actualizar los costos.";
+    }finally{
+      hideLoading();
+    }
     costsModal.style.display="flex";
     costsModal.setAttribute("aria-hidden","false");
     renderCostsReadOnly();
@@ -1750,8 +1765,11 @@ function renderProfilesSelect(list, selectedId){
     injectRecipeOverlay();
     injectHistoryModal();
     ensureHistoryButton();
-    ensureShoppingButton();
+    // Compras se gestiona desde Purchases, se elimina el botón en Cocina.
     ensureCostsButton();
+
+    // Trae costos al cargar la vista (para que el botón Costos muestre datos actualizados)
+    fetchCostsPublic().catch(()=>{});
 
     // Botones header: reemplaza texto por iconos en móvil (si tu HTML usa spans, se verá mejor)
     if(btnLogout && !btnLogout.querySelector(".ico")){
