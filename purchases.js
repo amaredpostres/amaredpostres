@@ -19,7 +19,7 @@ let state = {
   meta: {},           // costs_orders_for_purchases.meta
   ordersByDessert: {},// costs_orders_for_purchases.orders_by_dessert
   late: {},           // costs_orders_for_purchases.late
-  pending: {},        // compras pendientes (unidad base): ingredient_key -> qty
+  buyPlan: {},        // plan de compra: ingredient_key -> {selected, packs, qty_manual}
   window_h: 36,
 };
 
@@ -71,6 +71,21 @@ function closeUnlock(){
 function setMeta(msg){
   const m = el("meta");
   if(m) m.textContent = msg;
+}
+
+function updateBuyMeta(){
+  const selectedKeys = Object.keys(state.buyPlan || {}).filter(k => state.buyPlan[k] && state.buyPlan[k].selected);
+  const n = selectedKeys.length;
+  if(n === 0) return;
+  const totalQty = selectedKeys.reduce((s,k)=> s + (computePlannedQty(k) || 0), 0);
+  const unitHint = "(en unidad base g/ml)";
+  const used = Number(state.meta?.orders_used || 0);
+  const lim  = Number(state.meta?.orders_limit || 0);
+  const w0   = String(state.meta?.window_start || "").trim();
+  const w1   = String(state.meta?.window_end || "").trim();
+  const winText = (w0&&w1) ? (w0+" → "+w1) : "";
+  const ordersText = lim ? `Pedidos: ${used}/${lim}` : `Pedidos: ${used}`;
+  setMeta(`🧾 Seleccionados: ${n} ingrediente(s) · Cantidad total ${unitHint}: ${fmtNum(totalQty)} · ${ordersText}${winText?(' · Ventana: '+winText):''}`);
 }
 
 async function api(body, {timeoutMs=30000} = {}){
@@ -245,20 +260,49 @@ function buildCanon(allKeys){
   return canon;
 }
 
+function getPlan(key){
+  if(!state.buyPlan) state.buyPlan = {};
+  const cur = state.buyPlan[key];
+  if(cur && typeof cur === "object") return cur;
+  const p = { selected:false, packs:0, qty_manual:0 };
+  state.buyPlan[key] = p;
+  return p;
+}
+
+function computePlannedQty(key){
+  const plan = getPlan(key);
+  if(!plan.selected) return 0;
+
+  const spec = getCostSpec(key);
+  const base = baseFromSpec(spec);
+
+  // Si hay empaque definido (pack_qty) lo usamos con "empaques"
+  const packs = Number(plan.packs || 0);
+  if(base.pack_qty > 0 && packs > 0){
+    return packs * base.pack_qty;
+  }
+
+  // Fallback: cantidad manual en unidad base
+  const q = Number(plan.qty_manual || 0);
+  if(q > 0) return q;
+
+  return 0;
+}
+
 function computeRow(key){
   const need = Number(state.needs?.[key] || 0) || 0;
 
   const invN = normalizeInvToBase(key);
   const invBase = Number(invN.qty || 0);
 
-  const pending = Number(state.pending?.[key] || 0) || 0;
-  const invShown = invBase + pending;
+  const planned = computePlannedQty(key);
+  const invShown = invBase + planned;
 
   const missing = Math.max(0, need - invShown);
   const unit = getUnitFor(key);
   const cpu = getCostPerUnit(key);
 
-  return { key, name: key, need, invBase, pending, invShown, missing, unit, cpu };
+  return { key, name: key, need, invBase, planned, invShown, missing, unit, cpu };
 }
 
 // =================== UI ===================
@@ -316,6 +360,48 @@ function renderTable(){
   for(const key of keys){
     const r = computeRow(key);
 
+    const spec = getCostSpec(key);
+    const base = baseFromSpec(spec);
+    const plan = getPlan(key);
+
+    const hasPack = (base.pack_qty > 0) && !!base.base_unit;
+    const suggestedPacks = (hasPack && r.missing > 0) ? Math.max(0, Math.ceil(r.missing / base.pack_qty)) : 0;
+
+    // Valores a mostrar en inputs (sin mutar estado)
+    const showSelected = !!plan.selected;
+    const showPacks = Number(plan.packs || 0) || (showSelected ? (suggestedPacks || 1) : (suggestedPacks || 0));
+    const showQtyManual = Number(plan.qty_manual || 0) || (showSelected && !hasPack ? (r.missing || 0) : 0);
+
+    const packDesc = hasPack
+      ? `Empaque: ${fmtNum(base.pack_qty)} ${escapeHtml(base.base_unit)} · $${fmtNum(base.pack_price || 0)}`
+      : `Empaque: sin configurar (usa ⚙️)`;
+
+    const extraDesc = [base.brand ? `Marca: ${base.brand}` : "", base.store ? `Tienda: ${base.store}` : ""].filter(Boolean).join(" · ");
+
+    const plannedQty = computePlannedQty(key);
+
+    const buyCell = hasPack
+      ? `
+        <div style="display:flex; gap:10px; justify-content:flex-end; align-items:center; flex-wrap:wrap;">
+          <label class="badge">
+            <input class="chk" type="checkbox" data-sel="${escapeAttr(key)}" ${showSelected ? "checked" : ""}/>
+            <span class="small muted">Comprar</span>
+          </label>
+          <input class="inpNum" data-packs="${escapeAttr(key)}" type="number" min="0" step="1" value="${escapeAttr(showPacks)}" title="Empaques"/>
+        </div>
+        <div class="small muted" style="text-align:right; margin-top:6px;">= ${fmtNum(plannedQty)} ${escapeHtml(r.unit)}</div>
+      `
+      : `
+        <div style="display:flex; gap:10px; justify-content:flex-end; align-items:center; flex-wrap:wrap;">
+          <label class="badge">
+            <input class="chk" type="checkbox" data-sel="${escapeAttr(key)}" ${showSelected ? "checked" : ""}/>
+            <span class="small muted">Comprar</span>
+          </label>
+          <input class="inpNum" data-qtym="${escapeAttr(key)}" type="number" min="0" step="any" value="${escapeAttr(showQtyManual)}" title="Cantidad (${escapeAttr(r.unit)})"/>
+        </div>
+        <div class="small muted" style="text-align:right; margin-top:6px;">(define empaque en ⚙️ para usar “empaques”)</div>
+      `;
+
     const tr = document.createElement("tr");
     tr.innerHTML = `
       <td>${escapeHtml(r.name)}</td>
@@ -324,31 +410,19 @@ function renderTable(){
       <td class="num">${fmtNum(r.missing)}</td>
       <td>${escapeHtml(r.unit)}</td>
       <td class="num">${r.cpu === null ? "—" : fmtNum(Math.round(r.cpu))}</td>
-      <td><button class="btn" data-detail="${escapeAttr(r.key)}">⚙️</button></td>
-      <td class="num"><input class="inp inpSm" data-buy="${escapeAttr(r.key)}" type="number" min="0" step="any" placeholder="0"/></td>
-      <td class="num"><button class="btn" data-add="${escapeAttr(r.key)}">+</button></td>
+      <td>
+        <div style="display:flex; gap:10px; align-items:center;">
+          <button class="btn" data-detail="${escapeAttr(r.key)}">⚙️</button>
+          <div>
+            <div class="small muted">${packDesc}</div>
+            ${extraDesc ? `<div class="small muted">${escapeHtml(extraDesc)}</div>` : ``}
+          </div>
+        </div>
+      </td>
+      <td class="num">${buyCell}</td>
     `;
     tbody.appendChild(tr);
   }
-
-  // sumar a pendientes
-  tbody.querySelectorAll("button[data-add]").forEach(btn=>{
-    btn.addEventListener("click", ()=>{
-      const key = btn.getAttribute("data-add") || "";
-      const inp = tbody.querySelector(`input[data-buy="${cssEscape(key)}"]`);
-      const val = inp ? Number(inp.value || 0) : 0;
-      if(!val || val <= 0) return;
-
-      state.pending[key] = Number(state.pending?.[key] || 0) + val;
-      if(inp) inp.value = "";
-
-      renderTable();
-      const totalItems = Object.keys(state.pending).filter(k => Number(state.pending[k]||0)>0).length;
-      if(totalItems>0){
-        setMeta(`✅ Pendientes: ${totalItems} ingrediente(s) · Pedidos: ${Number(state.meta?.orders_used||0)} · Ventana: ${String(state.meta?.window_start||"")} → ${String(state.meta?.window_end||"")}`);
-      }
-    });
-  });
 
   // detalle/edición
   tbody.querySelectorAll("button[data-detail]").forEach(btn=>{
@@ -357,6 +431,61 @@ function renderTable(){
       openCostModal(key);
     });
   });
+
+  // switch comprar
+  tbody.querySelectorAll("input[data-sel]").forEach(chk=>{
+    chk.addEventListener("change", ()=>{
+      const key = chk.getAttribute("data-sel") || "";
+      const plan = getPlan(key);
+      plan.selected = !!chk.checked;
+
+      // Si se activa y no hay cantidad, sugerimos algo
+      if(plan.selected){
+        const rr = computeRow(key);
+        const spec = getCostSpec(key);
+        const base = baseFromSpec(spec);
+        if(base.pack_qty > 0){
+          if(!(Number(plan.packs || 0) > 0)){
+            plan.packs = Math.max(1, Math.ceil((rr.missing || 0) / base.pack_qty) || 1);
+          }
+        }else{
+          if(!(Number(plan.qty_manual || 0) > 0)){
+            plan.qty_manual = Math.max(0, rr.missing || 0);
+          }
+        }
+      }
+
+      renderTable();
+      updateBuyMeta();
+    });
+  });
+
+  // empaques
+  tbody.querySelectorAll("input[data-packs]").forEach(inp=>{
+    inp.addEventListener("input", ()=>{
+      const key = inp.getAttribute("data-packs") || "";
+      const plan = getPlan(key);
+      const v = Math.max(0, Math.floor(Number(inp.value || 0)));
+      plan.packs = v;
+      plan.selected = v > 0; // más visual: si pones empaques, queda activo
+      renderTable();
+      updateBuyMeta();
+    });
+  });
+
+  // cantidad manual
+  tbody.querySelectorAll("input[data-qtym]").forEach(inp=>{
+    inp.addEventListener("input", ()=>{
+      const key = inp.getAttribute("data-qtym") || "";
+      const plan = getPlan(key);
+      const v = Math.max(0, Number(inp.value || 0));
+      plan.qty_manual = v;
+      plan.selected = v > 0;
+      updateBuyMeta();
+    });
+  });
+
+  updateBuyMeta();
 }
 
 function prettyDessertName(id){
@@ -453,14 +582,14 @@ async function loadAll(){
 // =================== compras -> inventario (Sheets) ===================
 function buildPurchaseBatch(){
   const entries = [];
-  for(const [k,v] of Object.entries(state.pending || {})){
-    const qty = Number(v || 0);
+  for(const [k,plan] of Object.entries(state.buyPlan || {})){
+    if(!plan || !plan.selected) continue;
+    const qty = computePlannedQty(k);
     if(!qty || qty <= 0) continue;
 
     const unit = getUnitFor(k);
     const cpu = getCostPerUnit(k);
 
-    // Si es "unidad" y no hay conversión, aún permitimos, pero idealmente se configure en Costs.
     const row = { ingredient_key: k, qty, unit };
     if(cpu !== null) row.cop_per_unit = cpu;
     entries.push(row);
@@ -476,7 +605,7 @@ async function registerPurchases(){
 
   const items = buildPurchaseBatch();
   if(items.length === 0){
-    setMeta("No hay compras pendientes para registrar.");
+    setMeta("No hay ingredientes marcados para comprar.");
     return;
   }
 
@@ -491,7 +620,7 @@ async function registerPurchases(){
     }, {timeoutMs: 60000});
 
     // refresca
-    state.pending = {};
+    state.buyPlan = {};
     await loadAll();
     setMeta("✅ Compras registradas y inventario actualizado.");
   } catch(err){
