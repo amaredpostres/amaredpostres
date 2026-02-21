@@ -46,10 +46,25 @@ function uniqSorted(arr){
   uniq.sort((a,b)=>a.localeCompare(b,"es"));
   return uniq;
 }
-function renderDatalist(id, arr){
-  const dl = el(id);
-  if(!dl) return;
-  dl.innerHTML = (arr||[]).map(v=>`<option value="${escapeHtml(String(v))}"></option>`).join("");
+function renderSelect(id, arr, selected){
+  const sel = el(id);
+  if(!sel) return;
+  const list = Array.isArray(arr) ? arr.map(v=>String(v||"").trim()).filter(Boolean) : [];
+  const selVal = String(selected||"").trim();
+  const hasSel = selVal && list.some(v => v.toLowerCase() === selVal.toLowerCase());
+  const opts = [];
+  // empty option first
+  opts.push(`<option value="">—</option>`);
+  // preserve existing value if it's not in catalog (so user can see what was saved)
+  if(selVal && !hasSel){
+    opts.push(`<option value="${escapeHtml(selVal)}">⚠️ ${escapeHtml(selVal)} (no está en catálogo)</option>`);
+  }
+  for(const v of list){
+    const vv = String(v);
+    const isSel = selVal && vv.toLowerCase() === selVal.toLowerCase();
+    opts.push(`<option value="${escapeHtml(vv)}" ${isSel ? "selected" : ""}>${escapeHtml(vv)}</option>`);
+  }
+  sel.innerHTML = opts.join("");
 }
 function applyCatalogs(out){
   const cat = out?.catalog || {};
@@ -57,8 +72,8 @@ function applyCatalogs(out){
   const brands = (cat.brands || []).map(x=>x?.value ?? x).filter(Boolean);
   state.stores = uniqSorted(stores);
   state.brands = uniqSorted(brands);
-  renderDatalist("cmStoresList", state.stores);
-  renderDatalist("cmBrandsList", state.brands);
+  // selects are rendered when opening modal
+  // selects are rendered when opening modal
 }
 
 function fmtNum(n){
@@ -754,8 +769,8 @@ function openCostModal(key){
   if(e.unitItemQty) e.unitItemQty.value = spec?.unit_item_qty ? String(spec.unit_item_qty) : "";
   if(e.unitItemType) e.unitItemType.value = String(spec?.unit_item_qty_type || "").trim().toLowerCase();
 
-  if(e.brand) e.brand.value = String(spec?.brand || "");
-  if(e.store) e.store.value = String(spec?.store || "");
+  renderSelect("cmBrand", state.brands || [], String(spec?.brand || ""));
+  renderSelect("cmStore", state.stores || [], String(spec?.store || ""));
 
   cmComputePreview();
   show(e.back);
