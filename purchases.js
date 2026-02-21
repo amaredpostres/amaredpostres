@@ -20,6 +20,8 @@ let state = {
   meta: {},
   ordersByDessert: {},
   late: {},
+  stores: [],
+  brands: [],
   buyPlan: {},
   window_h: 36,
   ui: {
@@ -37,6 +39,26 @@ const hide = (node) => { if(node){ node.classList.add("hidden"); node.hidden = t
 function moneyCOP(n){
   const v = Math.max(0, Math.round(Number(n||0)));
   return "$" + v.toLocaleString("es-CO");
+}
+
+function uniqSorted(arr){
+  const uniq = Array.from(new Set((arr||[]).map(v=>String(v||"").trim()).filter(Boolean)));
+  uniq.sort((a,b)=>a.localeCompare(b,"es"));
+  return uniq;
+}
+function renderDatalist(id, arr){
+  const dl = el(id);
+  if(!dl) return;
+  dl.innerHTML = (arr||[]).map(v=>`<option value="${escapeHtml(String(v))}"></option>`).join("");
+}
+function applyCatalogs(out){
+  const cat = out?.catalog || {};
+  const stores = (cat.stores || []).map(x=>x?.value ?? x).filter(Boolean);
+  const brands = (cat.brands || []).map(x=>x?.value ?? x).filter(Boolean);
+  state.stores = uniqSorted(stores);
+  state.brands = uniqSorted(brands);
+  renderDatalist("cmStoresList", state.stores);
+  renderDatalist("cmBrandsList", state.brands);
 }
 
 function fmtNum(n){
@@ -599,15 +621,18 @@ async function loadAll(){
 
   updateMetaLine();
 
-  const [invOut, needsOut, costsOut] = await Promise.all([
+    const [invOut, needsOut, costsOut, catOut] = await Promise.all([
     api({ action:"inventory_get", costs_secret: UNLOCKED_SECRET }),
     api({ action:"costs_orders_for_purchases", costs_secret: UNLOCKED_SECRET, window_h: state.window_h }),
     api({ action:"costs_list", costs_secret: UNLOCKED_SECRET }),
+    api({ action:"catalog_list", costs_secret: UNLOCKED_SECRET }),
   ]);
 
   state.inventory = invOut.inventory || {};
   state.needs = needsOut.needs || {};
   state.meta = needsOut.meta || {};
+  applyCatalogs(catOut);
+
   state.ordersByDessert = needsOut.orders_by_dessert || needsOut.ordersByDessert || {};
   state.late = needsOut.late || {};
   state.items = costsOut.items || [];
