@@ -179,11 +179,11 @@
         <div class="pFormGrid" style="margin-top:10px;">
           <div>
             <div class="label">Marca (opcional)</div>
-            <input id="cmBrand" class="input" type="text" placeholder="Ej: Alpina" />
+            <input id="cmBrand" class="input" type="text" list="cmBrandsList" placeholder="Ej: Alpina" />
           </div>
           <div>
             <div class="label">Tienda (opcional)</div>
-            <input id="cmStore" class="input" type="text" placeholder="Ej: Ara" />
+            <input id="cmStore" class="input" type="text" list="cmStoresList" placeholder="Ej: Ara" />
           </div>
         </div>
 
@@ -238,5 +238,10 @@
 
   <script src="kitchen-costs.js?v=20260220-01"></script>
   <script src="purchases.js"></script>
+
+  <!-- Datalists (catálogos desde COSTOS_CATALOGOS) -->
+  <datalist id="cmBrandsList"></datalist>
+  <datalist id="cmStoresList"></datalist>
+
 </body>
 </html>
