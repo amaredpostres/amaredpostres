@@ -1,771 +1,1207 @@
-/*
-  costs.js — AMARED (LIMPIO)
-  ✅ Solo: Costos de ingredientes + Catálogos (tiendas/marcas)
-  ❌ Eliminado: todo lo relacionado con Compras / Inventario / Pedidos (purchases, needs, sobrantes, etc.)
-
-  Requisitos (backend): Cloudflare Worker proxy -> Apps Script
-    - costs_list
-    - costs_upsert
-    - catalog_list
-    - catalog_add
-    - catalog_delete
-
-  Requisitos (frontend): costs.html
-    - #secret, #unlock, #err
-    - #editor, #saveAll, #topTools, #list
-    - overlay #loading (#lt, #ld)
-    - kitchen-costs.js define window.AMARED_COSTS_SECTIONS
+/* AMARED Compras & Costos - Unificado v7
+   ✅ Misma lógica de cálculo (Pagado + No iniciar)
+   ✅ Ventana: ayer 3pm → hoy 3pm + sección de pedidos tarde
+   ✅ UI tipo tarjetas + acordeones (mobile-first)
+   ✅ Switch Comprar + empaques/cantidad + Auto
+   ✅ Modal para editar COSTOS_INGREDIENTES
+   ✅ Pestaña Costos (listado + edición + catálogos)
+   ✅ Total estimado + confirmación antes de registrar
 */
+"use strict";
 
-// =================== CONFIG ===================
 const API_URL = "https://amared-orders.amaredpostres.workers.dev/";
+const LS_SECRET_KEY = "AMARED_COSTS_SECRET";
 
-// =================== STATE ===================
-let UNLOCKED_SECRET = ""; // COSTS_SECRET
-let STORES = [];
-let BRANDS = [];
-
-let CANON = [];    // orden canónico de ingredientes (desde kitchen-costs.js)
-let GROUPS = [];   // secciones (desde kitchen-costs.js)
-let UI = {};       // estado editable en pantalla { ingredient_key -> row }
-let SHEETS_ROWS = []; // rows crudos desde Sheets
-
-// =================== HELPERS ===================
-function showLoading(title, desc){
-  const el = document.getElementById("loading");
-  const lt = document.getElementById("lt");
-  const ld = document.getElementById("ld");
-  if(lt) lt.textContent = title || "Cargando…";
-  if(ld) ld.textContent = desc || "Por favor espera.";
-  if(el){
-    el.style.display = "flex";
-    el.classList.add("show");
+let UNLOCKED_SECRET = "";
+let state = {
+  items: [],
+  costsByKey: {},
+  inventory: {},
+  needs: {},
+  meta: {},
+  ordersByDessert: {},
+  late: {},
+  stores: [],
+  brands: [],
+  buyPlan: {},
+  window_h: 36,
+  view: "purchases",
+  ui: {
+    q: "",
+    onlyMissing: true,
+    onlySelected: false,
+    cost_q: "",
   }
-}
-function hideLoading(){
-  const el = document.getElementById("loading");
-  if(el){
-    el.classList.remove("show");
-    el.style.display = "none";
-  }
+};
+
+// =============== DOM helpers ===============
+const el = (id) => document.getElementById(id);
+const show = (node) => { if(node){ node.classList.remove("hidden"); node.hidden = false; node.style.display = ""; } };
+const hide = (node) => { if(node){ node.classList.add("hidden"); node.hidden = true; node.style.display = "none"; } };
+
+function setGlobalMsg(msg, isErr=false){
+  const g = el("globalMsg");
+  if(!g) return;
+  const t = String(msg||"").trim();
+  if(!t){ g.textContent = ""; g.classList.remove("show","err"); return; }
+  g.textContent = t;
+  g.classList.add("show");
+  g.classList.toggle("err", !!isErr);
 }
 
-async function api(payload){
-  const res = await fetch(API_URL,{
-    method:"POST",
-    headers:{ "Content-Type":"application/json" },
-    body: JSON.stringify(payload || {})
-  });
-  const out = await res.json().catch(async()=>({ ok:false, error: await res.text().catch(()=>"Error") }));
-  if(!res.ok || out.ok === false) throw new Error(out.error || out.message || `HTTP ${res.status}`);
-  return out;
+function moneyCOP(n){
+  const v = Math.max(0, Math.round(Number(n||0)));
+  return "$" + v.toLocaleString("es-CO");
 }
 
 function uniqSorted(arr){
-  const uniq = Array.from(new Set((arr||[]).map(s=>String(s||"").trim()).filter(Boolean)));
+  const uniq = Array.from(new Set((arr||[]).map(v=>String(v||"").trim()).filter(Boolean)));
   uniq.sort((a,b)=>a.localeCompare(b,"es"));
   return uniq;
 }
-
-function cssEscape(s){ return String(s).replace(/"/g,'\\\\"'); }
-function unescapeCss(s){ return String(s).replace(/\\\\"/g,'"'); }
-
-function normUnit(u){
-  const s = String(u||"").trim().toLowerCase();
-  if(s === "g") return "g";
-  if(s === "ml") return "ml";
-  if(s === "unidad" || s === "u") return "unidad";
-  return "";
+function renderSelect(id, arr, selected){
+  const sel = el(id);
+  if(!sel) return;
+  const list = Array.isArray(arr) ? arr.map(v=>String(v||"").trim()).filter(Boolean) : [];
+  const selVal = String(selected||"").trim();
+  const hasSel = selVal && list.some(v => v.toLowerCase() === selVal.toLowerCase());
+  const opts = [];
+  // empty option first
+  opts.push(`<option value="">—</option>`);
+  // preserve existing value if it's not in catalog (so user can see what was saved)
+  if(selVal && !hasSel){
+    opts.push(`<option value="${escapeHtml(selVal)}">⚠️ ${escapeHtml(selVal)} (no está en catálogo)</option>`);
+  }
+  for(const v of list){
+    const vv = String(v);
+    const isSel = selVal && vv.toLowerCase() === selVal.toLowerCase();
+    opts.push(`<option value="${escapeHtml(vv)}" ${isSel ? "selected" : ""}>${escapeHtml(vv)}</option>`);
+  }
+  sel.innerHTML = opts.join("");
+}
+function applyCatalogs(out){
+  const cat = out?.catalog || {};
+  const stores = (cat.stores || []).map(x=>x?.value ?? x).filter(Boolean);
+  const brands = (cat.brands || []).map(x=>x?.value ?? x).filter(Boolean);
+  state.stores = uniqSorted(stores);
+  state.brands = uniqSorted(brands);
+  // selects are rendered when opening modal
+  // selects are rendered when opening modal
 }
 
-function roundCOP(n){ return Math.max(0, Math.round(Number(n||0))); }
-
-// =================== SHEETS (via Worker) ===================
-async function fetchCostsFromSheets(){
-  const out = await api({ action:"costs_list", costs_secret: UNLOCKED_SECRET });
-  return out.items || [];
+function fmtNum(n){
+  if(n === null || n === undefined || Number.isNaN(n)) return "—";
+  const v = Number(n);
+  if(!isFinite(v)) return "—";
+  return new Intl.NumberFormat("es-CO", { maximumFractionDigits: 3 }).format(v);
 }
 
-async function upsertCostToSheets(row){
-  return await api({
-    action:"costs_upsert",
-    costs_secret: UNLOCKED_SECRET,
-    ingredient_key: row.ingredient_key,
-    unit_type: row.unit_type,
-    pack_qty: row.pack_qty,
-    pack_price: row.pack_price,
-    cop_per_unit: row.cop_per_unit,
-    brand: row.brand || "",
-    store: row.store || "",
-    unit_item_qty: row.unit_item_qty ?? "",
-    unit_item_qty_type: row.unit_item_qty_type ?? "",
-    updated_by: row.updated_by || "COSTS_UI",
-  });
+function escapeHtml(s){
+  return String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#039;"}[c]));
 }
 
-async function fetchCatalogsFromSheets(){
+// =============== Loading ===============
+function showLoading(title, sub){
+  if(el("loadingTitle")) el("loadingTitle").textContent = title || "Cargando…";
+  if(el("loadingSub")) el("loadingSub").textContent = sub || "Un momento.";
+  show(el("loadingBack"));
+}
+function hideLoading(){ hide(el("loadingBack")); }
+
+// =============== Tabs ===============
+function setView(view){
+  const v = (view === "costs") ? "costs" : "purchases";
+  state.view = v;
+
+  const vp = el("viewPurchases");
+  const vc = el("viewCosts");
+  const bb = el("bottomBar");
+  const tp = el("btnTabPurchases");
+  const tc = el("btnTabCosts");
+
+  if(v === "costs"){
+    hide(vp);
+    show(vc);
+    if(bb) bb.style.display = "none";
+    if(tp){ tp.classList.remove("isActive"); tp.setAttribute("aria-selected","false"); }
+    if(tc){ tc.classList.add("isActive"); tc.setAttribute("aria-selected","true"); }
+    renderCostsGroups();
+  } else {
+    show(vp);
+    hide(vc);
+    if(bb) bb.style.display = "";
+    if(tp){ tp.classList.add("isActive"); tp.setAttribute("aria-selected","true"); }
+    if(tc){ tc.classList.remove("isActive"); tc.setAttribute("aria-selected","false"); }
+    renderGroups();
+    refreshBottom();
+  }
+}
+
+function setCostsMeta(msg){
+  const c = el("costsMeta");
+  if(c) c.textContent = msg || "";
+}
+
+// =============== API ===============
+async function api(body, {timeoutMs=30000} = {}){
+  const controller = new AbortController();
+  const t = setTimeout(()=>controller.abort(), timeoutMs);
+  let res;
+  try{
+    res = await fetch(API_URL, {
+      method: "POST",
+      headers: {"Content-Type":"application/json"},
+      body: JSON.stringify(body),
+      signal: controller.signal,
+    });
+  } finally { clearTimeout(t); }
+
+  const raw = await res.text().catch(()=>"");
+  let out;
+  try{ out = raw ? JSON.parse(raw) : {ok:false, error:`HTTP ${res.status}`}; }
+  catch{ out = {ok:false, error: raw || `HTTP ${res.status}`}; }
+
+  if(!res.ok) throw new Error(out?.error || out?.message || `HTTP ${res.status}`);
+  if(!out || out.ok !== true) throw new Error(out?.error || "Error");
+  return out;
+}
+
+async function validateSecret(secret){
+  await api({ action:"costs_list", costs_secret: secret }, {timeoutMs: 30000});
+  return true;
+}
+
+// =============== Costos helpers ===============
+function indexCosts(items){
+  const map = {};
+  for(const it of (items||[])){
+    const k = String(it?.ingredient_key ?? it?.key ?? it?.name ?? "").trim();
+    if(!k) continue;
+    map[k] = it;
+  }
+  state.costsByKey = map;
+}
+
+function getInvEntryRaw(key){
+  const v = state.inventory?.[key];
+  if(v && typeof v === "object") return { qty: Number(v.qty || 0), unit: String(v.unit || "").trim() };
+  if(typeof v === "number") return { qty: Number(v || 0), unit: "" };
+  const n = Number(v || 0);
+  return { qty: isFinite(n) ? n : 0, unit: "" };
+}
+
+function baseFromSpec(spec){
+  const unit_type = String(spec?.unit_type || "").trim().toLowerCase();
+  const pack_qty = Number(spec?.pack_qty || 0);
+  const pack_price = Number(spec?.pack_price || 0);
+  const cpuStored = Number(spec?.cop_per_unit || 0);
+  const unit_item_qty = Number(spec?.unit_item_qty || 0);
+  const unit_item_type = String(spec?.unit_item_qty_type || "").trim().toLowerCase();
+  const brand = String(spec?.brand || "").trim();
+  const store = String(spec?.store || "").trim();
+
+  const cpuOr = (cpuStored>0 && isFinite(cpuStored)) ? cpuStored : ((pack_qty>0 && pack_price>0) ? (pack_price/pack_qty) : null);
+
+  if(unit_type === "g" || unit_type === "ml"){
+    return { base_unit: unit_type, cpu: cpuOr, pack_qty, pack_price, brand, store, unit_item_qty, unit_item_type, unit_type };
+  }
+
+  if(unit_type === "unidad"){
+    if(unit_item_qty>0 && (unit_item_type === "g" || unit_item_type === "ml")){
+      const basePackQty = pack_qty * unit_item_qty;
+      const cpu = (basePackQty>0 && pack_price>0) ? (pack_price/basePackQty) : null;
+      return { base_unit: unit_item_type, cpu, pack_qty: basePackQty, pack_price, brand, store, unit_item_qty, unit_item_type, unit_type };
+    }
+    return { base_unit: "unidad", cpu: cpuOr, pack_qty, pack_price, brand, store, unit_item_qty, unit_item_type, unit_type };
+  }
+
+  return { base_unit: "", cpu: null, pack_qty: 0, pack_price: 0, brand:"", store:"", unit_item_qty:0, unit_item_type:"", unit_type:"" };
+}
+
+function normalizeInvToBase(key){
+  const raw = getInvEntryRaw(key);
+  const spec = state.costsByKey?.[key] || null;
+  const base = baseFromSpec(spec);
+
+  let unit = raw.unit || "";
+  let qty = Number(raw.qty || 0);
+
+  if(!unit){
+    return { qty, unit: base.base_unit || "g", raw };
+  }
+
+  if(base.base_unit && unit === base.base_unit){
+    return { qty, unit, raw };
+  }
+
+  if(unit === "unidad" && (base.base_unit === "g" || base.base_unit === "ml") && base.unit_item_qty>0 && base.unit_item_type === base.base_unit){
+    return { qty: qty * base.unit_item_qty, unit: base.base_unit, raw };
+  }
+
+  return { qty, unit, raw };
+}
+
+function getUnitFor(key){
+  const spec = state.costsByKey?.[key] || null;
+  const base = baseFromSpec(spec);
+  if(base.base_unit) return base.base_unit;
+  const inv = normalizeInvToBase(key);
+  if(inv.unit) return inv.unit;
+  return "g";
+}
+
+function getCostPerUnit(key){
+  const spec = state.costsByKey?.[key] || null;
+  const base = baseFromSpec(spec);
+  if(base.cpu !== null && isFinite(base.cpu)) return base.cpu;
+  return null;
+}
+
+// =============== Keys & groups ===============
+function collectAllKeys(){
+  const seen = new Set();
+  const out = [];
+  for(const k of Object.keys(state.needs || {})){
+    if(!k) continue;
+    if(!seen.has(k)){ seen.add(k); out.push(k); }
+  }
+  for(const k of Object.keys(state.inventory || {})){
+    if(!k) continue;
+    if(!seen.has(k)){ seen.add(k); out.push(k); }
+  }
+  return out;
+}
+
+function groupKeys(keys){
+  const groups = Array.isArray(window.AMARED_COSTS_SECTIONS) ? window.AMARED_COSTS_SECTIONS : null;
+  const used = new Set();
+  const out = [];
+
+  if(groups){
+    for(const g of groups){
+      const title = String(g?.title || "").trim();
+      const gkeys = [];
+      for(const raw of (g?.keys || [])){
+        const k = String(raw||"").trim();
+        if(!k) continue;
+        if(keys.includes(k)){
+          gkeys.push(k);
+          used.add(k);
+        }
+      }
+      if(gkeys.length) out.push({ title, keys: gkeys });
+    }
+  }
+
+  const other = keys.filter(k => !used.has(k));
+  other.sort((a,b)=>a.localeCompare(b,"es"));
+  if(other.length) out.push({ title: "Otros", keys: other });
+
+  return out;
+}
+
+// =============== Plan de compra ===============
+function getPlan(key){
+  if(!state.buyPlan) state.buyPlan = {};
+  const cur = state.buyPlan[key];
+  if(cur && typeof cur === "object") return cur;
+  const p = { selected:false, packs:0, qty_manual:0 };
+  state.buyPlan[key] = p;
+  return p;
+}
+
+function computePlannedQty(key){
+  const plan = getPlan(key);
+  if(!plan.selected) return 0;
+
+  const spec = state.costsByKey?.[key] || null;
+  const base = baseFromSpec(spec);
+
+  const packs = Number(plan.packs || 0);
+  if(base.pack_qty > 0 && packs > 0) return packs * base.pack_qty;
+
+  const q = Number(plan.qty_manual || 0);
+  if(q > 0) return q;
+
+  return 0;
+}
+
+function computeRow(key){
+  const need = Number(state.needs?.[key] || 0) || 0;
+  const invN = normalizeInvToBase(key);
+  const invBase = Number(invN.qty || 0);
+  const planned = computePlannedQty(key);
+  const invShown = invBase + planned;
+  const missing = Math.max(0, need - invShown);
+  const unit = getUnitFor(key);
+  const cpu = getCostPerUnit(key);
+  const spec = state.costsByKey?.[key] || null;
+  const base = baseFromSpec(spec);
+  return { key, need, invBase, planned, invShown, missing, unit, cpu, base };
+}
+
+function prettyDessertName(id){
+  const s = String(id||"");
+  const map = {
+    mousse_maracuya: "Mousse de maracuyá",
+    cheesecake_cafe_panela: "Cheesecake de café con panela",
+    arroz_con_leche: "Arroz con leche",
+  };
+  return map[s] || s.replaceAll("_"," ");
+}
+
+// =============== Render: summaries ===============
+function renderDesserts(){
+  const tbody = el("dessertRows");
+  const meta = el("dessertsMeta");
+  if(!tbody) return;
+
+  const by = state.ordersByDessert || {};
+  const ids = ["mousse_maracuya","cheesecake_cafe_panela","arroz_con_leche"];
+  const rows = ids.map(id => ({ id, qty: Number(by[id]||0) || 0 }));
+  const extra = Object.keys(by).filter(k => !ids.includes(k) && Number(by[k]||0)>0).map(k => ({ id:k, qty:Number(by[k]||0) }));
+  const all = rows.concat(extra);
+
+  tbody.innerHTML = all.map(r=>`
+    <tr>
+      <td>${escapeHtml(prettyDessertName(r.id))}</td>
+      <td class="num">${fmtNum(r.qty)}</td>
+    </tr>
+  `).join("");
+
+  const used = Number(state.meta?.orders_used || 0);
+  const lim  = Number(state.meta?.orders_limit || 0);
+  const w0   = String(state.meta?.window_start || "").trim();
+  const w1   = String(state.meta?.window_end || "").trim();
+  const ordersText = lim ? `Pedidos: ${used}/${lim}` : `Pedidos: ${used}`;
+  if(meta) meta.textContent = `${ordersText}${(w0&&w1)?(" · Ventana: "+w0+" → "+w1):""}`;
+}
+
+function renderLate(){
+  const tbody = el("lateRows");
+  const meta = el("lateMeta");
+  if(!tbody) return;
+
+  const by = state.late?.orders_by_dessert || state.late?.ordersByDessert || {};
+  const ids = ["mousse_maracuya","cheesecake_cafe_panela","arroz_con_leche"];
+  const rows = ids.map(id => ({ id, qty: Number(by[id]||0) || 0 }));
+  const extra = Object.keys(by).filter(k => !ids.includes(k) && Number(by[k]||0)>0).map(k => ({ id:k, qty:Number(by[k]||0) }));
+  const all = rows.concat(extra);
+
+  tbody.innerHTML = all.map(r=>`
+    <tr>
+      <td>${escapeHtml(prettyDessertName(r.id))}</td>
+      <td class="num">${fmtNum(r.qty)}</td>
+    </tr>
+  `).join("");
+
+  const used = Number(state.late?.orders_used || 0);
+  const w0 = String(state.meta?.late_window_start || "").trim();
+  const w1 = String(state.meta?.late_window_end || "").trim();
+  if(meta) meta.textContent = `Pedidos: ${used}${(w0&&w1)?(" · Ventana: "+w0+" → "+w1):""}`;
+}
+
+// =============== Render: ingredients ===============
+function rowPassesFilters(row){
+  const q = String(state.ui.q||"").trim().toLowerCase();
+  const onlyMissing = !!state.ui.onlyMissing;
+  const onlySelected = !!state.ui.onlySelected;
+  const plan = getPlan(row.key);
+
+  if(q && !row.key.toLowerCase().includes(q)) return false;
+  if(onlyMissing && !(row.missing > 0)) return false;
+  if(onlySelected && !plan.selected) return false;
+  return true;
+}
+
+function groupMetaText(keys){
+  let missingCount = 0;
+  let needCount = 0;
+  for(const k of keys){
+    const r = computeRow(k);
+    if(r.missing > 0) missingCount++;
+    if(r.need > 0) needCount++;
+  }
+  return `${needCount} con receta · ${missingCount} con faltante`;
+}
+
+function renderGroups(){
+  const host = el("groups");
+  if(!host) return;
+
+  const allKeys = collectAllKeys();
+  const groups = groupKeys(allKeys);
+
+  host.innerHTML = groups.map((g, idx)=>{
+    const keys = (g.keys||[]).filter(k => rowPassesFilters(computeRow(k)));
+    if(!keys.length) return "";
+
+    const meta = groupMetaText(keys);
+    const openAttr = (idx === 0) ? "open" : "";
+
+    const itemsHtml = keys.map(k => renderItemCard(computeRow(k))).join("");
+
+    return `
+      <details class="pGroup" ${openAttr}>
+        <summary>
+          <div>
+            <div class="pGroupTitle">${escapeHtml(g.title || "Sección")}</div>
+            <div class="pGroupMeta">${escapeHtml(meta)}</div>
+          </div>
+          <div class="pGroupMeta">Toca para abrir</div>
+        </summary>
+        <div class="pGroupBody">
+          ${itemsHtml}
+        </div>
+      </details>
+    `;
+  }).join("");
+}
+
+// =============== Costos view (listado) ===============
+function costKeyPasses(k){
+  const q = String(state.ui?.cost_q || "").trim().toLowerCase();
+  if(!q) return true;
+  return String(k||"").toLowerCase().includes(q);
+}
+
+function renderCostItemCard(key){
+  const spec = state.costsByKey?.[key] || null;
+  const b = baseFromSpec(spec);
+  const unit = b.base_unit || (String(spec?.unit_type||"").trim() || "—");
+  const pack_qty = Number(spec?.pack_qty || 0);
+  const pack_price = Number(spec?.pack_price || 0);
+  const cpu = getCostPerUnit(key);
+
+  const metaA = (pack_qty>0 && pack_price>0)
+    ? `Empaque: ${fmtNum(pack_qty)} ${unit} · ${moneyCOP(pack_price)} · ${cpu!==null?moneyCOP(cpu):"—"} / ${unit}`
+    : "Sin empaque (edita con ⚙️)";
+
+  const brand = String(spec?.brand || "").trim();
+  const store = String(spec?.store || "").trim();
+  const metaB = [brand, store].filter(Boolean).join(" · ") || "—";
+
+  return `
+    <div class="pItem cItem" data-k="${escapeHtml(key)}">
+      <div class="pItemTop">
+        <div>
+          <div class="pName">${escapeHtml(key)}</div>
+          <div class="pSubLine">${escapeHtml(metaA)}</div>
+          <div class="pSubLine" style="margin-top:4px;">Marca/Tienda: ${escapeHtml(metaB)}</div>
+        </div>
+        <div class="pRight">
+          <span class="pPill">${escapeHtml(unit)}</span>
+          <button class="pGear" data-act="edit" title="Editar costo">⚙️</button>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function renderCostsGroups(){
+  const host = el("costGroups");
+  if(!host) return;
+
+  const keysAll = Object.keys(state.costsByKey || {});
+  keysAll.sort((a,b)=>a.localeCompare(b,"es"));
+
+  const keys = keysAll.filter(costKeyPasses);
+  const groups = groupKeys(keys);
+
+  setCostsMeta(`Ingredientes: ${keysAll.length} · Mostrando: ${keys.length} · Tiendas: ${state.stores.length} · Marcas: ${state.brands.length}`);
+
+  host.innerHTML = groups.map((g, idx)=>{
+    const gkeys = (g.keys||[]).filter(k => keys.includes(k));
+    if(!gkeys.length) return "";
+
+    const meta = `${gkeys.length} ingrediente(s)`;
+    const openAttr = (idx === 0) ? "open" : "";
+    const itemsHtml = gkeys.map(k => renderCostItemCard(k)).join("");
+
+    return `
+      <details class="pGroup" ${openAttr}>
+        <summary>
+          <div>
+            <div class="pGroupTitle">${escapeHtml(g.title || "Sección")}</div>
+            <div class="pGroupMeta">${escapeHtml(meta)}</div>
+          </div>
+          <div class="pGroupMeta">Toca para abrir</div>
+        </summary>
+        <div class="pGroupBody">
+          ${itemsHtml}
+        </div>
+      </details>
+    `;
+  }).join("");
+}
+
+function lastSpecLine(row){
+  const b = row.base;
+  const parts = [];
+  if(b.brand) parts.push(b.brand);
+  if(b.store) parts.push(b.store);
+
+  let packInfo = "";
+  if(b.pack_qty > 0 && b.pack_price > 0){
+    packInfo = `Empaque: ${fmtNum(b.pack_qty)} ${b.base_unit || row.unit} · ${moneyCOP(b.pack_price)}`;
+  }
+
+  return [parts.join(" · "), packInfo].filter(Boolean).join(" · ") || "Sin detalle de empaque (puedes definirlo con ⚙️)";
+}
+
+function renderItemCard(row){
+  const plan = getPlan(row.key);
+
+  const needCls = row.need>0 ? "" : "";
+  const invCls = row.invBase>=row.need && row.need>0 ? "ok" : "";
+  const missCls = row.missing>0 ? "warn" : (row.need>0?"ok":"");
+
+  // Input mode
+  const hasPack = row.base.pack_qty > 0;
+  const packLabel = hasPack ? "Empaques" : `Cantidad (${row.unit})`;
+  const packHint  = hasPack ? `1 empaque = ${fmtNum(row.base.pack_qty)} ${row.unit}` : "";
+
+  const plannedQty = row.planned;
+  const est = (row.cpu!==null && plannedQty>0) ? (plannedQty * row.cpu) : null;
+
+  return `
+    <div class="pItem" data-k="${escapeHtml(row.key)}">
+      <div class="pItemTop">
+        <div>
+          <div class="pName">${escapeHtml(row.key)}</div>
+          <div class="pSubLine">${escapeHtml(lastSpecLine(row))}</div>
+        </div>
+        <div class="pRight">
+          <span class="pPill">${escapeHtml(row.unit)}</span>
+          <button class="pGear" data-act="edit" title="Editar presentación">⚙️</button>
+        </div>
+      </div>
+
+      <div class="pNums">
+        <div class="pNum ${needCls}">
+          <div class="lbl">Necesario</div>
+          <div class="val">${fmtNum(row.need)}</div>
+        </div>
+        <div class="pNum ${invCls}">
+          <div class="lbl">Inventario</div>
+          <div class="val">${fmtNum(row.invBase)}</div>
+        </div>
+        <div class="pNum ${missCls}">
+          <div class="lbl">Falta</div>
+          <div class="val">${fmtNum(row.missing)}</div>
+        </div>
+      </div>
+
+      <div class="pBuyRow">
+        <div class="pSwitch">
+          <label class="switch" title="Marcar para comprar">
+            <input type="checkbox" data-act="toggle" ${plan.selected?"checked":""} />
+            <span class="slider"></span>
+          </label>
+          <div style="font-weight:950;">Comprar</div>
+        </div>
+
+        <div class="pBuyInputs">
+          <input class="input" data-act="packs" type="number" step="any" min="0" placeholder="${escapeHtml(packLabel)}" value="${plan.selected && hasPack && plan.packs?escapeHtml(String(plan.packs)):""}" ${plan.selected?"":"disabled"} />
+          <input class="input" data-act="manual" type="number" step="any" min="0" placeholder="Cantidad (${escapeHtml(row.unit)})" value="${plan.selected && (!hasPack) && plan.qty_manual?escapeHtml(String(plan.qty_manual)):""}" ${plan.selected?"":"disabled"} ${hasPack?"style=\"display:none\"":""} />
+          <button class="pTinyBtn" data-act="auto" ${plan.selected?"":"disabled"} title="Rellenar con lo que falta">Auto</button>
+        </div>
+
+        <div class="pBuyMeta">
+          ${packHint ? (escapeHtml(packHint) + " · ") : ""}
+          Planeado: <b>${fmtNum(plannedQty)}</b> ${escapeHtml(row.unit)}
+          ${row.cpu!==null ? (` · Costo/u: <b>${moneyCOP(row.cpu)}</b>`):""}
+          ${est!==null ? (` · Est: <b>${moneyCOP(est)}</b>`):""}
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+// =============== Totals & confirm ===============
+function selectedKeys(){
+  return Object.keys(state.buyPlan || {}).filter(k => state.buyPlan[k]?.selected);
+}
+
+function totalEstimated(){
+  let total = 0;
+  let any = false;
+  for(const k of selectedKeys()){
+    const qty = computePlannedQty(k);
+    if(!(qty>0)) continue;
+    const cpu = getCostPerUnit(k);
+    if(cpu === null) continue;
+    total += qty * cpu;
+    any = true;
+  }
+  return { total, any };
+}
+
+function refreshBottom(){
+  const keys = selectedKeys();
+  const n = keys.length;
+  const est = totalEstimated();
+
+  if(el("totalCop")) el("totalCop").textContent = est.any ? moneyCOP(est.total) : "$—";
+  if(el("totalHint")) el("totalHint").textContent = `${n} ingrediente(s) marcados`;
+
+  const btn = el("btnRegister");
+  if(btn) btn.disabled = (n === 0);
+}
+
+function openConfirm(){
+  const back = el("confirmBack");
+  const list = el("confirmList");
+  const totalEl = el("confirmTotal");
+
+  const keys = selectedKeys();
+  const rows = [];
+
+  for(const k of keys){
+    const qty = computePlannedQty(k);
+    if(!(qty>0)) continue;
+    const unit = getUnitFor(k);
+    const cpu = getCostPerUnit(k);
+    const est = (cpu!==null) ? (qty * cpu) : null;
+    rows.push({ k, qty, unit, cpu, est });
+  }
+
+  const sum = rows.reduce((s,r)=> s + (r.est||0), 0);
+  if(totalEl) totalEl.textContent = rows.some(r=>r.est!==null) ? moneyCOP(sum) : "$—";
+
+  if(list){
+    list.innerHTML = rows.length ? rows.map(r=>`
+      <div class="pConfirmItem">
+        <div class="pConfirmItemTop">
+          <div class="pConfirmItemName">${escapeHtml(r.k)}</div>
+          <div style="font-weight:950;">${r.est!==null ? moneyCOP(r.est) : "$—"}</div>
+        </div>
+        <div class="pConfirmItemMeta">
+          Cantidad: <b>${fmtNum(r.qty)}</b> ${escapeHtml(r.unit)}
+          ${r.cpu!==null ? (` · Costo/u: ${moneyCOP(r.cpu)}`) : ""}
+        </div>
+      </div>
+    `).join("") : `<div class="hint">No hay cantidades planeadas (revisa empaques/cantidad).</div>`;
+  }
+
+  show(back);
+}
+
+function closeConfirm(){ hide(el("confirmBack")); }
+
+// =============== Register purchases ===============
+function buildPurchaseBatch(){
+  const entries = [];
+  for(const k of selectedKeys()){
+    const qty = computePlannedQty(k);
+    if(!(qty>0)) continue;
+    const unit = getUnitFor(k);
+    const cpu = getCostPerUnit(k);
+    const row = { ingredient_key: k, qty, unit };
+    if(cpu !== null) row.cop_per_unit = cpu;
+    entries.push(row);
+  }
+  return entries;
+}
+
+async function registerPurchases(){
+  if(!UNLOCKED_SECRET){
+    openUnlock("Ingresa tu clave para continuar.");
+    return;
+  }
+
+  const items = buildPurchaseBatch();
+  if(items.length === 0){
+    setMeta("No hay ingredientes con cantidad planeada.");
+    return;
+  }
+
+  showLoading("Registrando compras…", "Actualizando inventario en la base de datos.");
+  try{
+    await api({
+      action: "inventory_add_purchase_batch",
+      costs_secret: UNLOCKED_SECRET,
+      updated_by: "PURCHASES_UI",
+      source: "PURCHASES_UI",
+      items
+    }, {timeoutMs: 60000});
+
+    state.buyPlan = {};
+    await loadAll();
+    setMeta("✅ Compras registradas y inventario actualizado.");
+  } catch(err){
+    setMeta(`❌ Error registrando compras: ${(err && err.message) ? err.message : "Error"}`);
+  } finally {
+    hideLoading();
+  }
+}
+
+// =============== Meta ===============
+function setMeta(msg){
+  const m = el("meta");
+  if(m) m.textContent = msg || "";
+}
+
+function updateMetaLine(){
+  const used = Number(state.meta?.orders_used || 0);
+  const lim  = Number(state.meta?.orders_limit || 0);
+  const w0   = String(state.meta?.window_start || "").trim();
+  const w1   = String(state.meta?.window_end || "").trim();
+  const winText = (w0&&w1) ? `${w0} → ${w1}` : `${Number(state.meta?.window_hours || state.window_h)}h`;
+  const ordersText = lim ? `Pedidos: ${used}/${lim}` : `Pedidos: ${used}`;
+
+  const selected = selectedKeys().length;
+  setMeta(`Ventana: ${winText} · ${ordersText} · Marcados: ${selected}`);
+}
+
+// =============== Data load ===============
+async function loadAll(){
+  if(!UNLOCKED_SECRET) throw new Error("Sin clave.");
+
+  updateMetaLine();
+
+    const [invOut, needsOut, costsOut, catOut] = await Promise.all([
+    api({ action:"inventory_get", costs_secret: UNLOCKED_SECRET }),
+    api({ action:"costs_orders_for_purchases", costs_secret: UNLOCKED_SECRET, window_h: state.window_h }),
+    api({ action:"costs_list", costs_secret: UNLOCKED_SECRET }),
+    api({ action:"catalog_list", costs_secret: UNLOCKED_SECRET }),
+  ]);
+
+  state.inventory = invOut.inventory || {};
+  state.needs = needsOut.needs || {};
+  state.meta = needsOut.meta || {};
+  applyCatalogs(catOut);
+
+  state.ordersByDessert = needsOut.orders_by_dessert || needsOut.ordersByDessert || {};
+  state.late = needsOut.late || {};
+  state.items = costsOut.items || [];
+  indexCosts(state.items);
+
+  updateMetaLine();
+  renderDesserts();
+  renderLate();
+  renderGroups();
+  renderCostsGroups();
+  refreshBottom();
+}
+
+// =============== Unlock / logout ===============
+function openUnlock(msg){
+  if(el("unlockMsg")) el("unlockMsg").textContent = msg || "";
+  show(el("unlockBack"));
+  hide(el("appRoot"));
+  if(el("secretInput")) el("secretInput").focus();
+}
+
+function closeUnlock(){
+  if(el("unlockMsg")) el("unlockMsg").textContent = "";
+  hide(el("unlockBack"));
+}
+
+async function doUnlock(isAuto=false){
+  const secret = String(el("secretInput")?.value || "").trim();
+  if(!secret){
+    if(!isAuto && el("unlockMsg")) el("unlockMsg").textContent = "Escribe la clave.";
+    return;
+  }
+
+  showLoading("Validando…", "Verificando la clave en el servidor.");
+  try{
+    await validateSecret(secret);
+    UNLOCKED_SECRET = secret;
+    localStorage.setItem(LS_SECRET_KEY, secret);
+
+    closeUnlock();
+    show(el("appRoot"));
+
+    setView("purchases");
+
+    await loadAll();
+  } catch(err){
+    if(el("unlockMsg")) el("unlockMsg").textContent = (err && err.message) ? err.message : "No autorizado";
+    if(!isAuto) localStorage.removeItem(LS_SECRET_KEY);
+  } finally {
+    hideLoading();
+  }
+}
+
+function logout(){
+  UNLOCKED_SECRET = "";
+  localStorage.removeItem(LS_SECRET_KEY);
+  state.buyPlan = {};
+  openUnlock("Sesión cerrada.");
+}
+
+// =============== Cost modal (edit) ===============
+let CM = { key:null };
+
+function cmEls(){
+  return {
+    back: el("costModalBack"),
+    title: el("costModalTitle"),
+    sub: el("costModalSub"),
+    unitType: el("cmUnitType"),
+    packQty: el("cmPackQty"),
+    packPrice: el("cmPackPrice"),
+    unitExtra: el("cmUnitExtra"),
+    unitItemQty: el("cmUnitItemQty"),
+    unitItemType: el("cmUnitItemType"),
+    brand: el("cmBrand"),
+    store: el("cmStore"),
+    computed: el("cmComputed"),
+    err: el("cmErr"),
+    save: el("cmSave"),
+  };
+}
+
+function cmComputePreview(){
+  const e = cmEls();
+  const unit_type = String(e.unitType?.value||"").trim();
+  const pack_qty = Number(e.packQty?.value||0);
+  const pack_price = Number(e.packPrice?.value||0);
+  const unit_item_qty = Number(e.unitItemQty?.value||0);
+  const unit_item_type = String(e.unitItemType?.value||"").trim();
+
+  let base_unit = unit_type;
+  let base_pack_qty = pack_qty;
+  let cpu = null;
+
+  if(unit_type === "unidad" && unit_item_qty>0 && (unit_item_type==="g" || unit_item_type==="ml")){
+    base_unit = unit_item_type;
+    base_pack_qty = pack_qty * unit_item_qty;
+  }
+
+  if(base_pack_qty>0 && pack_price>0) cpu = pack_price / base_pack_qty;
+
+  if(e.unitExtra) e.unitExtra.style.display = (unit_type === "unidad") ? "block" : "none";
+  if(e.computed){
+    e.computed.textContent = `Se guardará como: ${base_pack_qty ? fmtNum(base_pack_qty) : "—"} ${base_unit || "—"} por empaque · Costo/u: ${cpu?moneyCOP(cpu):"—"}`;
+  }
+}
+
+function openCostModal(key){
+  const e = cmEls();
+  CM.key = key;
+  if(e.err) e.err.textContent = "";
+
+  const spec = state.costsByKey?.[key] || null;
+  const unit_type = String(spec?.unit_type || "").trim().toLowerCase() || "g";
+
+  if(e.title) e.title.textContent = `Detalle: ${key}`;
+
+  if(e.unitType) e.unitType.value = (unit_type==="g"||unit_type==="ml"||unit_type==="unidad") ? unit_type : "g";
+  if(e.packQty) e.packQty.value = spec?.pack_qty ? String(spec.pack_qty) : "";
+  if(e.packPrice) e.packPrice.value = spec?.pack_price ? String(spec.pack_price) : "";
+
+  if(e.unitItemQty) e.unitItemQty.value = spec?.unit_item_qty ? String(spec.unit_item_qty) : "";
+  if(e.unitItemType) e.unitItemType.value = String(spec?.unit_item_qty_type || "").trim().toLowerCase();
+
+  renderSelect("cmBrand", state.brands || [], String(spec?.brand || ""));
+  renderSelect("cmStore", state.stores || [], String(spec?.store || ""));
+
+  cmComputePreview();
+  show(e.back);
+}
+
+function closeCostModal(){
+  hide(el("costModalBack"));
+  CM.key = null;
+}
+
+async function saveCostModal(){
+  const e = cmEls();
+  if(!CM.key) return;
+  if(e.err) e.err.textContent = "";
+
+  const ingredient_key = CM.key;
+  const unit_type = String(e.unitType?.value||"").trim();
+  const pack_qty0 = Number(e.packQty?.value||0);
+  const pack_price = Number(e.packPrice?.value||0);
+  const brand = String(e.brand?.value||"").trim();
+  const store = String(e.store?.value||"").trim();
+
+  const unit_item_qty = Number(e.unitItemQty?.value||0);
+  const unit_item_qty_type = String(e.unitItemType?.value||"").trim();
+
+  if(!unit_type){ if(e.err) e.err.textContent = "Selecciona unidad."; return; }
+  if(!(pack_qty0>0)){ if(e.err) e.err.textContent = "Cantidad de empaque inválida."; return; }
+  if(!(pack_price>0)){ if(e.err) e.err.textContent = "Precio de empaque inválido."; return; }
+
+  let save_unit_type = unit_type;
+  let save_pack_qty = pack_qty0;
+  if(unit_type === "unidad" && unit_item_qty>0 && (unit_item_qty_type==="g" || unit_item_qty_type==="ml")){
+    save_unit_type = unit_item_qty_type;
+    save_pack_qty = pack_qty0 * unit_item_qty;
+  }
+
+  const cop_per_unit = pack_price / save_pack_qty;
+
+  showLoading("Guardando…", "Actualizando COSTOS_INGREDIENTES.");
+  try{
+    await api({
+      action:"costs_upsert",
+      costs_secret: UNLOCKED_SECRET,
+      ingredient_key,
+      unit_type: save_unit_type,
+      pack_qty: save_pack_qty,
+      pack_price,
+      cop_per_unit,
+      brand,
+      store,
+      unit_item_qty: (unit_item_qty>0 ? unit_item_qty : ""),
+      unit_item_qty_type: unit_item_qty_type || "",
+      updated_by: "PURCHASES_UI"
+    }, {timeoutMs: 60000});
+
+    await loadAll();
+    closeCostModal();
+    setMeta("✅ Costos actualizados.");
+  } catch(err){
+    if(e.err) e.err.textContent = (err && err.message) ? err.message : "Error guardando.";
+  } finally {
+    hideLoading();
+  }
+}
+
+// =============== Catalog manager (Tiendas/Marcas) ===============
+async function refreshCatalogs(){
   const out = await api({ action:"catalog_list", costs_secret: UNLOCKED_SECRET });
-  const cat = out.catalog || {};
-  const stores = (cat.stores || []).map(x=>x.value || x).filter(Boolean);
-  const brands = (cat.brands || []).map(x=>x.value || x).filter(Boolean);
-  STORES = uniqSorted(stores);
-  BRANDS = uniqSorted(brands);
+  applyCatalogs(out);
 }
+
+function fillSimpleSelect(selId, arr){
+  const s = el(selId);
+  if(!s) return;
+  const list = Array.isArray(arr) ? arr.map(v=>String(v||"").trim()).filter(Boolean) : [];
+  if(list.length === 0){
+    s.innerHTML = `<option value="">(vacío)</option>`;
+    return;
+  }
+  s.innerHTML = list.map(v=>`<option value="${escapeHtml(v)}">${escapeHtml(v)}</option>`).join("");
+}
+
+function openCatalogModal(){
+  if(!UNLOCKED_SECRET){
+    openUnlock("Ingresa tu clave para continuar.");
+    return;
+  }
+  if(el("catErr")) el("catErr").textContent = "";
+  fillSimpleSelect("catStores", state.stores);
+  fillSimpleSelect("catBrands", state.brands);
+  show(el("catModalBack"));
+}
+
+function closeCatalogModal(){ hide(el("catModalBack")); }
 
 async function addCatalogValue(type, value){
   const v = String(value||"").trim();
   if(!v) throw new Error("Valor vacío.");
-  return await api({ action:"catalog_add", costs_secret: UNLOCKED_SECRET, type, value: v });
+  await api({ action:"catalog_add", costs_secret: UNLOCKED_SECRET, type, value: v });
+  await refreshCatalogs();
 }
 
 async function deleteCatalogValue(type, value){
   const v = String(value||"").trim();
   if(!v) throw new Error("Selecciona un valor.");
-  return await api({ action:"catalog_delete", costs_secret: UNLOCKED_SECRET, type, value: v });
+  await api({ action:"catalog_delete", costs_secret: UNLOCKED_SECRET, type, value: v });
+  await refreshCatalogs();
 }
 
-function makeSelectOptions(arr, selected){
-  const s = String(selected||"");
-  return (arr||[]).map(v=>{
-    const vv = String(v);
-    const sel = (vv === s) ? "selected" : "";
-    return `<option value="${cssEscape(vv)}" ${sel}>${vv}</option>`;
-  }).join("");
-}
+// =============== Events ===============
+function bind(){
+  // Buttons
+  el("btnExit")?.addEventListener("click", logout);
+  el("btnReload")?.addEventListener("click", ()=>{ showLoading("Recargando…", "Actualizando datos."); loadAll().finally(hideLoading); });
 
-// =================== MODAL (Catálogos) ===================
-function ensureModal(){
-  let m = document.getElementById("am_modal");
-  if(m) return m;
+  // Tabs
+  el("btnTabPurchases")?.addEventListener("click", ()=> setView("purchases"));
+  el("btnTabCosts")?.addEventListener("click", ()=> setView("costs"));
 
-  m = document.createElement("div");
-  m.id = "am_modal";
-  m.className = "amModal";
-  m.innerHTML = `
-    <div class="amModalCard">
-      <div class="amModalHeader">
-        <div>
-          <div class="amModalTitle" id="am_modal_title">Título</div>
-          <div class="amModalDesc" id="am_modal_desc">Descripción</div>
-        </div>
-        <button class="amBtn amBtnSecondary" id="am_modal_close" type="button">Cerrar</button>
-      </div>
-      <div class="amModalBody" id="am_modal_body"></div>
-    </div>
-  `;
-  document.body.appendChild(m);
+  // Costos view
+  el("btnCostsRefresh")?.addEventListener("click", ()=>{ showLoading("Refrescando…","Leyendo datos actualizados."); loadAll().finally(hideLoading); });
+  el("btnCatalogs")?.addEventListener("click", ()=> openCatalogModal());
+  el("inpCostSearch")?.addEventListener("input", (e)=>{ state.ui.cost_q = String(e.target.value||""); renderCostsGroups(); });
 
-  m.querySelector("#am_modal_close").onclick = ()=> m.classList.remove("isOpen");
-  m.addEventListener("click",(e)=>{ if(e.target===m) m.classList.remove("isOpen"); }, {passive:true});
+  // Unlock
+  el("btnDoUnlock")?.addEventListener("click", ()=>doUnlock(false));
+  el("btnClear")?.addEventListener("click", ()=>{ if(el("secretInput")) el("secretInput").value = ""; if(el("unlockMsg")) el("unlockMsg").textContent = ""; el("secretInput")?.focus(); });
+  el("secretInput")?.addEventListener("keydown", (e)=>{ if(e.key === "Enter") doUnlock(false); });
 
-  return m;
-}
+  // Controls
+  el("inpSearch")?.addEventListener("input", (e)=>{ state.ui.q = String(e.target.value||""); renderGroups(); refreshBottom(); updateMetaLine(); });
+  el("chkOnlyMissing")?.addEventListener("change", (e)=>{ state.ui.onlyMissing = !!e.target.checked; renderGroups(); refreshBottom(); updateMetaLine(); });
+  el("chkOnlySelected")?.addEventListener("change", (e)=>{ state.ui.onlySelected = !!e.target.checked; renderGroups(); refreshBottom(); updateMetaLine(); });
 
-function openModal(title, desc, html){
-  const m = ensureModal();
-  m.querySelector("#am_modal_title").textContent = title || "";
-  m.querySelector("#am_modal_desc").textContent = desc || "";
-  m.querySelector("#am_modal_body").innerHTML = html || "";
-  m.classList.add("isOpen");
-  return m;
-}
+  // Cost list interactions
+  el("costGroups")?.addEventListener("click", (e)=>{
+    const btn = e.target.closest("button");
+    if(!btn) return;
+    const card = e.target.closest(".pItem");
+    const key = card ? String(card.getAttribute("data-k")||"") : "";
+    if(!key) return;
+    const act = btn.getAttribute("data-act") || "";
+    if(act === "edit") openCostModal(key);
+  });
 
-async function confirm2s(title, desc){
-  const html = `
-    <div class="item">
-      <div class="k">${title}</div>
-      <div class="mini" style="margin-top:6px;">${desc}</div>
-      <div class="amRow" style="margin-top:12px; gap:10px;">
-        <button class="amBtn" id="c_ok" type="button">Confirmar (2s)</button>
-        <button class="amBtn amBtnSecondary" id="c_no" type="button">Cancelar</button>
-      </div>
-    </div>
-  `;
-  const m = openModal("Confirmación", "", html);
+  // Group interactions (event delegation)
+  el("groups")?.addEventListener("click", (e)=>{
+    const btn = e.target.closest("button");
+    if(!btn) return;
+    const card = e.target.closest(".pItem");
+    const key = card ? String(card.getAttribute("data-k")||"") : "";
+    if(!key) return;
 
-  const okBtn = m.querySelector("#c_ok");
-  const noBtn = m.querySelector("#c_no");
+    const act = btn.getAttribute("data-act") || "";
+    if(act === "edit"){
+      openCostModal(key);
+      return;
+    }
+    if(act === "auto"){
+      const r = computeRow(key);
+      const p = getPlan(key);
+      p.selected = true;
+      const needBuy = Math.max(0, r.need - r.invBase);
+      if(r.base.pack_qty>0){
+        p.packs = needBuy>0 ? Math.ceil(needBuy / r.base.pack_qty) : 0;
+        p.qty_manual = 0;
+      } else {
+        p.qty_manual = needBuy>0 ? needBuy : 0;
+        p.packs = 0;
+      }
+      renderGroups();
+      refreshBottom();
+      updateMetaLine();
+    }
+  });
 
-  return await new Promise((resolve)=>{
-    let t = 2;
-    let int = null;
+  // Inputs & switches (delegation)
+  el("groups")?.addEventListener("change", (e)=>{
+    const card = e.target.closest(".pItem");
+    const key = card ? String(card.getAttribute("data-k")||"") : "";
+    if(!key) return;
 
-    function cleanup(val){
-      try{ clearInterval(int); }catch(_e){}
-      m.classList.remove("isOpen");
-      resolve(val);
+    const act = e.target.getAttribute("data-act") || "";
+    const plan = getPlan(key);
+
+    if(act === "toggle"){
+      plan.selected = !!e.target.checked;
+      if(!plan.selected){ plan.packs = 0; plan.qty_manual = 0; }
+      renderGroups();
+      refreshBottom();
+      updateMetaLine();
+      return;
     }
 
-    okBtn.disabled = true;
-    okBtn.textContent = `Confirmar (${t}s)`;
-    int = setInterval(()=>{
-      t--;
-      if(t<=0){
-        okBtn.disabled = false;
-        okBtn.textContent = "Confirmar";
-        clearInterval(int);
-      }else{
-        okBtn.textContent = `Confirmar (${t}s)`;
-      }
-    }, 1000);
-
-    okBtn.onclick = ()=> cleanup(true);
-    noBtn.onclick = ()=> cleanup(false);
-  });
-}
-
-async function openCatalogManager(){
-  const html = `
-    <div class="item">
-      <div class="k">Catálogos</div>
-      <div class="mini" style="margin-top:6px;">Gestiona <b>tiendas</b> y <b>marcas</b> que aparecen en los selectores.</div>
-
-      <div class="amGrid2" style="margin-top:14px;">
-        <div class="amCol">
-          <div class="amLabel">Tiendas</div>
-          <div class="amRow">
-            <select class="amSelect" id="storePick">
-              <option value="">Selecciona…</option>
-              ${makeSelectOptions(STORES,"")}
-            </select>
-            <button class="amBtn amBtnDanger" id="delStore" type="button">Eliminar</button>
-          </div>
-          <div class="amRow" style="margin-top:10px;">
-            <input class="amInput" id="storeNew" placeholder="Nueva tienda…">
-            <button class="amBtn" id="addStore" type="button">Agregar</button>
-          </div>
-        </div>
-
-        <div class="amCol">
-          <div class="amLabel">Marcas</div>
-          <div class="amRow">
-            <select class="amSelect" id="brandPick">
-              <option value="">Selecciona…</option>
-              ${makeSelectOptions(BRANDS,"")}
-            </select>
-            <button class="amBtn amBtnDanger" id="delBrand" type="button">Eliminar</button>
-          </div>
-          <div class="amRow" style="margin-top:10px;">
-            <input class="amInput" id="brandNew" placeholder="Nueva marca…">
-            <button class="amBtn" id="addBrand" type="button">Agregar</button>
-          </div>
-        </div>
-      </div>
-    </div>
-  `;
-
-  const m = openModal("⚙️ Gestionar tiendas y marcas", "Este panel está separado para evitar cambios accidentales.", html);
-
-  const storePick = m.querySelector("#storePick");
-  const brandPick = m.querySelector("#brandPick");
-  const storeNew  = m.querySelector("#storeNew");
-  const brandNew  = m.querySelector("#brandNew");
-
-  m.querySelector("#addStore").onclick = async ()=>{
-    const v = storeNew.value.trim();
-    if(!v) return alert("Escribe una tienda.");
-    const ok = await confirm2s("¿Agregar tienda?", `Se agregará: ${v}`);
-    if(!ok) return;
-
-    showLoading("Agregando…","Guardando tienda en la base de datos.");
-    try{
-      await addCatalogValue("store", v);
-      storeNew.value = "";
-      await fetchCatalogsFromSheets();
-      storePick.innerHTML = `<option value="">Selecciona…</option>${makeSelectOptions(STORES,"")}`;
-      render();
-    }catch(e){ alert(e.message||"Error"); }
-    finally{ hideLoading(); }
-  };
-
-  m.querySelector("#addBrand").onclick = async ()=>{
-    const v = brandNew.value.trim();
-    if(!v) return alert("Escribe una marca.");
-    const ok = await confirm2s("¿Agregar marca?", `Se agregará: ${v}`);
-    if(!ok) return;
-
-    showLoading("Agregando…","Guardando marca en la base de datos.");
-    try{
-      await addCatalogValue("brand", v);
-      brandNew.value = "";
-      await fetchCatalogsFromSheets();
-      brandPick.innerHTML = `<option value="">Selecciona…</option>${makeSelectOptions(BRANDS,"")}`;
-      render();
-    }catch(e){ alert(e.message||"Error"); }
-    finally{ hideLoading(); }
-  };
-
-  m.querySelector("#delStore").onclick = async ()=>{
-    const v = unescapeCss(storePick.value||"").trim();
-    if(!v) return alert("Selecciona una tienda.");
-    const ok = await confirm2s("¿Eliminar tienda?", `Se eliminará: ${v}`);
-    if(!ok) return;
-
-    showLoading("Eliminando…","Quitando tienda de la base de datos.");
-    try{
-      await deleteCatalogValue("store", v);
-      await fetchCatalogsFromSheets();
-      storePick.innerHTML = `<option value="">Selecciona…</option>${makeSelectOptions(STORES,"")}`;
-      render();
-    }catch(e){ alert(e.message||"Error"); }
-    finally{ hideLoading(); }
-  };
-
-  m.querySelector("#delBrand").onclick = async ()=>{
-    const v = unescapeCss(brandPick.value||"").trim();
-    if(!v) return alert("Selecciona una marca.");
-    const ok = await confirm2s("¿Eliminar marca?", `Se eliminará: ${v}`);
-    if(!ok) return;
-
-    showLoading("Eliminando…","Quitando marca de la base de datos.");
-    try{
-      await deleteCatalogValue("brand", v);
-      await fetchCatalogsFromSheets();
-      brandPick.innerHTML = `<option value="">Selecciona…</option>${makeSelectOptions(BRANDS,"")}`;
-      render();
-    }catch(e){ alert(e.message||"Error"); }
-    finally{ hideLoading(); }
-  };
-}
-
-// =================== SECCIONES (desde kitchen-costs.js) ===================
-function getCanonFromKitchenCosts(){
-  if(Array.isArray(window.AMARED_COSTS_SECTIONS) && window.AMARED_COSTS_SECTIONS.length){
-    const groups = window.AMARED_COSTS_SECTIONS.map(s=>({
-      title: s.title,
-      keys: (s.keys||[]).map(String)
-    }));
-    const canon = Array.from(new Set(groups.flatMap(g=>g.keys)));
-    return { canon, groups };
-  }
-  return { canon: [], groups: [] };
-}
-
-function buildUIFromSheets(items){
-  const map = {};
-  (items||[]).forEach(r=>{
-    const k = String(r.ingredient_key||"").trim();
-    if(!k) return;
-    map[k] = {
-      ingredient_key: k,
-      unit_type: normUnit(r.unit_type),
-      pack_qty: String(r.pack_qty||""),
-      pack_price: String(r.pack_price||""),
-      cop_per_unit: String(r.cop_per_unit||""),
-      brand: String(r.brand||""),
-      store: String(r.store||""),
-      unit_item_qty: String(r.unit_item_qty||""),
-      unit_item_qty_type: String(r.unit_item_qty_type||""),
-      updated_at: r.updated_at || "",
-      updated_by: r.updated_by || ""
-    };
-  });
-
-  const ui = {};
-  CANON.forEach(k=>{
-    ui[k] = map[k] || {
-      ingredient_key: k,
-      unit_type: "",
-      pack_qty: "",
-      pack_price: "",
-      cop_per_unit: "",
-      brand: "",
-      store: "",
-      unit_item_qty: "",
-      unit_item_qty_type: "",
-      updated_at: "",
-      updated_by: ""
-    };
-  });
-
-  // Si en Sheets hay ingredientes extra que no están en CANON, los agregamos al final (sin romper nada)
-  (items||[]).forEach(r=>{
-    const k = String(r.ingredient_key||"").trim();
-    if(k && !ui[k]) ui[k] = map[k];
-  });
-
-  UI = ui;
-}
-
-function isCompleteRow(r){
-  const u = normUnit(r.unit_type);
-  const qty = Number(r.pack_qty||0);
-  const price = Number(r.pack_price||0);
-  const cpu = Number(r.cop_per_unit||0);
-  if(!u) return false;
-  if(!(qty>0) || !(price>0) || !(cpu>0)) return false;
-  if(u === "unidad"){
-    const itemQty = Number(r.unit_item_qty||0);
-    if(!(itemQty>0)) return false;
-  }
-  return true;
-}
-
-function computeCopPerUnit(packQty, packPrice, unitType, unitItemQty){
-  const qty = Number(packQty||0);
-  const price = Number(packPrice||0);
-  if(!(qty>0) || !(price>0)) return 0;
-
-  const u = normUnit(unitType);
-
-  // Si viene por "unidad" pero cada unidad tiene contenido (g/ml), calculamos por g/ml
-  if(u === "unidad"){
-    const itemQty = Number(unitItemQty||0);
-    if(itemQty > 0){
-      const totalQty = qty * itemQty; // ej: 6 unidades * 900 ml = 5400 ml
-      if(totalQty > 0) return price / totalQty;
+    if(act === "packs"){
+      plan.packs = Number(e.target.value||0);
+      plan.selected = true;
+      renderGroups();
+      refreshBottom();
+      updateMetaLine();
+      return;
     }
-  }
 
-  return price / qty;
-}
-
-function setRowField(key, field, value){
-  if(!UI[key]) return;
-  if(field === "cop_per_unit") return; // auto
-
-  UI[key][field] = value;
-
-  const r = UI[key];
-  const u = normUnit(r.unit_type);
-
-  // si cambia a unidad, default tipo contenido g
-  if(field === "unit_type"){
-    if(u === "unidad" && !r.unit_item_qty_type) r.unit_item_qty_type = "g";
-    if(u !== "unidad"){ r.unit_item_qty = ""; r.unit_item_qty_type = ""; }
-  }
-
-  // auto cálculo
-  const cpu = computeCopPerUnit(r.pack_qty, r.pack_price, r.unit_type, r.unit_item_qty);
-  if(cpu > 0) r.cop_per_unit = String(roundCOP(cpu));
-  else r.cop_per_unit = "";
-}
-
-// ====== Mantener acordeones abiertos ======
-function getOpenAccordionsState(){
-  const open = new Set();
-  document.querySelectorAll("#list details.item[data-idx]").forEach(det=>{
-    if(det.open) open.add(String(det.getAttribute("data-idx")));
+    if(act === "manual"){
+      plan.qty_manual = Number(e.target.value||0);
+      plan.selected = true;
+      renderGroups();
+      refreshBottom();
+      updateMetaLine();
+      return;
+    }
   });
-  return open;
-}
 
-function restoreOpenAccordionsState(openSet){
-  document.querySelectorAll("#list details.item[data-idx]").forEach(det=>{
-    const idx = String(det.getAttribute("data-idx"));
-    det.open = openSet.has(idx);
-    const chev = det.querySelector(".am_chev");
-    if(chev) chev.textContent = det.open ? "▼" : "▶";
+  // Bottom bar
+  el("btnRegister")?.addEventListener("click", ()=>{ openConfirm(); });
+
+  // Confirm modal
+  el("btnConfirmClose")?.addEventListener("click", closeConfirm);
+  el("btnConfirmCancel")?.addEventListener("click", closeConfirm);
+  el("btnConfirmGo")?.addEventListener("click", async ()=>{
+    closeConfirm();
+    await registerPurchases();
+    renderGroups();
+    refreshBottom();
   });
-}
 
-// =================== RENDER ===================
-function renderTopTools(){
-  const el = document.getElementById("topTools");
-  if(!el) return;
+  // Cost modal
+  el("cmCancelX")?.addEventListener("click", closeCostModal);
+  el("cmSave")?.addEventListener("click", saveCostModal);
+  el("cmOpenCatalogs")?.addEventListener("click", ()=> openCatalogModal());
+  ["cmUnitType","cmPackQty","cmPackPrice","cmUnitItemQty","cmUnitItemType"].forEach(id=>{
+    el(id)?.addEventListener("input", cmComputePreview);
+    el(id)?.addEventListener("change", cmComputePreview);
+  });
 
-  el.innerHTML = `
-    <div class="row" style="gap:10px; flex-wrap:wrap;">
-      <button class="btn secondary" id="refreshBtn">⟳ Refrescar</button>
-      <button class="btn secondary" id="catalogBtn">⚙️ Tiendas/Marcas</button>
-      <span class="pill">Secciones cerradas por defecto</span>
-    </div>
-  `;
-
-  document.getElementById("refreshBtn").onclick = async ()=>{
-    showLoading("Refrescando…","Leyendo datos actualizados desde la base de datos.");
+  // Catalog modal
+  el("catCloseX")?.addEventListener("click", closeCatalogModal);
+  el("btnAddStore")?.addEventListener("click", async ()=>{
     try{
-      await fetchCatalogsFromSheets();
-      SHEETS_ROWS = await fetchCostsFromSheets();
-      buildUIFromSheets(SHEETS_ROWS);
-      render();
-    }catch(e){ alert(e.message||"Error"); }
-    finally{ hideLoading(); }
-  };
-
-  document.getElementById("catalogBtn").onclick = async ()=>{
-    showLoading("Cargando…","Abriendo Tiendas/Marcas.");
-    try{ await openCatalogManager(); }
-    catch(e){ alert(e.message||"Error"); }
-    finally{ hideLoading(); }
-  };
-}
-
-function renderIngredientRow(key, sectionIndex){
-  const r = UI[key];
-  const u = normUnit(r.unit_type);
-
-  const wrap = document.createElement("div");
-  wrap.className = "item";
-  wrap.style.marginTop = "12px";
-  wrap.setAttribute("data-ik", key);
-
-  const storeOpts = `<option value="">—</option>${makeSelectOptions(STORES, r.store)}`;
-  const brandOpts = `<option value="">—</option>${makeSelectOptions(BRANDS, r.brand)}`;
-
-  wrap.innerHTML = `
-    <div class="row" style="justify-content:space-between; align-items:flex-start; gap:10px; flex-wrap:wrap;">
-      <div>
-        <div class="k">${key}</div>
-        <div class="mini" style="margin-top:4px;">${isCompleteRow(r) ? "✅ Completo" : "🟡 Pendiente"}</div>
-      </div>
-      <span class="pill">${u ? u : "sin unidad"}</span>
-    </div>
-
-    <div style="margin-top:12px; display:grid; grid-template-columns: repeat(12, 1fr); gap:10px;">
-      <div style="grid-column: span 3;">
-        <div class="mini" style="font-weight:900;">Unidad</div>
-        <select class="input" data-k="${cssEscape(key)}" data-f="unit_type">
-          <option value="">Selecciona…</option>
-          <option value="g" ${u==="g"?"selected":""}>g</option>
-          <option value="ml" ${u==="ml"?"selected":""}>ml</option>
-          <option value="unidad" ${u==="unidad"?"selected":""}>unidad</option>
-        </select>
-      </div>
-
-      <div style="grid-column: span 3;">
-        <div class="mini" style="font-weight:900;">Cantidad empaque</div>
-        <input class="input" data-k="${cssEscape(key)}" data-f="pack_qty" placeholder="Ej: 1000" value="${r.pack_qty||""}">
-      </div>
-
-      <div style="grid-column: span 3;">
-        <div class="mini" style="font-weight:900;">Precio empaque (COP)</div>
-        <input class="input" data-k="${cssEscape(key)}" data-f="pack_price" placeholder="Ej: 12000" value="${r.pack_price||""}">
-      </div>
-
-      <div style="grid-column: span 3;">
-        <div class="mini" style="font-weight:900;">COP por unidad</div>
-        <input class="input" data-k="${cssEscape(key)}" data-f="cop_per_unit" placeholder="Auto" value="${r.cop_per_unit||""}" readonly style="background:#f7f7f7; cursor:not-allowed;" title="Auto calculado">
-      </div>
-
-      <div style="grid-column: span 6; ${u==="unidad" ? "" : "display:none;"}">
-        <div class="mini" style="font-weight:900;">Cantidad por unidad (contenido)</div>
-        <div class="row" style="gap:10px; flex-wrap:wrap;">
-          <input class="input" style="flex:1; min-width:160px;" data-k="${cssEscape(key)}" data-f="unit_item_qty" placeholder="Ej: 200" value="${r.unit_item_qty||""}">
-          <select class="input" style="width:140px;" data-k="${cssEscape(key)}" data-f="unit_item_qty_type">
-            <option value="g" ${(r.unit_item_qty_type||"")==="g"?"selected":""}>g</option>
-            <option value="ml" ${(r.unit_item_qty_type||"")==="ml"?"selected":""}>ml</option>
-          </select>
-        </div>
-        <div class="mini" style="margin-top:6px;">Ejemplo: si 1 unidad trae 200g, escribe 200 y elige “g”.</div>
-      </div>
-
-      <div style="grid-column: span 3;">
-        <div class="mini" style="font-weight:900;">Tienda</div>
-        <select class="input" data-k="${cssEscape(key)}" data-f="store">${storeOpts}</select>
-      </div>
-
-      <div style="grid-column: span 3;">
-        <div class="mini" style="font-weight:900;">Marca</div>
-        <select class="input" data-k="${cssEscape(key)}" data-f="brand">${brandOpts}</select>
-      </div>
-
-      <div style="grid-column: span 6;">
-        <div class="mini" style="font-weight:900;">Última actualización</div>
-        <input class="input" disabled value="${r.updated_at ? String(r.updated_at) : ""}" placeholder="—">
-      </div>
-    </div>
-  `;
-
-  wrap.querySelectorAll("[data-k]").forEach(inp=>{
-    const onChange = ()=>{
-      const k = unescapeCss(inp.getAttribute("data-k"));
-      const f = inp.getAttribute("data-f");
-      const v = inp.value;
-      setRowField(k,f,v);
-
-      if(f === "unit_type"){
-        const openState = getOpenAccordionsState();
-        openState.add(String(sectionIndex));
-        render();
-        restoreOpenAccordionsState(openState);
-      }
-    };
-
-    const onInput = ()=>{
-      const k = unescapeCss(inp.getAttribute("data-k"));
-      const f = inp.getAttribute("data-f");
-      const v = inp.value;
-      setRowField(k,f,v);
-
-      // reflejar CPU en vivo cuando cambian pack_qty/pack_price
-      if(f === "pack_qty" || f === "pack_price"){
-        const cpuInp = wrap.querySelector('[data-f="cop_per_unit"]');
-        if(cpuInp) cpuInp.value = UI[k].cop_per_unit || "";
-      }
-    };
-
-    inp.addEventListener("change", onChange, {passive:true});
-    inp.addEventListener("input", onInput, {passive:true});
+      if(el("catErr")) el("catErr").textContent = "";
+      showLoading("Guardando…","Agregando tienda.");
+      await addCatalogValue("stores", el("catStoreNew")?.value);
+      if(el("catStoreNew")) el("catStoreNew").value = "";
+      fillSimpleSelect("catStores", state.stores);
+      fillSimpleSelect("catBrands", state.brands);
+      setGlobalMsg("✅ Tienda agregada.");
+    }catch(err){
+      if(el("catErr")) el("catErr").textContent = err?.message || "Error";
+    }finally{ hideLoading(); }
+  });
+  el("btnDelStore")?.addEventListener("click", async ()=>{
+    try{
+      if(el("catErr")) el("catErr").textContent = "";
+      const v = el("catStores")?.value;
+      showLoading("Guardando…","Eliminando tienda.");
+      await deleteCatalogValue("stores", v);
+      fillSimpleSelect("catStores", state.stores);
+      setGlobalMsg("✅ Tienda eliminada.");
+    }catch(err){
+      if(el("catErr")) el("catErr").textContent = err?.message || "Error";
+    }finally{ hideLoading(); }
+  });
+  el("btnAddBrand")?.addEventListener("click", async ()=>{
+    try{
+      if(el("catErr")) el("catErr").textContent = "";
+      showLoading("Guardando…","Agregando marca.");
+      await addCatalogValue("brands", el("catBrandNew")?.value);
+      if(el("catBrandNew")) el("catBrandNew").value = "";
+      fillSimpleSelect("catBrands", state.brands);
+      fillSimpleSelect("catStores", state.stores);
+      setGlobalMsg("✅ Marca agregada.");
+    }catch(err){
+      if(el("catErr")) el("catErr").textContent = err?.message || "Error";
+    }finally{ hideLoading(); }
+  });
+  el("btnDelBrand")?.addEventListener("click", async ()=>{
+    try{
+      if(el("catErr")) el("catErr").textContent = "";
+      const v = el("catBrands")?.value;
+      showLoading("Guardando…","Eliminando marca.");
+      await deleteCatalogValue("brands", v);
+      fillSimpleSelect("catBrands", state.brands);
+      setGlobalMsg("✅ Marca eliminada.");
+    }catch(err){
+      if(el("catErr")) el("catErr").textContent = err?.message || "Error";
+    }finally{ hideLoading(); }
   });
 
-  return wrap;
+  // Close modal by clicking outside
+  el("costModalBack")?.addEventListener("click", (e)=>{ if(e.target === el("costModalBack")) closeCostModal(); });
+  el("confirmBack")?.addEventListener("click", (e)=>{ if(e.target === el("confirmBack")) closeConfirm(); });
+  el("catModalBack")?.addEventListener("click", (e)=>{ if(e.target === el("catModalBack")) closeCatalogModal(); });
 }
 
-function render(){
-  const openState = getOpenAccordionsState();
+// =============== Boot ===============
+(function init(){
+  bind();
 
-  renderTopTools();
-
-  const root = document.getElementById("list");
-  if(!root) return;
-  root.innerHTML = "";
-
-  if(!GROUPS.length){
-    root.innerHTML = `<div class="item"><div class="k">No hay secciones</div><div class="mini" style="margin-top:6px;">
-      Revisa que <b>kitchen-costs.js</b> tenga <code>window.AMARED_COSTS_SECTIONS</code>.
-    </div></div>`;
-    return;
+  const saved = String(localStorage.getItem(LS_SECRET_KEY) || "").trim();
+  if(saved){
+    if(el("secretInput")) el("secretInput").value = saved;
+    // auto unlock
+    doUnlock(true);
+  } else {
+    openUnlock("");
   }
-
-  GROUPS.forEach((g,idx)=>{
-    const keys = (g.keys||[]).filter(k=>UI[k]);
-    const complete = keys.filter(k=>isCompleteRow(UI[k]));
-    const pending = keys.filter(k=>!isCompleteRow(UI[k]));
-
-    const det = document.createElement("details");
-    det.className = "item";
-    det.setAttribute("data-idx", String(idx));
-    det.open = false;
-
-    det.innerHTML = `
-      <summary class="am_sum" style="display:flex; align-items:center; justify-content:space-between; gap:10px; cursor:pointer;">
-        <div style="display:flex; align-items:center; gap:10px;">
-          <span class="am_chev">▶</span>
-          <div>
-            <div class="k">${g.title}</div>
-            <div class="mini">${pending.length} pendiente(s) · ${complete.length} completo(s)</div>
-          </div>
-        </div>
-        <span class="pill">${keys.length} ingrediente(s)</span>
-      </summary>
-      <div style="margin-top:12px;" data-sec="${idx}"></div>
-    `;
-
-    det.addEventListener("toggle",()=>{
-      const chev = det.querySelector(".am_chev");
-      if(chev) chev.textContent = det.open ? "▼" : "▶";
-    });
-
-    const box = det.querySelector(`[data-sec="${idx}"]`);
-    keys.forEach(k=> box.appendChild(renderIngredientRow(k, idx)));
-    root.appendChild(det);
-  });
-
-  restoreOpenAccordionsState(openState);
-}
-
-// =================== SAVE ===================
-
-function normalizeRowForSave(row){
-  // Clona para no mutar referencias accidentalmente
-  const r = Object.assign({}, row || {});
-  const u2 = normUnit(r.unit_type);
-  const packPrice = Number(r.pack_price||0);
-  const packQty = Number(r.pack_qty||0);
-
-  // ✅ Caso: proveedor vende "unidades" pero cada unidad contiene g/ml.
-  // Guardamos en BD como g/ml para que RECETAS (g/ml) calcule exacto.
-  const itemQty = Number(r.unit_item_qty||0);
-  const itemType = normUnit(r.unit_item_qty_type);
-  if(u2 === "unidad" && itemQty>0 && (itemType==="g" || itemType==="ml") && packQty>0){
-    const totalQty = packQty * itemQty; // g/ml totales del empaque
-    if(totalQty>0){
-      r.unit_type = itemType;
-      r.pack_qty = String(totalQty);
-      if(packPrice>0){
-        r.cop_per_unit = String(roundCOP(packPrice / totalQty));
-      }
-      // Mantenemos metadata por si quieres verla en UI (no afecta el cálculo).
-      // r.unit_item_qty / r.unit_item_qty_type se quedan.
-    }
-    return r;
-  }
-
-  // ✅ Si ya está en g/ml, y el usuario no puso cop_per_unit, lo calculamos.
-  const uBase = normUnit(r.unit_type);
-  const hasCop = String(r.cop_per_unit||"").trim() !== "";
-  if((uBase==="g" || uBase==="ml") && !hasCop && packQty>0 && packPrice>0){
-    r.cop_per_unit = String(roundCOP(packPrice / packQty));
-  }
-  return r;
-}
-
-async function saveAllToSheets(){
-  const keys = Object.keys(UI||{});
-  showLoading("Guardando…","Actualizando información en la base de datos.");
-  try{
-    for(const k of keys){
-      const r = UI[k];
-      const hasAny =
-        String(r.unit_type||"").trim() ||
-        String(r.pack_qty||"").trim() ||
-        String(r.pack_price||"").trim() ||
-        String(r.cop_per_unit||"").trim() ||
-        String(r.brand||"").trim() ||
-        String(r.store||"").trim();
-      if(!hasAny) continue;
-      // Normalización (unidad -> g/ml cuando aplique) + cálculo de COP por unidad base
-      const toSave = normalizeRowForSave(r);
-      await upsertCostToSheets(toSave);
-    }
-  }finally{
-    hideLoading();
-  }
-}
-
-// =================== BOOTSTRAP ===================
-async function bootstrap(){
-  const btnUnlock = document.getElementById("unlock");
-  const btnSaveAll = document.getElementById("saveAll");
-
-  if(btnUnlock){
-    btnUnlock.onclick = async ()=>{
-      const s = (document.getElementById("secret")?.value || "").trim();
-      const errEl = document.getElementById("err");
-      if(!s){ if(errEl) errEl.textContent = "Ingresa la clave."; return; }
-      if(errEl) errEl.textContent = "";
-
-      UNLOCKED_SECRET = s;
-
-      showLoading("Cargando…","Leyendo secciones, catálogos y costos.");
-      try{
-        const data = getCanonFromKitchenCosts();
-        CANON = data.canon;
-        GROUPS = data.groups;
-
-        await fetchCatalogsFromSheets();
-        SHEETS_ROWS = await fetchCostsFromSheets();
-        buildUIFromSheets(SHEETS_ROWS);
-
-        const editor = document.getElementById("editor");
-        if(editor) editor.style.display = "block";
-        render();
-      }catch(e){
-        if(errEl) errEl.textContent = e.message || "Error";
-        UNLOCKED_SECRET = "";
-      }finally{
-        hideLoading();
-      }
-    };
-  }
-
-  if(btnSaveAll){
-    btnSaveAll.onclick = async ()=>{
-      try{
-        await saveAllToSheets();
-        showLoading("Refrescando…","Cargando cambios desde la base de datos.");
-        await fetchCatalogsFromSheets();
-        SHEETS_ROWS = await fetchCostsFromSheets();
-        buildUIFromSheets(SHEETS_ROWS);
-        render();
-      }catch(e){
-        alert(e.message || "Error");
-      }finally{
-        hideLoading();
-      }
-    };
-  }
-}
-
-document.addEventListener("DOMContentLoaded", bootstrap);
+})();
