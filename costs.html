@@ -5,98 +5,327 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>AMARED · Costos</title>
 
-  <script>
-  var normDateOnly_ = (typeof normDateOnly_ === "function") ? normDateOnly_ : function(d){
-    try{
-      const dt = (d instanceof Date) ? d : new Date(d);
-      if (isNaN(dt)) return "";
-      const y = dt.getFullYear();
-      const m = String(dt.getMonth()+1).padStart(2,"0");
-      const day = String(dt.getDate()).padStart(2,"0");
-      return `${y}-${m}-${day}`;
-    }catch(_e){ return ""; }
-  };
-  try{ globalThis.normDateOnly_ = normDateOnly_; }catch(_e){}
-  try{ window.normDateOnly_ = normDateOnly_; }catch(_e){}
-  </script>
-
-  <!-- ✅ favicon igual al resto -->
-  <link rel="icon" href="assets/favicon.ico" type="image/x-icon">
+  <!-- ✅ favicon (misma línea gráfica) -->
+  <link rel="icon" href="assets/favicon.ico" type="image/x-icon" />
+  <link rel="shortcut icon" href="assets/favicon.ico" type="image/x-icon" />
 
   <!-- ✅ estilos globales AMARED -->
   <link rel="stylesheet" href="styles.css" />
 
-  <!-- ✅ estilos SOLO de costos -->
+  <!-- ✅ estilos SOLO de purchases (incluye pestaña Costos) -->
   <link rel="stylesheet" href="costs.css" />
 </head>
 
 <body class="costsPage">
-  <div class="page">
+  <!-- APP (solo después de desbloquear) -->
+  <div id="appRoot" class="page" style="display:none;">
     <header class="topbar">
-      <div class="topbarInner">
-        <div class="brand">
+      <div class="topbarInner" style="justify-content:space-between;">
+        <div class="brand" style="gap:12px;">
           <img class="brandLogo" src="assets/Logo-Amared.svg" alt="AMARED Postres" />
+        </div>
+
+        <div class="pTopBtns">
+          <button id="btnReload" class="btn secondary">Recargar</button>
+
+          <div class="pTabs" role="tablist" aria-label="Compras y Costos">
+            <button id="btnTabPurchases" class="pTabBtn isActive" role="tab" aria-selected="true">Compras</button>
+            <button id="btnTabCosts" class="pTabBtn" role="tab" aria-selected="false">Costos</button>
+          </div>
+
+          <button id="btnExit" class="btn">Salir</button>
         </div>
       </div>
     </header>
 
     <main class="container">
-      <!-- Unlock -->
-      <section class="card">
-        <h2 class="cardTitle">🔒 Costos de ingredientes</h2>
-        <p class="cardSubtitle">
-          Ingresa la clave de costos para ver y editar ingredientes. Esta clave se valida en el servidor.
-        </p>
+      <div id="globalMsg" class="pGlobalMsg"></div>
 
-        <div class="costsRow">
-          <input id="secret" class="costsField" type="password" placeholder="COSTS_SECRET" autocomplete="off" />
-          <button id="unlock" class="btn">Desbloquear</button>
-        </div>
+      <!-- =================== VIEW: COMPRAS =================== -->
+      <div id="viewPurchases">
+        <section class="card">
+          <div class="pMetaTitle">Compras del día (Pagado + No iniciar)</div>
+          <div id="meta" class="pMeta">Cargando…</div>
+        </section>
 
-        <div id="err" class="costsErr"></div>
-      </section>
+        <section class="card" id="summaryCard" style="margin-top:14px;">
+          <div class="pSummaryGrid">
+            <div>
+              <div class="cardTitle" style="margin-bottom:8px;">Postres confirmados</div>
+              <div class="hint" style="margin-bottom:10px;">Estos postres se usan para calcular ingredientes (ventana: ayer 3:00 p.m. → hoy 3:00 p.m.).</div>
+              <div class="pMiniTableWrap">
+                <table class="pMiniTable">
+                  <thead><tr><th>Postre</th><th class="num">Cant.</th></tr></thead>
+                  <tbody id="dessertRows"></tbody>
+                </table>
+              </div>
+              <div id="dessertsMeta" class="pSmallMeta"></div>
+            </div>
 
-      <!-- Editor -->
-      <section id="editor" class="card" style="display:none;">
-        <div class="costsHeaderRow">
-          <div>
-            <h2 class="cardTitle">📌 Tabla de costos</h2>
-            <p class="cardSubtitle">
-              El cálculo se actualiza en tiempo real. Usa <b>Guardar</b> para dejarlo permanente en la base de datos.
-            </p>
+            <div>
+              <div class="cardTitle" style="margin-bottom:8px;">Pedidos después de las 3:00 p.m.</div>
+              <div class="hint" style="margin-bottom:10px;">Para decidir si compras hoy o dejas para mañana.</div>
+              <div class="pMiniTableWrap">
+                <table class="pMiniTable">
+                  <thead><tr><th>Postre</th><th class="num">Cant.</th></tr></thead>
+                  <tbody id="lateRows"></tbody>
+                </table>
+              </div>
+              <div id="lateMeta" class="pSmallMeta"></div>
+            </div>
+          </div>
+        </section>
+
+        <section class="card" style="margin-top:14px;">
+          <div class="pControls">
+            <input id="inpSearch" class="input" type="text" placeholder="Buscar ingrediente…" />
+
+            <label class="pToggle">
+              <input id="chkOnlyMissing" type="checkbox" checked />
+              <span>Solo faltantes</span>
+            </label>
+
+            <label class="pToggle">
+              <input id="chkOnlySelected" type="checkbox" />
+              <span>Solo marcados</span>
+            </label>
           </div>
 
-          <div class="costsActions">
-            <button id="saveAll" class="btn">Guardar</button>
+          <div class="hint" style="margin-top:10px;">
+            Marca <b>Comprar</b> y escribe <b>empaques</b> (según la última presentación guardada). Si no hay empaque, escribe cantidad directa en g/ml.
           </div>
+        </section>
+
+        <section class="card" style="margin-top:14px;">
+          <div class="cardTitle" style="margin-bottom:8px;">Ingredientes</div>
+          <div id="groups" class="pGroups"></div>
+        </section>
+
+        <div style="height:92px;"></div>
+      </div>
+
+      <!-- =================== VIEW: COSTOS =================== -->
+      <div id="viewCosts" class="hidden" style="display:none;">
+        <section class="card">
+          <div class="pCostsHead">
+            <div>
+              <div class="pMetaTitle">Costos de ingredientes</div>
+              <div class="hint" style="margin-top:6px;">Edita presentación, precio, tienda y marca. Se guarda en <b>COSTOS_INGREDIENTES</b>.</div>
+            </div>
+
+            <div class="pTopBtns" style="justify-content:flex-end;">
+              <button id="btnCatalogs" class="btn secondary">⚙️ Tiendas/Marcas</button>
+              <button id="btnCostsRefresh" class="btn secondary">Refrescar</button>
+            </div>
+          </div>
+
+          <div class="pControls" style="margin-top:12px;">
+            <input id="inpCostSearch" class="input" type="text" placeholder="Buscar ingrediente en Costos…" />
+          </div>
+
+          <div id="costsMeta" class="pSmallMeta"></div>
+        </section>
+
+        <section class="card" style="margin-top:14px;">
+          <div class="cardTitle" style="margin-bottom:8px;">Listado</div>
+          <div id="costGroups" class="pGroups"></div>
+        </section>
+
+        <div style="height:24px;"></div>
+      </div>
+    </main>
+
+    <!-- Bottom bar (solo Compras) -->
+    <div id="bottomBar" class="pBottomBar">
+      <div class="pBottomLeft">
+        <div class="pBottomTitle">Total estimado</div>
+        <div id="totalCop" class="pBottomValue">$0</div>
+        <div id="totalHint" class="pBottomHint">0 ingredientes marcados</div>
+      </div>
+      <button id="btnRegister" class="btn primary pBottomBtn" disabled>Registrar compras</button>
+    </div>
+  </div>
+
+  <!-- LOGIN (pantalla completa) -->
+  <div id="unlockBack" class="modalOverlay">
+    <div class="modal">
+      <div class="modalHeader">
+        <div>
+          <div class="modalTitle" style="font-weight:950;">🔒 Desbloquear Compras/Costos</div>
+          <div class="modalSub" style="margin-top:4px;">Ingresa tu <b>COSTS_SECRET</b>. Se valida en el servidor.</div>
         </div>
-
-        
-        <div class="costsNav">
-          <a class="btn secondary" href="purchases.html">🛒 Ir a Compras</a>
+      </div>
+      <div class="modalBody" style="padding:14px;">
+        <div class="pLoginRow">
+          <input id="secretInput" class="input" type="password" placeholder="COSTS_SECRET" autocomplete="current-password" />
+          <button id="btnDoUnlock" class="btn primary">Entrar</button>
+          <button id="btnClear" class="btn">Limpiar</button>
         </div>
-
-        <div id="topTools" class="costsTopTools"></div>
-        <div id="list" class="costsList"></div>
-</section>
-    
-  <div id="netDebug" class="netDebug" style="display:none;"></div>
-</main>
-
-    <!-- Loading -->
-    <div id="loading" class="costsLoading">
-      <div class="costsLoadingCard">
-        <div class="costsLoadingSpinner" aria-hidden="true"></div>
-        <div class="costsLoadingTitle" id="lt">Cargando…</div>
-        <div class="costsLoadingDesc" id="ld">Por favor espera.</div>
+        <div id="unlockMsg" class="pErr"></div>
+        <div class="hint" style="margin-top:10px;">Tip: si ya iniciaste antes en este navegador, se intentará validar automáticamente.</div>
       </div>
     </div>
-
-    <!-- ✅ SECCIONES CANÓNICAS -->
-    <script src="kitchen-costs.js?v=base1"></script>
-
-    <!-- ✅ LÓGICA COSTOS -->
-    <script src="costs.js?v=base1"></script>
   </div>
+
+  <!-- MODAL: detalle/edición de costo (reutilizado en Compras y Costos) -->
+  <div id="costModalBack" class="modalOverlay hidden">
+    <div class="modal" style="width:min(920px, 96vw);">
+      <div class="modalHeader">
+        <div>
+          <div class="modalTitle" id="costModalTitle" style="font-weight:950;">Detalle</div>
+          <div class="modalSub" id="costModalSub" style="margin-top:4px;">Edita la última presentación guardada (se actualizará en COSTOS_INGREDIENTES).</div>
+        </div>
+        <button id="cmCancelX" class="btn">Cerrar</button>
+      </div>
+
+      <div class="modalBody" style="padding:14px;">
+        <div class="pFormGrid">
+          <div>
+            <div class="label">Unidad</div>
+            <select id="cmUnitType" class="input">
+              <option value="g">g</option>
+              <option value="ml">ml</option>
+              <option value="unidad">unidad</option>
+            </select>
+          </div>
+          <div>
+            <div class="label">Cantidad empaque</div>
+            <input id="cmPackQty" class="input" type="number" step="any" min="0" placeholder="Ej: 1000" />
+          </div>
+          <div>
+            <div class="label">Precio empaque (COP)</div>
+            <input id="cmPackPrice" class="input" type="number" step="any" min="0" placeholder="Ej: 9500" />
+          </div>
+        </div>
+
+        <div id="cmUnitExtra" class="pUnitExtra" style="display:none;">
+          <div class="hint" style="margin:10px 0;">Si compras por <b>unidades</b>, define cuánto trae cada unidad (g/ml) para guardar el costo en unidad base.</div>
+          <div class="pFormGrid">
+            <div>
+              <div class="label">Cantidad por unidad</div>
+              <input id="cmUnitItemQty" class="input" type="number" step="any" min="0" placeholder="Ej: 20" />
+            </div>
+            <div>
+              <div class="label">Tipo</div>
+              <select id="cmUnitItemType" class="input">
+                <option value="">—</option>
+                <option value="g">g</option>
+                <option value="ml">ml</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <div class="pFormGrid" style="margin-top:10px;">
+          <div>
+            <div class="label">Marca</div>
+            <select id="cmBrand" class="input"></select>
+          </div>
+          <div>
+            <div class="label">Tienda</div>
+            <select id="cmStore" class="input"></select>
+          </div>
+        </div>
+
+        <div id="cmComputed" class="pSmallMeta" style="margin-top:10px;"></div>
+        <div id="cmErr" class="pErr"></div>
+
+        <div class="pModalActions">
+          <button id="cmOpenCatalogs" class="btn secondary">⚙️ Tiendas/Marcas</button>
+          <button id="cmSave" class="btn primary">Guardar cambios</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: administrar catálogos -->
+  <div id="catModalBack" class="modalOverlay hidden">
+    <div class="modal" style="width:min(900px, 96vw);">
+      <div class="modalHeader">
+        <div>
+          <div class="modalTitle" style="font-weight:950;">⚙️ Tiendas y Marcas</div>
+          <div class="modalSub" style="margin-top:4px;">Estas opciones alimentan los selects de Marca/Tienda.</div>
+        </div>
+        <button id="catCloseX" class="btn">Cerrar</button>
+      </div>
+
+      <div class="modalBody" style="padding:14px;">
+        <div class="pCatGrid">
+          <div class="pCatBox">
+            <div class="k" style="font-weight:950;">Tiendas</div>
+            <div class="hint" style="margin-top:6px;">Agrega o elimina tiendas.</div>
+
+            <div class="pCatRow">
+              <input id="catStoreNew" class="input" placeholder="Nueva tienda…" />
+              <button id="btnAddStore" class="btn secondary">Agregar</button>
+            </div>
+
+            <div class="pCatRow" style="margin-top:10px;">
+              <select id="catStores" class="input"></select>
+              <button id="btnDelStore" class="btn">Eliminar</button>
+            </div>
+          </div>
+
+          <div class="pCatBox">
+            <div class="k" style="font-weight:950;">Marcas</div>
+            <div class="hint" style="margin-top:6px;">Agrega o elimina marcas.</div>
+
+            <div class="pCatRow">
+              <input id="catBrandNew" class="input" placeholder="Nueva marca…" />
+              <button id="btnAddBrand" class="btn secondary">Agregar</button>
+            </div>
+
+            <div class="pCatRow" style="margin-top:10px;">
+              <select id="catBrands" class="input"></select>
+              <button id="btnDelBrand" class="btn">Eliminar</button>
+            </div>
+          </div>
+        </div>
+
+        <div id="catErr" class="pErr"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: confirmar compras -->
+  <div id="confirmBack" class="modalOverlay hidden">
+    <div class="modal" style="width:min(820px, 96vw);">
+      <div class="modalHeader">
+        <div>
+          <div class="modalTitle" style="font-weight:950;">✅ Confirmar compras</div>
+          <div class="modalSub" style="margin-top:4px;">Se sumará al inventario usando la última presentación guardada.</div>
+        </div>
+        <button id="btnConfirmClose" class="btn">Cerrar</button>
+      </div>
+      <div class="modalBody" style="padding:14px;">
+        <div class="pConfirmTotal">
+          <div>Total estimado</div>
+          <div id="confirmTotal" class="pConfirmValue">$0</div>
+        </div>
+        <div id="confirmList" class="pConfirmList"></div>
+
+        <div class="pModalActions">
+          <button id="btnConfirmCancel" class="btn">Volver</button>
+          <button id="btnConfirmGo" class="btn primary">Confirmar y registrar</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- LOADING overlay (pantalla completa) -->
+  <div id="loadingBack" class="modalOverlay hidden">
+    <div class="modal" style="width:min(520px, 96vw);">
+      <div class="modalBody" style="padding:14px; display:flex; gap:12px; align-items:center;">
+        <div class="pSpinner"></div>
+        <div>
+          <div id="loadingTitle" style="font-weight:950;">Cargando…</div>
+          <div id="loadingSub" style="opacity:.75; font-weight:800; margin-top:2px;">Un momento.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="kitchen-costs.js?v=20260220-01"></script>
+  <script src="costs.js"></script>
 </body>
 </html>
