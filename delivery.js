@@ -19,7 +19,7 @@ const loginErr = document.getElementById("loginErr");
 
 const btnRefresh = document.getElementById("btnRefresh");
 const btnLogout = document.getElementById("btnLogout");
-const btnHistory = document.getElementById("btnHistory");
+const btnHistory = document.getElementById("btnHistory"); // (Topbar)
 const btnRefreshTop = document.getElementById("btnRefreshTop");
 const btnLogoutTop = document.getElementById("btnLogoutTop");
 
@@ -214,12 +214,14 @@ function showPanel(){
   if(loginView) loginView.style.display = "none";
   if(panelView) panelView.style.display = "block";
   if(btnRefreshTop) btnRefreshTop.style.display = "inline-flex";
+  if(btnHistory) btnHistory.style.display = "inline-flex";
   if(btnLogoutTop) btnLogoutTop.style.display = "inline-flex";
 }
 function showLogin(){
   if(panelView) panelView.style.display = "none";
   if(loginView) loginView.style.display = "block";
   if(btnRefreshTop) btnRefreshTop.style.display = "none";
+  if(btnHistory) btnHistory.style.display = "none";
   if(btnLogoutTop) btnLogoutTop.style.display = "none";
 }
 
@@ -536,13 +538,37 @@ function normalizePhoneToWa(phone){
   return digits;
 }
 
-function openWhatsAppUrl(waUrl){
+function normalizeWaText(text){
+  let s = String(text ?? "");
+  // evitar CRLF raros
+  s = s.replace(/
+/g, "
+").replace(/
+/g, "
+");
+  try{ s = s.normalize("NFC"); }catch(_e){}
+  return s;
+}
+function buildWhatsAppUrl(phoneDigits, message){
+  const ua = navigator.userAgent || "";
+  const isMobile = /Android|iPhone|iPad|iPod|Mobi/i.test(ua);
+  const msg = normalizeWaText(message);
+  const enc = encodeURIComponent(msg);
+
+  // ✅ Desktop: WhatsApp Web suele manejar mejor emojis con este endpoint
+  if(!isMobile){
+    return `https://web.whatsapp.com/send?phone=${phoneDigits}&text=${enc}`;
+  }
+  // ✅ Móvil: wa.me abre la app
+  return `https://wa.me/${phoneDigits}?text=${enc}`;
+}
+function openWhatsAppUrl(url){
   const ua = navigator.userAgent || "";
   const isMobile = /Android|iPhone|iPad|iPod|Mobi/i.test(ua);
   if(isMobile){
-    window.location.href = waUrl;
+    window.location.href = url;
   }else{
-    window.open(waUrl, "_blank");
+    window.open(url, "_blank", "noopener,noreferrer");
   }
 }
 
@@ -653,7 +679,7 @@ async function markSentAndOpenWhatsApp(){
       delivery_status: "Enviado"
     });
 
-    const waUrl = `https://wa.me/${wa}?text=${encodeURIComponent(msg)}`;
+    const waUrl = buildWhatsAppUrl(wa, msg);
     closeConfirm();
     closeSendModal();
     openWhatsAppUrl(waUrl);
@@ -722,6 +748,9 @@ histList?.addEventListener("click", (ev)=>{
   const id = String(btn.getAttribute("data-id")||"").trim();
   const o = HIST.find(x => String(x.order_id) === id);
   if(!o) return;
+
+  // ✅ FIX: cerrar historial para que el modal de detalle se vea encima
+  closeHistory();
   openSendModal(o);
 });
 
