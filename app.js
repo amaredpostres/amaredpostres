@@ -60,6 +60,10 @@ const waNumberText = document.getElementById("waNumberText");
 const btnOpenChat = document.getElementById("btnOpenChat");
 const modalStatus = document.getElementById("modalStatus");
 
+// Loading overlay
+const loadingOverlay = document.getElementById("loadingOverlay");
+const loadingText = document.getElementById("loadingText");
+
 // Ubicación
 const mapsBlock = document.getElementById("mapsBlock");
 const waLocBlock = document.getElementById("waLocBlock");
@@ -382,12 +386,6 @@ function fillModal(data, orderId) {
   elModalUnits.textContent = String(data.total_units || 0);
   elModalSubtotal.textContent = money(data.subtotal || 0);
 
-  // limpiar mensaje y ocultar fallback
-  if(elModalMessage) elModalMessage.value = "";
-  if(fallbackWrap) fallbackWrap.classList.add("hidden");
-  if(fallbackDetails) fallbackDetails.open = false;
-  if(waNumberText) waNumberText.textContent = "+57 302 847 3086";
-
   if(modalStatus){
     modalStatus.style.display = "none";
     modalStatus.textContent = "";
@@ -478,8 +476,9 @@ btnCopyMessage?.addEventListener("click", async () => {
 btnSendWhatsApp?.addEventListener("click", async () => {
   if (!pending) return;
 
-  // ✅ En PC: pre-abrir pestaña para evitar bloqueo por "user gesture"
   const isMobile = isMobileUA();
+
+  // ✅ PC: pre-abrir pestaña para evitar bloqueo por "user gesture"
   let waWin = null;
   if(!isMobile){
     waWin = window.open("about:blank", "_blank");
@@ -487,6 +486,8 @@ btnSendWhatsApp?.addEventListener("click", async () => {
 
   btnSendWhatsApp.disabled = true;
   btnCloseModal.disabled = true;
+
+  showLoading("Registrando pedido...");
 
   try {
     elStatus.textContent = "Registrando pedido...";
@@ -497,8 +498,13 @@ btnSendWhatsApp?.addEventListener("click", async () => {
     // 2) Abrir WhatsApp con texto (normal)
     const waUrl = buildWhatsAppUrlWithText(pending.messageNormal);
 
+    // 3) Habilitar ayuda (copiar/pegar) después del primer intento
+    enableHelpMessage(pending.messageFallback, false);
+
+    hideLoading();
+
     if(isMobile){
-      // móvil: redirige (abre app)
+      // móvil: abre app directo (sin pestaña extra)
       hideModal();
       shouldResetAfterAlert = true;
       showAlert("Pedido registrado ✅\n\nAhora falta confirmar el pago por WhatsApp.");
@@ -515,20 +521,20 @@ btnSendWhatsApp?.addEventListener("click", async () => {
       return;
     }
 
-    // 3) Si el navegador bloqueó abrir pestaña, mostramos fallback para copiar
-    if(modalStatus){
-      modalStatus.style.display = "";
-      modalStatus.textContent = "Pedido registrado ✅. Si no se abrió WhatsApp, usa la sección de ayuda para copiar el mensaje.";
-    }
-    if(fallbackWrap) fallbackWrap.classList.remove("hidden");
-    if(fallbackDetails) fallbackDetails.open = true;
-    if(elModalMessage) elModalMessage.value = pending.messageFallback;
-
+    // Si el navegador bloqueó abrir pestaña: abrir ayuda
+    enableHelpMessage(pending.messageFallback, true);
+    showAlert("Pedido registrado ✅\n\nSi no se abrió WhatsApp, copia el mensaje y pégalo en el chat.");
     elStatus.textContent = "";
-    // no cerramos modal
+
   } catch (e) {
+    hideLoading();
     elStatus.textContent = "";
     showAlert(`Error: ${e.message}`);
+
+    // En error: mostrar ayuda
+    try{
+      enableHelpMessage(pending?.messageFallback || "", true);
+    }catch(_e){}
   } finally {
     btnSendWhatsApp.disabled = false;
     btnCloseModal.disabled = false;
@@ -551,6 +557,7 @@ btnWhatsApp?.addEventListener("click", () => {
     const messageFallback = buildWhatsAppFallbackMessage(data, orderId);
 
     pending = { orderId, data, messageNormal, messageFallback };
+    initHelpUI();
     fillModal(data, orderId);
     showModal();
   } catch (e) {
@@ -562,3 +569,46 @@ btnWhatsApp?.addEventListener("click", () => {
 renderProducts();
 updateSummary();
 syncLocationUI();
+
+
+function showLoading(text="Procesando..."){
+  try{
+    if(loadingText) loadingText.textContent = text;
+    if(loadingOverlay){
+      loadingOverlay.classList.remove("hidden");
+      loadingOverlay.setAttribute("aria-hidden","false");
+      loadingOverlay.style.zIndex = "20000";
+    }
+  }catch(_e){}
+}
+function hideLoading(){
+  try{
+    if(loadingOverlay){
+      loadingOverlay.classList.add("hidden");
+      loadingOverlay.setAttribute("aria-hidden","true");
+    }
+  }catch(_e){}
+}
+
+
+function initHelpUI(){
+  try{
+    if(waNumberText) waNumberText.textContent = "+57 302 847 3086";
+    if(btnCopyMessage) btnCopyMessage.disabled = true;
+    if(elModalMessage){
+      elModalMessage.value = "";
+      elModalMessage.style.display = "none";
+    }
+    if(fallbackDetails) fallbackDetails.open = false;
+  }catch(_e){}
+}
+function enableHelpMessage(text, autoOpen=false){
+  try{
+    if(btnCopyMessage) btnCopyMessage.disabled = !text;
+    if(elModalMessage){
+      elModalMessage.value = text || "";
+      elModalMessage.style.display = text ? "block" : "none";
+    }
+    if(autoOpen && fallbackDetails) fallbackDetails.open = true;
+  }catch(_e){}
+}
