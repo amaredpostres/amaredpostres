@@ -347,11 +347,6 @@ function renderOrders(orders){
 
           <div class="btnRow">
             <button class="btn secondary btnSend" data-id="${escapeHtml(o.order_id)}">Ver mensaje</button>
-            ${
-              canWa
-                ? '<button class="btn primary btnWhats" data-id="'+escapeHtml(o.order_id)+'">Abrir WhatsApp</button>'
-                : '<button class="btn primary btnMarkSent" data-id="'+escapeHtml(o.order_id)+'">Confirmar envío</button>'
-            }
           </div>
         </div>
       </div>
@@ -496,16 +491,30 @@ function openSendModal(order){
   if(!sendBack) return;
 
   sendSubtitle.textContent = `${order.order_id} · ${order.customer_name || ""}`;
-  inpEta.value = "25";
+  inpEta.value = "5";
 
   selTemplate.innerHTML = TEMPLATES.map(t=>`<option value="${t.id}">${t.label}</option>`).join("");
   selTemplate.value = "t1";
 
   txtMsg.value = buildMessage(order, 25, "t1");
 
-  if(!isOptIn(order.wa_opt_in)){
-    sendErr.textContent = "Este cliente NO autorizó recibir mensajes por WhatsApp. Puedes copiar el mensaje y luego usar “Marcar Enviado”.";
-  }
+  const canWa = isOptIn(order.wa_opt_in);
+
+// ✅ Botones según permiso WhatsApp
+if(btnAskWhatsApp){
+  btnAskWhatsApp.disabled = !canWa;
+  btnAskWhatsApp.style.opacity = canWa ? "" : "0.55";
+  btnAskWhatsApp.title = canWa ? "Abrir WhatsApp" : "El cliente no autorizó WhatsApp";
+}
+if(btnMarkSent){
+  btnMarkSent.disabled = false;
+  btnMarkSent.style.opacity = "";
+  btnMarkSent.title = "Marcar Enviado";
+}
+
+if(!canWa){
+  sendErr.textContent = "Este cliente NO autorizó recibir mensajes por WhatsApp. Puedes copiar el mensaje y luego usar “Marcar Enviado”.";
+}
 
   sendBack.style.display = "flex";
   sendBack.setAttribute("aria-hidden","false");
@@ -540,11 +549,11 @@ function normalizePhoneToWa(phone){
 
 function normalizeWaText(text){
   let s = String(text ?? "");
-  // evitar CRLF raros
-  s = s.replace(/
-/g, "
-").replace(/
-/g, "
+  // ✅ Evitar CR/LF raros SIN regex (previene errores de parse)
+  s = s.split("
+").join("
+").split("
+").join("
 ");
   try{ s = s.normalize("NFC"); }catch(_e){}
   return s;
@@ -552,14 +561,15 @@ function normalizeWaText(text){
 function buildWhatsAppUrl(phoneDigits, message){
   const ua = navigator.userAgent || "";
   const isMobile = /Android|iPhone|iPad|iPod|Mobi/i.test(ua);
+
   const msg = normalizeWaText(message);
   const enc = encodeURIComponent(msg);
 
-  // ✅ Desktop: WhatsApp Web suele manejar mejor emojis con este endpoint
+  // ✅ Desktop: WhatsApp Web (mejor con emojis)
   if(!isMobile){
-    return `https://web.whatsapp.com/send?phone=${phoneDigits}&text=${enc}`;
+    return `https://web.whatsapp.com/send?phone=${phoneDigits}&text=${enc}&type=phone_number&app_absent=0`;
   }
-  // ✅ Móvil: wa.me abre la app
+  // ✅ Móvil: abre app
   return `https://wa.me/${phoneDigits}?text=${enc}`;
 }
 function openWhatsAppUrl(url){
@@ -568,6 +578,10 @@ function openWhatsAppUrl(url){
   if(isMobile){
     window.location.href = url;
   }else{
+    window.open(url, "_blank", "noopener,noreferrer");
+  }
+}
+else{
     window.open(url, "_blank", "noopener,noreferrer");
   }
 }
@@ -720,26 +734,13 @@ btnLogoutTop?.addEventListener("click", logout);
 
 listEl?.addEventListener("click", (ev)=>{
   const btnSend = ev.target?.closest?.(".btnSend");
-  const btnWa = ev.target?.closest?.(".btnWhats");
-  const btnMark = ev.target?.closest?.(".btnMarkSent");
-  if(!btnSend && !btnWa && !btnMark) return;
+  if(!btnSend) return;
 
-  const id = String((btnSend||btnWa||btnMark).getAttribute("data-id")||"").trim();
+  const id = String(btnSend.getAttribute("data-id")||"").trim();
   const o = ORDERS.find(x => String(x.order_id) === id);
   if(!o) return;
 
   openSendModal(o);
-
-  if(btnWa){
-    if(!isOptIn(o.wa_opt_in)){
-      sendErr.textContent = "Este cliente no autorizó recibir mensajes por WhatsApp.";
-      return;
-    }
-    openConfirm(o.order_id, "wa");
-  }
-  if(btnMark){
-    openConfirm(o.order_id, "manual");
-  }
 });
 
 histList?.addEventListener("click", (ev)=>{
