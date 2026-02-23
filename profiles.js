@@ -33,6 +33,55 @@ const loading = document.getElementById("loading");
 const loadingTitle = document.getElementById("loadingTitle");
 const loadingMsg = document.getElementById("loadingMsg");
 
+
+// --- Edit modal DOM ---
+const editBack = document.getElementById("editBack");
+const btnEditClose = document.getElementById("btnEditClose");
+const btnEditSave = document.getElementById("btnEditSave");
+const editName = document.getElementById("editName");
+const editId = document.getElementById("editId");
+const editCatsWrap = document.getElementById("editCats");
+const editErr = document.getElementById("editErr");
+
+let EDITING_ID = null;
+
+function normCatsAny(v){
+  if(Array.isArray(v)) return v.map(x=>String(x||"").trim().toLowerCase()).filter(Boolean);
+  return String(v||"").split(",").map(s=>s.trim().toLowerCase()).filter(Boolean);
+}
+
+function openEditModal(profile){
+  if(!editBack) return;
+  editErr.textContent = "";
+  EDITING_ID = normalizeId(profile);
+  editId.value = EDITING_ID;
+  editName.value = String(profile.label || "").trim();
+
+  const cats = normCatsAny(profile.categories);
+  const checks = Array.from(editCatsWrap?.querySelectorAll('input[type="checkbox"]') || []);
+  for(const c of checks){
+    const val = String(c.value||"").trim().toLowerCase();
+    c.checked = cats.includes(val);
+  }
+
+  editBack.style.display = "flex";
+  editBack.setAttribute("aria-hidden","false");
+  setTimeout(()=>{ try{ editName.focus(); }catch(_e){} }, 0);
+}
+
+function closeEditModal(){
+  if(!editBack) return;
+  EDITING_ID = null;
+  editBack.style.display = "none";
+  editBack.setAttribute("aria-hidden","true");
+}
+
+function getEditSelectedCategories(){
+  const checks = Array.from(editCatsWrap?.querySelectorAll('input[type="checkbox"]') || []);
+  return checks.filter(c=>c.checked).map(c=>String(c.value||"").trim()).filter(Boolean);
+}
+
+
 // =================== HELPERS ===================
 function showLoading(title, msg){
   if(!loading) return;
@@ -321,14 +370,24 @@ function renderTable(rows){
       <td><code>${escapeHtml(pid)}</code></td>
       <td>${escapeHtml(p.label||"")}</td>
       <td>${cats || `<span class="muted small">—</span>`}</td>
-      <td><button class="btn secondary btnDel" data-id="${escapeHtml(pid)}">Eliminar</button></td>
+      <td style="display:flex; gap:8px; flex-wrap:wrap;"><button class="btn secondary btnEdit" data-id="${escapeHtml(pid)}">Editar</button><button class="btn secondary btnDel" data-id="${escapeHtml(pid)}">Eliminar</button></td>
     `;
     tbody.appendChild(tr);
   }
 }
 
 // Delegación de eventos: el botón Eliminar siempre funciona aunque la tabla se re-renderice
+
+// Delegación de eventos: Editar / Eliminar (funciona aunque la tabla se re-renderice)
 tbody?.addEventListener("click", async (ev)=>{
+  const btnE = ev.target?.closest?.(".btnEdit");
+  if(btnE){
+    const id = String(btnE.getAttribute("data-id")||"").trim();
+    const p = (PROFILES_CACHE || []).find(x => normalizeId(x) === id);
+    if(p) openEditModal(p);
+    return;
+  }
+
   const btn = ev.target?.closest?.(".btnDel");
   if(!btn) return;
   const id = String(btn.getAttribute("data-id")||"").trim();
@@ -358,6 +417,7 @@ tbody?.addEventListener("click", async (ev)=>{
     hideLoading();
   }
 });
+
 
 // =================== DATA ===================
 async function loadProfiles(){
@@ -483,6 +543,57 @@ btnAdd?.addEventListener("click", async ()=>{
     hideLoading();
   }
 });
+
+// --- Edit modal events ---
+btnEditClose?.addEventListener("click", closeEditModal);
+editBack?.addEventListener("click", (ev)=>{
+  if(ev.target === editBack) closeEditModal();
+});
+
+btnEditSave?.addEventListener("click", async ()=>{
+  editErr.textContent = "";
+
+  if(!PROFILES_SECRET){
+    editErr.textContent = "Primero ingresa la clave.";
+    return;
+  }
+  const id = String(EDITING_ID || editId.value || "").trim();
+  const name = String(editName.value||"").trim();
+  const cats = getEditSelectedCategories();
+
+  if(!id){
+    editErr.textContent = "ID inválido.";
+    return;
+  }
+  if(!name){
+    editErr.textContent = "Ingresa el nombre.";
+    return;
+  }
+  if(cats.length===0){
+    editErr.textContent = "Selecciona al menos una categoría.";
+    return;
+  }
+
+  try{
+    showLoading("Guardando…", "Actualizando perfil…");
+    await api({
+      action: "profiles_add", // ✅ upsert en backend
+      costs_secret: PROFILES_SECRET,
+      profile_id: id,
+      label: name,
+      categories: cats.join(","),
+      updated_by: "PROFILES_UI"
+    });
+    closeEditModal();
+    await loadProfiles();
+  }catch(e){
+    editErr.textContent = e.message || "Error guardando.";
+    console.error("edit error:", e, e._raw);
+  }finally{
+    hideLoading();
+  }
+});
+
 
 // init UI locked
 setLockedUI(true);
