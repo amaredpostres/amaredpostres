@@ -1,6 +1,8 @@
 // delivery.js — AMARED Envíos (v4 UX + Historial + Opt-in fix)
 "use strict";
 
+console.log("AMARED delivery v11");
+
 const API_URL = "https://amared-orders.amaredpostres.workers.dev/";
 const SS_KEY = "AMARED_DELIVERY_SESSION_V4";
 
@@ -19,7 +21,7 @@ const loginErr = document.getElementById("loginErr");
 
 const btnRefresh = document.getElementById("btnRefresh");
 const btnLogout = document.getElementById("btnLogout");
-const btnHistory = document.getElementById("btnHistory"); // (Topbar)
+const btnHistory = document.getElementById("btnHistory");
 const btnRefreshTop = document.getElementById("btnRefreshTop");
 const btnLogoutTop = document.getElementById("btnLogoutTop");
 
@@ -499,8 +501,6 @@ function openSendModal(order){
   txtMsg.value = buildMessage(order, 25, "t1");
 
   const canWa = isOptIn(order.wa_opt_in);
-
-// ✅ Botones según permiso WhatsApp
 if(btnAskWhatsApp){
   btnAskWhatsApp.disabled = !canWa;
   btnAskWhatsApp.style.opacity = canWa ? "" : "0.55";
@@ -511,7 +511,6 @@ if(btnMarkSent){
   btnMarkSent.style.opacity = "";
   btnMarkSent.title = "Marcar Enviado";
 }
-
 if(!canWa){
   sendErr.textContent = "Este cliente NO autorizó recibir mensajes por WhatsApp. Puedes copiar el mensaje y luego usar “Marcar Enviado”.";
 }
@@ -547,41 +546,35 @@ function normalizePhoneToWa(phone){
   return digits;
 }
 
-function normalizeWaText(text){
-  let s = String(text ?? "");
-  // ✅ Evitar CR/LF raros SIN regex (previene errores de parse)
-    s = s.split("
-").join("
-").split("").join("
-");
-try{ s = s.normalize("NFC"); }catch(_e){}
-  return s;
+function isMobileUA(){
+  const ua = navigator.userAgent || "";
+  return /Android|iPhone|iPad|iPod|Mobi/i.test(ua);
 }
 function buildWhatsAppUrl(phoneDigits, message){
-  const ua = navigator.userAgent || "";
-  const isMobile = /Android|iPhone|iPad|iPod|Mobi/i.test(ua);
-
-  const msg = normalizeWaText(message);
-  const enc = encodeURIComponent(msg);
-
+  const enc = encodeURIComponent(String(message || ""));
   // ✅ Desktop: WhatsApp Web (mejor con emojis)
-  if(!isMobile){
+  if(!isMobileUA()){
     return `https://web.whatsapp.com/send?phone=${phoneDigits}&text=${enc}&type=phone_number&app_absent=0`;
   }
   // ✅ Móvil: abre app
   return `https://wa.me/${phoneDigits}?text=${enc}`;
 }
 function openWhatsAppUrl(url){
-  const ua = navigator.userAgent || "";
-  const isMobile = /Android|iPhone|iPad|iPod|Mobi/i.test(ua);
-  if(isMobile){
+  if(isMobileUA()){
     window.location.href = url;
   }else{
     window.open(url, "_blank", "noopener,noreferrer");
   }
 }
-else{
-    window.open(url, "_blank", "noopener,noreferrer");
+
+
+function openWhatsAppUrl(waUrl){
+  const ua = navigator.userAgent || "";
+  const isMobile = /Android|iPhone|iPad|iPod|Mobi/i.test(ua);
+  if(isMobile){
+    openWhatsAppUrl(waUrl);
+  }else{
+    openWhatsAppUrl(waUrl);
   }
 }
 
@@ -749,7 +742,6 @@ histList?.addEventListener("click", (ev)=>{
   const o = HIST.find(x => String(x.order_id) === id);
   if(!o) return;
 
-  // ✅ FIX: cerrar historial para que el modal de detalle se vea encima
   closeHistory();
   openSendModal(o);
 });
