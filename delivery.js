@@ -550,12 +550,11 @@ function normalizePhoneToWa(phone){
 function normalizeWaText(text){
   let s = String(text ?? "");
   // ✅ Evitar CR/LF raros SIN regex (previene errores de parse)
-  s = s.split("
+    s = s.split("
 ").join("
-").split("
-").join("
+").split("").join("
 ");
-  try{ s = s.normalize("NFC"); }catch(_e){}
+try{ s = s.normalize("NFC"); }catch(_e){}
   return s;
 }
 function buildWhatsAppUrl(phoneDigits, message){
