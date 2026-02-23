@@ -556,6 +556,7 @@ function applyContextButtons(order){
       btnAskWhatsApp.disabled = false;
       btnAskWhatsApp.style.opacity = "";
       btnAskWhatsApp.title = "Abrir chat (sin mensaje)";
+      btnAskWhatsApp.textContent = "Ver chat";
     }
     if(sendErr) sendErr.textContent = "";
     return;
@@ -567,6 +568,7 @@ function applyContextButtons(order){
       btnAskWhatsApp.disabled = false;
       btnAskWhatsApp.style.opacity = "";
       btnAskWhatsApp.title = "Abrir WhatsApp (con mensaje)";
+      btnAskWhatsApp.textContent = "Abrir WhatsApp";
     }
     if(btnMarkSent) btnMarkSent.style.display = "none";
     if(sendErr) sendErr.textContent = "";
@@ -799,7 +801,7 @@ histList?.addEventListener("click", (ev)=>{
   if(!o) return;
 
   closeHistory();
-  openSendModal(o);
+  openSendModal(o, { fromHistory:true });
 });
 
 btnSendClose?.addEventListener("click", closeSendModal);
