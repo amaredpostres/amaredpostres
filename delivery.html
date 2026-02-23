@@ -8,6 +8,18 @@
   <link rel="icon" href="assets/favicon.ico" type="image/x-icon">
   <link rel="stylesheet" href="styles.css" />
   <link rel="stylesheet" href="delivery.css" />
+
+  <style>
+    /* HISTORIAL FIXES */
+    #histBack{ align-items:flex-start; overflow:auto; padding:18px; }
+    #histBack .amModal{ margin:18px auto; max-height: calc(100vh - 36px); overflow:auto; }
+    #histList{ max-height: calc(100vh - 260px); overflow:auto; padding-right: 6px; -webkit-overflow-scrolling: touch; }
+    /* Asegurar capas */
+    #histBack{ z-index: 9998; }
+    #sendBack{ z-index: 9999; }
+    #confirmBack{ z-index: 10000; }
+  </style>
+
 </head>
 <body class="deliveryPage">
 
@@ -23,6 +35,7 @@
 
       <div class="row" style="gap:10px; justify-content:flex-end;">
         <button id="btnRefreshTop" class="btn secondary" type="button" style="display:none;">Recargar</button>
+        <button id="btnHistory" class="btn secondary" type="button" style="display:none;">Historial</button>
         <button id="btnLogoutTop" class="btn secondary" type="button" style="display:none;">Salir</button>
       </div>
     </div>
@@ -62,11 +75,7 @@
           <h2 class="cardTitle" style="margin-bottom:6px;">Pedidos pendientes de envío</h2>
           <div class="muted small" id="metaLine">—</div>
         </div>
-        <div class="row" style="justify-content:flex-end;">
-          <button id="btnRefresh" class="btn secondary" type="button">Recargar</button>
-          <button id="btnHistory" class="btn secondary" type="button">Historial</button>
-          <button id="btnLogout" class="btn secondary" type="button">Salir</button>
-        </div>
+        <div class="row" style="justify-content:flex-end;"></div>
       </div>
 
       <div id="status" class="muted small" style="margin-top:10px;"></div>
