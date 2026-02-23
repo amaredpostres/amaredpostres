@@ -175,7 +175,7 @@
             <th>ID</th>
             <th>Nombre</th>
             <th>Categorías</th>
-            <th style="width:140px;">Acción</th>
+            <th style="width:220px;">Acción</th>
           </tr>
         </thead>
         <tbody id="tbody"></tbody>
@@ -227,6 +227,57 @@
     </section>
   </main>
 
+
+  <!-- Edit modal -->
+  <div id="editBack" class="loadingOverlay" aria-hidden="true" style="display:none;">
+    <div class="loadingCard" style="width:min(760px, 100%);">
+      <div class="rowBetween" style="align-items:flex-start;">
+        <div>
+          <div class="loadingTitle">Editar perfil</div>
+          <div class="muted small" style="margin-top:4px;">
+            Cambia el nombre y/o las categorías. El ID no se cambia para no romper accesos.
+          </div>
+        </div>
+        <button id="btnEditClose" class="btn secondary" type="button">Cerrar</button>
+      </div>
+
+      <div class="grid2" style="margin-top:14px;">
+        <div>
+          <div class="field">
+            <label>Nombre</label>
+            <input id="editName" class="input" type="text" placeholder="Ej: Paola" />
+          </div>
+        </div>
+        <div>
+          <div class="field">
+            <label>ID (fijo)</label>
+            <input id="editId" class="input" type="text" disabled />
+          </div>
+        </div>
+      </div>
+
+      <div class="field" style="margin-top:12px;">
+        <label>Categorías</label>
+        <div class="chips" id="editCats">
+          <label class="chip"><input type="checkbox" value="kitchen"> Cocina</label>
+          <label class="chip"><input type="checkbox" value="payments"> Pagos</label>
+          <label class="chip"><input type="checkbox" value="delivery"> Envíos</label>
+          <label class="chip"><input type="checkbox" value="admin"> Admin</label>
+        </div>
+        <div class="muted small" style="margin-top:6px;">
+          Puedes asignar varias categorías al mismo perfil.
+        </div>
+      </div>
+
+      <div class="row" style="margin-top:14px; justify-content:flex-end;">
+        <button id="btnEditSave" class="btn primary" type="button">Guardar cambios</button>
+      </div>
+
+      <div id="editErr" class="status" style="color:#b00020; margin-top:10px;"></div>
+    </div>
+  </div>
+
+
   <div id="loading" class="loadingOverlay" aria-hidden="true">
     <div class="loadingCard">
       <div class="loadingTitle" id="loadingTitle">Cargando…</div>
@@ -234,6 +285,6 @@
     </div>
   </div>
 
-  <script src="profiles.js?v=20260222"></script>
+  <script src="profiles.js?v=20260222-edit"></script>
 </body>
 </html>
