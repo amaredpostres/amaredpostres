@@ -610,3 +610,17 @@ body{
   animation: spin .9s linear infinite;
 }
 @keyframes spin{ to{ transform: rotate(360deg); } }
+
+
+/* ✅ Modal scroll para ver ayuda al final */
+.modal{
+  max-height: calc(100vh - 40px);
+  overflow: auto;
+}
+
+/* ✅ Aviso siempre encima */
+#alertOverlay{
+  z-index: 30000 !important;
+}
+
+#loadingOverlay{ z-index: 25000 !important; }
