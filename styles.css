@@ -601,3 +601,12 @@ body{
   opacity: .7;
 }
 .helpDetails[open] summary::after{ content: "▴"; }
+
+.spinner{
+  width:18px; height:18px;
+  border-radius:999px;
+  border: 2px solid rgba(64,17,2,.18);
+  border-top-color: rgba(64,17,2,.65);
+  animation: spin .9s linear infinite;
+}
+@keyframes spin{ to{ transform: rotate(360deg); } }
