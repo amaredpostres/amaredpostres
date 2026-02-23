@@ -348,7 +348,6 @@ tbody?.addEventListener("click", async (ev)=>{
     await api({
       action: "profiles_delete",
       costs_secret: PROFILES_SECRET,
-      profiles_secret: PROFILES_SECRET,
       profile_id: id
     });
     await loadProfiles();
@@ -370,8 +369,7 @@ async function loadProfiles(){
   try{
     const out = await api({
       action: "profiles_list",
-      costs_secret: PROFILES_SECRET,
-      profiles_secret: PROFILES_SECRET
+      costs_secret: PROFILES_SECRET
     });
     PROFILES_CACHE = Array.isArray(out.profiles) ? out.profiles : [];
     renderTable(PROFILES_CACHE);
@@ -401,11 +399,14 @@ btnUnlock?.addEventListener("click", async ()=>{
 
   try{
     showLoading("Validando…", "Comprobando acceso…");
-    // Validación real: si profiles_list responde OK, la clave es válida
+    // 1) Validar clave contra el Worker (no toca Apps Script)
+    const v = await api({ action: "validate_costs_secret", costs_secret: secret });
+    if(v.valid !== true) throw new Error("Clave incorrecta o no autorizada.");
+
+    // 2) Cargar perfiles
     const out = await api({
       action: "profiles_list",
-      costs_secret: secret,
-      profiles_secret: secret
+      costs_secret: secret
     });
 
     PROFILES_SECRET = secret;
@@ -418,7 +419,7 @@ btnUnlock?.addEventListener("click", async ()=>{
   }catch(e){
     PROFILES_SECRET = null;
     setLockedUI(true);
-    gateErr.textContent = (e && e.message) ? e.message : "Clave incorrecta o no autorizada.";
+    gateErr.textContent = "Clave incorrecta o no autorizada.";
     console.error("unlock error:", e, e._raw);
   }finally{
     hideLoading();
@@ -467,7 +468,6 @@ btnAdd?.addEventListener("click", async ()=>{
     await api({
       action: "profiles_add",
       costs_secret: PROFILES_SECRET,
-      profiles_secret: PROFILES_SECRET,
       profile_id: id,
       label: name,
       categories: cats.join(",")
