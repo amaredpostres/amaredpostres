@@ -53,6 +53,13 @@ const elModalUnits = document.getElementById("modalUnits");
 const elModalSubtotal = document.getElementById("modalSubtotal");
 const elModalMessage = document.getElementById("modalMessage");
 
+// Fallback UI
+const fallbackWrap = document.getElementById("fallbackWrap");
+const fallbackDetails = document.getElementById("fallbackDetails");
+const waNumberText = document.getElementById("waNumberText");
+const btnOpenChat = document.getElementById("btnOpenChat");
+const modalStatus = document.getElementById("modalStatus");
+
 // Ubicación
 const mapsBlock = document.getElementById("mapsBlock");
 const waLocBlock = document.getElementById("waLocBlock");
@@ -115,8 +122,24 @@ function syncLocationUI() {
   if (waLocBlock) waLocBlock.style.display = showMaps ? "none" : "";
 }
 
-function getWhatsAppUrl(text) {
-  return `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(text)}`;
+function isMobileUA(){
+  const ua = navigator.userAgent || "";
+  return /Android|iPhone|iPad|iPod|Mobi/i.test(ua);
+}
+function buildWhatsAppUrlWithText(text){
+  const enc = encodeURIComponent(String(text || ""));
+  // ✅ PC: página intermedia (api.whatsapp.com)
+  if(!isMobileUA()){
+    return `https://api.whatsapp.com/send?phone=${WHATSAPP_NUMBER}&text=${enc}`;
+  }
+  // ✅ Móvil: abre app directo (wa.me)
+  return `https://wa.me/${WHATSAPP_NUMBER}?text=${enc}`;
+}
+function buildWhatsAppChatOnlyUrl(){
+  if(!isMobileUA()){
+    return `https://api.whatsapp.com/send?phone=${WHATSAPP_NUMBER}`;
+  }
+  return `https://wa.me/${WHATSAPP_NUMBER}`;
 }
 
 // =================== ALERT HELPERS ===================
@@ -152,7 +175,7 @@ function renderProducts() {
       <div class="productInfo">
         <div class="productTop">
           <div class="name">${p.name}</div>
-          <div class="price">$${money(p.price)} c/u</div>
+          <div class="price">$${money(p.price)} c/u <span class="sizeBadge">6 oz</span></div>
         </div>
 
         <div class="productDesc">${p.desc || ""}</div>
@@ -297,6 +320,13 @@ function buildWhatsAppMessage(data, orderId) {
   return lines.join("\n");
 }
 
+function buildWhatsAppFallbackMessage(data, orderId){
+  const base = buildWhatsAppMessage(data, orderId);
+  const head = "⚠️ Mensaje copiado desde la web (WhatsApp no se abrió automáticamente).";
+  return head + "\n\n" + base;
+}
+
+
 // =================== SAVE ORDER ===================
 async function saveOrder(data) {
   const res = await fetch(ORDER_API_URL, {
@@ -329,23 +359,29 @@ function hideModal() {
   modal.setAttribute("aria-hidden", "true");
 }
 
-function fillModal(data, orderId, message) {
-  elModalItems.innerHTML = data.items.map(it => {
-    const lineTotal = it.qty * it.price;
-    return `
-      <div class="itemLine">
-        <div>
-          <div class="itemName">${it.name} x${it.qty}</div>
-          <div class="itemMeta">$${money(it.price)} c/u</div>
-        </div>
-        <div><strong>$${money(lineTotal)}</strong></div>
-      </div>
-    `;
-  }).join("");
+function fillModal(data, orderId) {
+  // items list
+  const items = data.items || [];
+  elModalItems.innerHTML = items.map(it => `
+    <div class="modalItem">
+      <div><b>${escapeHtml(it.name)}</b></div>
+      <div class="muted">x ${it.qty}</div>
+    </div>
+  `).join("");
 
-  elModalUnits.textContent = String(data.total_units);
-  elModalSubtotal.textContent = money(data.subtotal);
-  elModalMessage.value = message;
+  elModalUnits.textContent = String(data.total_units || 0);
+  elModalSubtotal.textContent = money(data.subtotal || 0);
+
+  // limpiar mensaje y ocultar fallback
+  if(elModalMessage) elModalMessage.value = "";
+  if(fallbackWrap) fallbackWrap.classList.add("hidden");
+  if(fallbackDetails) fallbackDetails.open = false;
+  if(waNumberText) waNumberText.textContent = "+57 302 847 3086";
+
+  if(modalStatus){
+    modalStatus.style.display = "none";
+    modalStatus.textContent = "";
+  }
 }
 
 async function copyToClipboard(text) {
@@ -413,6 +449,14 @@ modal?.addEventListener("click", (e) => {
   if (e.target === modal) hideModal();
 });
 
+
+
+btnOpenChat?.addEventListener("click", () => {
+  const url = buildWhatsAppChatOnlyUrl();
+  // En PC: abre en otra pestaña; en móvil: abre app
+  if(isMobileUA()) window.location.assign(url);
+  else window.open(url, "_blank", "noopener,noreferrer");
+});
 btnCopyMessage?.addEventListener("click", async () => {
   if (!pending) return;
   const ok = await copyToClipboard(pending.message);
@@ -424,8 +468,14 @@ btnCopyMessage?.addEventListener("click", async () => {
 btnSendWhatsApp?.addEventListener("click", async () => {
   if (!pending) return;
 
+  // ✅ En PC: pre-abrir pestaña para evitar bloqueo por "user gesture"
+  const isMobile = isMobileUA();
+  let waWin = null;
+  if(!isMobile){
+    waWin = window.open("about:blank", "_blank");
+  }
+
   btnSendWhatsApp.disabled = true;
-  btnCopyMessage.disabled = true;
   btnCloseModal.disabled = true;
 
   try {
@@ -434,21 +484,43 @@ btnSendWhatsApp?.addEventListener("click", async () => {
     // 1) Guardar primero
     await saveOrder(pending.data);
 
-    // 2) Cerrar modal
-    hideModal();
+    // 2) Abrir WhatsApp con texto (normal)
+    const waUrl = buildWhatsAppUrlWithText(pending.messageNormal);
 
-    // 3) Mostrar aviso y preparar limpieza
-    shouldResetAfterAlert = true;
-    showAlert("Pedido registrado ✅\n\nAhora falta confirmar el pago por WhatsApp para poder iniciar la elaboración.");
+    if(isMobile){
+      // móvil: redirige (abre app)
+      hideModal();
+      shouldResetAfterAlert = true;
+      showAlert("Pedido registrado ✅\n\nAhora falta confirmar el pago por WhatsApp.");
+      window.location.assign(waUrl);
+      return;
+    }
 
-    // 4) Abrir WhatsApp (más compatible)
-    window.location.assign(getWhatsAppUrl(pending.message));
+    // PC: si la pestaña se pudo abrir, navegamos allí
+    if(waWin){
+      try{ waWin.location.href = waUrl; }catch(_e){}
+      hideModal();
+      shouldResetAfterAlert = true;
+      showAlert("Pedido registrado ✅\n\nAhora falta confirmar el pago por WhatsApp.");
+      return;
+    }
+
+    // 3) Si el navegador bloqueó abrir pestaña, mostramos fallback para copiar
+    if(modalStatus){
+      modalStatus.style.display = "";
+      modalStatus.textContent = "Pedido registrado ✅. Si no se abrió WhatsApp, usa la sección de ayuda para copiar el mensaje.";
+    }
+    if(fallbackWrap) fallbackWrap.classList.remove("hidden");
+    if(fallbackDetails) fallbackDetails.open = true;
+    if(elModalMessage) elModalMessage.value = pending.messageFallback;
+
+    elStatus.textContent = "";
+    // no cerramos modal
   } catch (e) {
     elStatus.textContent = "";
     showAlert(`Error: ${e.message}`);
   } finally {
     btnSendWhatsApp.disabled = false;
-    btnCopyMessage.disabled = false;
     btnCloseModal.disabled = false;
   }
 });
@@ -464,10 +536,12 @@ btnWhatsApp?.addEventListener("click", () => {
     const orderId = generateClientOrderId();
     data.order_id = orderId;
 
-    const message = buildWhatsAppMessage(data, orderId);
+    const messageNormal = buildWhatsAppMessage(data, orderId);
 
-    pending = { orderId, data, message };
-    fillModal(data, orderId, message);
+    const messageFallback = buildWhatsAppFallbackMessage(data, orderId);
+
+    pending = { orderId, data, messageNormal, messageFallback };
+    fillModal(data, orderId);
     showModal();
   } catch (e) {
     showAlert(e.message);
