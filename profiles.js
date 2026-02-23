@@ -347,6 +347,7 @@ tbody?.addEventListener("click", async (ev)=>{
     showLoading("Eliminando…", "Actualizando base de datos…");
     await api({
       action: "profiles_delete",
+      costs_secret: PROFILES_SECRET,
       profiles_secret: PROFILES_SECRET,
       profile_id: id
     });
@@ -369,6 +370,7 @@ async function loadProfiles(){
   try{
     const out = await api({
       action: "profiles_list",
+      costs_secret: PROFILES_SECRET,
       profiles_secret: PROFILES_SECRET
     });
     PROFILES_CACHE = Array.isArray(out.profiles) ? out.profiles : [];
@@ -402,6 +404,7 @@ btnUnlock?.addEventListener("click", async ()=>{
     // Validación real: si profiles_list responde OK, la clave es válida
     const out = await api({
       action: "profiles_list",
+      costs_secret: secret,
       profiles_secret: secret
     });
 
@@ -415,7 +418,7 @@ btnUnlock?.addEventListener("click", async ()=>{
   }catch(e){
     PROFILES_SECRET = null;
     setLockedUI(true);
-    gateErr.textContent = "Clave incorrecta o no autorizada.";
+    gateErr.textContent = (e && e.message) ? e.message : "Clave incorrecta o no autorizada.";
     console.error("unlock error:", e, e._raw);
   }finally{
     hideLoading();
@@ -463,6 +466,7 @@ btnAdd?.addEventListener("click", async ()=>{
     showLoading("Guardando…", "Creando perfil…");
     await api({
       action: "profiles_add",
+      costs_secret: PROFILES_SECRET,
       profiles_secret: PROFILES_SECRET,
       profile_id: id,
       label: name,
