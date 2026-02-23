@@ -1,8 +1,8 @@
-// delivery.js — AMARED Envíos (v2)
+// delivery.js — AMARED Envíos (v3 UX)
 "use strict";
 
 const API_URL = "https://amared-orders.amaredpostres.workers.dev/";
-const SS_KEY = "AMARED_DELIVERY_SESSION_V2";
+const SS_KEY = "AMARED_DELIVERY_SESSION_V3";
 
 let SESSION = { operator: null, pin: null };
 let ORDERS = [];
@@ -36,8 +36,19 @@ const inpEta = document.getElementById("inpEta");
 const selTemplate = document.getElementById("selTemplate");
 const txtMsg = document.getElementById("txtMsg");
 const btnCopy = document.getElementById("btnCopy");
-const btnSendWhatsApp = document.getElementById("btnSendWhatsApp");
+const btnAskWhatsApp = document.getElementById("btnAskWhatsApp");
 const sendErr = document.getElementById("sendErr");
+
+// Confirm overlay
+const confirmBack = document.getElementById("confirmBack");
+const confirmTimer = document.getElementById("confirmTimer");
+const confirmOrder = document.getElementById("confirmOrder");
+const btnConfirmCancel = document.getElementById("btnConfirmCancel");
+const btnConfirmGo = document.getElementById("btnConfirmGo");
+const confirmErr = document.getElementById("confirmErr");
+
+let CONFIRM_INT = null;
+let CONFIRM_LEFT = 0;
 
 function showLoading(t="Cargando…", m="Por favor espera."){
   if(!loading) return;
@@ -85,6 +96,11 @@ function isActiveAny(v){
   return !(s === "false" || s === "0" || s === "no");
 }
 
+function isOptIn(v){
+  const s = String(v ?? "").trim().toLowerCase();
+  return (v === true) || s === "true" || s === "1" || s === "si" || s === "sí" || s === "yes" || s === "on";
+}
+
 // Category matching (supports synonyms)
 function hasCategory(profile, wanted){
   const cats = normalizeCatsAny(profile?.categories);
@@ -120,9 +136,7 @@ function renderProfilesSelect(list){
   if(!selOperator) return;
   const opts = ['<option value="">Seleccionar…</option>'];
   for(const p of (list||[])){
-    const cats = normalizeCatsAny(p.categories);
-    const catsLabel = cats.length ? ` · ${cats.join(", ")}` : "";
-    opts.push(`<option value="${escapeHtml(p.id)}">${escapeHtml(p.label)}${escapeHtml(catsLabel)}</option>`);
+    opts.push(`<option value="${escapeHtml(p.id)}">${escapeHtml(p.label)}</option>`);
   }
   selOperator.innerHTML = opts.join("");
 }
@@ -133,9 +147,11 @@ async function loadProfilesOnStart(){
   loginErr.textContent = "";
   try{
     const all = await fetchProfilesPublic();
-    // filter only active (by convention: profile sheet already filters is_active, but keep safe)
-    const list = (all||[]).filter(p => p && p.id && p.label)
+    const list = (all||[])
+      .filter(p => p && p.id && p.label)
+      .filter(p => isActiveAny(p.is_active ?? p.active ?? true))
       .filter(p => hasCategory(p,"delivery") || hasCategory(p,"admin"));
+
     renderProfilesSelect(list);
     if(list.length === 0){
       loginErr.textContent = "No hay perfiles con categoría delivery/admin. Ve a “Gestionar perfiles” y asigna la categoría.";
@@ -143,7 +159,7 @@ async function loadProfilesOnStart(){
   }catch(e){
     renderProfilesSelect([]);
     loginErr.textContent = (e?.message || "No se pudieron cargar perfiles.")
-      + " (Necesitas habilitar profiles_public_list en el Worker)";
+      + " (Revisa profiles_public_list en Worker)";
   }finally{
     hideLoading();
   }
@@ -164,7 +180,6 @@ async function doLogin(){
       loginErr.textContent = "PIN incorrecto.";
       return;
     }
-    // find label
     const all = await fetchProfilesPublic();
     const p = (all||[]).find(x => String(x.id) === id);
     SESSION = { operator: { id, label: p?.label || id }, pin };
@@ -217,15 +232,15 @@ function normalizeItemsFromAnyOrder(order){
   }
   const txt = String(order.items || order.items_text || "").trim();
   if(txt){
-    const lines = txt.split("\n").map(s=>s.trim()).filter(Boolean);
+    const lines = txt.split("\\n").map(s=>s.trim()).filter(Boolean);
     const out=[];
     for(const line0 of lines){
-      const line = line0.replace(/^-+\s*/, "");
-      const m = line.match(/^(.+?)\s*:\s*(\d+(?:[\.,]\d+)?)$/);
+      const line = line0.replace(/^-+\\s*/, "");
+      const m = line.match(/^(.+?)\\s*:\\s*(\\d+(?:[\\.,]\\d+)?)$/);
       if(!m) continue;
       const name = m[1].trim();
       const qty = Number(String(m[2]).replace(",", ".")) || 0;
-      if(qty>0) out.push({ id: name.toLowerCase().replace(/\s+/g,"_"), name, qty });
+      if(qty>0) out.push({ id: name.toLowerCase().replace(/\\s+/g,"_"), name, qty });
     }
     return out;
   }
@@ -233,14 +248,13 @@ function normalizeItemsFromAnyOrder(order){
 }
 
 function itemsSummary(items){
-  const parts = (items||[]).map(it => `${it.name} x${it.qty}`);
-  return parts.join(", ");
+  return (items||[]).map(it => `${it.name} x${it.qty}`).join(", ");
 }
 
 function firstName(full){
   const s = String(full||"").trim();
   if(!s) return "hola";
-  return s.split(/\s+/)[0];
+  return s.split(/\\s+/)[0];
 }
 
 function formatDate(v){
@@ -254,7 +268,16 @@ function formatDate(v){
   }).format(d);
 }
 
-function renderOrders(orders, meta){
+function calcUnits(order){
+  const items = normalizeItemsFromAnyOrder(order);
+  return Number(order.total_units||0) || items.reduce((s,it)=>s+it.qty,0) || 0;
+}
+
+function money(n){
+  return Math.round(Number(n||0)).toLocaleString("es-CO");
+}
+
+function renderOrders(orders){
   ORDERS = orders || [];
   if(metaLine){
     metaLine.textContent = `Operador: ${SESSION?.operator?.label || "—"} · Pedidos: ${ORDERS.length}`;
@@ -262,14 +285,15 @@ function renderOrders(orders, meta){
 
   if(!listEl) return;
   if(ORDERS.length === 0){
-    listEl.innerHTML = `<div class="muted small">No hay pedidos con <b>Pagado + Listo + delivery Pendiente</b> en las últimas ${meta?.hours || 72}h.</div>`;
+    listEl.innerHTML = `<div class="muted small">No hay pedidos con <b>Pagado + Listo + delivery Pendiente</b>.</div>`;
     return;
   }
 
   const html = ORDERS.map(o=>{
     const items = normalizeItemsFromAnyOrder(o);
     const summary = itemsSummary(items) || (o.items || "");
-    const eta = Number(o.delivery_eta_minutes||0) || 0;
+    const units = calcUnits(o);
+    const canWa = isOptIn(o.wa_opt_in);
 
     return `
       <div class="orderCard">
@@ -279,8 +303,9 @@ function renderOrders(orders, meta){
             <div class="orderMeta">${escapeHtml(o.customer_name || "")} · ${escapeHtml(formatDate(o.created_at))}</div>
           </div>
           <div class="row" style="gap:10px; flex-wrap:wrap; justify-content:flex-end;">
-            <span class="pill">🧁 ${escapeHtml(String(o.total_units || items.reduce((s,it)=>s+it.qty,0) || 0))} u</span>
-            <span class="pill">💰 $${escapeHtml((Number(o.subtotal||0)||0).toLocaleString("es-CO"))}</span>
+            <span class="pill">🧁 ${escapeHtml(String(units))} u</span>
+            <span class="pill">💰 $${escapeHtml(money(o.subtotal||0))}</span>
+            ${canWa ? "" : '<span class="pill">📵 Sin WhatsApp</span>'}
           </div>
         </div>
 
@@ -302,7 +327,8 @@ function renderOrders(orders, meta){
           </div>
 
           <div class="btnRow">
-            <button class="btn secondary btnSend" data-id="${escapeHtml(o.order_id)}">Enviar</button>
+            <button class="btn secondary btnSend" data-id="${escapeHtml(o.order_id)}">Ver mensaje</button>
+            ${canWa ? '<button class="btn primary btnWhats" data-id="'+escapeHtml(o.order_id)+'">Abrir WhatsApp</button>' : ""}
           </div>
         </div>
       </div>
@@ -316,39 +342,22 @@ async function loadOrders(){
   setStatus("");
   showLoading("Cargando pedidos…","Buscando Pagado + Listo + delivery Pendiente…");
   try{
-    // 1) try server-side delivery_list (fast)
     let out = await api({ action:"delivery_list", admin_pin: SESSION.pin, hours: 72 });
     let orders = out.orders || [];
-    let meta = out.meta || { hours:72 };
 
-    // 2) fallback: list_orders(Pagado) + client filter (more tolerant)
+    // fallback: list_orders + client-side filter
     if(orders.length === 0){
       const out2 = await api({ action:"list_orders", admin_pin: SESSION.pin, payment_status:"Pagado" });
       const all = out2.orders || [];
-      const filtered = all.filter(o=>{
+      orders = all.filter(o=>{
         const kit = normStatus(o.kitchen_status);
         const del = normStatus(o.delivery_status || "pendiente");
         const pay = normStatus(o.payment_status);
         return pay === "pagado" && kit === "listo" && (del === "pendiente" || del === "");
-      }).map(o=>({
-        order_id: o.order_id,
-        customer_name: o.customer_name,
-        phone: o.phone,
-        address_text: o.address_text,
-        items: o.items,
-        items_json: o.items_json,
-        total_units: Number(o.total_units||0)||0,
-        subtotal: Number(o.subtotal||0)||0,
-        created_at: o.created_at,
-        delivery_status: (o.delivery_status || "Pendiente"),
-        delivery_eta_minutes: Number(o.delivery_eta_minutes||0)||0,
-        delivery_sent_at: o.delivery_sent_at || ""
-      }));
-      orders = filtered;
-      meta = { hours: "—", note: "fallback=list_orders" };
+      });
     }
 
-    renderOrders(orders, meta);
+    renderOrders(orders);
   }catch(e){
     console.error("loadOrders error:", e);
     setStatus(e?.message || "Error cargando pedidos.");
@@ -363,7 +372,7 @@ const TEMPLATES = [
   {
     id:"t1",
     label:"Cercano (✨🚗)",
-    build: ({name, items, units, eta}) =>
+    build: ({name, items, eta}) =>
       `Hola ${name} 👋✨\nTu pedido (${items}) ya va en camino 🚗💨\nLlega aprox. en ${eta} min ⏱️\n¡Gracias por elegir AMARED! 😋🍰`
   },
   {
@@ -385,18 +394,13 @@ function openSendModal(order){
   sendErr.textContent = "";
   if(!sendBack) return;
 
-  const items = normalizeItemsFromAnyOrder(order);
-  const summary = itemsSummary(items) || (order.items || "");
-  const units = Number(order.total_units||0) || items.reduce((s,it)=>s+it.qty,0) || 0;
-
   sendSubtitle.textContent = `${order.order_id} · ${order.customer_name || ""}`;
   inpEta.value = "25";
 
   selTemplate.innerHTML = TEMPLATES.map(t=>`<option value="${t.id}">${t.label}</option>`).join("");
   selTemplate.value = "t1";
 
-  const msg = buildMessage(order, 25, "t1");
-  txtMsg.value = msg;
+  txtMsg.value = buildMessage(order, 25, "t1");
 
   sendBack.style.display = "flex";
   sendBack.setAttribute("aria-hidden","false");
@@ -412,7 +416,7 @@ function closeSendModal(){
 function buildMessage(order, etaMinutes, templateId){
   const itemsArr = normalizeItemsFromAnyOrder(order);
   const itemsTxt = itemsSummary(itemsArr) || (order.items || "tu pedido");
-  const units = Number(order.total_units||0) || itemsArr.reduce((s,it)=>s+it.qty,0) || 0;
+  const units = calcUnits(order);
 
   const name = firstName(order.customer_name);
   const eta = Math.max(1, Math.round(Number(etaMinutes||0) || 0));
@@ -422,27 +426,80 @@ function buildMessage(order, etaMinutes, templateId){
 }
 
 function normalizePhoneToWa(phone){
-  const digits = String(phone||"").replace(/\D+/g,"");
+  const digits = String(phone||"").replace(/\\D+/g,"");
   if(!digits) return "";
-  // If already includes country code (>=11 digits), keep.
   if(digits.length >= 11) return digits;
-  // Colombia default (10 digits)
-  if(digits.length === 10) return "57" + digits;
+  if(digits.length === 10) return "57" + digits; // Colombia
   return digits;
 }
 
-async function markSentAndOpenWhatsApp(){
-  sendErr.textContent = "";
+function openWhatsAppUrl(waUrl){
+  const ua = navigator.userAgent || "";
+  const isMobile = /Android|iPhone|iPad|iPod|Mobi/i.test(ua);
+  if(isMobile){
+    window.location.href = waUrl;
+  }else{
+    window.open(waUrl, "_blank");
+  }
+}
+
+// --- Confirm (2s delay) ---
+function openConfirm(orderId){
+  confirmErr.textContent = "";
+  if(!confirmBack) return;
+  confirmBack.style.display = "flex";
+  confirmBack.setAttribute("aria-hidden","false");
+
+  confirmOrder.textContent = orderId || "—";
+  CONFIRM_LEFT = 2;
+  btnConfirmGo.disabled = true;
+  confirmTimer.textContent = `Espera ${CONFIRM_LEFT}s…`;
+
+  if(CONFIRM_INT) clearInterval(CONFIRM_INT);
+  CONFIRM_INT = setInterval(()=>{
+    CONFIRM_LEFT = Math.max(0, CONFIRM_LEFT - 1);
+    if(CONFIRM_LEFT <= 0){
+      confirmTimer.textContent = "Listo ✅";
+      btnConfirmGo.disabled = false;
+      clearInterval(CONFIRM_INT);
+      CONFIRM_INT = null;
+      return;
+    }
+    confirmTimer.textContent = `Espera ${CONFIRM_LEFT}s…`;
+  }, 1000);
+}
+
+function closeConfirm(){
+  if(CONFIRM_INT) clearInterval(CONFIRM_INT);
+  CONFIRM_INT = null;
+  if(!confirmBack) return;
+  confirmBack.style.display = "none";
+  confirmBack.setAttribute("aria-hidden","true");
+}
+
+async function doMarkSentAndOpen(){
+  confirmErr.textContent = "";
   if(!SEND_ORDER) return;
+
+  if(!isOptIn(SEND_ORDER.wa_opt_in)){
+    confirmErr.textContent = "Este cliente no autorizó recibir mensajes por WhatsApp.";
+    return;
+  }
 
   const eta = Number(inpEta.value || 0) || 0;
   if(!(eta > 0)){
-    sendErr.textContent = "Ingresa los minutos (mayor a 0).";
+    confirmErr.textContent = "Ingresa los minutos (mayor a 0).";
     return;
   }
   const tpl = String(selTemplate.value || "t1");
   const msg = buildMessage(SEND_ORDER, eta, tpl);
   txtMsg.value = msg;
+
+  const wa = normalizePhoneToWa(SEND_ORDER.phone);
+  if(!wa){
+    confirmErr.textContent = "El pedido no tiene teléfono. Copia el mensaje y envíalo manualmente.";
+    return;
+  }
 
   showLoading("Actualizando…","Marcando pedido como En camino…");
   try{
@@ -455,19 +512,13 @@ async function markSentAndOpenWhatsApp(){
       delivery_status: "En camino"
     });
 
-    // open WhatsApp
-    const wa = normalizePhoneToWa(SEND_ORDER.phone);
-    if(!wa){
-      sendErr.textContent = "El pedido no tiene teléfono. Copia el mensaje y envíalo manualmente.";
-      return;
-    }
     const waUrl = `https://wa.me/${wa}?text=${encodeURIComponent(msg)}`;
-    window.open(waUrl, "_blank");
-
+    closeConfirm();
     closeSendModal();
+    openWhatsAppUrl(waUrl);
     await loadOrders();
   }catch(e){
-    sendErr.textContent = e?.message || "Error actualizando.";
+    confirmErr.textContent = e?.message || "Error actualizando.";
   }finally{
     hideLoading();
   }
@@ -477,7 +528,6 @@ async function copyMsg(){
   try{
     await navigator.clipboard.writeText(txtMsg.value || "");
   }catch{
-    // fallback
     const ta = document.createElement("textarea");
     ta.value = txtMsg.value || "";
     document.body.appendChild(ta);
@@ -495,11 +545,23 @@ btnRefreshTop?.addEventListener("click", loadOrders);
 btnLogoutTop?.addEventListener("click", logout);
 
 listEl?.addEventListener("click", (ev)=>{
-  const btn = ev.target?.closest?.(".btnSend");
-  if(!btn) return;
-  const id = String(btn.getAttribute("data-id")||"").trim();
+  const btnSend = ev.target?.closest?.(".btnSend");
+  const btnWa = ev.target?.closest?.(".btnWhats");
+  if(!btnSend && !btnWa) return;
+
+  const id = String((btnSend||btnWa).getAttribute("data-id")||"").trim();
   const o = ORDERS.find(x => String(x.order_id) === id);
-  if(o) openSendModal(o);
+  if(!o) return;
+
+  openSendModal(o);
+
+  if(btnWa){
+    if(!isOptIn(o.wa_opt_in)){
+      sendErr.textContent = "Este cliente no autorizó recibir mensajes por WhatsApp.";
+      return;
+    }
+    openConfirm(o.order_id);
+  }
 });
 
 btnSendClose?.addEventListener("click", closeSendModal);
@@ -517,7 +579,18 @@ selTemplate?.addEventListener("change", ()=>{
 });
 
 btnCopy?.addEventListener("click", copyMsg);
-btnSendWhatsApp?.addEventListener("click", markSentAndOpenWhatsApp);
+btnAskWhatsApp?.addEventListener("click", ()=>{
+  if(!SEND_ORDER) return;
+  if(!isOptIn(SEND_ORDER.wa_opt_in)){
+    sendErr.textContent = "Este cliente no autorizó recibir mensajes por WhatsApp.";
+    return;
+  }
+  openConfirm(SEND_ORDER.order_id);
+});
+
+btnConfirmCancel?.addEventListener("click", closeConfirm);
+confirmBack?.addEventListener("click", (ev)=>{ if(ev.target === confirmBack) closeConfirm(); });
+btnConfirmGo?.addEventListener("click", doMarkSentAndOpen);
 
 // ---- Init ----
 (function init(){
