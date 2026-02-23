@@ -78,6 +78,16 @@ function money(n) {
   return Math.round(n).toLocaleString("es-CO");
 }
 
+
+
+function escapeHtml(s){
+  return String(s ?? "")
+    .replaceAll("&","&amp;")
+    .replaceAll("<","&lt;")
+    .replaceAll(">","&gt;")
+    .replaceAll('"',"&quot;")
+    .replaceAll("'","&#039;");
+}
 function generateClientOrderId() {
   const now = new Date();
   const y = now.getFullYear();
