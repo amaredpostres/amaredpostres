@@ -503,7 +503,7 @@ function openSendModal(order, opts={}){
   selTemplate.innerHTML = TEMPLATES.map(t=>`<option value="${t.id}">${t.label}</option>`).join("");
   selTemplate.value = "t1";
 
-  txtMsg.value = buildMessage(order, 25, "t1");
+  txtMsg.value = buildMessage(order, Number(inpEta.value||5)||5, "t1");
 
   const canWa = isOptIn(order.wa_opt_in);
 if(btnAskWhatsApp){
@@ -788,7 +788,7 @@ listEl?.addEventListener("click", (ev)=>{
   const o = ORDERS.find(x => String(x.order_id) === id);
   if(!o) return;
 
-  openSendModal(o, { fromHistory:true });
+  openSendModal(o);
 });
 
 histList?.addEventListener("click", (ev)=>{
@@ -799,7 +799,7 @@ histList?.addEventListener("click", (ev)=>{
   if(!o) return;
 
   closeHistory();
-  openSendModal(o, { fromHistory:true });
+  openSendModal(o);
 });
 
 btnSendClose?.addEventListener("click", closeSendModal);
@@ -822,7 +822,14 @@ btnAskWhatsApp?.addEventListener("click", ()=>{
   if(!SEND_ORDER) return;
 
   if(SEND_CONTEXT === "history"){
-    openConfirm(SEND_ORDER.order_id, "chat");
+    // ✅ Historial: abrir directo (sin confirmación) y SIN texto
+    const wa = normalizePhoneToWa(SEND_ORDER.phone);
+    if(!wa){
+      if(sendErr) sendErr.textContent = "El pedido no tiene teléfono.";
+      return;
+    }
+    const url = buildWhatsAppChatOnlyUrl(wa);
+    openWhatsAppUrl(url);
     return;
   }
 
