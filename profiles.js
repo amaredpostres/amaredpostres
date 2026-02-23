@@ -406,7 +406,7 @@ tbody?.addEventListener("click", async (ev)=>{
     showLoading("Eliminando…", "Actualizando base de datos…");
     await api({
       action: "profiles_delete",
-      costs_secret: PROFILES_SECRET,
+      profiles_secret: PROFILES_SECRET,
       profile_id: id
     });
     await loadProfiles();
@@ -429,7 +429,7 @@ async function loadProfiles(){
   try{
     const out = await api({
       action: "profiles_list",
-      costs_secret: PROFILES_SECRET
+      profiles_secret: PROFILES_SECRET
     });
     PROFILES_CACHE = Array.isArray(out.profiles) ? out.profiles : [];
     renderTable(PROFILES_CACHE);
@@ -460,13 +460,13 @@ btnUnlock?.addEventListener("click", async ()=>{
   try{
     showLoading("Validando…", "Comprobando acceso…");
     // 1) Validar clave contra el Worker (no toca Apps Script)
-    const v = await api({ action: "validate_costs_secret", costs_secret: secret });
+    const v = await api({ action: "validate_profiles_secret", profiles_secret: secret });
     if(v.valid !== true) throw new Error("Clave incorrecta o no autorizada.");
 
     // 2) Cargar perfiles
     const out = await api({
       action: "profiles_list",
-      costs_secret: secret
+      profiles_secret: secret
     });
 
     PROFILES_SECRET = secret;
@@ -527,7 +527,7 @@ btnAdd?.addEventListener("click", async ()=>{
     showLoading("Guardando…", "Creando perfil…");
     await api({
       action: "profiles_add",
-      costs_secret: PROFILES_SECRET,
+      profiles_secret: PROFILES_SECRET,
       profile_id: id,
       label: name,
       categories: cats.join(",")
@@ -578,7 +578,7 @@ btnEditSave?.addEventListener("click", async ()=>{
     showLoading("Guardando…", "Actualizando perfil…");
     await api({
       action: "profiles_add", // ✅ upsert en backend
-      costs_secret: PROFILES_SECRET,
+      profiles_secret: PROFILES_SECRET,
       profile_id: id,
       label: name,
       categories: cats.join(","),
