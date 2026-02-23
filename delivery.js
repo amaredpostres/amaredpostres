@@ -1,11 +1,12 @@
-// delivery.js — AMARED Envíos (v3 UX)
+// delivery.js — AMARED Envíos (v4 UX + Historial + Opt-in fix)
 "use strict";
 
 const API_URL = "https://amared-orders.amaredpostres.workers.dev/";
-const SS_KEY = "AMARED_DELIVERY_SESSION_V3";
+const SS_KEY = "AMARED_DELIVERY_SESSION_V4";
 
 let SESSION = { operator: null, pin: null };
 let ORDERS = [];
+let HIST = [];
 let SEND_ORDER = null;
 
 const loginView = document.getElementById("loginView");
@@ -18,12 +19,21 @@ const loginErr = document.getElementById("loginErr");
 
 const btnRefresh = document.getElementById("btnRefresh");
 const btnLogout = document.getElementById("btnLogout");
+const btnHistory = document.getElementById("btnHistory");
 const btnRefreshTop = document.getElementById("btnRefreshTop");
 const btnLogoutTop = document.getElementById("btnLogoutTop");
 
 const metaLine = document.getElementById("metaLine");
 const statusEl = document.getElementById("status");
 const listEl = document.getElementById("list");
+
+// History modal
+const histBack = document.getElementById("histBack");
+const btnHistClose = document.getElementById("btnHistClose");
+const btnHistReload = document.getElementById("btnHistReload");
+const histMetaLine = document.getElementById("histMetaLine");
+const histStatus = document.getElementById("histStatus");
+const histList = document.getElementById("histList");
 
 const loading = document.getElementById("loading");
 const loadingTitle = document.getElementById("loadingTitle");
@@ -37,10 +47,13 @@ const selTemplate = document.getElementById("selTemplate");
 const txtMsg = document.getElementById("txtMsg");
 const btnCopy = document.getElementById("btnCopy");
 const btnAskWhatsApp = document.getElementById("btnAskWhatsApp");
+const btnMarkSent = document.getElementById("btnMarkSent");
 const sendErr = document.getElementById("sendErr");
 
 // Confirm overlay
 const confirmBack = document.getElementById("confirmBack");
+const confirmTitle = document.getElementById("confirmTitle");
+const confirmDesc = document.getElementById("confirmDesc");
 const confirmTimer = document.getElementById("confirmTimer");
 const confirmOrder = document.getElementById("confirmOrder");
 const btnConfirmCancel = document.getElementById("btnConfirmCancel");
@@ -49,6 +62,7 @@ const confirmErr = document.getElementById("confirmErr");
 
 let CONFIRM_INT = null;
 let CONFIRM_LEFT = 0;
+let CONFIRM_MODE = "wa"; // "wa" | "manual"
 
 function showLoading(t="Cargando…", m="Por favor espera."){
   if(!loading) return;
@@ -96,9 +110,12 @@ function isActiveAny(v){
   return !(s === "false" || s === "0" || s === "no");
 }
 
+// ✅ FIX opt-in: soporta TRUE/VERDADERO/SI/ON y boolean
 function isOptIn(v){
+  if(v === true) return true;
+  if(v === false) return false;
   const s = String(v ?? "").trim().toLowerCase();
-  return (v === true) || s === "true" || s === "1" || s === "si" || s === "sí" || s === "yes" || s === "on";
+  return s === "true" || s === "1" || s === "si" || s === "sí" || s === "yes" || s === "on" || s === "verdadero";
 }
 
 // Category matching (supports synonyms)
@@ -199,7 +216,6 @@ function showPanel(){
   if(btnRefreshTop) btnRefreshTop.style.display = "inline-flex";
   if(btnLogoutTop) btnLogoutTop.style.display = "inline-flex";
 }
-
 function showLogin(){
   if(panelView) panelView.style.display = "none";
   if(loginView) loginView.style.display = "block";
@@ -211,6 +227,7 @@ function logout(){
   SESSION = { operator:null, pin:null };
   sessionStorage.removeItem(SS_KEY);
   if(inpPin) inpPin.value = "";
+  closeHistory();
   showLogin();
 }
 
@@ -232,15 +249,15 @@ function normalizeItemsFromAnyOrder(order){
   }
   const txt = String(order.items || order.items_text || "").trim();
   if(txt){
-    const lines = txt.split("\\n").map(s=>s.trim()).filter(Boolean);
+    const lines = txt.split("\n").map(s=>s.trim()).filter(Boolean);
     const out=[];
     for(const line0 of lines){
-      const line = line0.replace(/^-+\\s*/, "");
-      const m = line.match(/^(.+?)\\s*:\\s*(\\d+(?:[\\.,]\\d+)?)$/);
+      const line = line0.replace(/^-+\s*/, "");
+      const m = line.match(/^(.+?)\s*:\s*(\d+(?:[\.,]\d+)?)$/);
       if(!m) continue;
       const name = m[1].trim();
       const qty = Number(String(m[2]).replace(",", ".")) || 0;
-      if(qty>0) out.push({ id: name.toLowerCase().replace(/\\s+/g,"_"), name, qty });
+      if(qty>0) out.push({ id: name.toLowerCase().replace(/\s+/g,"_"), name, qty });
     }
     return out;
   }
@@ -254,7 +271,7 @@ function itemsSummary(items){
 function firstName(full){
   const s = String(full||"").trim();
   if(!s) return "hola";
-  return s.split(/\\s+/)[0];
+  return s.split(/\s+/)[0];
 }
 
 function formatDate(v){
@@ -328,7 +345,11 @@ function renderOrders(orders){
 
           <div class="btnRow">
             <button class="btn secondary btnSend" data-id="${escapeHtml(o.order_id)}">Ver mensaje</button>
-            ${canWa ? '<button class="btn primary btnWhats" data-id="'+escapeHtml(o.order_id)+'">Abrir WhatsApp</button>' : ""}
+            ${
+              canWa
+                ? '<button class="btn primary btnWhats" data-id="'+escapeHtml(o.order_id)+'">Abrir WhatsApp</button>'
+                : '<button class="btn primary btnMarkSent" data-id="'+escapeHtml(o.order_id)+'">Confirmar envío</button>'
+            }
           </div>
         </div>
       </div>
@@ -342,7 +363,7 @@ async function loadOrders(){
   setStatus("");
   showLoading("Cargando pedidos…","Buscando Pagado + Listo + delivery Pendiente…");
   try{
-    let out = await api({ action:"delivery_list", admin_pin: SESSION.pin, hours: 72 });
+    let out = await api({ action:"delivery_list", admin_pin: SESSION.pin, hours: 72, view:"pending" });
     let orders = out.orders || [];
 
     // fallback: list_orders + client-side filter
@@ -362,6 +383,84 @@ async function loadOrders(){
     console.error("loadOrders error:", e);
     setStatus(e?.message || "Error cargando pedidos.");
     if(listEl) listEl.innerHTML = "";
+  }finally{
+    hideLoading();
+  }
+}
+
+// ---- History ----
+function openHistory(){
+  if(!histBack) return;
+  histStatus.textContent = "";
+  histBack.style.display = "flex";
+  histBack.setAttribute("aria-hidden","false");
+  loadHistory();
+}
+function closeHistory(){
+  if(!histBack) return;
+  histBack.style.display = "none";
+  histBack.setAttribute("aria-hidden","true");
+}
+function renderHistory(orders){
+  HIST = orders || [];
+  if(histMetaLine){
+    histMetaLine.textContent = `Enviados: ${HIST.length} · Operador: ${SESSION?.operator?.label || "—"}`;
+  }
+  if(!histList) return;
+  if(HIST.length === 0){
+    histList.innerHTML = `<div class="muted small">No hay pedidos marcados como enviados en el rango.</div>`;
+    return;
+  }
+
+  const html = HIST.map(o=>{
+    const items = normalizeItemsFromAnyOrder(o);
+    const summary = itemsSummary(items) || (o.items || "");
+    const units = calcUnits(o);
+    const st = String(o.delivery_status || "Enviado").trim() || "Enviado";
+    const sentAt = String(o.delivery_sent_at || "").trim();
+    const who = String(o.delivery_sent_by || "").trim();
+    const canWa = isOptIn(o.wa_opt_in);
+
+    return `
+      <div class="orderCard">
+        <div class="orderHead">
+          <div>
+            <div class="orderId">${escapeHtml(o.order_id || "")}</div>
+            <div class="orderMeta">${escapeHtml(o.customer_name || "")} · ${escapeHtml(sentAt ? sentAt : formatDate(o.created_at))}${who ? " · " + escapeHtml(who) : ""}</div>
+          </div>
+          <div class="row" style="gap:10px; flex-wrap:wrap; justify-content:flex-end;">
+            <span class="pill">✅ ${escapeHtml(st)}</span>
+            <span class="pill">🧁 ${escapeHtml(String(units))} u</span>
+            ${canWa ? "" : '<span class="pill">📵 Sin WhatsApp</span>'}
+          </div>
+        </div>
+
+        <div class="orderBody">
+          <div class="kv">
+            <label>Ítems</label>
+            <div class="itemsBox">${escapeHtml(summary || "—")}</div>
+          </div>
+
+          <div class="btnRow">
+            <button class="btn secondary btnHistView" data-id="${escapeHtml(o.order_id)}">Ver detalle</button>
+          </div>
+        </div>
+      </div>
+    `;
+  }).join("");
+
+  histList.innerHTML = html;
+}
+
+async function loadHistory(){
+  if(histStatus) histStatus.textContent = "";
+  showLoading("Cargando historial…","Buscando pedidos enviados…");
+  try{
+    const out = await api({ action:"delivery_list", admin_pin: SESSION.pin, hours: 240, view:"history" });
+    renderHistory(out.orders || []);
+  }catch(e){
+    if(histStatus) histStatus.textContent = e?.message || "Error cargando historial.";
+    if(histList) histList.innerHTML = "";
   }finally{
     hideLoading();
   }
@@ -402,6 +501,10 @@ function openSendModal(order){
 
   txtMsg.value = buildMessage(order, 25, "t1");
 
+  if(!isOptIn(order.wa_opt_in)){
+    sendErr.textContent = "Este cliente NO autorizó recibir mensajes por WhatsApp. Puedes copiar el mensaje y luego usar “Marcar Enviado”.";
+  }
+
   sendBack.style.display = "flex";
   sendBack.setAttribute("aria-hidden","false");
 }
@@ -426,7 +529,7 @@ function buildMessage(order, etaMinutes, templateId){
 }
 
 function normalizePhoneToWa(phone){
-  const digits = String(phone||"").replace(/\\D+/g,"");
+  const digits = String(phone||"").replace(/\D+/g,"");
   if(!digits) return "";
   if(digits.length >= 11) return digits;
   if(digits.length === 10) return "57" + digits; // Colombia
@@ -444,7 +547,16 @@ function openWhatsAppUrl(waUrl){
 }
 
 // --- Confirm (2s delay) ---
-function openConfirm(orderId){
+function openConfirm(orderId, mode){
+  CONFIRM_MODE = (mode === "manual") ? "manual" : "wa";
+
+  if(confirmTitle) confirmTitle.textContent = (CONFIRM_MODE === "manual") ? "¿Marcar como enviado?" : "¿Abrir WhatsApp?";
+  if(confirmDesc){
+    confirmDesc.innerHTML = (CONFIRM_MODE === "manual")
+      ? "Se marcará el pedido como <b>Enviado</b> (para trazabilidad), sin abrir WhatsApp."
+      : "Se marcará el pedido como <b>Enviado</b> y se abrirá WhatsApp con el mensaje listo.";
+  }
+
   confirmErr.textContent = "";
   if(!confirmBack) return;
   confirmBack.style.display = "flex";
@@ -477,7 +589,36 @@ function closeConfirm(){
   confirmBack.setAttribute("aria-hidden","true");
 }
 
-async function doMarkSentAndOpen(){
+async function markSentOnly(){
+  confirmErr.textContent = "";
+  if(!SEND_ORDER) return;
+
+  // eta opcional
+  const eta = Number(inpEta.value || 0) || 0;
+
+  showLoading("Actualizando…","Marcando pedido como Enviado…");
+  try{
+    await api({
+      action:"delivery_mark_sent",
+      admin_pin: SESSION.pin,
+      order_id: SEND_ORDER.order_id,
+      eta_minutes: (eta > 0 ? Math.round(eta) : 0),
+      sent_by: SESSION?.operator?.label || "DELIVERY",
+      delivery_status: "Enviado"
+    });
+
+    closeConfirm();
+    closeSendModal();
+    await loadOrders();
+    if(histBack && histBack.style.display === "flex") await loadHistory();
+  }catch(e){
+    confirmErr.textContent = e?.message || "Error actualizando.";
+  }finally{
+    hideLoading();
+  }
+}
+
+async function markSentAndOpenWhatsApp(){
   confirmErr.textContent = "";
   if(!SEND_ORDER) return;
 
@@ -501,7 +642,7 @@ async function doMarkSentAndOpen(){
     return;
   }
 
-  showLoading("Actualizando…","Marcando pedido como En camino…");
+  showLoading("Actualizando…","Marcando pedido como Enviado…");
   try{
     await api({
       action:"delivery_mark_sent",
@@ -509,7 +650,7 @@ async function doMarkSentAndOpen(){
       order_id: SEND_ORDER.order_id,
       eta_minutes: Math.round(eta),
       sent_by: SESSION?.operator?.label || "DELIVERY",
-      delivery_status: "En camino"
+      delivery_status: "Enviado"
     });
 
     const waUrl = `https://wa.me/${wa}?text=${encodeURIComponent(msg)}`;
@@ -517,11 +658,17 @@ async function doMarkSentAndOpen(){
     closeSendModal();
     openWhatsAppUrl(waUrl);
     await loadOrders();
+    if(histBack && histBack.style.display === "flex") await loadHistory();
   }catch(e){
     confirmErr.textContent = e?.message || "Error actualizando.";
   }finally{
     hideLoading();
   }
+}
+
+async function doConfirmAction(){
+  if(CONFIRM_MODE === "manual") return markSentOnly();
+  return markSentAndOpenWhatsApp();
 }
 
 async function copyMsg(){
@@ -541,15 +688,17 @@ async function copyMsg(){
 btnLogin?.addEventListener("click", doLogin);
 btnRefresh?.addEventListener("click", loadOrders);
 btnLogout?.addEventListener("click", logout);
+btnHistory?.addEventListener("click", openHistory);
 btnRefreshTop?.addEventListener("click", loadOrders);
 btnLogoutTop?.addEventListener("click", logout);
 
 listEl?.addEventListener("click", (ev)=>{
   const btnSend = ev.target?.closest?.(".btnSend");
   const btnWa = ev.target?.closest?.(".btnWhats");
-  if(!btnSend && !btnWa) return;
+  const btnMark = ev.target?.closest?.(".btnMarkSent");
+  if(!btnSend && !btnWa && !btnMark) return;
 
-  const id = String((btnSend||btnWa).getAttribute("data-id")||"").trim();
+  const id = String((btnSend||btnWa||btnMark).getAttribute("data-id")||"").trim();
   const o = ORDERS.find(x => String(x.order_id) === id);
   if(!o) return;
 
@@ -560,8 +709,20 @@ listEl?.addEventListener("click", (ev)=>{
       sendErr.textContent = "Este cliente no autorizó recibir mensajes por WhatsApp.";
       return;
     }
-    openConfirm(o.order_id);
+    openConfirm(o.order_id, "wa");
   }
+  if(btnMark){
+    openConfirm(o.order_id, "manual");
+  }
+});
+
+histList?.addEventListener("click", (ev)=>{
+  const btn = ev.target?.closest?.(".btnHistView");
+  if(!btn) return;
+  const id = String(btn.getAttribute("data-id")||"").trim();
+  const o = HIST.find(x => String(x.order_id) === id);
+  if(!o) return;
+  openSendModal(o);
 });
 
 btnSendClose?.addEventListener("click", closeSendModal);
@@ -579,18 +740,29 @@ selTemplate?.addEventListener("change", ()=>{
 });
 
 btnCopy?.addEventListener("click", copyMsg);
+
 btnAskWhatsApp?.addEventListener("click", ()=>{
   if(!SEND_ORDER) return;
   if(!isOptIn(SEND_ORDER.wa_opt_in)){
-    sendErr.textContent = "Este cliente no autorizó recibir mensajes por WhatsApp.";
+    sendErr.textContent = "Este cliente no autorizó recibir mensajes por WhatsApp. Usa “Marcar Enviado”.";
     return;
   }
-  openConfirm(SEND_ORDER.order_id);
+  openConfirm(SEND_ORDER.order_id, "wa");
+});
+
+btnMarkSent?.addEventListener("click", ()=>{
+  if(!SEND_ORDER) return;
+  openConfirm(SEND_ORDER.order_id, "manual");
 });
 
 btnConfirmCancel?.addEventListener("click", closeConfirm);
 confirmBack?.addEventListener("click", (ev)=>{ if(ev.target === confirmBack) closeConfirm(); });
-btnConfirmGo?.addEventListener("click", doMarkSentAndOpen);
+btnConfirmGo?.addEventListener("click", doConfirmAction);
+
+// History events
+btnHistClose?.addEventListener("click", closeHistory);
+btnHistReload?.addEventListener("click", loadHistory);
+histBack?.addEventListener("click", (ev)=>{ if(ev.target === histBack) closeHistory(); });
 
 // ---- Init ----
 (function init(){
