@@ -10,6 +10,7 @@
   <link rel="stylesheet" href="delivery.css" />
 </head>
 <body class="deliveryPage">
+
   <header class="topbar">
     <div class="topbarInner" style="justify-content:space-between;">
       <div class="brand" style="gap:12px; justify-content:flex-start;">
@@ -29,7 +30,7 @@
 
   <main class="container">
     <!-- LOGIN -->
-    <section id="loginView" class="card">
+    <section id="loginView" class="card deliveryCenter">
       <h2 class="cardTitle">Acceso Envíos</h2>
       <p class="cardSubtitle">Selecciona un perfil de <b>Envíos</b> o <b>Admin</b> e ingresa el PIN.</p>
 
@@ -73,11 +74,11 @@
   </main>
 
   <!-- SEND MODAL -->
-  <div id="sendBack" class="loadingOverlay" aria-hidden="true" style="display:none;">
-    <div class="loadingCard" style="width:min(820px, 100%);">
+  <div id="sendBack" class="amOverlay" aria-hidden="true" style="display:none;">
+    <div class="amModal" role="dialog" aria-modal="true">
       <div class="rowBetween" style="align-items:flex-start;">
         <div>
-          <div class="loadingTitle">Enviar pedido</div>
+          <div class="amModalTitle">Enviar pedido</div>
           <div class="muted small" id="sendSubtitle" style="margin-top:4px;"></div>
         </div>
         <button id="btnSendClose" class="btn secondary" type="button">Cerrar</button>
@@ -99,31 +100,53 @@
 
       <div class="field" style="margin-top:12px;">
         <label>Mensaje</label>
-        <textarea id="txtMsg" class="input" rows="5" readonly></textarea>
+        <textarea id="txtMsg" class="input emojiText" rows="6" readonly></textarea>
       </div>
 
       <div class="row" style="justify-content:flex-end; margin-top:12px;">
         <button id="btnCopy" class="btn secondary" type="button">Copiar</button>
-        <button id="btnSendWhatsApp" class="btn primary" type="button">Abrir WhatsApp</button>
+        <button id="btnAskWhatsApp" class="btn primary" type="button">Abrir WhatsApp</button>
       </div>
 
       <div id="sendErr" class="status" style="color:#b00020; margin-top:10px;"></div>
     </div>
   </div>
 
+  <!-- CONFIRM WHATSAPP -->
+  <div id="confirmBack" class="amOverlay" aria-hidden="true" style="display:none;">
+    <div class="amModal" role="dialog" aria-modal="true" style="max-width:560px;">
+      <div class="amModalTitle">¿Abrir WhatsApp?</div>
+      <div class="muted" style="margin-top:6px;">
+        Se marcará el pedido como <b>En camino</b> y se abrirá WhatsApp con el mensaje listo.
+      </div>
+
+      <div class="pillRow" style="margin-top:12px;">
+        <span class="pill" id="confirmTimer">Espera 2s…</span>
+        <span class="pill" id="confirmOrder">—</span>
+      </div>
+
+      <div class="row" style="justify-content:flex-end; margin-top:14px;">
+        <button id="btnConfirmCancel" class="btn secondary" type="button">Cancelar</button>
+        <button id="btnConfirmGo" class="btn primary" type="button" disabled>Abrir WhatsApp</button>
+      </div>
+
+      <div id="confirmErr" class="status" style="color:#b00020; margin-top:10px;"></div>
+    </div>
+  </div>
+
   <!-- LOADING OVERLAY -->
-  <div id="loading" class="loadingOverlay" aria-hidden="true" style="display:none;">
-    <div class="loadingCard">
+  <div id="loading" class="amOverlay" aria-hidden="true" style="display:none;">
+    <div class="amModal" style="max-width:520px;">
       <div class="row" style="gap:10px;">
         <div class="spinner"></div>
         <div>
-          <div id="loadingTitle" class="loadingTitle">Cargando…</div>
+          <div id="loadingTitle" class="amModalTitle">Cargando…</div>
           <div id="loadingMsg" class="muted small">Por favor espera.</div>
         </div>
       </div>
     </div>
   </div>
 
-  <script src="delivery.js?v=20260223-01"></script>
+  <script src="delivery.js?v=20260223-02"></script>
 </body>
 </html>
