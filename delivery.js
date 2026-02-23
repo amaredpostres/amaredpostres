@@ -1,53 +1,58 @@
-/* delivery.js — AMARED Envíos
-   - Login con perfiles (category: payments) + PIN (admin_pin)
-   - Lista pedidos: Pagado + Listo + delivery_status Pendiente
-   - Botón Enviar: pide ETA, genera mensaje WhatsApp (variantes), marca delivery_status = En camino
-*/
-
+// delivery.js — AMARED Envíos (v2)
 "use strict";
 
 const API_URL = "https://amared-orders.amaredpostres.workers.dev/";
-const SS_KEY = "AMARED_DELIVERY_SESSION_V1";
+const SS_KEY = "AMARED_DELIVERY_SESSION_V2";
 
-let state = {
-  session: { operatorId:null, operatorLabel:null, pin:null },
-  profiles: [],
-  orders: [],
-  filtered: [],
-  activeOrder: null,
-  lastMessage: "",
-};
+let SESSION = { operator: null, pin: null };
+let ORDERS = [];
+let SEND_ORDER = null;
 
-const el = (id)=>document.getElementById(id);
+const loginView = document.getElementById("loginView");
+const panelView = document.getElementById("panelView");
 
-function showLoading(title, desc){
-  const box = el("loading");
-  if(el("lt")) el("lt").textContent = title || "Cargando…";
-  if(el("ld")) el("ld").textContent = desc || "Por favor espera.";
-  if(box){ box.style.display="flex"; box.setAttribute("aria-hidden","false"); }
+const selOperator = document.getElementById("selOperator");
+const inpPin = document.getElementById("inpPin");
+const btnLogin = document.getElementById("btnLogin");
+const loginErr = document.getElementById("loginErr");
+
+const btnRefresh = document.getElementById("btnRefresh");
+const btnLogout = document.getElementById("btnLogout");
+const btnRefreshTop = document.getElementById("btnRefreshTop");
+const btnLogoutTop = document.getElementById("btnLogoutTop");
+
+const metaLine = document.getElementById("metaLine");
+const statusEl = document.getElementById("status");
+const listEl = document.getElementById("list");
+
+const loading = document.getElementById("loading");
+const loadingTitle = document.getElementById("loadingTitle");
+const loadingMsg = document.getElementById("loadingMsg");
+
+const sendBack = document.getElementById("sendBack");
+const btnSendClose = document.getElementById("btnSendClose");
+const sendSubtitle = document.getElementById("sendSubtitle");
+const inpEta = document.getElementById("inpEta");
+const selTemplate = document.getElementById("selTemplate");
+const txtMsg = document.getElementById("txtMsg");
+const btnCopy = document.getElementById("btnCopy");
+const btnSendWhatsApp = document.getElementById("btnSendWhatsApp");
+const sendErr = document.getElementById("sendErr");
+
+function showLoading(t="Cargando…", m="Por favor espera."){
+  if(!loading) return;
+  if(loadingTitle) loadingTitle.textContent = t;
+  if(loadingMsg) loadingMsg.textContent = m;
+  loading.style.display = "flex";
+  loading.setAttribute("aria-hidden","false");
 }
 function hideLoading(){
-  const box = el("loading");
-  if(box){ box.style.display="none"; box.setAttribute("aria-hidden","true"); }
+  if(!loading) return;
+  loading.style.display = "none";
+  loading.setAttribute("aria-hidden","true");
 }
+function setStatus(msg){ if(statusEl) statusEl.textContent = msg || ""; }
 
-async function api(payload){
-  const res = await fetch(API_URL, {
-    method:"POST",
-    headers:{ "Content-Type":"application/json" },
-    body: JSON.stringify(payload || {})
-  });
-  const out = await res.json().catch(async()=>({ ok:false, error: await res.text().catch(()=> "Error") }));
-  if(out?.ok === false) throw new Error(out.error || out.message || "Error");
-  return out;
-}
-
-async function apiTry(payload){
-  try{ return await api(payload); }
-  catch(e){ return { ok:false, error: String(e.message||e) }; }
-}
-
-function safeJsonParse(s){ try{ return JSON.parse(s); } catch { return null; } }
 function escapeHtml(s){
   return String(s ?? "")
     .replaceAll("&","&amp;")
@@ -56,458 +61,479 @@ function escapeHtml(s){
     .replaceAll('"',"&quot;")
     .replaceAll("'","&#039;");
 }
-function fmtDate(v){
+
+function safeJsonParse(v){
+  try{
+    if(v == null) return null;
+    if(typeof v === "object") return v;
+    const s = String(v).trim();
+    if(!s) return null;
+    return JSON.parse(s);
+  }catch{ return null; }
+}
+
+function normalizeCatsAny(v){
+  if(Array.isArray(v)) return v.map(x=>String(x||"").trim().toLowerCase()).filter(Boolean);
+  return String(v||"")
+    .split(",")
+    .map(s=>s.trim().toLowerCase())
+    .filter(Boolean);
+}
+
+function isActiveAny(v){
+  const s = String(v ?? "true").trim().toLowerCase();
+  return !(s === "false" || s === "0" || s === "no");
+}
+
+// Category matching (supports synonyms)
+function hasCategory(profile, wanted){
+  const cats = normalizeCatsAny(profile?.categories);
+  const w = String(wanted||"").toLowerCase();
+  const map = {
+    delivery: ["delivery","envios","envíos","envio","envío","envíos","reparto","domicilio"],
+    admin: ["admin","administracion","administración"],
+    payments: ["payments","pago","pagos"],
+    kitchen: ["kitchen","cocina"],
+  };
+  const aliases = map[w] || [w];
+  return aliases.some(a => cats.includes(a));
+}
+
+async function api(payload){
+  const res = await fetch(API_URL, {
+    method:"POST",
+    headers:{ "Content-Type":"application/json" },
+    body: JSON.stringify(payload || {})
+  });
+  const out = await res.json().catch(async()=>({ ok:false, error: await res.text().catch(()=> "") }));
+  if(!out || out.ok === false) throw new Error(out?.error || out?.message || "Error");
+  return out;
+}
+
+// ---- Profiles (public list) ----
+async function fetchProfilesPublic(){
+  const out = await api({ action: "profiles_public_list" });
+  return out.profiles || [];
+}
+
+function renderProfilesSelect(list){
+  if(!selOperator) return;
+  const opts = ['<option value="">Seleccionar…</option>'];
+  for(const p of (list||[])){
+    const cats = normalizeCatsAny(p.categories);
+    const catsLabel = cats.length ? ` · ${cats.join(", ")}` : "";
+    opts.push(`<option value="${escapeHtml(p.id)}">${escapeHtml(p.label)}${escapeHtml(catsLabel)}</option>`);
+  }
+  selOperator.innerHTML = opts.join("");
+}
+
+async function loadProfilesOnStart(){
+  renderProfilesSelect([]);
+  showLoading("Cargando perfiles…","Buscando perfiles de envíos/admin.");
+  loginErr.textContent = "";
+  try{
+    const all = await fetchProfilesPublic();
+    // filter only active (by convention: profile sheet already filters is_active, but keep safe)
+    const list = (all||[]).filter(p => p && p.id && p.label)
+      .filter(p => hasCategory(p,"delivery") || hasCategory(p,"admin"));
+    renderProfilesSelect(list);
+    if(list.length === 0){
+      loginErr.textContent = "No hay perfiles con categoría delivery/admin. Ve a “Gestionar perfiles” y asigna la categoría.";
+    }
+  }catch(e){
+    renderProfilesSelect([]);
+    loginErr.textContent = (e?.message || "No se pudieron cargar perfiles.")
+      + " (Necesitas habilitar profiles_public_list en el Worker)";
+  }finally{
+    hideLoading();
+  }
+}
+
+// ---- Login ----
+async function doLogin(){
+  loginErr.textContent = "";
+  const id = String(selOperator?.value || "").trim();
+  const pin = String(inpPin?.value || "").trim();
+  if(!id){ loginErr.textContent = "Selecciona un perfil."; return; }
+  if(!pin){ loginErr.textContent = "Ingresa el PIN."; return; }
+
+  showLoading("Validando…","Comprobando acceso…");
+  try{
+    const out = await api({ action:"validate_admin_pin", admin_pin: pin });
+    if(!out.valid){
+      loginErr.textContent = "PIN incorrecto.";
+      return;
+    }
+    // find label
+    const all = await fetchProfilesPublic();
+    const p = (all||[]).find(x => String(x.id) === id);
+    SESSION = { operator: { id, label: p?.label || id }, pin };
+    sessionStorage.setItem(SS_KEY, JSON.stringify(SESSION));
+    showPanel();
+    await loadOrders();
+  }catch(e){
+    loginErr.textContent = e?.message || "No se pudo validar.";
+  }finally{
+    hideLoading();
+  }
+}
+
+function showPanel(){
+  if(loginView) loginView.style.display = "none";
+  if(panelView) panelView.style.display = "block";
+  if(btnRefreshTop) btnRefreshTop.style.display = "inline-flex";
+  if(btnLogoutTop) btnLogoutTop.style.display = "inline-flex";
+}
+
+function showLogin(){
+  if(panelView) panelView.style.display = "none";
+  if(loginView) loginView.style.display = "block";
+  if(btnRefreshTop) btnRefreshTop.style.display = "none";
+  if(btnLogoutTop) btnLogoutTop.style.display = "none";
+}
+
+function logout(){
+  SESSION = { operator:null, pin:null };
+  sessionStorage.removeItem(SS_KEY);
+  if(inpPin) inpPin.value = "";
+  showLogin();
+}
+
+// ---- Orders ----
+function normStatus(s){ return String(s||"").trim().toLowerCase(); }
+
+function normalizeItemsFromAnyOrder(order){
+  if(!order) return [];
+  const raw = order.items_json ?? order.itemsJson ?? order.itemsJSON;
+  if(raw){
+    const parsed = (typeof raw === "string") ? safeJsonParse(raw) : raw;
+    if(Array.isArray(parsed)){
+      return parsed.map(it=>({
+        id: String(it.id || it.product_id || ""),
+        name: String(it.name || ""),
+        qty: Number(it.qty || it.units || 0) || 0,
+      })).filter(it=>it.name && it.qty>0);
+    }
+  }
+  const txt = String(order.items || order.items_text || "").trim();
+  if(txt){
+    const lines = txt.split("\n").map(s=>s.trim()).filter(Boolean);
+    const out=[];
+    for(const line0 of lines){
+      const line = line0.replace(/^-+\s*/, "");
+      const m = line.match(/^(.+?)\s*:\s*(\d+(?:[\.,]\d+)?)$/);
+      if(!m) continue;
+      const name = m[1].trim();
+      const qty = Number(String(m[2]).replace(",", ".")) || 0;
+      if(qty>0) out.push({ id: name.toLowerCase().replace(/\s+/g,"_"), name, qty });
+    }
+    return out;
+  }
+  return [];
+}
+
+function itemsSummary(items){
+  const parts = (items||[]).map(it => `${it.name} x${it.qty}`);
+  return parts.join(", ");
+}
+
+function firstName(full){
+  const s = String(full||"").trim();
+  if(!s) return "hola";
+  return s.split(/\s+/)[0];
+}
+
+function formatDate(v){
   if(!v) return "";
   const d = new Date(v);
   if(Number.isNaN(d.getTime())) return String(v);
   return new Intl.DateTimeFormat("es-CO", {
-    timeZone: "America/Bogota",
+    timeZone:"America/Bogota",
     year:"numeric", month:"2-digit", day:"2-digit",
     hour:"2-digit", minute:"2-digit", hour12:false
   }).format(d);
 }
 
-function getFirstName(full){
-  const s = String(full||"").trim();
-  if(!s) return "Hola";
-  return s.split(/\s+/)[0];
-}
-
-function normalizePhone(p){
-  const digits = String(p||"").replace(/\D+/g,"");
-  if(!digits) return "";
-  if(digits.startsWith("57") && digits.length>=12) return digits;
-  if(digits.length===10) return "57"+digits;
-  return digits;
-}
-
-function itemsFromOrder(order){
-  const raw = order.items_json ?? order.itemsJson ?? order.itemsJSON;
-  if(raw){
-    const parsed = (typeof raw==="string") ? safeJsonParse(raw) : raw;
-    if(Array.isArray(parsed)){
-      return parsed.map(it=>({
-        name: String(it.name||""),
-        qty: Number(it.qty||it.units||0) || 0
-      })).filter(it=>it.name && it.qty>0);
-    }
+function renderOrders(orders, meta){
+  ORDERS = orders || [];
+  if(metaLine){
+    metaLine.textContent = `Operador: ${SESSION?.operator?.label || "—"} · Pedidos: ${ORDERS.length}`;
   }
-  // fallback: lines "- Nombre: 2"
-  const txt = String(order.items||"").trim();
-  if(!txt) return [];
-  const lines = txt.split("\n").map(x=>x.trim()).filter(Boolean);
-  const out=[];
-  for(const line0 of lines){
-    const line=line0.replace(/^-+\s*/,"");
-    const m=line.match(/^(.+?)\s*:\s*(\d+(?:[\.,]\d+)?)$/);
-    if(!m) continue;
-    const name=m[1].trim();
-    const qty=Number(String(m[2]).replace(",","."))||0;
-    if(qty>0) out.push({name, qty});
-  }
-  return out;
-}
 
-function summarizeItems(items){
-  const total = items.reduce((s,it)=>s+Number(it.qty||0),0);
-  if(items.length===0) return { total_units: total, short: `${total || 0} postres` };
-  const parts = items.map(it=>`${it.qty} ${it.name}`).slice(0,4);
-  const more = items.length>4 ? ` +${items.length-4} más` : "";
-  return { total_units: total, short: parts.join(", ") + more };
-}
-
-const TEMPLATES = [
-  {
-    id:"v1",
-    label:"✨ Cercano",
-    build: ({name, itemsShort, minutes, mode}) => {
-      if(mode==="recoger"){
-        return `Hola ${name} 😊\n\nTu pedido (${itemsShort}) ya está listo ✅\nPuedes pasar a reclamarlo en ~${minutes} min.\n\n¡Gracias por elegir AMARED! 🩷🍰`;
-      }
-      return `Hola ${name} 😊\n\nTu pedido (${itemsShort}) ya va en camino 🚚💨\nLlega en aproximadamente ${minutes} min.\n\n¡Que lo disfrutes muchísimo! 🩷🍰`;
-    }
-  },
-  {
-    id:"v2",
-    label:"🚚 En camino",
-    build: ({name, itemsShort, minutes, mode}) => {
-      if(mode==="recoger"){
-        return `¡Hola ${name}! 🙌\n\nYa tenemos tu pedido listo (${itemsShort}) ✅\nEn unos ${minutes} min lo puedes reclamar.\n\nGracias 🩷`;
-      }
-      return `¡Hola ${name}! 🙌\n\nTu pedido (${itemsShort}) salió para entrega 🚚\nTiempo estimado: ${minutes} min ⏳\n\nGracias por tu compra 🩷`;
-    }
-  },
-  {
-    id:"v3",
-    label:"🍰 Dulce",
-    build: ({name, itemsShort, minutes, mode}) => {
-      if(mode==="recoger"){
-        return `Hola ${name} 🩷\n\n¡Tu antojo ya está listo! (${itemsShort}) ✅\nPasa por él en ~${minutes} min.\n\nAMARED 🍰✨`;
-      }
-      return `Hola ${name} 🩷\n\n¡Tu antojo salió! (${itemsShort}) 🚚✨\nLlega en ~${minutes} min.\n\nAMARED 🍰`;
-    }
-  },
-];
-
-function fillTemplates(){
-  const sel = el("tpl");
-  if(!sel) return;
-  sel.innerHTML = TEMPLATES.map(t=>`<option value="${t.id}">${t.label}</option>`).join("");
-  sel.value = TEMPLATES[0].id;
-}
-
-function showLogin(){
-  el("loginBox").style.display = "block";
-  el("app").style.display = "none";
-  el("btnLogoutTop").style.display = "none";
-  el("btnRefreshTop").style.display = "none";
-}
-function showApp(){
-  el("loginBox").style.display = "none";
-  el("app").style.display = "block";
-  el("btnLogoutTop").style.display = "inline-flex";
-  el("btnRefreshTop").style.display = "inline-flex";
-}
-
-function saveSession(){ sessionStorage.setItem(SS_KEY, JSON.stringify(state.session)); }
-function loadSession(){
-  const raw=sessionStorage.getItem(SS_KEY);
-  const s=raw? safeJsonParse(raw):null;
-  if(s?.operatorId && s?.operatorLabel && s?.pin){ state.session=s; return true; }
-  return false;
-}
-function clearSession(){ sessionStorage.removeItem(SS_KEY); state.session={operatorId:null, operatorLabel:null, pin:null}; }
-
-function renderProfilesSelect(list){
-  const sel = el("selOperator");
-  if(!sel) return;
-  if(!list.length){
-    sel.innerHTML = `<option value="">No hay perfiles</option>`;
+  if(!listEl) return;
+  if(ORDERS.length === 0){
+    listEl.innerHTML = `<div class="muted small">No hay pedidos con <b>Pagado + Listo + delivery Pendiente</b> en las últimas ${meta?.hours || 72}h.</div>`;
     return;
   }
-  sel.innerHTML = `<option value="">Seleccionar…</option>` + list.map(p=>`<option value="${escapeHtml(p.id)}">${escapeHtml(p.label)}</option>`).join("");
-}
 
-async function loadProfilesOnStart(){
-  const errEl = el("loginErr");
-  if(errEl) errEl.textContent = "Cargando perfiles…";
-  showLoading("Cargando…", "Preparando perfiles…");
-  try{
-    // payments (principal) -> pago (fallback)
-    let out = await apiTry({action:"profiles_public_list", category:"payments"});
-    if(out.ok!==true || !(out.profiles||out.items)){
-      out = await apiTry({action:"profiles_public_list", category:"pago"});
-    }
-    if(out.ok!==true){
-      throw new Error(out.error || "No se pudieron cargar perfiles.");
-    }
-    const arr = out.profiles || out.items || [];
-    const list = (Array.isArray(arr)?arr:[])
-      .filter(p=>p && (p.id||p.profile_id) && p.label && (p.is_active===undefined || String(p.is_active)!=="false"))
-      .map(p=>({id:String(p.id||p.profile_id), label:String(p.label)}));
+  const html = ORDERS.map(o=>{
+    const items = normalizeItemsFromAnyOrder(o);
+    const summary = itemsSummary(items) || (o.items || "");
+    const eta = Number(o.delivery_eta_minutes||0) || 0;
 
-    state.profiles = list;
-    renderProfilesSelect(list);
-    if(errEl) errEl.textContent = "";
-  }catch(e){
-    state.profiles = [];
-    renderProfilesSelect([]);
-    if(errEl) errEl.textContent = e?.message || String(e);
-  }finally{
-    hideLoading();
-  }
-}
-
-async function validatePin(pin){
-  const out = await apiTry({action:"validate_admin_pin", admin_pin: pin});
-  if(out.ok===true && out.valid===true) return true;
-  // compat: si no existe acción, deja pasar
-  if(String(out.error||"").toLowerCase().includes("unknown action")) return true;
-  throw new Error("PIN inválido o no autorizado.");
-}
-
-function filterOrders(){
-  const q = String(el("q")?.value || "").trim().toLowerCase();
-  if(!q){
-    state.filtered = state.orders.slice();
-    return;
-  }
-  state.filtered = state.orders.filter(o=>{
-    const id = String(o.order_id||"").toLowerCase();
-    const name = String(o.customer_name||"").toLowerCase();
-    return id.includes(q) || name.includes(q);
-  });
-}
-
-function render(){
-  filterOrders();
-  const list = el("list");
-  const status = el("status");
-  const meta = el("meta");
-  if(meta) meta.textContent = `${state.filtered.length} pedidos (Pagado + Listo + Pendiente). Actualizado: ${new Date().toLocaleString("es-CO")}`;
-  if(status) status.textContent = state.filtered.length ? "" : "No hay pedidos para enviar.";
-  if(!list) return;
-
-  list.innerHTML = "";
-  for(const o of state.filtered){
-    const items = itemsFromOrder(o);
-    const sum = summarizeItems(items);
-    const card = document.createElement("div");
-    card.className = "orderCard";
-    card.innerHTML = `
-      <div class="orderTop">
-        <div style="min-width:0;">
-          <div class="orderId">${escapeHtml(o.order_id || "")} <span class="badge ok">Pagado</span> <span class="badge ok">Listo</span></div>
-          <div class="metaLine">${escapeHtml(o.customer_name || "")} • ${escapeHtml(fmtDate(o.created_at || ""))}</div>
-          <div class="metaLine">Tel: ${escapeHtml(o.phone || "")}</div>
-          <div class="metaLine">Dirección: ${escapeHtml(o.address_text || "")}</div>
+    return `
+      <div class="orderCard">
+        <div class="orderHead">
+          <div>
+            <div class="orderId">${escapeHtml(o.order_id || "")}</div>
+            <div class="orderMeta">${escapeHtml(o.customer_name || "")} · ${escapeHtml(formatDate(o.created_at))}</div>
+          </div>
+          <div class="row" style="gap:10px; flex-wrap:wrap; justify-content:flex-end;">
+            <span class="pill">🧁 ${escapeHtml(String(o.total_units || items.reduce((s,it)=>s+it.qty,0) || 0))} u</span>
+            <span class="pill">💰 $${escapeHtml((Number(o.subtotal||0)||0).toLocaleString("es-CO"))}</span>
+          </div>
         </div>
-        <div class="badges">
-          <span class="badge warn">Pendiente</span>
+
+        <div class="orderBody">
+          <div class="kv">
+            <label>Ítems</label>
+            <div class="itemsBox">${escapeHtml(summary || "—")}</div>
+          </div>
+
+          <div class="grid2">
+            <div class="kv">
+              <label>Dirección</label>
+              <div class="v">${escapeHtml(o.address_text || "—")}</div>
+            </div>
+            <div class="kv">
+              <label>Teléfono</label>
+              <div class="v">${escapeHtml(o.phone || "—")}</div>
+            </div>
+          </div>
+
+          <div class="btnRow">
+            <button class="btn secondary btnSend" data-id="${escapeHtml(o.order_id)}">Enviar</button>
+          </div>
         </div>
-      </div>
-
-      <div class="itemsBox">
-        <div class="itemLine">Pedido: ${escapeHtml(sum.short)}</div>
-        ${o.notes ? `<div class="metaLine">Notas: ${escapeHtml(o.notes)}</div>` : ""}
-      </div>
-
-      <div class="actionsRow">
-        <button class="btn secondary" type="button" data-copy="${escapeHtml(o.order_id||"")}">Copiar mensaje</button>
-        <button class="btn" type="button" data-send="${escapeHtml(o.order_id||"")}">Enviar</button>
       </div>
     `;
-    list.appendChild(card);
+  }).join("");
 
-    card.querySelector("[data-send]")?.addEventListener("click", ()=> openSendModal(o));
-    card.querySelector("[data-copy]")?.addEventListener("click", async ()=>{
-      const msg = buildMessage(o);
-      await copyToClipboard(msg);
-      toastStatus("✅ Mensaje copiado.");
-    });
-  }
-}
-
-function toastStatus(msg){
-  const status = el("status");
-  if(status) status.textContent = msg || "";
-  if(msg){
-    setTimeout(()=>{ if(status && status.textContent===msg) status.textContent=""; }, 3200);
-  }
-}
-
-function openSendModal(order){
-  state.activeOrder = order;
-  const title = el("sendTitle");
-  const sub = el("sendSub");
-  const err = el("sendErr");
-  if(err) err.textContent = "";
-  if(title) title.textContent = "Enviar pedido";
-  if(sub) sub.textContent = `${order.order_id || ""} • ${order.customer_name || ""}`;
-  if(el("etaMin")) el("etaMin").value = "30";
-
-  // default template random-ish
-  if(el("tpl")){
-    el("tpl").value = TEMPLATES[Math.floor(Math.random()*TEMPLATES.length)].id;
-  }
-
-  updatePreview();
-  const ov = el("sendOverlay");
-  if(ov){ ov.style.display="flex"; ov.setAttribute("aria-hidden","false"); }
-}
-
-function closeSendModal(){
-  const ov = el("sendOverlay");
-  if(ov){ ov.style.display="none"; ov.setAttribute("aria-hidden","true"); }
-  state.activeOrder = null;
-}
-
-function buildMessage(order){
-  const name = getFirstName(order.customer_name);
-  const items = itemsFromOrder(order);
-  const sum = summarizeItems(items);
-  const minutes = Math.max(1, Number(el("etaMin")?.value || 30) || 30);
-  const mode = String(el("mode")?.value || "domicilio");
-  const tplId = String(el("tpl")?.value || TEMPLATES[0].id);
-  const tpl = TEMPLATES.find(t=>t.id===tplId) || TEMPLATES[0];
-  return tpl.build({ name, itemsShort: sum.short, minutes, mode });
-}
-
-function updatePreview(){
-  const prev = el("msgPreview");
-  if(!prev) return;
-  if(!state.activeOrder){ prev.textContent=""; return; }
-  const msg = buildMessage(state.activeOrder);
-  state.lastMessage = msg;
-  prev.textContent = msg;
-}
-
-async function copyToClipboard(text){
-  try{
-    await navigator.clipboard.writeText(String(text||""));
-    return true;
-  }catch{
-    // fallback
-    const ta = document.createElement("textarea");
-    ta.value = String(text||"");
-    ta.style.position="fixed";
-    ta.style.left="-9999px";
-    document.body.appendChild(ta);
-    ta.select();
-    try{ document.execCommand("copy"); }catch{}
-    document.body.removeChild(ta);
-    return true;
-  }
-}
-
-function openWhatsApp(phone, message){
-  const p = normalizePhone(phone);
-  if(!p) throw new Error("Teléfono no válido.");
-  const url = `https://wa.me/${encodeURIComponent(p)}?text=${encodeURIComponent(String(message||""))}`;
-  window.open(url, "_blank", "noopener");
-}
-
-async function markSentAndOpen(){
-  const order = state.activeOrder;
-  const err = el("sendErr");
-  if(err) err.textContent = "";
-  if(!order) return;
-
-  const minutes = Math.max(1, Number(el("etaMin")?.value || 30) || 30);
-  const mode = String(el("mode")?.value || "domicilio");
-  const msg = buildMessage(order);
-
-  showLoading("Guardando…", "Marcando pedido como En camino…");
-  try{
-    // 1) marcar en BD
-    const out = await apiTry({
-      action: "delivery_mark_sent",
-      admin_pin: state.session.pin,
-      operator: state.session.operatorLabel || state.session.operatorId || "DELIVERY",
-      order_id: order.order_id,
-      eta_minutes: minutes,
-      delivery_mode: mode,
-      delivery_status: "En camino",
-      message_variant: String(el("tpl")?.value || "")
-    });
-
-    if(out.ok !== true){
-      // Si aún no instalas el patch de Webhook/Worker, te lo dirá
-      throw new Error(out.error || "No se pudo marcar el envío. (¿Habilitaste delivery_mark_sent?)");
-    }
-
-    // 2) copiar + abrir WA
-    await copyToClipboard(msg);
-    openWhatsApp(order.phone, msg);
-
-    // 3) quitar de la lista local
-    state.orders = state.orders.filter(x => String(x.order_id) !== String(order.order_id));
-    render();
-    closeSendModal();
-    toastStatus("✅ Pedido marcado y WhatsApp abierto.");
-  } catch(e){
-    if(err) err.textContent = "❌ " + (e?.message || String(e));
-  } finally {
-    hideLoading();
-  }
-}
-
-function isPendingDelivery(order){
-  const ps = String(order.payment_status || "").trim().toLowerCase();
-  const ks = String(order.kitchen_status || "").trim().toLowerCase();
-  const ds = String(order.delivery_status || "").trim().toLowerCase();
-  const pending = (!ds || ds === "pendiente");
-  return ps === "pagado" && ks === "listo" && pending;
+  listEl.innerHTML = html;
 }
 
 async function loadOrders(){
-  showLoading("Cargando…", "Buscando pedidos listos para enviar…");
+  setStatus("");
+  showLoading("Cargando pedidos…","Buscando Pagado + Listo + delivery Pendiente…");
   try{
-    // Preferido: endpoint dedicado
-    let out = await apiTry({ action: "delivery_list", admin_pin: state.session.pin });
+    // 1) try server-side delivery_list (fast)
+    let out = await api({ action:"delivery_list", admin_pin: SESSION.pin, hours: 72 });
+    let orders = out.orders || [];
+    let meta = out.meta || { hours:72 };
 
-    // fallback: list_orders pagados + filtro en frontend
-    if(out.ok !== true && String(out.error||"").toLowerCase().includes("unknown action")){
-      out = await apiTry({ action: "list_orders", admin_pin: state.session.pin, payment_status: "Pagado" });
+    // 2) fallback: list_orders(Pagado) + client filter (more tolerant)
+    if(orders.length === 0){
+      const out2 = await api({ action:"list_orders", admin_pin: SESSION.pin, payment_status:"Pagado" });
+      const all = out2.orders || [];
+      const filtered = all.filter(o=>{
+        const kit = normStatus(o.kitchen_status);
+        const del = normStatus(o.delivery_status || "pendiente");
+        const pay = normStatus(o.payment_status);
+        return pay === "pagado" && kit === "listo" && (del === "pendiente" || del === "");
+      }).map(o=>({
+        order_id: o.order_id,
+        customer_name: o.customer_name,
+        phone: o.phone,
+        address_text: o.address_text,
+        items: o.items,
+        items_json: o.items_json,
+        total_units: Number(o.total_units||0)||0,
+        subtotal: Number(o.subtotal||0)||0,
+        created_at: o.created_at,
+        delivery_status: (o.delivery_status || "Pendiente"),
+        delivery_eta_minutes: Number(o.delivery_eta_minutes||0)||0,
+        delivery_sent_at: o.delivery_sent_at || ""
+      }));
+      orders = filtered;
+      meta = { hours: "—", note: "fallback=list_orders" };
     }
-    if(out.ok !== true) throw new Error(out.error || "No se pudieron cargar pedidos.");
 
-    const orders = Array.isArray(out.orders) ? out.orders : [];
-    state.orders = orders.filter(isPendingDelivery)
-      .sort((a,b)=>(Date.parse(a.created_at||"")||0)-(Date.parse(b.created_at||"")||0));
-
-    render();
-  } finally {
+    renderOrders(orders, meta);
+  }catch(e){
+    console.error("loadOrders error:", e);
+    setStatus(e?.message || "Error cargando pedidos.");
+    if(listEl) listEl.innerHTML = "";
+  }finally{
     hideLoading();
   }
 }
 
-// ===== Events =====
-el("btnLogin")?.addEventListener("click", async ()=>{
-  const errEl = el("loginErr");
-  if(errEl) errEl.textContent = "";
-  const pin = String(el("inpPin")?.value || "").trim();
-  const operatorId = String(el("selOperator")?.value || "").trim();
-  const operatorLabel = state.profiles.find(p=>p.id===operatorId)?.label || "";
+// ---- Send flow ----
+const TEMPLATES = [
+  {
+    id:"t1",
+    label:"Cercano (✨🚗)",
+    build: ({name, items, units, eta}) =>
+      `Hola ${name} 👋✨\nTu pedido (${items}) ya va en camino 🚗💨\nLlega aprox. en ${eta} min ⏱️\n¡Gracias por elegir AMARED! 😋🍰`
+  },
+  {
+    id:"t2",
+    label:"Corto (😊🧁)",
+    build: ({name, units, eta}) =>
+      `¡Hola ${name}! 😊\nYa salió tu pedido 🧁🚚 (son ${units} postres).\nTiempo estimado: ${eta} min ⏱️\n¡Que lo disfrutes mucho! 💖`
+  },
+  {
+    id:"t3",
+    label:"Con energía (🚀💛)",
+    build: ({name, eta}) =>
+      `Hola ${name} 🙌\nTu pedido está listo y va en ruta 🚀\nEstimado: ${eta} min ⏱️\n¡Disfrútalo! 💛`
+  },
+];
 
-  if(!operatorId){ if(errEl) errEl.textContent = "Selecciona un perfil."; return; }
-  if(pin.length < 4){ if(errEl) errEl.textContent = "Escribe el PIN."; return; }
+function openSendModal(order){
+  SEND_ORDER = order;
+  sendErr.textContent = "";
+  if(!sendBack) return;
 
-  showLoading("Validando…", "Verificando acceso…");
+  const items = normalizeItemsFromAnyOrder(order);
+  const summary = itemsSummary(items) || (order.items || "");
+  const units = Number(order.total_units||0) || items.reduce((s,it)=>s+it.qty,0) || 0;
+
+  sendSubtitle.textContent = `${order.order_id} · ${order.customer_name || ""}`;
+  inpEta.value = "25";
+
+  selTemplate.innerHTML = TEMPLATES.map(t=>`<option value="${t.id}">${t.label}</option>`).join("");
+  selTemplate.value = "t1";
+
+  const msg = buildMessage(order, 25, "t1");
+  txtMsg.value = msg;
+
+  sendBack.style.display = "flex";
+  sendBack.setAttribute("aria-hidden","false");
+}
+
+function closeSendModal(){
+  SEND_ORDER = null;
+  if(!sendBack) return;
+  sendBack.style.display = "none";
+  sendBack.setAttribute("aria-hidden","true");
+}
+
+function buildMessage(order, etaMinutes, templateId){
+  const itemsArr = normalizeItemsFromAnyOrder(order);
+  const itemsTxt = itemsSummary(itemsArr) || (order.items || "tu pedido");
+  const units = Number(order.total_units||0) || itemsArr.reduce((s,it)=>s+it.qty,0) || 0;
+
+  const name = firstName(order.customer_name);
+  const eta = Math.max(1, Math.round(Number(etaMinutes||0) || 0));
+
+  const t = TEMPLATES.find(x=>x.id===templateId) || TEMPLATES[0];
+  return t.build({ name, items: itemsTxt, units, eta });
+}
+
+function normalizePhoneToWa(phone){
+  const digits = String(phone||"").replace(/\D+/g,"");
+  if(!digits) return "";
+  // If already includes country code (>=11 digits), keep.
+  if(digits.length >= 11) return digits;
+  // Colombia default (10 digits)
+  if(digits.length === 10) return "57" + digits;
+  return digits;
+}
+
+async function markSentAndOpenWhatsApp(){
+  sendErr.textContent = "";
+  if(!SEND_ORDER) return;
+
+  const eta = Number(inpEta.value || 0) || 0;
+  if(!(eta > 0)){
+    sendErr.textContent = "Ingresa los minutos (mayor a 0).";
+    return;
+  }
+  const tpl = String(selTemplate.value || "t1");
+  const msg = buildMessage(SEND_ORDER, eta, tpl);
+  txtMsg.value = msg;
+
+  showLoading("Actualizando…","Marcando pedido como En camino…");
   try{
-    await validatePin(pin);
-    state.session = { operatorId, operatorLabel, pin };
-    saveSession();
-    showApp();
+    await api({
+      action:"delivery_mark_sent",
+      admin_pin: SESSION.pin,
+      order_id: SEND_ORDER.order_id,
+      eta_minutes: Math.round(eta),
+      sent_by: SESSION?.operator?.label || "DELIVERY",
+      delivery_status: "En camino"
+    });
+
+    // open WhatsApp
+    const wa = normalizePhoneToWa(SEND_ORDER.phone);
+    if(!wa){
+      sendErr.textContent = "El pedido no tiene teléfono. Copia el mensaje y envíalo manualmente.";
+      return;
+    }
+    const waUrl = `https://wa.me/${wa}?text=${encodeURIComponent(msg)}`;
+    window.open(waUrl, "_blank");
+
+    closeSendModal();
     await loadOrders();
   }catch(e){
-    clearSession();
-    showLogin();
-    if(errEl) errEl.textContent = e?.message || String(e);
+    sendErr.textContent = e?.message || "Error actualizando.";
   }finally{
     hideLoading();
   }
+}
+
+async function copyMsg(){
+  try{
+    await navigator.clipboard.writeText(txtMsg.value || "");
+  }catch{
+    // fallback
+    const ta = document.createElement("textarea");
+    ta.value = txtMsg.value || "";
+    document.body.appendChild(ta);
+    ta.select();
+    document.execCommand("copy");
+    document.body.removeChild(ta);
+  }
+}
+
+// ---- Events ----
+btnLogin?.addEventListener("click", doLogin);
+btnRefresh?.addEventListener("click", loadOrders);
+btnLogout?.addEventListener("click", logout);
+btnRefreshTop?.addEventListener("click", loadOrders);
+btnLogoutTop?.addEventListener("click", logout);
+
+listEl?.addEventListener("click", (ev)=>{
+  const btn = ev.target?.closest?.(".btnSend");
+  if(!btn) return;
+  const id = String(btn.getAttribute("data-id")||"").trim();
+  const o = ORDERS.find(x => String(x.order_id) === id);
+  if(o) openSendModal(o);
 });
 
-el("btnLogoutTop")?.addEventListener("click", ()=>{
-  clearSession();
-  showLogin();
-  loadProfilesOnStart();
+btnSendClose?.addEventListener("click", closeSendModal);
+sendBack?.addEventListener("click", (ev)=>{ if(ev.target === sendBack) closeSendModal(); });
+
+inpEta?.addEventListener("input", ()=>{
+  if(!SEND_ORDER) return;
+  const eta = Number(inpEta.value||0) || 0;
+  txtMsg.value = buildMessage(SEND_ORDER, eta, selTemplate.value);
+});
+selTemplate?.addEventListener("change", ()=>{
+  if(!SEND_ORDER) return;
+  const eta = Number(inpEta.value||0) || 0;
+  txtMsg.value = buildMessage(SEND_ORDER, eta, selTemplate.value);
 });
 
-el("btnRefreshTop")?.addEventListener("click", ()=> loadOrders());
+btnCopy?.addEventListener("click", copyMsg);
+btnSendWhatsApp?.addEventListener("click", markSentAndOpenWhatsApp);
 
-el("q")?.addEventListener("input", ()=> render());
-
-el("btnCloseSend")?.addEventListener("click", closeSendModal);
-el("sendOverlay")?.addEventListener("click", (e)=>{ if(e.target === el("sendOverlay")) closeSendModal(); });
-
-el("etaMin")?.addEventListener("input", updatePreview);
-el("mode")?.addEventListener("change", updatePreview);
-el("tpl")?.addEventListener("change", updatePreview);
-
-el("btnCopy")?.addEventListener("click", async ()=>{
-  await copyToClipboard(state.lastMessage || "");
-  toastStatus("✅ Copiado.");
-});
-el("btnOpenWa")?.addEventListener("click", ()=>{
-  if(!state.activeOrder) return;
-  openWhatsApp(state.activeOrder.phone, state.lastMessage || buildMessage(state.activeOrder));
-});
-el("btnConfirmSend")?.addEventListener("click", markSentAndOpen);
-
-// ===== Init =====
-(async function init(){
-  fillTemplates();
-  showLogin();
-  await loadProfilesOnStart();
-
-  // auto-login
-  if(loadSession()){
-    el("inpPin").value = state.session.pin || "";
-    el("selOperator").value = state.session.operatorId || "";
-    // if profiles aren't loaded yet, wait a tick
-    showApp();
-    await loadOrders();
+// ---- Init ----
+(function init(){
+  try{
+    const raw = sessionStorage.getItem(SS_KEY);
+    const s = raw ? JSON.parse(raw) : null;
+    if(s?.pin && s?.operator){
+      SESSION = s;
+      showPanel();
+      loadOrders();
+    }else{
+      showLogin();
+      loadProfilesOnStart();
+    }
+  }catch{
+    showLogin();
+    loadProfilesOnStart();
   }
 })();
