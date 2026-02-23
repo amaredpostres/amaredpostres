@@ -1,0 +1,147 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>AMARED · Envíos</title>
+  <link rel="icon" href="assets/favicon.ico" type="image/x-icon">
+  <link rel="stylesheet" href="styles.css" />
+  <link rel="stylesheet" href="delivery.css" />
+</head>
+<body>
+
+<header class="topbar">
+  <div class="topbarInner" style="justify-content:space-between;">
+    <div class="brandRow" style="display:flex;align-items:center;gap:10px;">
+      <img class="brandLogo2" src="assets/Logo-Isotipo-Amared.svg" alt="AMARED" style="width:44px;height:44px;object-fit:contain;" />
+      <div>
+        <div class="ttl" style="font-weight:950;line-height:1;">AMARED</div>
+        <div class="sub" style="opacity:.7;font-weight:850;font-size:12px;">Envíos · Salida de pedidos</div>
+      </div>
+    </div>
+
+    <div class="header-actions" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+      <button id="btnLogoutTop" class="btn secondary" type="button" style="display:none;">Cerrar sesión</button>
+      <button id="btnRefreshTop" class="btn secondary" type="button" style="display:none;">Recargar</button>
+    </div>
+  </div>
+</header>
+
+<main class="container">
+  <!-- LOGIN -->
+  <section id="loginBox" class="card" style="max-width:720px;margin:16px auto;">
+    <div class="hero" style="padding:0 0 8px;">
+      <h1 class="heroTitle" style="margin-top:6px;">Acceso Envíos</h1>
+      <p class="heroSubtitle">Selecciona un perfil (categoría pagos) e ingresa el PIN.</p>
+    </div>
+
+    <div class="field" style="margin-top:10px;">
+      <label class="muted small">Perfil</label>
+      <select id="selOperator" class="input" style="width:100%;">
+        <option value="">Cargando perfiles…</option>
+      </select>
+    </div>
+
+    <div class="field" style="margin-top:10px;">
+      <label class="muted small">PIN</label>
+      <input id="inpPin" class="input" type="password" placeholder="••••" />
+    </div>
+
+    <div class="loginActions" style="display:flex;gap:10px;width:100%;margin-top:12px;">
+      <button id="btnLogin" class="btn" type="button">Ingresar</button>
+      <a class="btn secondary btnLinkLike" href="profiles.html" target="_blank" rel="noopener">Gestionar perfiles</a>
+    </div>
+
+    <div id="loginErr" class="muted small" style="margin-top:10px;color:rgba(180,20,20,.9);font-weight:900;"></div>
+  </section>
+
+  <!-- APP -->
+  <section id="app" style="display:none;">
+    <section class="card">
+      <div class="rowBetween" style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap;">
+        <div>
+          <div style="font-weight:950;font-size:18px;">Pedidos listos para enviar</div>
+          <div id="meta" class="muted small" style="margin-top:4px;">—</div>
+        </div>
+        <div class="row" style="display:flex;gap:10px;flex-wrap:wrap;">
+          <input id="q" class="input" placeholder="Buscar (nombre / id)..." style="min-width:240px;" />
+        </div>
+      </div>
+      <div id="status" class="muted small" style="margin-top:10px;"></div>
+    </section>
+
+    <section class="card" style="margin-top:14px;">
+      <div id="list" class="deliverList"></div>
+    </section>
+  </section>
+</main>
+
+<!-- MODAL: Enviar -->
+<div id="sendOverlay" class="amOverlay" style="display:none;" aria-hidden="true">
+  <div class="amModal">
+    <div class="amModalHead">
+      <div>
+        <div id="sendTitle" class="amModalTitle">Enviar pedido</div>
+        <div id="sendSub" class="muted small">—</div>
+      </div>
+      <button id="btnCloseSend" class="btn secondary" type="button">Cerrar</button>
+    </div>
+
+    <div class="grid2">
+      <div class="card" style="box-shadow:none;border-radius:18px;">
+        <div class="field">
+          <label class="muted small">Tiempo estimado</label>
+          <div style="display:flex;gap:10px;align-items:center;">
+            <input id="etaMin" class="input" type="number" min="1" step="1" value="30" style="max-width:140px;text-align:right;" />
+            <div class="pill">min</div>
+          </div>
+        </div>
+
+        <div class="field" style="margin-top:10px;">
+          <label class="muted small">Tipo</label>
+          <select id="mode" class="input" style="width:100%;">
+            <option value="domicilio">Domicilio (en camino)</option>
+            <option value="recoger">Recoger en punto</option>
+          </select>
+        </div>
+
+        <div class="field" style="margin-top:10px;">
+          <label class="muted small">Plantilla</label>
+          <select id="tpl" class="input" style="width:100%;"></select>
+        </div>
+
+        <div class="muted small" style="margin-top:10px;">
+          Al confirmar, se marca el pedido como <b>En camino</b> y se abre WhatsApp con el mensaje listo ✅
+        </div>
+      </div>
+
+      <div class="card" style="box-shadow:none;border-radius:18px;">
+        <div class="muted small" style="font-weight:900;">Vista previa</div>
+        <div id="msgPreview" class="msgPreview"></div>
+
+        <div class="row" style="display:flex;gap:10px;flex-wrap:wrap;justify-content:flex-end;margin-top:12px;">
+          <button id="btnCopy" class="btn secondary" type="button">Copiar</button>
+          <button id="btnOpenWa" class="btn secondary" type="button">Abrir WhatsApp</button>
+          <button id="btnConfirmSend" class="btn" type="button">Confirmar envío</button>
+        </div>
+
+        <div id="sendErr" class="muted small" style="margin-top:10px;color:rgba(180,20,20,.9);font-weight:900;"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Loading -->
+<div id="loading" class="amLoading" style="display:none;" aria-hidden="true">
+  <div class="amLoadingCard">
+    <div class="spin"></div>
+    <div style="min-width:0;">
+      <div id="lt" class="amLoadingTitle">Cargando…</div>
+      <div id="ld" class="amLoadingDesc">Por favor espera.</div>
+    </div>
+  </div>
+</div>
+
+<script src="delivery.js?v=20260222-01"></script>
+</body>
+</html>
