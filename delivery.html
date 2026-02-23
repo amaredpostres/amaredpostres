@@ -64,6 +64,7 @@
         </div>
         <div class="row" style="justify-content:flex-end;">
           <button id="btnRefresh" class="btn secondary" type="button">Recargar</button>
+          <button id="btnHistory" class="btn secondary" type="button">Historial</button>
           <button id="btnLogout" class="btn secondary" type="button">Salir</button>
         </div>
       </div>
@@ -104,8 +105,9 @@
       </div>
 
       <div class="row" style="justify-content:flex-end; margin-top:12px;">
-        <button id="btnCopy" class="btn secondary" type="button">Copiar</button>
-        <button id="btnAskWhatsApp" class="btn primary" type="button">Abrir WhatsApp</button>
+          <button id="btnCopy" class="btn secondary" type="button">Copiar</button>
+          <button id="btnMarkSent" class="btn secondary" type="button">Marcar Enviado</button>
+          <button id="btnAskWhatsApp" class="btn primary" type="button">Abrir WhatsApp</button>
       </div>
 
       <div id="sendErr" class="status" style="color:#b00020; margin-top:10px;"></div>
@@ -115,10 +117,8 @@
   <!-- CONFIRM WHATSAPP -->
   <div id="confirmBack" class="amOverlay" aria-hidden="true" style="display:none;">
     <div class="amModal" role="dialog" aria-modal="true" style="max-width:560px;">
-      <div class="amModalTitle">¿Abrir WhatsApp?</div>
-      <div class="muted" style="margin-top:6px;">
-        Se marcará el pedido como <b>En camino</b> y se abrirá WhatsApp con el mensaje listo.
-      </div>
+      <div class="amModalTitle" id="confirmTitle">¿Abrir WhatsApp?</div>
+      <div class="muted" id="confirmDesc" style="margin-top:6px;">Se marcará el pedido como <b>Enviado</b> y se abrirá WhatsApp con el mensaje listo.</div>
 
       <div class="pillRow" style="margin-top:12px;">
         <span class="pill" id="confirmTimer">Espera 2s…</span>
@@ -131,6 +131,26 @@
       </div>
 
       <div id="confirmErr" class="status" style="color:#b00020; margin-top:10px;"></div>
+    </div>
+  </div>
+
+
+  <!-- HISTORIAL (ENVIADOS) -->
+  <div id="histBack" class="amOverlay" aria-hidden="true" style="display:none;">
+    <div class="amModal" role="dialog" aria-modal="true" style="max-width:980px;">
+      <div class="rowBetween" style="align-items:flex-start;">
+        <div>
+          <div class="amModalTitle">Historial de enviados</div>
+          <div class="muted small" id="histMetaLine" style="margin-top:4px;">—</div>
+        </div>
+        <div class="row" style="justify-content:flex-end;">
+          <button id="btnHistReload" class="btn secondary" type="button">Recargar</button>
+          <button id="btnHistClose" class="btn secondary" type="button">Cerrar</button>
+        </div>
+      </div>
+
+      <div id="histStatus" class="muted small" style="margin-top:10px;"></div>
+      <div id="histList" class="deliveryList" style="margin-top:12px;"></div>
     </div>
   </div>
 
