@@ -10,6 +10,8 @@ let SESSION = { operator: null, pin: null };
 let ORDERS = [];
 let HIST = [];
 let SEND_ORDER = null;
+let SEND_CONTEXT = "pending"; // "pending" | "history"
+
 
 const loginView = document.getElementById("loginView");
 const panelView = document.getElementById("panelView");
@@ -68,6 +70,8 @@ let CONFIRM_MODE = "wa"; // "wa" | "manual"
 
 function showLoading(t="Cargando…", m="Por favor espera."){
   if(!loading) return;
+  // ✅ Siempre encima de confirm / modales
+  loading.style.zIndex = "20000";
   if(loadingTitle) loadingTitle.textContent = t;
   if(loadingMsg) loadingMsg.textContent = m;
   loading.style.display = "flex";
@@ -487,8 +491,9 @@ const TEMPLATES = [
   },
 ];
 
-function openSendModal(order){
+function openSendModal(order, opts={}){
   SEND_ORDER = order;
+  SEND_CONTEXT = opts?.fromHistory ? "history" : "pending";
   sendErr.textContent = "";
   if(!sendBack) return;
 
@@ -501,21 +506,34 @@ function openSendModal(order){
   txtMsg.value = buildMessage(order, 25, "t1");
 
   const canWa = isOptIn(order.wa_opt_in);
-if(btnAskWhatsApp){
-  btnAskWhatsApp.disabled = !canWa;
-  btnAskWhatsApp.style.opacity = canWa ? "" : "0.55";
-  btnAskWhatsApp.title = canWa ? "Abrir WhatsApp" : "El cliente no autorizó WhatsApp";
-}
-if(btnMarkSent){
-  btnMarkSent.disabled = false;
-  btnMarkSent.style.opacity = "";
-  btnMarkSent.title = "Marcar Enviado";
-}
-if(!canWa){
-  sendErr.textContent = "Este cliente NO autorizó recibir mensajes por WhatsApp. Puedes copiar el mensaje y luego usar “Marcar Enviado”.";
-}
+  const isHist = (SEND_CONTEXT === "history");
 
-  sendBack.style.display = "flex";
+  // ✅ En HISTORIAL: ocultar "Marcar Enviado"
+  if(btnMarkSent){
+    btnMarkSent.style.display = isHist ? "none" : "";
+    btnMarkSent.disabled = false;
+    btnMarkSent.style.opacity = "";
+    btnMarkSent.title = "Marcar Enviado";
+  }
+
+  if(btnAskWhatsApp){
+    if(isHist){
+      // Historial: abrir chat sin mensaje (no depende de opt-in)
+      btnAskWhatsApp.disabled = false;
+      btnAskWhatsApp.style.opacity = "";
+      btnAskWhatsApp.title = "Abrir chat (sin mensaje)";
+    }else{
+      // Pendientes: solo si autorizó WhatsApp
+      btnAskWhatsApp.disabled = !canWa;
+      btnAskWhatsApp.style.opacity = canWa ? "" : "0.55";
+      btnAskWhatsApp.title = canWa ? "Abrir WhatsApp" : "El cliente no autorizó WhatsApp";
+    }
+  }
+
+  if(!isHist && !canWa){
+    sendErr.textContent = "Este cliente NO autorizó recibir mensajes por WhatsApp. Puedes copiar el mensaje y luego usar “Marcar Enviado”.";
+  }
+sendBack.style.display = "flex";
   sendBack.setAttribute("aria-hidden","false");
 }
 
@@ -567,26 +585,28 @@ function openWhatsAppUrl(url){
   }
 }
 
-
-function openWhatsAppUrl(waUrl){
-  const ua = navigator.userAgent || "";
-  const isMobile = /Android|iPhone|iPad|iPod|Mobi/i.test(ua);
-  if(isMobile){
-    openWhatsAppUrl(waUrl);
-  }else{
-    openWhatsAppUrl(waUrl);
+function buildWhatsAppChatOnlyUrl(phoneDigits){
+  // Sin texto (solo abrir chat)
+  if(!isMobileUA()){
+    return `https://web.whatsapp.com/send?phone=${phoneDigits}&type=phone_number&app_absent=0`;
   }
+  return `https://wa.me/${phoneDigits}`;
 }
+
+
+
 
 // --- Confirm (2s delay) ---
 function openConfirm(orderId, mode){
-  CONFIRM_MODE = (mode === "manual") ? "manual" : "wa";
+  CONFIRM_MODE = (mode === "manual") ? "manual" : (mode === "chat" ? "chat" : "wa");
 
-  if(confirmTitle) confirmTitle.textContent = (CONFIRM_MODE === "manual") ? "¿Marcar como enviado?" : "¿Abrir WhatsApp?";
+  if(confirmTitle) confirmTitle.textContent = (CONFIRM_MODE === "manual") ? "¿Marcar como enviado?" : (CONFIRM_MODE === "chat" ? "¿Abrir chat de WhatsApp?" : "¿Abrir WhatsApp?");
   if(confirmDesc){
     confirmDesc.innerHTML = (CONFIRM_MODE === "manual")
       ? "Se marcará el pedido como <b>Enviado</b> (para trazabilidad), sin abrir WhatsApp."
-      : "Se marcará el pedido como <b>Enviado</b> y se abrirá WhatsApp con el mensaje listo.";
+      : (CONFIRM_MODE === "chat")
+        ? "Se abrirá el chat de WhatsApp <b>sin mensaje</b> (solo para verificar)."
+        : "Se marcará el pedido como <b>Enviado</b> y se abrirá WhatsApp con el mensaje listo.";
   }
 
   confirmErr.textContent = "";
@@ -650,6 +670,23 @@ async function markSentOnly(){
   }
 }
 
+
+async function openChatOnly(){
+  confirmErr.textContent = "";
+  if(!SEND_ORDER) return;
+
+  const wa = normalizePhoneToWa(SEND_ORDER.phone);
+  if(!wa){
+    confirmErr.textContent = "El pedido no tiene teléfono.";
+    return;
+  }
+
+  const url = buildWhatsAppChatOnlyUrl(wa);
+  closeConfirm();
+  // NO cerramos el modal: así puedes copiar el mensaje si hace falta
+  openWhatsAppUrl(url);
+}
+
 async function markSentAndOpenWhatsApp(){
   confirmErr.textContent = "";
   if(!SEND_ORDER) return;
@@ -700,6 +737,7 @@ async function markSentAndOpenWhatsApp(){
 
 async function doConfirmAction(){
   if(CONFIRM_MODE === "manual") return markSentOnly();
+  if(CONFIRM_MODE === "chat") return openChatOnly();
   return markSentAndOpenWhatsApp();
 }
 
@@ -732,7 +770,7 @@ listEl?.addEventListener("click", (ev)=>{
   const o = ORDERS.find(x => String(x.order_id) === id);
   if(!o) return;
 
-  openSendModal(o);
+  openSendModal(o, { fromHistory:true });
 });
 
 histList?.addEventListener("click", (ev)=>{
@@ -764,6 +802,12 @@ btnCopy?.addEventListener("click", copyMsg);
 
 btnAskWhatsApp?.addEventListener("click", ()=>{
   if(!SEND_ORDER) return;
+
+  if(SEND_CONTEXT === "history"){
+    openConfirm(SEND_ORDER.order_id, "chat");
+    return;
+  }
+
   if(!isOptIn(SEND_ORDER.wa_opt_in)){
     sendErr.textContent = "Este cliente no autorizó recibir mensajes por WhatsApp. Usa “Marcar Enviado”.";
     return;
