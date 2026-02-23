@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>AMARED Postres</title>
   <link rel="icon" href="assets/favicon.ico" type="image/x-icon">
-  <link rel="stylesheet" href="styles.css" />
+  <link rel="stylesheet" href="styles.css?v=20260223-01" />
 </head>
 <body>
   <div class="page">
@@ -139,14 +139,33 @@
           <div class="muted small">Domicilio: lo cubre el cliente. (Se debe confirmar mediante WhatsApp)</div>
         </div>
 
-        <div class="miniCard">
-          <div class="miniTitle">Mensaje listo para WhatsApp</div>
-          <textarea id="modalMessage" class="textarea" rows="7" readonly></textarea>
-          <div class="muted small">Si WhatsApp no abre, copia el mensaje y pégalo manualmente.</div>
+        
+        <!-- ✅ AYUDA (solo aparece si hubo error al abrir WhatsApp) -->
+        <div id="fallbackWrap" class="miniCard hidden">
+          <details id="fallbackDetails" class="helpDetails">
+            <summary>¿No abrió WhatsApp o tuviste algún tipo de error?</summary>
+
+            <div class="muted small" style="margin-top:10px;">
+              Copia el mensaje y pégalo en WhatsApp para confirmar tu pedido.
+              <br><b>Número:</b> <span id="waNumberText"></span>
+            </div>
+
+            <div class="row" style="gap:10px; margin-top:10px; flex-wrap:wrap;">
+              <button id="btnOpenChat" class="btn secondary" type="button">Abrir chat</button>
+              </div>
+
+            <textarea id="modalMessage" class="textarea" rows="7" readonly style="margin-top:10px;"></textarea>
+
+            <div class="muted small" style="margin-top:8px;">
+              El mensaje copiado incluye una nota indicando que WhatsApp no se abrió automáticamente.
+            </div>
+          </details>
         </div>
+
       </div>
 
       <div class="modalFooter">
+        <div id="modalStatus" class="muted small" style="flex:1; align-self:center; display:none;"></div>
         <button id="btnCopyMessage" class="btn secondary" type="button">Copiar mensaje</button>
         <button id="btnSendWhatsApp" class="btn primary" type="button">Registrar pedido y abrir WhatsApp</button>
       </div>
@@ -164,6 +183,6 @@
     </div>
   </div>
 
-  <script src="app.js"></script>
+  <script src="app.js?v=20260223-01"></script>
 </body>
 </html>
