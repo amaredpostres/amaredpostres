@@ -461,17 +461,28 @@ modal?.addEventListener("click", (e) => {
 
 btnOpenChat?.addEventListener("click", () => {
   const url = buildWhatsAppChatOnlyUrl();
-  // En PC: abre en otra pestaña; en móvil: abre app
   if(isMobileUA()) window.location.assign(url);
   else window.open(url, "_blank", "noopener,noreferrer");
 });
+
 btnCopyMessage?.addEventListener("click", async () => {
-  if (!pending) return;
-  const ok = await copyToClipboard(pending.message);
-  elStatus.textContent = ok
-    ? "✅ Mensaje copiado. Si WhatsApp no abre, pégalo manualmente."
-    : "❌ No se pudo copiar. Selecciona el texto y cópialo manualmente.";
+  try{
+    const txt = (elModalMessage && elModalMessage.value) ? elModalMessage.value : (pending?.messageFallback || "");
+    if(!txt) return;
+    await navigator.clipboard.writeText(txt);
+    showAlert("Mensaje copiado ✅\n\nPégalo en WhatsApp y envíalo para confirmar tu pedido.");
+  }catch(_e){
+    try{
+      if(elModalMessage){
+        elModalMessage.focus();
+        elModalMessage.select();
+        document.execCommand("copy");
+        showAlert("Mensaje copiado ✅\n\nPégalo en WhatsApp y envíalo para confirmar tu pedido.");
+      }
+    }catch(_e2){}
+  }
 });
+
 
 btnSendWhatsApp?.addEventListener("click", async () => {
   if (!pending) return;
@@ -558,6 +569,7 @@ btnWhatsApp?.addEventListener("click", () => {
 
     pending = { orderId, data, messageNormal, messageFallback };
     initHelpUI();
+    enableHelpMessage(messageFallback, false);
     fillModal(data, orderId);
     showModal();
   } catch (e) {
@@ -594,9 +606,7 @@ function hideLoading(){
 function initHelpUI(){
   try{
     if(waNumberText) waNumberText.textContent = "+57 302 847 3086";
-    if(btnCopyMessage) btnCopyMessage.disabled = true;
     if(elModalMessage){
-      elModalMessage.value = "";
       elModalMessage.style.display = "none";
     }
     if(fallbackDetails) fallbackDetails.open = false;
@@ -604,11 +614,16 @@ function initHelpUI(){
 }
 function enableHelpMessage(text, autoOpen=false){
   try{
-    if(btnCopyMessage) btnCopyMessage.disabled = !text;
     if(elModalMessage){
       elModalMessage.value = text || "";
-      elModalMessage.style.display = text ? "block" : "none";
+      elModalMessage.style.display = (fallbackDetails && fallbackDetails.open) ? "block" : "none";
     }
     if(autoOpen && fallbackDetails) fallbackDetails.open = true;
   }catch(_e){}
 }
+
+
+fallbackDetails?.addEventListener("toggle", () => {
+  if(!elModalMessage) return;
+  elModalMessage.style.display = fallbackDetails.open ? "block" : "none";
+});
