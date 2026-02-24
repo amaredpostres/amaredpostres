@@ -669,3 +669,12 @@ body{
 
 /* ✅ Modal scroll */
 .modal{ max-height: calc(100vh - 40px); overflow: auto; }
+
+/* ✅ Alert help section */
+.alertHelpWrap{
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+.alertHelpWrap textarea{ width: 100%; }
+.alertText{ white-space: pre-line; }
