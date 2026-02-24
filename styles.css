@@ -735,3 +735,94 @@ body{
 .loadingCard{
   border-width: 2px;
 }
+
+
+/* ✅ Opiniones */
+.reviewsTop{
+  display:flex;
+  align-items:center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.reviewsSummary{
+  margin-top: 10px;
+  display:grid;
+  gap: 10px;
+}
+.reviewsAvg{
+  display:flex;
+  align-items:center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.avgNum{
+  font-size: 26px;
+  font-weight: 950;
+  color: rgba(64,17,2,.88);
+}
+.avgStars{
+  display:flex;
+  gap: 4px;
+  font-size: 18px;
+  line-height: 1;
+  color: rgba(242,91,143,.95);
+}
+.reviewsHint{
+  background: rgba(255,255,255,.55);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 10px 12px;
+}
+.reviewsList{
+  margin-top: 12px;
+  display:grid;
+  gap: 10px;
+}
+.reviewCard{
+  background: rgba(255,255,255,.72);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 12px 12px;
+}
+.reviewCardTop{
+  display:flex;
+  align-items:center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.reviewName{
+  font-weight: 950;
+}
+.reviewStars{
+  display:flex;
+  gap: 3px;
+  color: rgba(242,91,143,.95);
+}
+.reviewMeta{
+  margin-top: 6px;
+  opacity: .85;
+}
+.reviewText{
+  margin-top: 8px;
+  white-space: pre-line;
+}
+
+/* ✅ Estrellas selector */
+.starRow{
+  display:flex;
+  gap: 8px;
+}
+.starBtn{
+  width: 42px;
+  height: 42px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: rgba(255,255,255,.75);
+  font-size: 20px;
+  line-height: 1;
+  cursor: pointer;
+}
+.starBtn.isOn{
+  background: rgba(242,91,143,.16);
+  border-color: rgba(242,91,143,.45);
+}
