@@ -666,3 +666,6 @@ body{
   color: rgba(64,17,2,.88);
   text-align: center;
 }
+
+/* ✅ Modal scroll */
+.modal{ max-height: calc(100vh - 40px); overflow: auto; }
