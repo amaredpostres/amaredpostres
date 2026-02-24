@@ -30,6 +30,30 @@
           <div id="products" class="products"></div>
         </section>
 
+
+        <!-- Opiniones -->
+        <section class="card" id="opiniones">
+          <div class="reviewsTop">
+            <h2 class="cardTitle" style="margin:0;">Opiniones</h2>
+            <button id="btnOpenReviewModal" class="btn secondary" type="button">Dejar mi opinión</button>
+          </div>
+
+          <div class="reviewsSummary">
+            <div class="reviewsAvg">
+              <div class="avgNum" id="reviewsAvg">—</div>
+              <div class="avgStars" id="reviewsAvgStars" aria-hidden="true"></div>
+              <div class="muted small"><span id="reviewsCount">0</span> opiniones</div>
+            </div>
+            <div class="muted small reviewsHint">
+              Solo se publican opiniones de pedidos <b>entregados</b>.
+              Para dejar tu opinión, escribe los <b>últimos 4 dígitos</b> del ID de tu pedido.
+            </div>
+          </div>
+
+          <div id="reviewsList" class="reviewsList"></div>
+        </section>
+
+
         <!-- Pedido -->
         <section class="card" id="pedido">
           <h2 class="cardTitle">Tu pedido</h2>
@@ -175,6 +199,56 @@
 
 
   <!-- ALERTA CENTRAL -->
+
+  <!-- Review Modal -->
+  <div id="reviewModal" class="modalOverlay hidden" aria-hidden="true">
+    <div class="modal">
+      <div class="modalHeader">
+        <h3 class="modalTitle">Deja tu opinión</h3>
+        <button id="btnCloseReview" class="iconBtn" type="button" aria-label="Cerrar">✕</button>
+      </div>
+
+      <div class="modalBody">
+        <div class="muted small">
+          Para validar tu pedido, escribe los <b>últimos 4 dígitos</b> del ID (ej: <b>1234</b>).
+          Solo se aceptan opiniones de pedidos con estado <b>Enviado</b>.
+        </div>
+
+        <div class="formRow" style="margin-top:12px;">
+          <label class="label" for="reviewLast4">Últimos 4 dígitos del ID *</label>
+          <input id="reviewLast4" class="input" inputmode="numeric" maxlength="4" placeholder="1234" />
+        </div>
+
+        <div class="formRow" style="margin-top:12px;">
+          <div class="label">Calificación *</div>
+          <div id="reviewStars" class="starRow" role="radiogroup" aria-label="Calificación">
+            <button class="starBtn" type="button" data-value="1" aria-label="1 estrella">★</button>
+            <button class="starBtn" type="button" data-value="2" aria-label="2 estrellas">★</button>
+            <button class="starBtn" type="button" data-value="3" aria-label="3 estrellas">★</button>
+            <button class="starBtn" type="button" data-value="4" aria-label="4 estrellas">★</button>
+            <button class="starBtn" type="button" data-value="5" aria-label="5 estrellas">★</button>
+          </div>
+        </div>
+
+        <div class="formRow" style="margin-top:12px;">
+          <label class="label" for="reviewName">Nombre (opcional)</label>
+          <input id="reviewName" class="input" maxlength="40" placeholder="Tu nombre" />
+        </div>
+
+        <div class="formRow" style="margin-top:12px;">
+          <label class="label" for="reviewComment">Tu opinión *</label>
+          <textarea id="reviewComment" class="textarea" rows="5" maxlength="300" placeholder="Cuéntanos cómo fue tu experiencia…"></textarea>
+          <div class="muted small" id="reviewCharCount">0/300</div>
+        </div>
+      </div>
+
+      <div class="modalFooter">
+        <button id="btnSubmitReview" class="btn" type="button">Enviar opinión</button>
+      </div>
+    </div>
+  </div>
+
+
   <div id="alertOverlay" class="alertOverlay hidden" aria-hidden="true">
     <div class="alertBox" role="alertdialog" aria-modal="true" aria-labelledby="alertTitle">
       <div id="alertTitle" class="alertTitle">Aviso</div>
@@ -211,7 +285,7 @@
     </div>
   </div>
 
-  <script src="app.js?v=20260223-15"></script>
+  <script src="app.js?v=20260223-18"></script>
 
   <!-- LOADING OVERLAY -->
   <div id="loadingOverlay" class="loadingOverlay hidden" aria-hidden="true">
