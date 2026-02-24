@@ -74,6 +74,12 @@ const waLocBlock = document.getElementById("waLocBlock");
 const alertOverlay = document.getElementById("alertOverlay");
 const alertText = document.getElementById("alertText");
 const btnAlertOk = document.getElementById("btnAlertOk");
+const alertHelpWrap = document.getElementById("alertHelpWrap");
+const alertHelpDetails = document.getElementById("alertHelpDetails");
+const alertWaNumberText = document.getElementById("alertWaNumberText");
+const btnAlertOpenChat = document.getElementById("btnAlertOpenChat");
+const btnAlertCopyMessage = document.getElementById("btnAlertCopyMessage");
+const alertHelpMessage = document.getElementById("alertHelpMessage");
 
 // =================== STATE ===================
 let pending = null; // { orderId, data, message }
@@ -181,8 +187,13 @@ function openWhatsAppMobile(text){
 // =================== ALERT HELPERS ===================
 function showAlert(message) {
   const raw = String(message || "Ocurrió un error.");
-  // Si llega con "\\n", conviértelo a salto real
-  const msg = raw.split("\\n").join("\n");
+  const NL = String.fromCharCode(10);
+  let msg = raw;
+  // Convertir secuencias escapadas a saltos reales
+  for(let i=0;i<3;i++){
+    msg = msg.split("\\n").join(NL);
+    msg = msg.split("\n").join(NL);
+  }
 
   if (!alertOverlay || !alertText) return;
   alertText.textContent = msg;
@@ -192,6 +203,7 @@ function showAlert(message) {
   }catch(_e){}
   alertOverlay.classList.remove("hidden");
   alertOverlay.setAttribute("aria-hidden", "false");
+  clearAlertHelp();
 }
 
 function hideAlert() {
@@ -199,12 +211,44 @@ function hideAlert() {
   alertOverlay.classList.add("hidden");
   alertOverlay.setAttribute("aria-hidden", "true");
   try{ alertOverlay.style.display = "none"; }catch(_e){}
+  clearAlertHelp();
 }
 
-function storeResumeAlert(message, shouldReset){
+function clearAlertHelp(){
+  try{
+    if(alertHelpWrap) alertHelpWrap.classList.add("hidden");
+    if(alertHelpDetails) alertHelpDetails.open = false;
+    if(alertHelpMessage){
+      alertHelpMessage.value = "";
+      alertHelpMessage.style.display = "none";
+    }
+  }catch(_e){}
+}
+
+function setAlertHelp(messageToCopy, autoOpen=false){
+  try{
+    if(!alertHelpWrap) return;
+    if(alertWaNumberText) alertWaNumberText.textContent = "+57 302 847 3086";
+    if(alertHelpMessage){
+      alertHelpMessage.value = String(messageToCopy || "");
+      alertHelpMessage.style.display = (alertHelpDetails && alertHelpDetails.open) ? "block" : "none";
+    }
+    alertHelpWrap.classList.remove("hidden");
+    if(autoOpen && alertHelpDetails) alertHelpDetails.open = true;
+  }catch(_e){}
+}
+
+alertHelpDetails?.addEventListener("toggle", () => {
+  if(!alertHelpMessage) return;
+  alertHelpMessage.style.display = alertHelpDetails.open ? "block" : "none";
+});
+
+
+function storeResumeAlert(message, shouldReset, helpMessage=""){
   try{
     localStorage.setItem("AMARED_RESUME_ALERT", JSON.stringify({
       message: String(message || ""),
+      help: String(helpMessage || ""),
       reset: !!shouldReset,
       ts: Date.now()
     }));
@@ -220,6 +264,7 @@ function tryResumeAlert(){
     if(data && data.message){
       shouldResetAfterAlert = !!data.reset;
       showAlert(data.message);
+      if(data.help) setAlertHelp(data.help, false);
     }
   }catch(_e){}
 }
@@ -577,7 +622,7 @@ btnSendWhatsApp?.addEventListener("click", async () => {
       shouldResetAfterAlert = true;
 
       // al volver al navegador, mostrar aviso
-      storeResumeAlert(SUCCESS_MSG, true);
+      storeResumeAlert(SUCCESS_MSG, true, pending.messageFallback);
 
       hideLoading();
       openWhatsAppUrl(waUrl); // mobile => location.href
@@ -590,12 +635,14 @@ btnSendWhatsApp?.addEventListener("click", async () => {
       hideModal();
       shouldResetAfterAlert = true;
       showAlert(SUCCESS_MSG);
+      setAlertHelp(pending.messageFallback, false);
       return;
     }
 
     // Si el navegador bloqueó abrir pestaña: abrir ayuda
     enableHelpMessage(pending.messageFallback, true);
     showAlert("Pedido registrado ✅\n\nSi no se abrió WhatsApp, copia el mensaje y pégalo en el chat.");
+    setAlertHelp(pending.messageFallback, true);
     elStatus.textContent = "";
 
   } catch (e) {
@@ -689,3 +736,29 @@ fallbackDetails?.addEventListener("toggle", () => {
 });
 
 window.addEventListener("focus", () => { tryResumeAlert(); });
+
+
+btnAlertOpenChat?.addEventListener("click", () => {
+  const url = buildWhatsAppChatOnlyUrl();
+  openWhatsAppUrl(url);
+});
+
+btnAlertCopyMessage?.addEventListener("click", async () => {
+  try{
+    const txt = (alertHelpMessage && alertHelpMessage.value) ? alertHelpMessage.value : "";
+    if(!txt) return;
+    await navigator.clipboard.writeText(txt);
+    const NL = String.fromCharCode(10);
+    if(alertText) alertText.textContent = "Mensaje copiado ✅" + NL + NL + "Pégalo en WhatsApp y envíalo para confirmar tu pedido.";
+  }catch(_e){
+    try{
+      if(alertHelpMessage){
+        alertHelpMessage.focus();
+        alertHelpMessage.select();
+        document.execCommand("copy");
+        const NL = String.fromCharCode(10);
+        if(alertText) alertText.textContent = "Mensaje copiado ✅" + NL + NL + "Pégalo en WhatsApp y envíalo para confirmar tu pedido.";
+      }
+    }catch(_e2){}
+  }
+});
