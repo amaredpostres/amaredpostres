@@ -144,11 +144,11 @@ function isMobileUA(){
 }
 function buildWhatsAppUrlWithText(text){
   const enc = encodeURIComponent(String(text || ""));
-  // ✅ PC: página intermedia (api.whatsapp.com)
+  // ✅ PC: página intermedia (muestra el texto siempre)
   if(!isMobileUA()){
-    return `https://web.whatsapp.com/send?phone=${WHATSAPP_NUMBER}&text=${enc}&type=phone_number&app_absent=0`;
+    return `https://api.whatsapp.com/send?phone=${WHATSAPP_NUMBER}&text=${enc}`;
   }
-  // ✅ Móvil: abre app directo (wa.me)
+  // ✅ Móvil: abre app directo
   return `https://wa.me/${WHATSAPP_NUMBER}?text=${enc}`;
 }
 function buildWhatsAppChatOnlyUrl(){
@@ -160,14 +160,23 @@ function buildWhatsAppChatOnlyUrl(){
 
 // =================== ALERT HELPERS ===================
 function showAlert(message) {
+  const msg = String(message || "Ocurrió un error.");
   if (!alertOverlay || !alertText) {
-    alert(message);
+    alert(msg);
     return;
   }
-  alertText.textContent = String(message || "Ocurrió un error.");
+  alertText.textContent = msg;
   try{ alertOverlay.style.zIndex = "30000"; }catch(_e){}
   alertOverlay.classList.remove("hidden");
   alertOverlay.setAttribute("aria-hidden", "false");
+
+  // ✅ Failsafe: si por CSS no se ve, usa alert nativo
+  setTimeout(() => {
+    try{
+      const disp = getComputedStyle(alertOverlay).display;
+      if(disp === "none") alert(msg);
+    }catch(_e){}
+  }, 0);
 }
 
 function hideAlert() {
@@ -552,11 +561,10 @@ btnSendWhatsApp?.addEventListener("click", async () => {
       hideModal();
       shouldResetAfterAlert = true;
 
-      // ✅ al volver al navegador, mostrar el aviso automáticamente
+      // ✅ Mostrar aviso al regresar al navegador (sin requerir "Confirmar pedido" otra vez)
       storeResumeAlert(SUCCESS_MSG, true);
 
-      showAlert(SUCCESS_MSG);
-      setTimeout(() => window.location.assign(waUrl), 250);
+      window.location.href = waUrl;
       return;
     }
 
@@ -661,3 +669,5 @@ fallbackDetails?.addEventListener("toggle", () => {
   if(!elModalMessage) return;
   elModalMessage.style.display = fallbackDetails.open ? "block" : "none";
 });
+
+window.addEventListener("focus", () => { tryResumeAlert(); });
