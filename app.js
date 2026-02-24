@@ -572,13 +572,15 @@ btnSendWhatsApp?.addEventListener("click", async () => {
     hideLoading();
 
     if(isMobile){
-      // ✅ Igual que delivery: abre WhatsApp directo en la app (wa.me)
+      // ✅ Igual que delivery: abrir la app directo (sin pestaña adicional)
       hideModal();
       shouldResetAfterAlert = true;
-      showAlert(SUCCESS_MSG);
+
+      // mostrar aviso al regresar al navegador
       storeResumeAlert(SUCCESS_MSG, true);
+
       hideLoading();
-      setTimeout(() => { window.location.href = waUrl; }, 250);
+      openWhatsAppMobile(pending.messageNormal);
       return;
     }
 
