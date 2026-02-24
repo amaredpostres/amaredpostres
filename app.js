@@ -144,8 +144,8 @@ function isMobileUA(){
 }
 function buildWhatsAppUrlWithText(text){
   const enc = encodeURIComponent(String(text || ""));
+  // ✅ PC: página intermedia (muestra el texto siempre)
   if(!isMobileUA()){
-    // ✅ PC: página intermedia (siempre muestra el texto)
     return `https://api.whatsapp.com/send?phone=${WHATSAPP_NUMBER}&text=${enc}`;
   }
   // ✅ Móvil: abre app directo
@@ -158,36 +158,68 @@ function buildWhatsAppChatOnlyUrl(){
   return `https://wa.me/${WHATSAPP_NUMBER}`;
 }
 
+function openWhatsAppMobile(text){
+  const enc = encodeURIComponent(String(text || ""));
+  const deep = `whatsapp://send?phone=${WHATSAPP_NUMBER}&text=${enc}`;
+  const web = `https://wa.me/${WHATSAPP_NUMBER}?text=${enc}`;
+  window.location.href = deep;
+  setTimeout(() => {
+    if(document.visibilityState === "visible") window.location.href = web;
+  }, 650);
+}
+
+
 // =================== ALERT HELPERS ===================
 function showAlert(message) {
-  const msg = String(message || "Ocurrió un error.");
-  if (!alertOverlay || !alertText) {
-    alert(msg);
-    return;
-  }
+  const raw = String(message || "Ocurrió un error.");
+  // Si llega con "\\n", conviértelo a salto real
+  const msg = raw.split("\\n").join("\n");
 
+  if (!alertOverlay || !alertText) return;
   alertText.textContent = msg;
-  try{ alertOverlay.style.zIndex = "30000"; }catch(_e){}
+  try{
+    alertOverlay.style.zIndex = "30000";
+    alertOverlay.style.display = "grid";
+  }catch(_e){}
   alertOverlay.classList.remove("hidden");
   alertOverlay.setAttribute("aria-hidden", "false");
-
-  // ✅ Failsafe robusto
-  setTimeout(() => {
-    try{
-      const hidden = alertOverlay.classList.contains("hidden") || alertOverlay.getAttribute("aria-hidden") === "true";
-      const r = alertOverlay.getBoundingClientRect();
-      const notVisible = hidden || r.width < 10 || r.height < 10;
-      if(notVisible) alert(msg);
-    }catch(_e){}
-  }, 50);
 }
 
 function hideAlert() {
   if (!alertOverlay) return;
   alertOverlay.classList.add("hidden");
   alertOverlay.setAttribute("aria-hidden", "true");
+  try{ alertOverlay.style.display = "none"; }catch(_e){}
 }
 
+function storeResumeAlert(message, shouldReset){
+  try{
+    localStorage.setItem("AMARED_RESUME_ALERT", JSON.stringify({
+      message: String(message || ""),
+      reset: !!shouldReset,
+      ts: Date.now()
+    }));
+  }catch(_e){}
+}
+
+function tryResumeAlert(){
+  try{
+    const raw = localStorage.getItem("AMARED_RESUME_ALERT");
+    if(!raw) return;
+    localStorage.removeItem("AMARED_RESUME_ALERT");
+    const data = JSON.parse(raw);
+    if(data && data.message){
+      shouldResetAfterAlert = !!data.reset;
+      showAlert(data.message);
+    }
+  }catch(_e){}
+}
+
+document.addEventListener("visibilitychange", () => {
+  if(document.visibilityState === "visible"){
+    tryResumeAlert();
+  }
+});
 
 
 // =================== UI RENDER ===================
@@ -478,7 +510,7 @@ modal?.addEventListener("click", (e) => {
 
 btnOpenChat?.addEventListener("click", () => {
   const url = buildWhatsAppChatOnlyUrl();
-  if(isMobileUA()) window.location.href = url;
+  if(isMobileUA()) window.location.assign(url);
   else window.open(url, "_blank", "noopener,noreferrer");
 });
 
@@ -487,14 +519,14 @@ btnCopyMessage?.addEventListener("click", async () => {
     const txt = (elModalMessage && elModalMessage.value) ? elModalMessage.value : (pending?.messageFallback || "");
     if(!txt) return;
     await navigator.clipboard.writeText(txt);
-    showAlert("Mensaje copiado ✅\\n\\nPégalo en WhatsApp y envíalo para confirmar tu pedido.");
+    showAlert("Mensaje copiado ✅\n\nPégalo en WhatsApp y envíalo para confirmar tu pedido.");
   }catch(_e){
     try{
       if(elModalMessage){
         elModalMessage.focus();
         elModalMessage.select();
         document.execCommand("copy");
-        showAlert("Mensaje copiado ✅\\n\\nPégalo en WhatsApp y envíalo para confirmar tu pedido.");
+        showAlert("Mensaje copiado ✅\n\nPégalo en WhatsApp y envíalo para confirmar tu pedido.");
       }
     }catch(_e2){}
   }
@@ -532,14 +564,12 @@ btnSendWhatsApp?.addEventListener("click", async () => {
     hideLoading();
 
     if(isMobile){
-      // móvil: abre app directo (sin pestaña extra)
       hideModal();
       shouldResetAfterAlert = true;
-
-      // ✅ Mostrar aviso al regresar al navegador (sin requerir "Confirmar pedido" otra vez)
+      showAlert(SUCCESS_MSG);
       storeResumeAlert(SUCCESS_MSG, true);
-
-      window.location.href = waUrl;
+      hideLoading();
+      setTimeout(() => openWhatsAppMobile(pending.messageNormal), 250);
       return;
     }
 
@@ -606,7 +636,8 @@ function showLoading(text="Procesando..."){
     if(loadingOverlay){
       loadingOverlay.classList.remove("hidden");
       loadingOverlay.setAttribute("aria-hidden","false");
-      loadingOverlay.style.zIndex = "20000";
+      loadingOverlay.style.zIndex = "25000";
+      loadingOverlay.style.display = "grid";
     }
   }catch(_e){}
 }
@@ -615,6 +646,7 @@ function hideLoading(){
     if(loadingOverlay){
       loadingOverlay.classList.add("hidden");
       loadingOverlay.setAttribute("aria-hidden","true");
+      loadingOverlay.style.display = "none";
     }
   }catch(_e){}
 }
