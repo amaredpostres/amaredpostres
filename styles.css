@@ -625,25 +625,44 @@ body{
 
 #loadingOverlay{ z-index: 25000 !important; }
 
+.alertOverlay{ z-index: 30000; }
+.alertText{ white-space: pre-line; }
 
-/* ✅ Confirm modal layout: resumen arriba + ayuda abajo */
-#confirmModal .modal{
-  max-height: calc(100vh - 40px);
-  display: flex;
-  flex-direction: column;
+/* ✅ Help bar (debajo del resumen) */
+.helpBar{
+  width: min(720px, 96vw);
+  margin: 0 auto 12px;
+  background: rgba(255,255,255,.72);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 10px 12px;
 }
-#confirmModal .modalBody{
-  overflow: auto;
-  flex: 1;
+.helpBar summary{ font-weight: 950; }
+
+/* ✅ Loading overlay */
+.loadingOverlay{
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: rgba(64,17,2,.22);
+  padding: 14px;
+  z-index: 25000;
 }
-#confirmModal .modalFooter{
-  flex: 0 0 auto;
+.loadingBox{
+  width: min(520px, 92vw);
+  background: var(--paper);
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  padding: 18px 16px;
+  display: grid;
+  gap: 10px;
+  justify-items: center;
+  box-shadow: 0 30px 80px rgba(64,17,2,.20);
 }
-#confirmModal .modalHelp{
-  border-top: 1px solid var(--border);
-  padding: 12px 14px;
-  background: rgba(246,186,96,.06);
-}
-#confirmModal .modalHelp summary{
+.loadingTitle{
   font-weight: 950;
+  font-size: 18px;
+  color: rgba(64,17,2,.88);
+  text-align: center;
 }
