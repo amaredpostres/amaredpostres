@@ -772,3 +772,188 @@ btnAlertCopyMessage?.addEventListener("click", async () => {
     }catch(_e2){}
   }
 });
+
+
+
+/* =========================
+   Opiniones (Reviews)
+========================= */
+
+const reviewsListEl = document.getElementById("reviewsList");
+const reviewsAvgEl = document.getElementById("reviewsAvg");
+const reviewsCountEl = document.getElementById("reviewsCount");
+const reviewsAvgStarsEl = document.getElementById("reviewsAvgStars");
+const btnOpenReviewModal = document.getElementById("btnOpenReviewModal");
+
+const reviewModal = document.getElementById("reviewModal");
+const btnCloseReview = document.getElementById("btnCloseReview");
+const btnSubmitReview = document.getElementById("btnSubmitReview");
+const reviewLast4 = document.getElementById("reviewLast4");
+const reviewName = document.getElementById("reviewName");
+const reviewComment = document.getElementById("reviewComment");
+const reviewCharCount = document.getElementById("reviewCharCount");
+const reviewStarsRow = document.getElementById("reviewStars");
+
+let _reviewRating = 0;
+
+function showReviewModal(){
+  if(!reviewModal) return;
+  reviewModal.classList.remove("hidden");
+  reviewModal.setAttribute("aria-hidden","false");
+}
+
+function hideReviewModal(){
+  if(!reviewModal) return;
+  reviewModal.classList.add("hidden");
+  reviewModal.setAttribute("aria-hidden","true");
+}
+
+function setStarsUI(val){
+  _reviewRating = val;
+  if(!reviewStarsRow) return;
+  [...reviewStarsRow.querySelectorAll(".starBtn")].forEach(btn => {
+    const v = Number(btn.getAttribute("data-value") || "0");
+    btn.classList.toggle("isOn", v <= val);
+  });
+}
+
+reviewStarsRow?.addEventListener("click", (e) => {
+  const btn = e.target?.closest?.(".starBtn");
+  if(!btn) return;
+  const v = Number(btn.getAttribute("data-value") || "0");
+  if(!v) return;
+  setStarsUI(v);
+});
+
+reviewComment?.addEventListener("input", () => {
+  if(reviewCharCount){
+    reviewCharCount.textContent = `${String(reviewComment.value || "").length}/300`;
+  }
+});
+
+btnOpenReviewModal?.addEventListener("click", () => {
+  hideAlert();
+  // reset
+  if(reviewLast4) reviewLast4.value = "";
+  if(reviewName) reviewName.value = "";
+  if(reviewComment) reviewComment.value = "";
+  if(reviewCharCount) reviewCharCount.textContent = "0/300";
+  setStarsUI(0);
+  showReviewModal();
+});
+
+btnCloseReview?.addEventListener("click", hideReviewModal);
+reviewModal?.addEventListener("click", (e) => {
+  if(e.target === reviewModal) hideReviewModal();
+});
+
+function starsText(n){
+  const k = Math.max(0, Math.min(5, Number(n)||0));
+  return "★★★★★".slice(0,k) + "☆☆☆☆☆".slice(0, 5-k);
+}
+
+function renderAvgStars(avg){
+  const a = Math.round((Number(avg)||0) * 10) / 10;
+  const full = Math.round(a); // simple
+  if(reviewsAvgStarsEl) reviewsAvgStarsEl.textContent = starsText(full);
+}
+
+function renderReviews(data){
+  const list = data?.reviews || [];
+  const avg = Number(data?.avg_rating || 0);
+  const count = Number(data?.count || list.length || 0);
+
+  if(reviewsAvgEl) reviewsAvgEl.textContent = count ? (Math.round(avg*10)/10).toFixed(1) : "—";
+  if(reviewsCountEl) reviewsCountEl.textContent = String(count || 0);
+  renderAvgStars(avg);
+
+  if(!reviewsListEl) return;
+  if(!list.length){
+    reviewsListEl.innerHTML = '<div class="muted small">Aún no hay opiniones publicadas.</div>';
+    return;
+  }
+
+  reviewsListEl.innerHTML = list.map(r => {
+    const nm = escapeHtml(r.name || "Cliente");
+    const txt = escapeHtml(r.comment || "");
+    const dt = escapeHtml(r.created_at || "");
+    const st = starsText(r.rating || 0);
+    return `
+      <div class="reviewCard">
+        <div class="reviewCardTop">
+          <div class="reviewName">${nm}</div>
+          <div class="reviewStars" aria-hidden="true">${st}</div>
+        </div>
+        <div class="muted small reviewMeta">${dt}</div>
+        <div class="reviewText">${txt}</div>
+      </div>
+    `;
+  }).join("");
+}
+
+async function fetchReviews(){
+  try{
+    const res = await fetch(ORDER_API_URL, {
+      method: "POST",
+      headers: { "Content-Type":"application/json" },
+      body: JSON.stringify({ action: "reviews_list", limit: 8 })
+    });
+    const out = await res.json();
+    if(out?.ok) renderReviews(out);
+  }catch(_e){
+    // silencioso
+  }
+}
+
+async function submitReview(){
+  const last4 = String(reviewLast4?.value || "").trim();
+  const name = String(reviewName?.value || "").trim();
+  const comment = String(reviewComment?.value || "").trim();
+
+  if(!/^[0-9]{4}$/.test(last4)){
+    showAlert("Escribe los últimos 4 dígitos del ID (ej: 1234).");
+    return;
+  }
+  if(!_reviewRating || _reviewRating < 1 || _reviewRating > 5){
+    showAlert("Selecciona una calificación (1 a 5 estrellas).");
+    return;
+  }
+  if(comment.length < 10){
+    showAlert("Escribe una opinión un poco más larga (mínimo 10 caracteres).");
+    return;
+  }
+
+  showLoading("Enviando opinión...");
+  try{
+    const res = await fetch(ORDER_API_URL, {
+      method: "POST",
+      headers: { "Content-Type":"application/json" },
+      body: JSON.stringify({
+        action: "reviews_submit",
+        last4,
+        rating: _reviewRating,
+        name,
+        comment
+      })
+    });
+    const out = await res.json();
+    hideLoading();
+
+    if(!out?.ok){
+      showAlert(out?.error || "No se pudo enviar la opinión.");
+      return;
+    }
+
+    hideReviewModal();
+    showAlert("¡Gracias! Tu opinión se publicará si tu pedido aparece como ENVIADO.");
+    await fetchReviews();
+  }catch(e){
+    hideLoading();
+    showAlert("Error enviando la opinión. Intenta de nuevo.");
+  }
+}
+
+btnSubmitReview?.addEventListener("click", submitReview);
+
+// cargar opiniones al iniciar
+fetchReviews();
