@@ -572,15 +572,15 @@ btnSendWhatsApp?.addEventListener("click", async () => {
     hideLoading();
 
     if(isMobile){
-      // ✅ Igual que delivery: abrir la app directo (sin pestaña adicional)
+      // ✅ EXACTO como delivery: usar wa.me y navegar en la MISMA pestaña
       hideModal();
       shouldResetAfterAlert = true;
 
-      // mostrar aviso al regresar al navegador
+      // al volver al navegador, mostrar aviso
       storeResumeAlert(SUCCESS_MSG, true);
 
       hideLoading();
-      openWhatsAppMobile(pending.messageNormal);
+      openWhatsAppUrl(waUrl); // mobile => location.href
       return;
     }
 
