@@ -158,6 +158,15 @@ function buildWhatsAppChatOnlyUrl(){
   return `https://wa.me/${WHATSAPP_NUMBER}`;
 }
 
+function openWhatsAppUrl(url){
+  if(isMobileUA()){
+    window.location.href = url;
+  }else{
+    window.open(url, "_blank", "noopener,noreferrer");
+  }
+}
+
+
 function openWhatsAppMobile(text){
   const enc = encodeURIComponent(String(text || ""));
   const deep = `whatsapp://send?phone=${WHATSAPP_NUMBER}&text=${enc}`;
@@ -510,8 +519,7 @@ modal?.addEventListener("click", (e) => {
 
 btnOpenChat?.addEventListener("click", () => {
   const url = buildWhatsAppChatOnlyUrl();
-  if(isMobileUA()) window.location.assign(url);
-  else window.open(url, "_blank", "noopener,noreferrer");
+  openWhatsAppUrl(url);
 });
 
 btnCopyMessage?.addEventListener("click", async () => {
@@ -564,16 +572,17 @@ btnSendWhatsApp?.addEventListener("click", async () => {
     hideLoading();
 
     if(isMobile){
+      // ✅ Igual que delivery: abre WhatsApp directo en la app (wa.me)
       hideModal();
       shouldResetAfterAlert = true;
       showAlert(SUCCESS_MSG);
       storeResumeAlert(SUCCESS_MSG, true);
       hideLoading();
-      setTimeout(() => openWhatsAppMobile(pending.messageNormal), 250);
+      setTimeout(() => { window.location.href = waUrl; }, 250);
       return;
     }
 
-    // PC: si la pestaña se pudo abrir, navegamos allí
+    // PC: abre en pestaña nueva
     if(waWin){
       try{ waWin.location.href = waUrl; }catch(_e){}
       hideModal();
