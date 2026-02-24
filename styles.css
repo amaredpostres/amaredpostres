@@ -624,3 +624,26 @@ body{
 }
 
 #loadingOverlay{ z-index: 25000 !important; }
+
+
+/* ✅ Confirm modal layout: resumen arriba + ayuda abajo */
+#confirmModal .modal{
+  max-height: calc(100vh - 40px);
+  display: flex;
+  flex-direction: column;
+}
+#confirmModal .modalBody{
+  overflow: auto;
+  flex: 1;
+}
+#confirmModal .modalFooter{
+  flex: 0 0 auto;
+}
+#confirmModal .modalHelp{
+  border-top: 1px solid var(--border);
+  padding: 12px 14px;
+  background: rgba(246,186,96,.06);
+}
+#confirmModal .modalHelp summary{
+  font-weight: 950;
+}
