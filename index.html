@@ -30,30 +30,6 @@
           <div id="products" class="products"></div>
         </section>
 
-
-        <!-- Opiniones -->
-        <section class="card" id="opiniones">
-          <div class="reviewsTop">
-            <h2 class="cardTitle" style="margin:0;">Opiniones</h2>
-            <button id="btnOpenReviewModal" class="btn secondary" type="button">Dejar mi opinión</button>
-          </div>
-
-          <div class="reviewsSummary">
-            <div class="reviewsAvg">
-              <div class="avgNum" id="reviewsAvg">—</div>
-              <div class="avgStars" id="reviewsAvgStars" aria-hidden="true"></div>
-              <div class="muted small"><span id="reviewsCount">0</span> opiniones</div>
-            </div>
-            <div class="muted small reviewsHint">
-              Solo se publican opiniones de pedidos <b>entregados</b>.
-              Para dejar tu opinión, escribe los <b>últimos 4 dígitos</b> del ID de tu pedido.
-            </div>
-          </div>
-
-          <div id="reviewsList" class="reviewsList"></div>
-        </section>
-
-
         <!-- Pedido -->
         <section class="card" id="pedido">
           <h2 class="cardTitle">Tu pedido</h2>
@@ -136,6 +112,32 @@
             <div id="status" class="status"></div>
 </section>
       </section>
+
+      <!-- ✅ Opiniones -->
+      <section class="card" id="reviewsSection" style="margin-top:16px;">
+        <div class="cardHeader" style="display:flex; align-items:center; justify-content:space-between; gap:12px;">
+          <div>
+            <h2 style="margin:0;">Opiniones</h2>
+            <div class="muted small">Solo se muestran opiniones de pedidos <b>Enviados</b>.</div>
+          </div>
+          <div style="text-align:right;">
+            <div class="reviewsAvgLine">
+              <span id="reviewsAvg" class="reviewsAvg">—</span>
+              <span class="muted small">/ 5</span>
+            </div>
+            <div id="reviewsAvgStars" class="reviewsStars"></div>
+            <div class="muted small"><span id="reviewsCount">0</span> opiniones</div>
+          </div>
+        </div>
+
+        <div id="reviewsList" class="reviewsList"></div>
+
+        <div class="row" style="justify-content:flex-end; gap:10px; margin-top:12px; flex-wrap:wrap;">
+          <button id="btnOpenReview" class="btn secondary" type="button">Dejar mi opinión</button>
+          <button id="btnAdminReviews" class="btn secondary hidden" type="button">Modo admin</button>
+        </div>
+      </section>
+
     </main>
   </div>
 
@@ -200,50 +202,57 @@
 
   <!-- ALERTA CENTRAL -->
 
-  <!-- Review Modal -->
-  <div id="reviewModal" class="modalOverlay hidden" aria-hidden="true">
+  <!-- MODAL OPINIONES -->
+  <div id="reviewsModal" class="modalOverlay hidden" aria-hidden="true">
     <div class="modal">
       <div class="modalHeader">
         <h3 class="modalTitle">Deja tu opinión</h3>
-        <button id="btnCloseReview" class="iconBtn" type="button" aria-label="Cerrar">✕</button>
+        <button id="btnCloseReviewsModal" class="iconBtn" type="button" aria-label="Cerrar">×</button>
       </div>
 
       <div class="modalBody">
         <div class="muted small">
-          Para validar tu pedido, escribe los <b>últimos 4 dígitos</b> del ID (ej: <b>1234</b>).
-          Solo se aceptan opiniones de pedidos con estado <b>Enviado</b>.
+          Para validar tu pedido, revisa el <b>mensaje de WhatsApp</b> donde aparece el ID del pedido y escribe solo los <b>últimos 4 dígitos</b> (Ej: 1234).
+          <br>Solo se aceptan opiniones de pedidos con estado <b>Enviado</b>.
         </div>
 
-        <div class="formRow" style="margin-top:12px;">
-          <label class="label" for="reviewLast4">Últimos 4 dígitos del ID *</label>
-          <input id="reviewLast4" class="input" inputmode="numeric" maxlength="4" placeholder="1234" />
-        </div>
+        <label class="label" style="margin-top:12px;">Últimos 4 dígitos del ID <span class="req">*</span></label>
+        <input id="reviewLast4" class="input" inputmode="numeric" maxlength="4" placeholder="Ej: 1234" />
 
-        <div class="formRow" style="margin-top:12px;">
-          <div class="label">Calificación *</div>
-          <div id="reviewStars" class="starRow" role="radiogroup" aria-label="Calificación">
-            <button class="starBtn" type="button" data-value="1" aria-label="1 estrella">★</button>
-            <button class="starBtn" type="button" data-value="2" aria-label="2 estrellas">★</button>
-            <button class="starBtn" type="button" data-value="3" aria-label="3 estrellas">★</button>
-            <button class="starBtn" type="button" data-value="4" aria-label="4 estrellas">★</button>
-            <button class="starBtn" type="button" data-value="5" aria-label="5 estrellas">★</button>
-          </div>
-        </div>
+        <label class="label" style="margin-top:12px;">Calificación <span class="req">*</span></label>
+        <div id="reviewStars" class="reviewStarPicker" aria-label="Calificación"></div>
 
-        <div class="formRow" style="margin-top:12px;">
-          <label class="label" for="reviewName">Nombre (opcional)</label>
-          <input id="reviewName" class="input" maxlength="40" placeholder="Tu nombre" />
-        </div>
+        <label class="label" style="margin-top:12px;">Nombre (opcional)</label>
+        <input id="reviewName" class="input" maxlength="30" placeholder="Tu nombre" />
 
-        <div class="formRow" style="margin-top:12px;">
-          <label class="label" for="reviewComment">Tu opinión *</label>
-          <textarea id="reviewComment" class="textarea" rows="5" maxlength="300" placeholder="Cuéntanos cómo fue tu experiencia…"></textarea>
-          <div class="muted small" id="reviewCharCount">0/300</div>
-        </div>
+        <label class="label" style="margin-top:12px;">Tu opinión <span class="req">*</span></label>
+        <textarea id="reviewComment" class="textarea" rows="4" maxlength="300" placeholder="Escribe tu opinión..."></textarea>
+        <div class="muted small"><span id="reviewCount">0</span>/300</div>
+
+        <div id="reviewErr" class="muted small" style="margin-top:8px; color:#b00020;"></div>
       </div>
 
       <div class="modalFooter">
-        <button id="btnSubmitReview" class="btn" type="button">Enviar opinión</button>
+        <button id="btnSubmitReview" class="btn primary" type="button">Enviar opinión</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL ADMIN REVIEWS -->
+  <div id="adminReviewsModal" class="modalOverlay hidden" aria-hidden="true">
+    <div class="modal" style="max-width:520px;">
+      <div class="modalHeader">
+        <h3 class="modalTitle">Modo admin</h3>
+        <button id="btnCloseAdminReviewsModal" class="iconBtn" type="button" aria-label="Cerrar">×</button>
+      </div>
+      <div class="modalBody">
+        <div class="muted small">Ingresa el PIN de admin para responder opiniones.</div>
+        <label class="label" style="margin-top:12px;">PIN</label>
+        <input id="adminPinReviews" class="input" inputmode="numeric" maxlength="12" placeholder="PIN" />
+        <div id="adminReviewsErr" class="muted small" style="margin-top:8px; color:#b00020;"></div>
+      </div>
+      <div class="modalFooter">
+        <button id="btnAdminLoginReviews" class="btn primary" type="button">Ingresar</button>
       </div>
     </div>
   </div>
@@ -285,7 +294,7 @@
     </div>
   </div>
 
-  <script src="app.js?v=20260223-18"></script>
+  <script src="app.js?v=20260223-19"></script>
 
   <!-- LOADING OVERLAY -->
   <div id="loadingOverlay" class="loadingOverlay hidden" aria-hidden="true">
