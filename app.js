@@ -1,4 +1,6 @@
 // =================== CONFIG ===================
+const SUCCESS_MSG = "Pedido registrado ✅\n\nAhora falta confirmar el pago por WhatsApp.";
+
 const WHATSAPP_NUMBER = "573028473086";
 const ORDER_API_URL = "https://amared-orders.amaredpostres.workers.dev/";
 
@@ -144,7 +146,7 @@ function buildWhatsAppUrlWithText(text){
   const enc = encodeURIComponent(String(text || ""));
   // ✅ PC: página intermedia (api.whatsapp.com)
   if(!isMobileUA()){
-    return `https://api.whatsapp.com/send?phone=${WHATSAPP_NUMBER}&text=${enc}`;
+    return `https://web.whatsapp.com/send?phone=${WHATSAPP_NUMBER}&text=${enc}&type=phone_number&app_absent=0`;
   }
   // ✅ Móvil: abre app directo (wa.me)
   return `https://wa.me/${WHATSAPP_NUMBER}?text=${enc}`;
@@ -163,6 +165,7 @@ function showAlert(message) {
     return;
   }
   alertText.textContent = String(message || "Ocurrió un error.");
+  try{ alertOverlay.style.zIndex = "30000"; }catch(_e){}
   alertOverlay.classList.remove("hidden");
   alertOverlay.setAttribute("aria-hidden", "false");
 }
@@ -172,6 +175,36 @@ function hideAlert() {
   alertOverlay.classList.add("hidden");
   alertOverlay.setAttribute("aria-hidden", "true");
 }
+
+function storeResumeAlert(message, shouldReset){
+  try{
+    localStorage.setItem("AMARED_RESUME_ALERT", JSON.stringify({
+      message: String(message || ""),
+      reset: !!shouldReset,
+      ts: Date.now()
+    }));
+  }catch(_e){}
+}
+
+function tryResumeAlert(){
+  try{
+    const raw = localStorage.getItem("AMARED_RESUME_ALERT");
+    if(!raw) return;
+    localStorage.removeItem("AMARED_RESUME_ALERT");
+    const data = JSON.parse(raw);
+    if(data && data.message){
+      shouldResetAfterAlert = !!data.reset;
+      showAlert(data.message);
+    }
+  }catch(_e){}
+}
+
+document.addEventListener("visibilitychange", () => {
+  if(document.visibilityState === "visible"){
+    tryResumeAlert();
+  }
+});
+
 
 // =================== UI RENDER ===================
 function renderProducts() {
@@ -518,8 +551,12 @@ btnSendWhatsApp?.addEventListener("click", async () => {
       // móvil: abre app directo (sin pestaña extra)
       hideModal();
       shouldResetAfterAlert = true;
-      showAlert("Pedido registrado ✅\n\nAhora falta confirmar el pago por WhatsApp.");
-      window.location.assign(waUrl);
+
+      // ✅ al volver al navegador, mostrar el aviso automáticamente
+      storeResumeAlert(SUCCESS_MSG, true);
+
+      showAlert(SUCCESS_MSG);
+      setTimeout(() => window.location.assign(waUrl), 250);
       return;
     }
 
@@ -528,7 +565,7 @@ btnSendWhatsApp?.addEventListener("click", async () => {
       try{ waWin.location.href = waUrl; }catch(_e){}
       hideModal();
       shouldResetAfterAlert = true;
-      showAlert("Pedido registrado ✅\n\nAhora falta confirmar el pago por WhatsApp.");
+      showAlert(SUCCESS_MSG);
       return;
     }
 
@@ -554,30 +591,27 @@ btnSendWhatsApp?.addEventListener("click", async () => {
 
 btnWhatsApp?.addEventListener("click", () => {
   elStatus.textContent = "";
+  hideAlert();
 
-  try {
-    const data = getFormData();
-    const err = validate(data);
-    if (err) throw new Error(err);
-
-    const orderId = generateClientOrderId();
-    data.order_id = orderId;
-
-    const messageNormal = buildWhatsAppMessage(data, orderId);
-
-    const messageFallback = buildWhatsAppFallbackMessage(data, orderId);
-
-    pending = { orderId, data, messageNormal, messageFallback };
-    initHelpUI();
-    enableHelpMessage(messageFallback, false);
-    fillModal(data, orderId);
-    showModal();
-  } catch (e) {
-    showAlert(e.message);
+  const data = getFormData();
+  const err = validate(data);
+  if (err) {
+    showAlert(err);
+    return;
   }
-});
 
-// =================== INIT ===================
+  const orderId = generateClientOrderId();
+  data.order_id = orderId;
+
+  const messageNormal = buildWhatsAppMessage(data, orderId);
+  const messageFallback = buildWhatsAppFallbackMessage(data, orderId);
+
+  pending = { orderId, data, messageNormal, messageFallback };
+  initHelpUI();
+  enableHelpMessage(messageFallback, false);
+  fillModal(data, orderId);
+  showModal();
+});// =================== INIT ===================
 renderProducts();
 updateSummary();
 syncLocationUI();
