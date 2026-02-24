@@ -725,3 +725,13 @@ body{
 .alertHelpWrap .muted{ line-height: 1.35; }
 .alertHelpWrap textarea{ border-radius: 12px; }
 .alertText{ white-space: pre-line; }
+
+
+/* ✅ Make loading overlay clearly visible */
+.loadingOverlay{
+  background: rgba(0,0,0,.45) !important;
+  z-index: 28000 !important;
+}
+.loadingCard{
+  border-width: 2px;
+}
