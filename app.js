@@ -65,6 +65,7 @@ const modalStatus = document.getElementById("modalStatus");
 // Loading overlay
 const loadingOverlay = document.getElementById("loadingOverlay");
 const loadingText = document.getElementById("loadingText");
+let _loadingStartTs = 0;
 
 // Ubicación
 const mapsBlock = document.getElementById("mapsBlock");
@@ -690,21 +691,30 @@ syncLocationUI();
 
 function showLoading(text="Procesando..."){
   try{
+    _loadingStartTs = Date.now();
     if(loadingText) loadingText.textContent = text;
     if(loadingOverlay){
       loadingOverlay.classList.remove("hidden");
       loadingOverlay.setAttribute("aria-hidden","false");
-      loadingOverlay.style.zIndex = "25000";
+      loadingOverlay.style.zIndex = "28000";
       loadingOverlay.style.display = "grid";
     }
   }catch(_e){}
 }
 function hideLoading(){
   try{
-    if(loadingOverlay){
-      loadingOverlay.classList.add("hidden");
-      loadingOverlay.setAttribute("aria-hidden","true");
-      loadingOverlay.style.display = "none";
+    const elapsed = _loadingStartTs ? (Date.now() - _loadingStartTs) : 9999;
+    const doHide = () => {
+      if(loadingOverlay){
+        loadingOverlay.classList.add("hidden");
+        loadingOverlay.setAttribute("aria-hidden","true");
+        loadingOverlay.style.display = "none";
+      }
+    };
+    if(elapsed < 600){
+      setTimeout(doHide, 600 - elapsed);
+    }else{
+      doHide();
     }
   }catch(_e){}
 }
