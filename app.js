@@ -144,8 +144,8 @@ function isMobileUA(){
 }
 function buildWhatsAppUrlWithText(text){
   const enc = encodeURIComponent(String(text || ""));
-  // ✅ PC: página intermedia (muestra el texto siempre)
   if(!isMobileUA()){
+    // ✅ PC: página intermedia (siempre muestra el texto)
     return `https://api.whatsapp.com/send?phone=${WHATSAPP_NUMBER}&text=${enc}`;
   }
   // ✅ Móvil: abre app directo
@@ -165,18 +165,21 @@ function showAlert(message) {
     alert(msg);
     return;
   }
+
   alertText.textContent = msg;
   try{ alertOverlay.style.zIndex = "30000"; }catch(_e){}
   alertOverlay.classList.remove("hidden");
   alertOverlay.setAttribute("aria-hidden", "false");
 
-  // ✅ Failsafe: si por CSS no se ve, usa alert nativo
+  // ✅ Failsafe robusto
   setTimeout(() => {
     try{
-      const disp = getComputedStyle(alertOverlay).display;
-      if(disp === "none") alert(msg);
+      const hidden = alertOverlay.classList.contains("hidden") || alertOverlay.getAttribute("aria-hidden") === "true";
+      const r = alertOverlay.getBoundingClientRect();
+      const notVisible = hidden || r.width < 10 || r.height < 10;
+      if(notVisible) alert(msg);
     }catch(_e){}
-  }, 0);
+  }, 50);
 }
 
 function hideAlert() {
@@ -185,34 +188,6 @@ function hideAlert() {
   alertOverlay.setAttribute("aria-hidden", "true");
 }
 
-function storeResumeAlert(message, shouldReset){
-  try{
-    localStorage.setItem("AMARED_RESUME_ALERT", JSON.stringify({
-      message: String(message || ""),
-      reset: !!shouldReset,
-      ts: Date.now()
-    }));
-  }catch(_e){}
-}
-
-function tryResumeAlert(){
-  try{
-    const raw = localStorage.getItem("AMARED_RESUME_ALERT");
-    if(!raw) return;
-    localStorage.removeItem("AMARED_RESUME_ALERT");
-    const data = JSON.parse(raw);
-    if(data && data.message){
-      shouldResetAfterAlert = !!data.reset;
-      showAlert(data.message);
-    }
-  }catch(_e){}
-}
-
-document.addEventListener("visibilitychange", () => {
-  if(document.visibilityState === "visible"){
-    tryResumeAlert();
-  }
-});
 
 
 // =================== UI RENDER ===================
@@ -503,7 +478,7 @@ modal?.addEventListener("click", (e) => {
 
 btnOpenChat?.addEventListener("click", () => {
   const url = buildWhatsAppChatOnlyUrl();
-  if(isMobileUA()) window.location.assign(url);
+  if(isMobileUA()) window.location.href = url;
   else window.open(url, "_blank", "noopener,noreferrer");
 });
 
@@ -512,14 +487,14 @@ btnCopyMessage?.addEventListener("click", async () => {
     const txt = (elModalMessage && elModalMessage.value) ? elModalMessage.value : (pending?.messageFallback || "");
     if(!txt) return;
     await navigator.clipboard.writeText(txt);
-    showAlert("Mensaje copiado ✅\n\nPégalo en WhatsApp y envíalo para confirmar tu pedido.");
+    showAlert("Mensaje copiado ✅\\n\\nPégalo en WhatsApp y envíalo para confirmar tu pedido.");
   }catch(_e){
     try{
       if(elModalMessage){
         elModalMessage.focus();
         elModalMessage.select();
         document.execCommand("copy");
-        showAlert("Mensaje copiado ✅\n\nPégalo en WhatsApp y envíalo para confirmar tu pedido.");
+        showAlert("Mensaje copiado ✅\\n\\nPégalo en WhatsApp y envíalo para confirmar tu pedido.");
       }
     }catch(_e2){}
   }
