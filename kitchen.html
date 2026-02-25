@@ -159,14 +159,30 @@
     <!-- APP -->
     <div id="app" style="display:none;">
       <div class="layout">
-        <section class="card">
-          <h2 class="cardTitle">Producción de hoy</h2>
+        
+        <section class="card" id="prodSection">
+          <h2 class="cardTitle">Producción</h2>
           <div class="muted small" style="margin-bottom:10px;">
             Regla: pedidos antes de las <b>3:00 p.m.</b> son para hoy; después de las 3:00 p.m. son informativos para mañana.
           </div>
 
-          <div id="todayWrap"></div>
+          <div class="prodTabs">
+            <button id="tabProdToday" class="tabBtn active" type="button">Hoy</button>
+            <button id="tabProdBacklog" class="tabBtn" type="button">Pendientes pagados</button>
+          </div>
+
+          <div id="prodPanelToday">
+            <div id="todayWrap"></div>
+          </div>
+
+          <div id="prodPanelBacklog" class="hidden" style="margin-top:10px;">
+            <div class="muted small" style="margin-bottom:10px;">
+              Pedidos pagados de días anteriores que siguen en <b>"No iniciar"</b>.
+            </div>
+            <div id="backlogWrap"></div>
+          </div>
         </section>
+
 
         <section class="card">
           <h2 class="cardTitle">Informativo (mañana)</h2>
@@ -179,14 +195,6 @@
       </div>
 
       
-      <section class="card" style="margin-top:14px;">
-        <h2 class="cardTitle">Pendientes pagados (días anteriores)</h2>
-        <div class="muted small" style="margin-bottom:10px;">
-          Pedidos pagados de días anteriores que siguen en <b>"No iniciar"</b>.
-        </div>
-        <div id="backlogWrap"></div>
-      </section>
-
       <section class="card" style="margin-top:14px;">
         <h2 class="cardTitle">En proceso</h2>
         <div id="inProgressWrap"></div>
