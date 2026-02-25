@@ -185,6 +185,24 @@
   const backlogWrap = $("backlogWrap");
   const doneWrap = $("doneWrap");
 
+  // Tabs Producción (Hoy / Pendientes pagados)
+  const tabProdToday = $("tabProdToday");
+  const tabProdBacklog = $("tabProdBacklog");
+  const prodPanelToday = $("prodPanelToday");
+  const prodPanelBacklog = $("prodPanelBacklog");
+
+  function setProdTab(which){
+    const isToday = which === "today";
+    tabProdToday?.classList.toggle("active", isToday);
+    tabProdBacklog?.classList.toggle("active", !isToday);
+    prodPanelToday?.classList.toggle("hidden", !isToday);
+    prodPanelBacklog?.classList.toggle("hidden", isToday);
+  }
+
+  tabProdToday?.addEventListener("click", ()=>setProdTab("today"));
+  tabProdBacklog?.addEventListener("click", ()=>setProdTab("backlog"));
+
+
   const loading = $("loading");
   const loadingTitle = $("loadingTitle");
   const loadingMsg = $("loadingMsg");
@@ -486,7 +504,13 @@ const apiPost = (payload) => api(payload);
     const todayAll = paid.filter(o=>o.__prod_day===state.todayKey);
     const normStatus = (v)=>String(v||"").trim().toLowerCase();
     const inProgDb = todayAll.filter(o=>normStatus(o.kitchen_status)==="en proceso");
-    const doneDb = todayAll.filter(o=>normStatus(o.kitchen_status)==="listo");
+    const doneDb = paid.filter(o=>normStatus(o.kitchen_status)==="listo").filter(o=>{
+      const raw = String(o.kitchen_done_at || o.kitchen_done || "");
+      const t = raw ? new Date(raw).getTime() : NaN;
+      const now = Date.now();
+      if(!Number.isNaN(t)) return (now - t) <= 24*60*60*1000;
+      return o.__prod_day === state.todayKey;
+    });
     const pending = todayAll.filter(o=>{ const ks=normStatus(o.kitchen_status); return ks!=="en proceso" && ks!=="listo"; });
 
     // Informativo mañana (pedidos creados hoy >= 3pm)
@@ -519,6 +543,12 @@ const apiPost = (payload) => api(payload);
     const st=document.createElement("style");
     st.id="amStylesV6";
     st.textContent=`
+      /* Tabs Producción */
+      .prodTabs{ display:flex; gap:10px; flex-wrap:wrap; margin-bottom:10px; }
+      .tabBtn{ padding:10px 14px; border-radius:14px; border:1px solid rgba(64,17,2,.12); background: rgba(255,255,255,.75); font-weight:900; cursor:pointer; }
+      .tabBtn.active{ background: rgba(246,186,96,.40); border-color: rgba(246,186,96,.85); }
+      .hidden{ display:none !important; }
+
       /* Cards como "cuadraditos" */
       .amCard{
         background: rgba(255,255,255,.88);
@@ -1330,6 +1360,19 @@ function renderProfilesSelect(list, selectedId){
     renderProductCards(todayWrap, state.buckets.today, {badgeText:`Producción ${state.todayKey}`, showAction:true});
     renderProductCards(tomorrowWrap, state.buckets.infoTomorrow, {badgeText:`Informativo (${state.nextKey})`, showAction:false});
     renderProductCards(backlogWrap, state.buckets.backlog||[], {badgeText:"Pendientes pagados", showAction:true});
+
+    // actualizar tabs con conteo y vista por defecto
+    try{
+      const cToday = (state.buckets.today||[]).length;
+      const cBack  = (state.buckets.backlog||[]).length;
+      const t1 = $("tabProdToday");
+      const t2 = $("tabProdBacklog");
+      if(t1) t1.textContent = `Hoy (${cToday})`;
+      if(t2) t2.textContent = `Pendientes pagados (${cBack})`;
+      if(cToday===0 && cBack>0) setProdTab("backlog");
+      else setProdTab("today");
+    }catch(_e){}
+
     renderProductCards(inProgressWrap, state.buckets.inProgress, {badgeText:"En proceso", showAction:true});
 
     // Finalizados:
