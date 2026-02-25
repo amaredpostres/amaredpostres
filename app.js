@@ -778,95 +778,90 @@ btnAlertCopyMessage?.addEventListener("click", async () => {
 /* =========================
    Opiniones (Reviews)
 ========================= */
+
 const reviewsListEl = document.getElementById("reviewsList");
 const reviewsAvgEl = document.getElementById("reviewsAvg");
 const reviewsCountEl = document.getElementById("reviewsCount");
 const reviewsAvgStarsEl = document.getElementById("reviewsAvgStars");
-const btnOpenReview = document.getElementById("btnOpenReview");
+const btnOpenReviewModal = document.getElementById("btnOpenReviewModal");
 
-const reviewsModal = document.getElementById("reviewsModal");
-const btnCloseReviewsModal = document.getElementById("btnCloseReviewsModal");
+const reviewModal = document.getElementById("reviewModal");
+const btnCloseReview = document.getElementById("btnCloseReview");
 const btnSubmitReview = document.getElementById("btnSubmitReview");
 const reviewLast4 = document.getElementById("reviewLast4");
-const reviewStarsEl = document.getElementById("reviewStars");
 const reviewName = document.getElementById("reviewName");
 const reviewComment = document.getElementById("reviewComment");
-const reviewCount = document.getElementById("reviewCount");
-const reviewErr = document.getElementById("reviewErr");
-
-const btnAdminReviews = document.getElementById("btnAdminReviews");
-const adminReviewsModal = document.getElementById("adminReviewsModal");
-const btnCloseAdminReviewsModal = document.getElementById("btnCloseAdminReviewsModal");
-const btnAdminLoginReviews = document.getElementById("btnAdminLoginReviews");
-const adminPinReviews = document.getElementById("adminPinReviews");
-const adminReviewsErr = document.getElementById("adminReviewsErr");
+const reviewCharCount = document.getElementById("reviewCharCount");
+const reviewStarsRow = document.getElementById("reviewStars");
 
 let _reviewRating = 0;
-let _isAdmin = false;
 
-function isAdminQuery(){
-  try{
-    const sp = new URLSearchParams(location.search);
-    return sp.get("admin") === "1";
-  }catch(_e){ return false; }
+function showReviewModal(){
+  if(!reviewModal) return;
+  reviewModal.classList.remove("hidden");
+  reviewModal.setAttribute("aria-hidden","false");
 }
 
-function setAdminMode(flag){
-  _isAdmin = !!flag;
-  try{ sessionStorage.setItem("AMARED_ADMIN_REVIEWS", _isAdmin ? "1" : "0"); }catch(_e){}
-  renderReviews(_lastReviewsData);
+function hideReviewModal(){
+  if(!reviewModal) return;
+  reviewModal.classList.add("hidden");
+  reviewModal.setAttribute("aria-hidden","true");
 }
 
-function loadAdminMode(){
-  try{
-    _isAdmin = sessionStorage.getItem("AMARED_ADMIN_REVIEWS") === "1";
-  }catch(_e){ _isAdmin = false; }
+function setStarsUI(val){
+  _reviewRating = val;
+  if(!reviewStarsRow) return;
+  [...reviewStarsRow.querySelectorAll(".starBtn")].forEach(btn => {
+    const v = Number(btn.getAttribute("data-value") || "0");
+    btn.classList.toggle("isOn", v <= val);
+  });
 }
 
-function showModalEl(el){
-  if(!el) return;
-  el.classList.remove("hidden");
-  el.setAttribute("aria-hidden","false");
-}
-function hideModalEl(el){
-  if(!el) return;
-  el.classList.add("hidden");
-  el.setAttribute("aria-hidden","true");
+reviewStarsRow?.addEventListener("click", (e) => {
+  const btn = e.target?.closest?.(".starBtn");
+  if(!btn) return;
+  const v = Number(btn.getAttribute("data-value") || "0");
+  if(!v) return;
+  setStarsUI(v);
+});
+
+reviewComment?.addEventListener("input", () => {
+  if(reviewCharCount){
+    reviewCharCount.textContent = `${String(reviewComment.value || "").length}/300`;
+  }
+});
+
+btnOpenReviewModal?.addEventListener("click", () => {
+  hideAlert();
+  // reset
+  if(reviewLast4) reviewLast4.value = "";
+  if(reviewName) reviewName.value = "";
+  if(reviewComment) reviewComment.value = "";
+  if(reviewCharCount) reviewCharCount.textContent = "0/300";
+  setStarsUI(0);
+  showReviewModal();
+});
+
+btnCloseReview?.addEventListener("click", hideReviewModal);
+reviewModal?.addEventListener("click", (e) => {
+  if(e.target === reviewModal) hideReviewModal();
+});
+
+function starsText(n){
+  const k = Math.max(0, Math.min(5, Number(n)||0));
+  return "★★★★★".slice(0,k) + "☆☆☆☆☆".slice(0, 5-k);
 }
 
 function renderAvgStars(avg){
-  if(!reviewsAvgStarsEl) return;
-  const a = Number(avg||0);
-  const full = Math.floor(a);
-  const half = (a - full) >= 0.5;
-  let s = "";
-  for(let i=1;i<=5;i++){
-    if(i<=full) s += "★";
-    else if(i===full+1 && half) s += "☆";
-    else s += "✩";
-  }
-  reviewsAvgStarsEl.textContent = s;
+  const a = Math.round((Number(avg)||0) * 10) / 10;
+  const full = Math.round(a); // simple
+  if(reviewsAvgStarsEl) reviewsAvgStarsEl.textContent = starsText(full);
 }
-
-function renderStarsLine(rating){
-  const r = Number(rating||0);
-  let s = "";
-  for(let i=1;i<=5;i++){
-    s += (i<=r) ? "★" : "✩";
-  }
-  return s;
-}
-
-let _lastReviewsData = { reviews:[], avg_rating:0, count:0 };
-
-function esc(s){ return String(s||"").replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;"); }
 
 function renderReviews(data){
-  data = data || { reviews:[], avg_rating:0, count:0 };
-  _lastReviewsData = data;
-  const list = data.reviews || [];
-  const avg = Number(data.avg_rating || 0);
-  const count = Number(data.count || list.length || 0);
+  const list = data?.reviews || [];
+  const avg = Number(data?.avg_rating || 0);
+  const count = Number(data?.count || list.length || 0);
 
   if(reviewsAvgEl) reviewsAvgEl.textContent = count ? (Math.round(avg*10)/10).toFixed(1) : "—";
   if(reviewsCountEl) reviewsCountEl.textContent = String(count || 0);
@@ -874,161 +869,65 @@ function renderReviews(data){
 
   if(!reviewsListEl) return;
   if(!list.length){
-    reviewsListEl.innerHTML = `<div class="muted small">Aún no hay opiniones publicadas.</div>`;
+    reviewsListEl.innerHTML = '<div class="muted small">Aún no hay opiniones publicadas.</div>';
     return;
   }
 
   reviewsListEl.innerHTML = list.map(r => {
-    const name = esc(r.name || "Cliente");
-    const comment = esc(r.comment || "");
-    const reply = r.reply ? esc(r.reply) : "";
-    const date = esc(r.created_at || "");
-    const stars = renderStarsLine(r.rating);
-
-    const adminControls = _isAdmin ? `
-      <div class="reviewAdminRow">
-        <input class="input" data-reply-for="${esc(r.order_id)}" placeholder="Responder..." maxlength="300"/>
-        <button class="btn secondary" data-reply-btn="${esc(r.order_id)}" type="button">Responder</button>
-      </div>
-    ` : "";
-
+    const nm = escapeHtml(r.name || "Cliente");
+    const txt = escapeHtml(r.comment || "");
+    const dt = escapeHtml(r.created_at || "");
+    const st = starsText(r.rating || 0);
     return `
       <div class="reviewCard">
-        <div class="reviewTop">
-          <div>
-            <div class="reviewName">${name}</div>
-            <div class="reviewDate">${date}</div>
-          </div>
-          <div class="reviewStarsLine" aria-label="Calificación">${stars}</div>
+        <div class="reviewCardTop">
+          <div class="reviewName">${nm}</div>
+          <div class="reviewStars" aria-hidden="true">${st}</div>
         </div>
-        <div class="reviewText">${comment}</div>
-
-        ${reply ? `
-          <div class="reviewReply">
-            <div class="reviewReplyTitle">AMARED respondió</div>
-            <div class="reviewText">${reply}</div>
-          </div>
-        ` : ""}
-
-        ${adminControls}
+        <div class="muted small reviewMeta">${dt}</div>
+        <div class="reviewText">${txt}</div>
       </div>
     `;
   }).join("");
-
-  // bind reply buttons
-  if(_isAdmin){
-    reviewsListEl.querySelectorAll("[data-reply-btn]").forEach(btn => {
-      btn.addEventListener("click", async () => {
-        const orderId = btn.getAttribute("data-reply-btn");
-        const input = reviewsListEl.querySelector(`[data-reply-for="${CSS.escape(orderId)}"]`);
-        const replyText = input ? input.value.trim() : "";
-        if(!replyText) return showAlert("Escribe una respuesta.");
-        const pin = (adminPinReviews && adminPinReviews.value) ? adminPinReviews.value.trim() : "";
-        if(!pin) return showAlert("Ingresa el PIN en Modo admin.");
-        showLoading("Enviando respuesta...");
-        try{
-          const res = await fetch(ORDER_API_URL, {
-            method:"POST",
-            headers:{ "Content-Type":"application/json" },
-            body: JSON.stringify({ action:"reviews_reply", admin_pin: pin, order_id: orderId, reply: replyText })
-          });
-          const out = await res.json();
-          hideLoading();
-          if(!out?.ok) return showAlert(out?.error || "No se pudo responder.");
-          input.value = "";
-          await loadReviews();
-          showAlert("Respuesta publicada ✅");
-        }catch(e){
-          hideLoading();
-          showAlert(String(e));
-        }
-      });
-    });
-  }
 }
 
-async function loadReviews(){
+async function fetchReviews(){
   try{
     const res = await fetch(ORDER_API_URL, {
-      method:"POST",
-      headers:{ "Content-Type":"application/json" },
-      body: JSON.stringify({ action:"reviews_list" })
+      method: "POST",
+      headers: { "Content-Type":"application/json" },
+      body: JSON.stringify({ action: "reviews_list", limit: 8 })
     });
     const out = await res.json();
-    if(out?.ok){
-      renderReviews(out);
-    }
+    if(out?.ok) renderReviews(out);
   }catch(_e){
-    // ignore
+    // silencioso
   }
 }
 
-function resetReviewModal(){
-  if(reviewErr) reviewErr.textContent = "";
-  if(reviewLast4) reviewLast4.value = "";
-  if(reviewName) reviewName.value = "";
-  if(reviewComment) reviewComment.value = "";
-  if(reviewCount) reviewCount.textContent = "0";
-  _reviewRating = 0;
-  renderReviewStars();
-}
+async function submitReview(){
+  const last4 = String(reviewLast4?.value || "").trim();
+  const name = String(reviewName?.value || "").trim();
+  const comment = String(reviewComment?.value || "").trim();
 
-function renderReviewStars(){
-  if(!reviewStarsEl) return;
-  reviewStarsEl.innerHTML = "";
-  for(let i=1;i<=5;i++){
-    const b = document.createElement("button");
-    b.type = "button";
-    b.className = "starBtn" + (i<=_reviewRating ? " active" : "");
-    b.textContent = "★";
-    b.addEventListener("click", ()=>{ _reviewRating = i; renderReviewStars(); });
-    reviewStarsEl.appendChild(b);
-  }
-}
-
-function openReviewModal(){
-  resetReviewModal();
-  renderReviewStars();
-  showModalEl(reviewsModal);
-}
-
-function closeReviewModal(){
-  hideModalEl(reviewsModal);
-}
-
-btnOpenReview?.addEventListener("click", openReviewModal);
-btnCloseReviewsModal?.addEventListener("click", closeReviewModal);
-reviewsModal?.addEventListener("click", (e)=>{ if(e.target === reviewsModal) closeReviewModal(); });
-
-reviewComment?.addEventListener("input", ()=>{
-  if(reviewCount) reviewCount.textContent = String(reviewComment.value.length || 0);
-});
-
-btnSubmitReview?.addEventListener("click", async ()=>{
-  if(reviewErr) reviewErr.textContent = "";
-
-  const last4 = (reviewLast4?.value || "").trim();
-  const name = (reviewName?.value || "").trim();
-  const comment = (reviewComment?.value || "").trim();
-
-  if(!/^\d{4}$/.test(last4)){
-    if(reviewErr) reviewErr.textContent = "Escribe exactamente 4 dígitos.";
+  if(!/^[0-9]{4}$/.test(last4)){
+    showAlert("Escribe los últimos 4 dígitos del ID (ej: 1234).");
     return;
   }
-  if(!_reviewRating){
-    if(reviewErr) reviewErr.textContent = "Selecciona una calificación.";
+  if(!_reviewRating || _reviewRating < 1 || _reviewRating > 5){
+    showAlert("Selecciona una calificación (1 a 5 estrellas).");
     return;
   }
   if(comment.length < 10){
-    if(reviewErr) reviewErr.textContent = "Escribe una opinión un poco más larga (mínimo 10 caracteres).";
+    showAlert("Escribe una opinión un poco más larga (mínimo 10 caracteres).");
     return;
   }
 
   showLoading("Enviando opinión...");
   try{
     const res = await fetch(ORDER_API_URL, {
-      method:"POST",
-      headers:{ "Content-Type":"application/json" },
+      method: "POST",
+      headers: { "Content-Type":"application/json" },
       body: JSON.stringify({
         action: "reviews_submit",
         last4,
@@ -1039,66 +938,25 @@ btnSubmitReview?.addEventListener("click", async ()=>{
     });
     const out = await res.json();
     hideLoading();
+    if(btnSubmitReview) btnSubmitReview.disabled = false;
 
     if(!out?.ok){
       showAlert(out?.error || "No se pudo enviar la opinión.");
       return;
     }
 
-    closeReviewModal();
-    await loadReviews();
-    showAlert("¡Gracias! Tu opinión fue publicada ✅");
+    hideReviewModal();
+    if(btnSubmitReview) btnSubmitReview.disabled = false;
+    showAlert("¡Gracias! Tu opinión se publicará si tu pedido aparece como ENVIADO.");
+    await fetchReviews();
   }catch(e){
     hideLoading();
-    showAlert(String(e));
-  }
-});
-
-/* Admin toggle (oculto para clientes normales) */
-function showAdminButtonIfNeeded(){
-  if(!btnAdminReviews) return;
-  if(isAdminQuery()){
-    btnAdminReviews.classList.remove("hidden");
+    if(btnSubmitReview) btnSubmitReview.disabled = false;
+    showAlert("Error enviando la opinión. Intenta de nuevo.");
   }
 }
-showAdminButtonIfNeeded();
-loadAdminMode();
-btnAdminReviews?.addEventListener("click", ()=>{ 
-  if(!isAdminQuery()) return;
-  adminReviewsErr.textContent = "";
-  showModalEl(adminReviewsModal);
-});
-btnCloseAdminReviewsModal?.addEventListener("click", ()=>hideModalEl(adminReviewsModal));
-adminReviewsModal?.addEventListener("click", (e)=>{ if(e.target===adminReviewsModal) hideModalEl(adminReviewsModal); });
 
-btnAdminLoginReviews?.addEventListener("click", async ()=>{
-  adminReviewsErr.textContent = "";
-  const pin = (adminPinReviews?.value || "").trim();
-  if(!pin){
-    adminReviewsErr.textContent = "Ingresa el PIN.";
-    return;
-  }
-  showLoading("Validando...");
-  try{
-    const res = await fetch(ORDER_API_URL, {
-      method:"POST",
-      headers:{ "Content-Type":"application/json" },
-      body: JSON.stringify({ action:"validate_admin_pin", admin_pin: pin })
-    });
-    const out = await res.json();
-    hideLoading();
-    if(out?.ok && out?.valid){
-      setAdminMode(true);
-      hideModalEl(adminReviewsModal);
-      showAlert("Modo admin activado ✅");
-    }else{
-      adminReviewsErr.textContent = "PIN incorrecto.";
-    }
-  }catch(e){
-    hideLoading();
-    adminReviewsErr.textContent = String(e);
-  }
-});
+btnSubmitReview?.addEventListener("click", submitReview);
 
-// Initial load
-loadReviews();
+// cargar opiniones al iniciar
+fetchReviews();
