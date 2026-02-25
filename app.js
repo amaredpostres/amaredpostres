@@ -1143,7 +1143,8 @@ let _reviewsAppendMode = false;
 btnMoreReviews?.addEventListener("click", async () => {
   _reviewsLimit += 3;
   _reviewsMoreClicks += 1;
-  await fetchReviews();
+  // ✅ No borra lo ya cargado; agrega solo las nuevas
+  await fetchReviews({ append: true });
   updateOpinionesTopVisibility();
 });
 
