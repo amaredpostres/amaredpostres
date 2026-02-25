@@ -795,6 +795,8 @@ const reviewsAvgEl = document.getElementById("reviewsAvg");
 const reviewsCountEl = document.getElementById("reviewsCount");
 const reviewsAvgStarsEl = document.getElementById("reviewsAvgStars");
 const btnOpenReviewModal = document.getElementById("btnOpenReviewModal");
+const opinionesSection = document.getElementById("opiniones");
+const btnOpinionesTop = document.getElementById("btnOpinionesTop");
 
 const reviewModal = document.getElementById("reviewModal");
 const btnCloseReview = document.getElementById("btnCloseReview");
@@ -878,13 +880,13 @@ function renderReviews(data){
   if(reviewsCountEl) reviewsCountEl.textContent = String(count || 0);
   renderAvgStars(avg);
 
-  // Ver más
+  // Ver más (carga 3 más por clic)
   if(btnMoreReviews){
-    btnMoreReviews.classList.toggle("hidden", count <= 3);
-    btnMoreReviews.textContent = _reviewsExpanded ? "Ver menos" : "Ver más";
+    const canMore = (count > _reviewsLimit);
+    btnMoreReviews.classList.toggle("hidden", !canMore);
+    btnMoreReviews.textContent = "Ver más";
   }
-
-  if(!reviewsListEl) return;
+if(!reviewsListEl) return;
   if(!list.length){
     reviewsListEl.innerHTML = '<div class="muted small">Aún no hay opiniones publicadas.</div>';
     return;
@@ -955,27 +957,49 @@ function renderReviews(data){
       });
     });
   }
+
+  updateOpinionesTopVisibility();
 }
 
 async function fetchReviews(){
-  try{
-    if(reviewsInlineLoading) reviewsInlineLoading.classList.remove("hidden");
-    if(reviewsListEl) reviewsListEl.innerHTML = "";
+  const limit = _reviewsLimit;
 
-    const limit = _reviewsExpanded ? 20 : 3;
-
+  const attempt = async () => {
     const res = await fetch(ORDER_API_URL, {
       method: "POST",
       headers: { "Content-Type":"application/json" },
       body: JSON.stringify({ action: "reviews_list", limit })
     });
-    const out = await res.json();
-    if(out?.ok) renderReviews(out);
-    else if(reviewsListEl) reviewsListEl.innerHTML = '<div class="muted small">No se pudieron cargar las opiniones.</div>';
-  }catch(_e){
-    if(reviewsListEl) reviewsListEl.innerHTML = '<div class="muted small">No se pudieron cargar las opiniones.</div>';
+    let out = null;
+    try{ out = await res.json(); }catch(_e){ out = null; }
+    return { res, out };
+  };
+
+  try{
+    if(reviewsInlineLoading) reviewsInlineLoading.classList.remove("hidden");
+    if(reviewsListEl) reviewsListEl.innerHTML = "";
+
+    let { res, out } = await attempt();
+
+    // retry corto por si fue un fallo temporal / cold start
+    if(!out){
+      await new Promise(r => setTimeout(r, 700));
+      const r2 = await attempt();
+      res = r2.res; out = r2.out;
+    }
+
+    if(out?.ok){
+      renderReviews(out);
+    }else{
+      const msg = out?.error ? `No se pudieron cargar las opiniones. (${out.error})` : "No se pudieron cargar las opiniones.";
+      if(reviewsListEl) reviewsListEl.innerHTML = `<div class="muted small">${escapeHtml(msg)}</div>`;
+    }
+  }catch(e){
+    const msg = `No se pudieron cargar las opiniones. (${String(e)})`;
+    if(reviewsListEl) reviewsListEl.innerHTML = `<div class="muted small">${escapeHtml(msg)}</div>`;
   }finally{
     if(reviewsInlineLoading) reviewsInlineLoading.classList.add("hidden");
+    updateOpinionesTopVisibility();
   }
 }
 
@@ -1079,12 +1103,12 @@ function timeAgo(dateStr){
 }
 
 let _reviewsLimit = 3;
-let _reviewsExpanded = false;
-
-
+let _reviewsMoreClicks = 0;
 btnMoreReviews?.addEventListener("click", async () => {
-  _reviewsExpanded = !_reviewsExpanded;
+  _reviewsLimit += 3;
+  _reviewsMoreClicks += 1;
   await fetchReviews();
+  updateOpinionesTopVisibility();
 });
 
 showAdminButtonIfNeeded();
@@ -1125,4 +1149,28 @@ btnAdminLoginReviews?.addEventListener("click", async ()=> {
     hideLoading();
     if(adminReviewsErr) adminReviewsErr.textContent = String(e);
   }
+});
+
+let _opinionesInView = false;
+
+function updateOpinionesTopVisibility(){
+  if(!btnOpinionesTop) return;
+  const atTop = (window.scrollY || 0) < 80;
+  const canShow = (_reviewsMoreClicks >= 3) && _opinionesInView && !atTop;
+  btnOpinionesTop.classList.toggle("hidden", !canShow);
+}
+
+if(opinionesSection && "IntersectionObserver" in window){
+  const obs = new IntersectionObserver((entries)=>{
+    const e = entries[0];
+    _opinionesInView = !!e?.isIntersecting;
+    updateOpinionesTopVisibility();
+  }, { threshold: 0.15 });
+  obs.observe(opinionesSection);
+}
+
+window.addEventListener("scroll", updateOpinionesTopVisibility);
+
+btnOpinionesTop?.addEventListener("click", ()=>{
+  window.scrollTo({ top: 0, behavior: "smooth" });
 });
