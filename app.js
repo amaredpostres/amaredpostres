@@ -695,23 +695,26 @@ syncLocationUI();
 function showLoading(text="Procesando..."){
   try{
     _loadingStartTs = Date.now();
-    if(loadingText) loadingText.textContent = text;
-    if(loadingOverlay){
-      loadingOverlay.classList.remove("hidden");
-      loadingOverlay.setAttribute("aria-hidden","false");
-      loadingOverlay.style.zIndex = "31000";
-      loadingOverlay.style.display = "grid";
+    const lo = loadingOverlay || document.getElementById("loadingOverlay");
+    const lt = loadingText || document.getElementById("loadingText");
+    if(lt) lt.textContent = text;
+    if(lo){
+      lo.classList.remove("hidden");
+      lo.setAttribute("aria-hidden","false");
+      lo.style.zIndex = "31000";
+      lo.style.display = "grid";
     }
   }catch(_e){}
 }
 function hideLoading(){
   try{
+    const lo = loadingOverlay || document.getElementById("loadingOverlay");
     const elapsed = _loadingStartTs ? (Date.now() - _loadingStartTs) : 9999;
     const doHide = () => {
-      if(loadingOverlay){
-        loadingOverlay.classList.add("hidden");
-        loadingOverlay.setAttribute("aria-hidden","true");
-        loadingOverlay.style.display = "none";
+      if(lo){
+        lo.classList.add("hidden");
+        lo.setAttribute("aria-hidden","true");
+        lo.style.display = "none";
       }
     };
     if(elapsed < 650){
@@ -788,6 +791,7 @@ btnAlertCopyMessage?.addEventListener("click", async () => {
 ========================= */
 
 const reviewsListEl = document.getElementById("reviewsList");
+const reviewsInlineLoading = document.getElementById("reviewsInlineLoading");
 const reviewsAvgEl = document.getElementById("reviewsAvg");
 const reviewsCountEl = document.getElementById("reviewsCount");
 const reviewsAvgStarsEl = document.getElementById("reviewsAvgStars");
