@@ -117,8 +117,8 @@
         { type:"normal", text:"Sirve la mezcla en los vasitos sobre la base (150 ml por vasito).", img:"assets/steps/mousse/step09.webp" },
         { type:"normal", text:"Refrigera mínimo 8 horas o toda la noche.", img:"assets/steps/mousse/step10.webp" },
         { type:"normal", text:"Agregar chocorramo (20 g por postre).", img:"assets/steps/mousse/step11.webp" },
-        { type:"normal", text:"¡Listo! Verifica presentación y limpieza del área.", img:"assets/steps/mousse/step13.webp" },
-        { type:"final", text:"Espolvorea chocolate con la forma del logo.", img:"assets/steps/mousse/step12.webp" },
+        { type:"normal", text:"Espolvorea chocolate con la forma del logo.", img:"assets/steps/mousse/step12.webp" },
+        { type:"final", text:"¡Listo! Verifica presentación y limpieza del área.", img:"assets/steps/mousse/step13.webp" },
       ],
     };
   }
@@ -1001,20 +1001,11 @@ function renderProfilesSelect(list, selectedId){
     const nextBtn=$("amNextOrTimer");
     const finalBox=$("amFinalActions");
     if(finalBox) finalBox.style.display = "none";
-
-    // Mostrar botones finales según si es el último postre pendiente
-    if(st?.type==="final"){
-      const remaining = remainingProductsCount();
-      const btnPostre = $("amFinishPostre");
-      const btnLote = $("amFinishLote");
-      if(remaining > 1){
-        btnPostre.style.display="inline-flex";
-        btnLote.style.display="none";
-      }else{
-        btnPostre.style.display="none";
-        btnLote.style.display="inline-flex";
-      }
-    }
+    // Ocultar botones finales (se usa el mismo botón principal en el último paso)
+    const btnPostre = $("amFinishPostre");
+    const btnLote = $("amFinishLote");
+    if(btnPostre) btnPostre.style.display="none";
+    if(btnLote) btnLote.style.display="none";
 
     if(st?.type==="batch_ingredients"){
       const {lines,totalCost}=calcBatchIngredients(pid,state.recipe.units);
@@ -1036,16 +1027,21 @@ function renderProfilesSelect(list, selectedId){
     $("amStepHint").textContent = "";
 
     if(st?.type==="timer_base"){
-      $("amStepHint").textContent = "Este paso exige temporizador. Inícialo para poder continuar.";
+      $("amStepHint").textContent = "Se debe esperar el temporizador. Inícialo para poder continuar.";
       nextBtn.disabled=false;
       nextBtn.textContent = state.recipe.timerStarted ? "Siguiente →" : "Iniciar temporizador";
+      // ✅ Si vienes del último paso, reestablecer comportamiento normal
+      nextBtn.onclick = onNextOrTimer;
     }else if(st?.type==="final"){
       const remaining = remainingProductsCount();
       nextBtn.disabled=false;
       nextBtn.textContent = (remaining > 1) ? "Finalizar postre" : "Finalizar lote";
       nextBtn.onclick = (remaining > 1) ? ()=> finalizePostreFromOverlay() : ()=> finalizeLoteFromOverlay();
     }else{
-      nextBtn.disabled=false; nextBtn.textContent="Siguiente →";
+      nextBtn.disabled=false;
+      nextBtn.textContent="Siguiente →";
+      // ✅ Importante: volver a comportamiento normal al retroceder pasos
+      nextBtn.onclick = onNextOrTimer;
     }
 
     setRecipeImage(st?.img||"");
