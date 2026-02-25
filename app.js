@@ -1111,6 +1111,9 @@ btnMoreReviews?.addEventListener("click", async () => {
   updateOpinionesTopVisibility();
 });
 
+// ✅ Cargar las 3 últimas opiniones al abrir la página
+if(reviewsListEl) fetchReviews();
+
 showAdminButtonIfNeeded();
 
 btnAdminReviews?.addEventListener("click", () => {
