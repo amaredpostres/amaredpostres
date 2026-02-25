@@ -838,7 +838,7 @@ body{
 }
 
 
-/* ✅ Loader SOLO para la sección de opiniones */
+/* ✅ Loader SOLO para Opiniones */
 .reviewsInlineLoading{
   display: grid;
   place-items: center;
@@ -850,3 +850,27 @@ body{
   background: rgba(255,255,255,.55);
 }
 .reviewsInlineLoading.hidden{ display: none !important; }
+
+
+/* ✅ Respuesta admin */
+.reviewReply{
+  margin-top: 10px;
+  padding: 10px 10px;
+  border-radius: 12px;
+  background: rgba(242,91,143,.08);
+  border: 1px solid rgba(242,91,143,.18);
+}
+.reviewReplyTitle{
+  font-weight: 950;
+  margin-bottom: 6px;
+}
+.reviewAdminRow{
+  margin-top: 10px;
+  display:flex;
+  gap:10px;
+  flex-wrap:wrap;
+}
+.reviewAdminRow .input{
+  flex:1;
+  min-width: 220px;
+}
