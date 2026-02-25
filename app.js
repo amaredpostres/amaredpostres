@@ -892,7 +892,7 @@ if(!reviewsListEl) return;
     return;
   }
 
-  reviewsListEl.innerHTML = list.map(r => {
+    const renderReviewCard = (r) => {
     const nm = escapeHtml(r.name || "Cliente");
     const txt = escapeHtml(r.comment || "");
     const dt = timeAgo(r.created_at || "");
@@ -925,7 +925,18 @@ if(!reviewsListEl) return;
         ${adminControls}
       </div>
     `;
-  }).join("");
+  };
+
+  if(_reviewsAppendMode && _reviewsRenderedCount > 0 && list.length >= _reviewsRenderedCount){
+    const extra = list.slice(_reviewsRenderedCount);
+    if(extra.length){
+      reviewsListEl.insertAdjacentHTML("beforeend", extra.map(renderReviewCard).join(""));
+    }
+  }else{
+    reviewsListEl.innerHTML = list.map(renderReviewCard).join("");
+  }
+
+  _reviewsRenderedCount = list.length;
 
   // bind reply buttons
   if(_isAdminReviews){
@@ -948,7 +959,7 @@ if(!reviewsListEl) return;
           hideLoading();
           if(!out?.ok) return showAlert(out?.error || "No se pudo responder.");
           if(input) input.value = "";
-          await fetchReviews();
+          await fetchReviews({ append: true });
           showAlert("Respuesta publicada ✅");
         }catch(e){
           hideLoading();
@@ -961,8 +972,9 @@ if(!reviewsListEl) return;
   updateOpinionesTopVisibility();
 }
 
-async function fetchReviews(){
+async function fetchReviews(opts = {}) {
   const limit = _reviewsLimit;
+  const append = !!opts.append;
 
   const attempt = async () => {
     const res = await fetch(ORDER_API_URL, {
@@ -971,13 +983,24 @@ async function fetchReviews(){
       body: JSON.stringify({ action: "reviews_list", limit })
     });
     let out = null;
-    try{ out = await res.json(); }catch(_e){ out = null; }
+    try { out = await res.json(); } catch (_e) { out = null; }
     return { res, out };
   };
 
   try{
+    _reviewsAppendMode = append;
+
+    // mini loader solo en Opiniones
     if(reviewsInlineLoading) reviewsInlineLoading.classList.remove("hidden");
-    if(reviewsListEl) reviewsListEl.innerHTML = "";
+
+    // Solo limpiamos en carga inicial (no en "ver más")
+    if(!append){
+      if(reviewsListEl) reviewsListEl.innerHTML = "";
+      _reviewsRenderedCount = 0;
+    }
+
+    // Deshabilitar botón mientras carga
+    if(btnMoreReviews) btnMoreReviews.disabled = true;
 
     let { res, out } = await attempt();
 
@@ -992,13 +1015,24 @@ async function fetchReviews(){
       renderReviews(out);
     }else{
       const msg = out?.error ? `No se pudieron cargar las opiniones. (${out.error})` : "No se pudieron cargar las opiniones.";
-      if(reviewsListEl) reviewsListEl.innerHTML = `<div class="muted small">${escapeHtml(msg)}</div>`;
+      // En "ver más", mantenemos las ya cargadas y solo mostramos aviso
+      if(append){
+        showAlert(msg);
+      }else{
+        if(reviewsListEl) reviewsListEl.innerHTML = `<div class="muted small">${escapeHtml(msg)}</div>`;
+      }
     }
   }catch(e){
     const msg = `No se pudieron cargar las opiniones. (${String(e)})`;
-    if(reviewsListEl) reviewsListEl.innerHTML = `<div class="muted small">${escapeHtml(msg)}</div>`;
+    if(append){
+      showAlert(msg);
+    }else{
+      if(reviewsListEl) reviewsListEl.innerHTML = `<div class="muted small">${escapeHtml(msg)}</div>`;
+    }
   }finally{
     if(reviewsInlineLoading) reviewsInlineLoading.classList.add("hidden");
+    if(btnMoreReviews) btnMoreReviews.disabled = false;
+    _reviewsAppendMode = false;
     updateOpinionesTopVisibility();
   }
 }
@@ -1104,6 +1138,8 @@ function timeAgo(dateStr){
 
 let _reviewsLimit = 3;
 let _reviewsMoreClicks = 0;
+let _reviewsRenderedCount = 0;
+let _reviewsAppendMode = false;
 btnMoreReviews?.addEventListener("click", async () => {
   _reviewsLimit += 3;
   _reviewsMoreClicks += 1;
