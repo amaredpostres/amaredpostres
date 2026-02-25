@@ -836,3 +836,16 @@ body{
   background: rgba(0,0,0,.40) !important;
   z-index: 31000 !important;
 }
+
+
+/* ✅ Loader pequeño para Opiniones */
+.reviewsInlineLoading{
+  display: none;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 14px;
+  border: 1px solid var(--border);
+  background: rgba(255,255,255,.70);
+  margin-top: 12px;
+}
