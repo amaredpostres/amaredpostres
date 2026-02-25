@@ -1057,8 +1057,8 @@ async function submitReview(){
 
 btnSubmitReview?.addEventListener("click", submitReview);
 
-// cargar opiniones al iniciar
-fetchReviews();
+// cargar opiniones al iniciar (se hace después de inicializar límites)
+
 
 
 // Admin (opiniones)
