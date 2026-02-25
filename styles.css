@@ -826,3 +826,13 @@ body{
   background: rgba(242,91,143,.16);
   border-color: rgba(242,91,143,.45);
 }
+
+
+/* ✅ Loader siempre visible (encima de todo) */
+#loadingOverlay{
+  z-index: 31000 !important;
+}
+.loadingOverlay{
+  background: rgba(0,0,0,.40) !important;
+  z-index: 31000 !important;
+}
