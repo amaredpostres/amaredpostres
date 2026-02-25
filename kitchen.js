@@ -182,6 +182,7 @@
   const todayWrap = $("todayWrap");
   const tomorrowWrap = $("tomorrowWrap");
   const inProgressWrap = $("inProgressWrap");
+  const backlogWrap = $("backlogWrap");
   const doneWrap = $("doneWrap");
 
   const loading = $("loading");
@@ -1328,6 +1329,7 @@ function renderProfilesSelect(list, selectedId){
   function renderAll(){
     renderProductCards(todayWrap, state.buckets.today, {badgeText:`Producción ${state.todayKey}`, showAction:true});
     renderProductCards(tomorrowWrap, state.buckets.infoTomorrow, {badgeText:`Informativo (${state.nextKey})`, showAction:false});
+    renderProductCards(backlogWrap, state.buckets.backlog||[], {badgeText:"Pendientes pagados", showAction:true});
     renderProductCards(inProgressWrap, state.buckets.inProgress, {badgeText:"En proceso", showAction:true});
 
     // Finalizados:
@@ -1839,4 +1841,4 @@ function renderProfilesSelect(list, selectedId){
     console.error(err);
     alert("Error inicializando cocina: " + (err?.message||String(err)));
   });
-})();
+  })();
