@@ -603,6 +603,9 @@ btnSendWhatsApp?.addEventListener("click", async () => {
 
   showLoading("Registrando pedido...");
 
+  // ✅ deja que el navegador pinte el loader
+  await nextFrame();
+
   try {
     elStatus.textContent = "Registrando pedido...";
 
@@ -626,7 +629,7 @@ btnSendWhatsApp?.addEventListener("click", async () => {
       storeResumeAlert(SUCCESS_MSG, true, pending.messageFallback);
 
       hideLoading();
-      openWhatsAppUrl(waUrl); // mobile => location.href
+      setTimeout(() => openWhatsAppUrl(waUrl), 250); // mobile => location.href
       return;
     }
 
@@ -696,7 +699,7 @@ function showLoading(text="Procesando..."){
     if(loadingOverlay){
       loadingOverlay.classList.remove("hidden");
       loadingOverlay.setAttribute("aria-hidden","false");
-      loadingOverlay.style.zIndex = "28000";
+      loadingOverlay.style.zIndex = "31000";
       loadingOverlay.style.display = "grid";
     }
   }catch(_e){}
@@ -711,13 +714,18 @@ function hideLoading(){
         loadingOverlay.style.display = "none";
       }
     };
-    if(elapsed < 600){
-      setTimeout(doHide, 600 - elapsed);
+    if(elapsed < 650){
+      setTimeout(doHide, 650 - elapsed);
     }else{
       doHide();
     }
   }catch(_e){}
 }
+
+function nextFrame(){
+  return new Promise(resolve => requestAnimationFrame(() => resolve()));
+}
+
 
 
 function initHelpUI(){
@@ -924,6 +932,7 @@ async function submitReview(){
   }
 
   showLoading("Enviando opinión...");
+  await nextFrame();
   try{
     const res = await fetch(ORDER_API_URL, {
       method: "POST",
