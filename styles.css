@@ -874,3 +874,20 @@ body{
   flex:1;
   min-width: 220px;
 }
+
+
+/* ✅ Botón flotante volver al inicio (solo Opiniones) */
+.backToTop{
+  position: fixed;
+  right: 14px;
+  bottom: 14px;
+  z-index: 26000;
+  padding: 10px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: rgba(255,255,255,.88);
+  backdrop-filter: blur(6px);
+  box-shadow: 0 16px 40px rgba(0,0,0,.18);
+  font-weight: 950;
+}
+.backToTop.hidden{ display:none !important; }
