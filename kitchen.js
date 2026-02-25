@@ -114,16 +114,16 @@
         { type:"normal", text:"En olla: calienta agua hasta tibia (sin hervir).", img:"assets/steps/mousse/step06.webp" },
         { type:"normal", text:"Agrega gelatina sin sabor y revuelve hasta disolver homogéneo.", img:"assets/steps/mousse/step07.webp" },
         { type:"normal", text:"Con la licuadora encendida, integra la gelatina disuelta lentamente.", img:"assets/steps/mousse/step08.webp" },
-        { type:"normal", text:"Sirve la mezcla en los vasitos sobre la base.", img:"assets/steps/mousse/step09.webp" },
+        { type:"normal", text:"Sirve la mezcla en los vasitos sobre la base (150 ml por vasito).", img:"assets/steps/mousse/step09.webp" },
         { type:"normal", text:"Refrigera mínimo 8 horas o toda la noche.", img:"assets/steps/mousse/step10.webp" },
         { type:"normal", text:"Agregar chocorramo (20 g por postre).", img:"assets/steps/mousse/step11.webp" },
-        { type:"normal", text:"Espolvorea chocolate con la forma del logo.", img:"assets/steps/mousse/step12.webp" },
-        { type:"final", text:"¡Listo! Verifica presentación y limpieza del área.", img:"assets/steps/mousse/step13.webp" },
+        { type:"normal", text:"¡Listo! Verifica presentación y limpieza del área.", img:"assets/steps/mousse/step13.webp" },
+        { type:"final", text:"Espolvorea chocolate con la forma del logo.", img:"assets/steps/mousse/step12.webp" },
       ],
     };
   }
   if(!RECIPE_UNIT.cheesecake_cafe_panela){
-    RECIPE_UNIT.cheesecake_cafe_panela = {
+        RECIPE_UNIT.cheesecake_cafe_panela = {
       unitIngredients: [
         { key:"Galletas trituradas (g)", qty:25 },
         { key:"Mantequilla (g)", qty:10 },
@@ -138,18 +138,18 @@
         { key:"Decoración: harina galleta de leche (g)", qty:1 },
       ],
       steps: [
-        { type:"batch_ingredients" },
-        { type:"normal", text:"Tritura galletas (textura arenosa).", img:"assets/steps/cheesecake/step01.webp" },
-        { type:"normal", text:"Mezcla galleta + mantequilla derretida.", img:"assets/steps/cheesecake/step02.webp" },
-        { type:"normal", text:"Porciona y compacta 25 g de base en cada vasito.", img:"assets/steps/cheesecake/step03.webp" },
-        { type:"timer_base", text:"Ingresa los vasitos con la base a la nevera (30 min). Debes iniciar el temporizador para continuar.", img:"assets/steps/cheesecake/step04.webp" },
-        { type:"normal", text:"Mezcla queso crema + crema + leche condensada + vainilla hasta homogéneo.", img:"assets/steps/cheesecake/step06.webp" },
-        { type:"normal", text:"En olla: calienta agua tibia (sin hervir).", img:"assets/steps/cheesecake/step07.webp" },
-        { type:"normal", text:"Agrega gelatina y revuelve hasta disolver homogéneo.", img:"assets/steps/cheesecake/step08.webp" },
-        { type:"normal", text:"Integra la gelatina disuelta lentamente mientras mezclas.", img:"assets/steps/cheesecake/step09.webp" },
-        { type:"normal", text:"Sirve sobre la base y refrigera.", img:"assets/steps/cheesecake/step10.webp" },
-        { type:"normal", text:"Decora espolvoreando harina de galleta de leche.", img:"assets/steps/cheesecake/step11.webp" },
-        { type:"final", text:"¡Listo! Verifica presentación y limpieza del área.", img:"assets/steps/cheesecake/step12.webp" },
+        { type:"batch_ingredients" }, // Paso 1 (sin imagen)
+        { type:"normal", text:"Tritura galletas (textura arenosa).", img:"assets/steps/cheesecake/step01.webp" }, // Paso 2
+        { type:"normal", text:"Mezcla galleta + mantequilla derretida.", img:"assets/steps/cheesecake/step02.webp" }, // Paso 3
+        { type:"normal", text:"Porciona y compacta 25 g de base en cada vasito.", img:"assets/steps/cheesecake/step03.webp" }, // Paso 4
+        { type:"timer_base", text:"Ingresa los vasitos con la base a la nevera (30 min). Debes iniciar el temporizador para continuar.", img:"assets/steps/cheesecake/step04.webp" }, // Paso 5
+        { type:"normal", text:"Mezcla queso crema + crema + leche condensada + vainilla hasta homogéneo.", img:"assets/steps/cheesecake/step05.webp" }, // Paso 6
+        { type:"normal", text:"En olla: calienta agua tibia (sin hervir).", img:"assets/steps/cheesecake/step06.webp" }, // Paso 7
+        { type:"normal", text:"Agrega gelatina y revuelve hasta disolver homogéneo.", img:"assets/steps/cheesecake/step07.webp" }, // Paso 8
+        { type:"normal", text:"Integra la gelatina disuelta lentamente mientras mezclas.", img:"assets/steps/cheesecake/step08.webp" }, // Paso 9
+        { type:"normal", text:"Agrega la mezcla sobre la base (150 ml por vasito).", img:"assets/steps/cheesecake/step09.webp" }, // Paso 10 (nuevo)
+        { type:"normal", text:"Refrigera mínimo 8 horas o toda la noche.", img:"assets/steps/cheesecake/step10.webp" }, // Paso 11
+        { type:"final", text:"Decora espolvoreando harina de galleta de leche con la forma del logo.", img:"assets/steps/cheesecake/step11.webp" }, // Paso 12
       ],
     };
   }
@@ -502,6 +502,14 @@ const apiPost = (payload) => api(payload);
     state.buckets.infoTomorrow=lateToday;
     state.buckets.inProgress=inProgDb;
     state.buckets.doneDb=doneDb;
+
+    // Pendientes pagados de días anteriores (evita que se olviden)
+    const backlog = paid.filter(o=>{
+      const ks=normStatus(o.kitchen_status);
+      if(ks==="en proceso" || ks==="listo") return false;
+      return String(o.__prod_day||"") < String(state.todayKey||"");
+    });
+    state.buckets.backlog = backlog;
   }
 
   // ========= UI: estilos extras (cards + móvil + timer widget) =========
@@ -961,7 +969,7 @@ function renderProfilesSelect(list, selectedId){
 
     const nextBtn=$("amNextOrTimer");
     const finalBox=$("amFinalActions");
-    if(finalBox) finalBox.style.display = (st?.type==="final")? "block":"none";
+    if(finalBox) finalBox.style.display = "none";
 
     // Mostrar botones finales según si es el último postre pendiente
     if(st?.type==="final"){
@@ -989,7 +997,7 @@ function renderProfilesSelect(list, selectedId){
             <div>${fmtQty(li.qty)} ${li.pricePerUnit?`<span class="muted small" style="margin-left:8px;">($${money(li.pricePerUnit)}/u)</span>`:`<span class="muted small" style="margin-left:8px;">(sin costo)</span>`}</div>
           </div>`).join("");
       setRecipeImage("");
-      nextBtn.disabled=false; nextBtn.textContent="Siguiente →";
+      nextBtn.disabled=false; nextBtn.textContent="Siguiente →"; nextBtn.onclick = onNextOrTimer;
       return;
     }
 
@@ -1001,7 +1009,10 @@ function renderProfilesSelect(list, selectedId){
       nextBtn.disabled=false;
       nextBtn.textContent = state.recipe.timerStarted ? "Siguiente →" : "Iniciar temporizador";
     }else if(st?.type==="final"){
-      nextBtn.disabled=true; nextBtn.textContent="Siguiente →";
+      const remaining = remainingProductsCount();
+      nextBtn.disabled=false;
+      nextBtn.textContent = (remaining > 1) ? "Finalizar postre" : "Finalizar lote";
+      nextBtn.onclick = (remaining > 1) ? ()=> finalizePostreFromOverlay() : ()=> finalizeLoteFromOverlay();
     }else{
       nextBtn.disabled=false; nextBtn.textContent="Siguiente →";
     }
@@ -1212,8 +1223,8 @@ function renderProfilesSelect(list, selectedId){
         <div class="amIngRow">
           <div class="amIngName">${escapeHtml(li.key)}</div>
           <div class="amIngRight">
-            <div class="amIngQty">${li.qtyText}</div>
-            <div class="amIngCost ${li.costNote && li.costNote!=="(sin costo)" ? "hasCost": ""}">${li.costNote}</div>
+            <div class="amIngQty">${fmtQty(li.qty)}</div>
+            <div class="amIngCost ${(Number(li.pricePerUnit||0)>0) ? "hasCost" : ""}">${(Number(li.pricePerUnit||0)>0)?`($${money(li.pricePerUnit)}/u)`:"(sin costo)"}</div>
           </div>
         </div>
       `).join("");
