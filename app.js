@@ -788,6 +788,9 @@ btnAlertCopyMessage?.addEventListener("click", async () => {
 ========================= */
 
 const reviewsListEl = document.getElementById("reviewsList");
+const reviewsInlineLoading = document.getElementById("reviewsInlineLoading");
+const btnMoreReviews = document.getElementById("btnMoreReviews");
+const btnAdminReviews = document.getElementById("btnAdminReviews");
 const reviewsAvgEl = document.getElementById("reviewsAvg");
 const reviewsCountEl = document.getElementById("reviewsCount");
 const reviewsAvgStarsEl = document.getElementById("reviewsAvgStars");
@@ -875,6 +878,12 @@ function renderReviews(data){
   if(reviewsCountEl) reviewsCountEl.textContent = String(count || 0);
   renderAvgStars(avg);
 
+  // Ver más
+  if(btnMoreReviews){
+    btnMoreReviews.classList.toggle("hidden", count <= 3);
+    btnMoreReviews.textContent = _reviewsExpanded ? "Ver menos" : "Ver más";
+  }
+
   if(!reviewsListEl) return;
   if(!list.length){
     reviewsListEl.innerHTML = '<div class="muted small">Aún no hay opiniones publicadas.</div>';
@@ -884,8 +893,24 @@ function renderReviews(data){
   reviewsListEl.innerHTML = list.map(r => {
     const nm = escapeHtml(r.name || "Cliente");
     const txt = escapeHtml(r.comment || "");
-    const dt = escapeHtml(r.created_at || "");
+    const dt = timeAgo(r.created_at || "");
     const st = starsText(r.rating || 0);
+
+    const reply = r.reply ? escapeHtml(r.reply) : "";
+    const replyBlock = reply ? `
+      <div class="reviewReply">
+        <div class="reviewReplyTitle">AMARED respondió</div>
+        <div class="reviewText">${reply}</div>
+      </div>
+    ` : "";
+
+    const adminControls = (_isAdminReviews) ? `
+      <div class="reviewAdminRow">
+        <input class="input" data-reply-for="${escapeHtml(r.order_id || "")}" placeholder="Responder..." maxlength="300"/>
+        <button class="btn secondary" data-reply-btn="${escapeHtml(r.order_id || "")}" type="button">Responder</button>
+      </div>
+    ` : "";
+
     return `
       <div class="reviewCard">
         <div class="reviewCardTop">
@@ -894,29 +919,61 @@ function renderReviews(data){
         </div>
         <div class="muted small reviewMeta">${dt}</div>
         <div class="reviewText">${txt}</div>
+        ${replyBlock}
+        ${adminControls}
       </div>
     `;
   }).join("");
+
+  // bind reply buttons
+  if(_isAdminReviews){
+    reviewsListEl.querySelectorAll("[data-reply-btn]").forEach(btn => {
+      btn.addEventListener("click", async () => {
+        const orderId = btn.getAttribute("data-reply-btn");
+        const input = reviewsListEl.querySelector(`[data-reply-for="${CSS.escape(orderId)}"]`);
+        const replyText = input ? input.value.trim() : "";
+        const pin = (adminPinReviews && adminPinReviews.value) ? adminPinReviews.value.trim() : "";
+        if(!replyText) return showAlert("Escribe una respuesta.");
+        if(!pin) return showAlert("Ingresa el PIN en Modo admin.");
+        showLoading("Enviando respuesta...");
+        try{
+          const res = await fetch(ORDER_API_URL, {
+            method:"POST",
+            headers:{ "Content-Type":"application/json" },
+            body: JSON.stringify({ action:"reviews_reply", admin_pin: pin, order_id: orderId, reply: replyText })
+          });
+          const out = await res.json();
+          hideLoading();
+          if(!out?.ok) return showAlert(out?.error || "No se pudo responder.");
+          if(input) input.value = "";
+          await fetchReviews();
+          showAlert("Respuesta publicada ✅");
+        }catch(e){
+          hideLoading();
+          showAlert(String(e));
+        }
+      });
+    });
+  }
 }
 
 async function fetchReviews(){
   try{
-    // mini loader solo en Opiniones
     if(reviewsInlineLoading) reviewsInlineLoading.classList.remove("hidden");
-    if(reviewsList) reviewsList.innerHTML = "";
+    if(reviewsListEl) reviewsListEl.innerHTML = "";
+
+    const limit = _reviewsExpanded ? 20 : 3;
 
     const res = await fetch(ORDER_API_URL, {
       method: "POST",
       headers: { "Content-Type":"application/json" },
-      body: JSON.stringify({ action: "reviews_list", limit: 8 })
+      body: JSON.stringify({ action: "reviews_list", limit })
     });
     const out = await res.json();
-
     if(out?.ok) renderReviews(out);
-    else if(reviewsList) reviewsList.innerHTML = `<div class="muted small">No se pudieron cargar las opiniones.</div>`;
-
+    else if(reviewsListEl) reviewsListEl.innerHTML = '<div class="muted small">No se pudieron cargar las opiniones.</div>';
   }catch(_e){
-    if(reviewsList) reviewsList.innerHTML = `<div class="muted small">No se pudieron cargar las opiniones.</div>`;
+    if(reviewsListEl) reviewsListEl.innerHTML = '<div class="muted small">No se pudieron cargar las opiniones.</div>';
   }finally{
     if(reviewsInlineLoading) reviewsInlineLoading.classList.add("hidden");
   }
@@ -978,3 +1035,94 @@ btnSubmitReview?.addEventListener("click", submitReview);
 
 // cargar opiniones al iniciar
 fetchReviews();
+
+
+// Admin (opiniones)
+const adminReviewsModal = document.getElementById("adminReviewsModal");
+const btnCloseAdminReviewsModal = document.getElementById("btnCloseAdminReviewsModal");
+const btnAdminLoginReviews = document.getElementById("btnAdminLoginReviews");
+const adminPinReviews = document.getElementById("adminPinReviews");
+const adminReviewsErr = document.getElementById("adminReviewsErr");
+let _isAdminReviews = false;
+
+function isAdminParam(){
+  try{
+    const sp = new URLSearchParams(location.search);
+    return sp.get("admin") === "1";
+  }catch(_e){ return false; }
+}
+function showAdminButtonIfNeeded(){
+  if(btnAdminReviews && isAdminParam()) btnAdminReviews.classList.remove("hidden");
+}
+function showModalEl(el){ if(!el) return; el.classList.remove("hidden"); el.setAttribute("aria-hidden","false"); }
+function hideModalEl(el){ if(!el) return; el.classList.add("hidden"); el.setAttribute("aria-hidden","true"); }
+
+
+function timeAgo(dateStr){
+  const t = Date.parse(dateStr || "");
+  if(!t) return String(dateStr || "");
+  const sec = Math.floor((Date.now() - t) / 1000);
+  if(sec < 0) return "Hace un momento";
+  if(sec < 60) return "Hace un momento";
+  const min = Math.floor(sec/60);
+  if(min < 60) return `Hace ${min} minuto${min===1?"":"s"}`;
+  const hr = Math.floor(min/60);
+  if(hr < 24) return `Hace ${hr} hora${hr===1?"":"s"}`;
+  const day = Math.floor(hr/24);
+  if(day < 7) return `Hace ${day} día${day===1?"":"s"}`;
+  const wk = Math.floor(day/7);
+  if(wk < 4) return `Hace ${wk} semana${wk===1?"":"s"}`;
+  const mo = Math.floor(day/30);
+  if(mo < 12) return `Hace ${mo} mes${mo===1?"":"es"}`;
+  const yr = Math.floor(day/365);
+  return `Hace ${yr} año${yr===1?"":"s"}`;
+}
+
+let _reviewsLimit = 3;
+let _reviewsExpanded = false;
+
+
+btnMoreReviews?.addEventListener("click", async () => {
+  _reviewsExpanded = !_reviewsExpanded;
+  await fetchReviews();
+});
+
+showAdminButtonIfNeeded();
+
+btnAdminReviews?.addEventListener("click", () => {
+  if(!isAdminParam()) return;
+  if(adminReviewsErr) adminReviewsErr.textContent = "";
+  showModalEl(adminReviewsModal);
+});
+btnCloseAdminReviewsModal?.addEventListener("click", ()=> hideModalEl(adminReviewsModal));
+adminReviewsModal?.addEventListener("click", (e)=>{ if(e.target===adminReviewsModal) hideModalEl(adminReviewsModal); });
+
+btnAdminLoginReviews?.addEventListener("click", async ()=> {
+  if(adminReviewsErr) adminReviewsErr.textContent = "";
+  const pin = (adminPinReviews?.value || "").trim();
+  if(!pin){
+    if(adminReviewsErr) adminReviewsErr.textContent = "Ingresa el PIN.";
+    return;
+  }
+  showLoading("Validando...");
+  try{
+    const res = await fetch(ORDER_API_URL, {
+      method:"POST",
+      headers:{ "Content-Type":"application/json" },
+      body: JSON.stringify({ action:"validate_admin_pin", admin_pin: pin })
+    });
+    const out = await res.json();
+    hideLoading();
+    if(out?.ok && out?.valid){
+      _isAdminReviews = true;
+      hideModalEl(adminReviewsModal);
+      await fetchReviews();
+      showAlert("Modo admin activado ✅");
+    }else{
+      if(adminReviewsErr) adminReviewsErr.textContent = "PIN incorrecto.";
+    }
+  }catch(e){
+    hideLoading();
+    if(adminReviewsErr) adminReviewsErr.textContent = String(e);
+  }
+});
