@@ -46,14 +46,15 @@
             </div>
             <div class="muted small reviewsHint">
               Solo se publican opiniones de pedidos <b>entregados</b>.
-              Para dejar tu opinión, escribe los <b>últimos 4 dígitos</b> del ID de tu pedido.
+              Para dejar tu opinión, revisa el <b>mensaje de WhatsApp</b> del pedido y escribe los <b>últimos 4 dígitos</b> del ID.
             </div>
           </div>
 
           <div id="reviewsInlineLoading" class="reviewsInlineLoading">
   <div class="spinner" aria-hidden="true"></div>
-  <div class="muted small">Cargando opiniones…</div>
+  <div class="muted small">Cargando opiniones...</div>
 </div>
+
 <div id="reviewsList" class="reviewsList"></div>
         </section>
 
@@ -214,7 +215,7 @@
 
       <div class="modalBody">
         <div class="muted small">
-          Para validar tu pedido, revisa el <b>mensaje de WhatsApp</b> donde aparece el ID del pedido y escribe solo los <b>últimos 4 dígitos</b> (ej: <b>1234</b>).
+          Para validar tu pedido, revisa el <b>mensaje de WhatsApp enviado para hacer el pedido</b> donde aparece el ID y escribe solo los <b>últimos 4 dígitos</b> (ej: <b>1234</b>).
           Solo se aceptan opiniones de pedidos con estado <b>Enviado</b>.
         </div>
 
@@ -288,7 +289,10 @@
       </div>
     </div>
   </div>
-<!-- LOADING OVERLAY -->
+
+  <script src="app.js?v=20260223-23"></script>
+
+  <!-- LOADING OVERLAY -->
   <div id="loadingOverlay" class="loadingOverlay hidden" aria-hidden="true">
     <div class="loadingCard" role="status" aria-live="polite">
       <div class="spinner" aria-hidden="true"></div>
@@ -296,8 +300,5 @@
       <div class="loadingSub muted">Por favor espera.</div>
     </div>
   </div>
-
-  <script src="app.js?v=20260223-22" defer></script>
-
 </body>
 </html>
