@@ -504,13 +504,21 @@ const apiPost = (payload) => api(payload);
     const todayAll = paid.filter(o=>o.__prod_day===state.todayKey);
     const normStatus = (v)=>String(v||"").trim().toLowerCase();
     const inProgDb = todayAll.filter(o=>normStatus(o.kitchen_status)==="en proceso");
-    const doneDb = paid.filter(o=>normStatus(o.kitchen_status)==="listo").filter(o=>{
-      const raw = String(o.kitchen_done_at || o.kitchen_done || "");
-      const t = raw ? new Date(raw).getTime() : NaN;
-      const now = Date.now();
-      if(!Number.isNaN(t)) return (now - t) <= 24*60*60*1000;
-      return o.__prod_day === state.todayKey;
-    });
+    const doneDb = paid
+      .filter(o=>normStatus(o.kitchen_status)==="listo")
+      .filter(o=>{
+        // ✅ Solo finalizados del día (hora Colombia)
+        const raw = String(o.kitchen_done_at || o.kitchen_done || "");
+        if(raw){
+          const d = new Date(raw);
+          if(!Number.isNaN(d.getTime())){
+            const key = getBogotaParts(d).key;
+            return key === state.todayKey;
+          }
+        }
+        // fallback: si no hay timestamp, usar día de producción
+        return o.__prod_day === state.todayKey;
+      });
     const pending = todayAll.filter(o=>{ const ks=normStatus(o.kitchen_status); return ks!=="en proceso" && ks!=="listo"; });
 
     // Informativo mañana (pedidos creados hoy >= 3pm)
