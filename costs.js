@@ -490,7 +490,7 @@ function ensurePackagingEntries(){
     if(!state.costsByKey[k]){
       state.costsByKey[k] = {
         ingredient_key: k,
-        unit_type: "u",
+        unit_type: "unidad",
         pack_qty: 0,
         pack_price: 0,
         cop_per_unit: null,
@@ -1217,17 +1217,26 @@ function openCatalogModal(){
 
 function closeCatalogModal(){ hide(el("catModalBack")); }
 
+function normalizeCatalogType_(type){
+  const t = String(type||"").trim().toLowerCase();
+  if(t === "stores" || t === "store" || t === "tiendas") return "store";
+  if(t === "brands" || t === "brand" || t === "marcas") return "brand";
+  return t;
+}
+
 async function addCatalogValue(type, value){
   const v = String(value||"").trim();
   if(!v) throw new Error("Valor vacío.");
-  await api({ action:"catalog_add", costs_secret: UNLOCKED_SECRET, type, value: v });
+  const t = normalizeCatalogType_(type);
+  await api({ action:"catalog_add", costs_secret: UNLOCKED_SECRET, type: t, value: v });
   await refreshCatalogs();
 }
 
 async function deleteCatalogValue(type, value){
   const v = String(value||"").trim();
   if(!v) throw new Error("Selecciona un valor.");
-  await api({ action:"catalog_delete", costs_secret: UNLOCKED_SECRET, type, value: v });
+  const t = normalizeCatalogType_(type);
+  await api({ action:"catalog_delete", costs_secret: UNLOCKED_SECRET, type: t, value: v });
   await refreshCatalogs();
 }
 
