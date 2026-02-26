@@ -537,6 +537,102 @@ function dessertUnitCost(dessertId){
   return { sum, missing };
 }
 
+function unitLabel_(u){
+  const s = String(u||"").trim().toLowerCase();
+  if(s === "g") return "g";
+  if(s === "ml") return "ml";
+  if(s === "unidad" || s === "u" || s === "und" || s === "un") return "u";
+  return s || "—";
+}
+
+function resolveCost_(ik){
+  const k0 = String(ik||"").trim();
+  const alias = COST_KEY_ALIAS?.[normalizeKey(k0)];
+  const key = alias || k0;
+  const spec = state.costsByKey?.[key] || null;
+  const base = baseFromSpec(spec);
+  const cpu = (base.cpu !== null && isFinite(base.cpu)) ? Number(base.cpu) : null;
+  return { key, spec, base, cpu };
+}
+
+function dessertUnitBreakdown_(dessertId){
+  const rec = AMARED_RECIPES_PER_UNIT[dessertId] || [];
+  const lines = [];
+  let total = 0;
+  const missing = [];
+  for(const [ik, qty0] of rec){
+    const qty = Number(qty0||0) || 0;
+    const r = resolveCost_(ik);
+    const unit = unitLabel_(r.base?.base_unit || r.base?.unit_type || "");
+    const cpu = r.cpu;
+    const line = (cpu !== null) ? (qty * cpu) : null;
+    if(line !== null) total += line;
+    else missing.push(String(ik));
+    lines.push({
+      ingredient_key: String(ik),
+      qty,
+      unit,
+      cpu,
+      line,
+      store: String(r.base?.store || ""),
+      brand: String(r.base?.brand || "")
+    });
+  }
+  return { lines, total, missing };
+}
+
+function unitBreakdownHtml_(dessertId, lotQty){
+  const bd = dessertUnitBreakdown_(dessertId);
+  const lot = Number(lotQty||0) || 0;
+  const hasAll = bd.missing.length === 0;
+
+  const lineHtml = bd.lines.map(x=>{
+    const left = `${escapeHtml(x.ingredient_key)} <span style="opacity:.7;font-weight:900;">(${fmtNum(x.qty)} ${escapeHtml(x.unit)})</span>`;
+    const mid = (x.cpu !== null) ? `${moneyCOP(x.cpu)}/${escapeHtml(x.unit)}` : "<span style='opacity:.75;'>Sin costo</span>";
+    const right = (x.line !== null) ? moneyCOP(x.line) : "<span style='opacity:.75;'>$—</span>";
+    const meta = (x.store || x.brand) ? `<div style="margin-top:2px; font-size:12.2px; font-weight:850; opacity:.68;">${escapeHtml([x.brand,x.store].filter(Boolean).join(" · "))}</div>` : "";
+    return `
+      <div style="display:grid; grid-template-columns: 1fr auto auto; gap:10px; align-items:start; padding:8px 10px; border:1px solid rgba(64,17,2,.10); border-radius:14px; background:rgba(255,255,255,.70);">
+        <div>
+          <div style="font-weight:950;">${left}</div>
+          ${meta}
+        </div>
+        <div style="text-align:right; font-weight:900;">${mid}</div>
+        <div style="text-align:right; font-weight:950;">${right}</div>
+      </div>
+    `;
+  }).join("");
+
+  const totalUnitHtml = hasAll ? moneyCOP(bd.total) : "$—";
+  const totalLotHtml = (hasAll && lot>0) ? moneyCOP(bd.total * lot) : "$—";
+
+  const warn = bd.missing.length
+    ? `<div style="margin-top:10px; font-weight:900; color:rgba(64,17,2,.72);">
+         ⚠️ Faltan costos de: ${escapeHtml(bd.missing.slice(0,10).join(", "))}${bd.missing.length>10?"…":""}
+       </div>`
+    : "";
+
+  const lotInfo = lot>0
+    ? `<div style="margin-top:8px; font-weight:900; opacity:.8;">Total lote (${lot} u): <span style="font-weight:950;">${totalLotHtml}</span></div>`
+    : "";
+
+  return `
+    <div style="padding:10px 10px 2px;">
+      <div style="display:flex; justify-content:space-between; gap:10px; flex-wrap:wrap; align-items:center; margin-bottom:10px;">
+        <div style="font-weight:950;">Ingredientes por 1 unidad</div>
+        <div style="font-weight:950;">Total unitario: <span style="font-weight:950;">${totalUnitHtml}</span></div>
+      </div>
+      <div style="display:grid; gap:8px;">
+        ${lineHtml || "<div class='muted'>Sin receta configurada.</div>"}
+      </div>
+      ${lotInfo}
+      ${warn}
+    </div>
+  `;
+}
+
+const UNIT_DETAILS_OPEN = window.__AMARED_UNIT_DETAILS_OPEN__ || (window.__AMARED_UNIT_DETAILS_OPEN__ = {});
+
 function renderUnitCosts(){
   const tbody = el("unitCostRows");
   const meta = el("unitCostMeta");
@@ -550,27 +646,64 @@ function renderUnitCosts(){
   const extra = Object.keys(by).filter(k => !baseIds.includes(k) && Number(by[k]||0)>0);
   const all = baseIds.concat(extra);
 
-  const rows = [];
   const miss = new Set();
 
-  for(const id of all){
+  const rowsHtml = all.map(id=>{
     const qty = Number(by[id]||0)||0;
     const r = dessertUnitCost(id);
     r.missing.forEach(x=>miss.add(x));
     const unit = r.missing.length ? null : r.sum;
     const lote = (unit!==null) ? (unit*qty) : null;
-    rows.push({ id, unit, lote });
+
+    const open = !!UNIT_DETAILS_OPEN[id];
+    const chev = open ? "▼" : "▶";
+    const detailsStyle = open ? "" : "display:none;";
+
+    return `
+      <tr class="unitRow" data-id="${escapeHtml(id)}" role="button" tabindex="0" aria-expanded="${open ? "true":"false"}" style="cursor:pointer;">
+        <td><span class="uChev" style="display:inline-block; width:18px; opacity:.75; font-weight:950;">${chev}</span>${escapeHtml(prettyDessertName(id))}</td>
+        <td class="num">${unit!==null ? moneyCOP(unit) : "$—"}</td>
+        <td class="num">${lote!==null ? moneyCOP(lote) : "$—"}</td>
+      </tr>
+      <tr class="unitDetails" data-for="${escapeHtml(id)}" style="${detailsStyle}">
+        <td colspan="3">
+          ${unitBreakdownHtml_(id, qty)}
+        </td>
+      </tr>
+    `;
+  }).join("");
+
+  tbody.innerHTML = rowsHtml;
+
+  meta.textContent = miss.size
+    ? ("Faltan costos de: " + Array.from(miss).slice(0,8).join(", ") + (miss.size>8?"…":""))
+    : "OK";
+
+  // Bind toggle (once)
+  if(!tbody.dataset.unitBind){
+    tbody.dataset.unitBind = "1";
+
+    tbody.addEventListener("click", (e)=>{
+      const tr = e.target?.closest?.("tr.unitRow");
+      if(!tr) return;
+      const id = tr.getAttribute("data-id");
+      if(!id) return;
+      UNIT_DETAILS_OPEN[id] = !UNIT_DETAILS_OPEN[id];
+      // re-render to update totals + chevron state
+      renderUnitCosts();
+    });
+
+    tbody.addEventListener("keydown", (e)=>{
+      if(e.key !== "Enter" && e.key !== " ") return;
+      const tr = e.target?.closest?.("tr.unitRow");
+      if(!tr) return;
+      e.preventDefault();
+      const id = tr.getAttribute("data-id");
+      if(!id) return;
+      UNIT_DETAILS_OPEN[id] = !UNIT_DETAILS_OPEN[id];
+      renderUnitCosts();
+    });
   }
-
-  tbody.innerHTML = rows.map(r=>`
-    <tr>
-      <td>${escapeHtml(prettyDessertName(r.id))}</td>
-      <td class="num">${r.unit!==null ? moneyCOP(r.unit) : "$—"}</td>
-      <td class="num">${r.lote!==null ? moneyCOP(r.lote) : "$—"}</td>
-    </tr>
-  `).join("");
-
-  meta.textContent = miss.size ? ("Faltan costos de: " + Array.from(miss).slice(0,8).join(", ") + (miss.size>8?"…":"")) : "OK";
 }
 
 
@@ -1216,13 +1349,13 @@ function openCatalogModal(){
 }
 
 function closeCatalogModal(){ hide(el("catModalBack")); }
-
 function normalizeCatalogType_(type){
   const t = String(type||"").trim().toLowerCase();
   if(t === "stores" || t === "store" || t === "tiendas") return "store";
   if(t === "brands" || t === "brand" || t === "marcas") return "brand";
   return t;
 }
+
 
 async function addCatalogValue(type, value){
   const v = String(value||"").trim();
