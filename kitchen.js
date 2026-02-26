@@ -76,6 +76,8 @@
   const BASE_FRIDGE_MINUTES = 30;
 
   const SS_KEY = "AMARED_KITCHEN_SESSION_V6";
+  const LS_KEY = "amared_kitchen_session";
+
   const LS_TIMER_KEY = "AMARED_KITCHEN_TIMERS_V1";
   const LS_DONE_KEY  = "AMARED_KITCHEN_DONE_V1";
 
@@ -184,6 +186,7 @@
 
   const selOperator = $("selOperator");
   const inpPin = $("inpPin");
+  const btnTogglePin = $("btnTogglePin");
   const chkRemember = $("chkRemember");
   const btnLogin = $("btnLogin");
   const loginErr = $("loginErr");
@@ -195,7 +198,8 @@
 
   const todayWrap = $("todayWrap");
   const tomorrowWrap = $("tomorrowWrap");
-  const inProgressWrap = $("inProgressWrap");
+  const inProgressWrapToday = $("inProgressWrapToday");
+  const inProgressWrapOlder = $("inProgressWrapOlder");
   const backlogWrap = $("backlogWrap");
   const doneWrap = $("doneWrap");
 
@@ -205,6 +209,12 @@
   const prodPanelToday = $("prodPanelToday");
   const prodPanelBacklog = $("prodPanelBacklog");
 
+  // Tabs En proceso (Del día / Anteriores)
+  const tabInProgToday = $("tabInProgToday");
+  const tabInProgOlder = $("tabInProgOlder");
+  const inProgPanelToday = $("inProgPanelToday");
+  const inProgPanelOlder = $("inProgPanelOlder");
+
   function setProdTab(which){
     const isToday = which === "today";
     tabProdToday?.classList.toggle("active", isToday);
@@ -213,7 +223,19 @@
     prodPanelBacklog?.classList.toggle("hidden", isToday);
   }
 
-  tabProdToday?.addEventListener("click", ()=>setProdTab("today"));
+  
+  function setInProgTab(which){
+    const isToday = which === "today";
+    tabInProgToday?.classList.toggle("active", isToday);
+    tabInProgOlder?.classList.toggle("active", !isToday);
+    inProgPanelToday?.classList.toggle("hidden", !isToday);
+    inProgPanelOlder?.classList.toggle("hidden", isToday);
+  }
+
+  tabInProgToday?.addEventListener("click", ()=>setInProgTab("today"));
+  tabInProgOlder?.addEventListener("click", ()=>setInProgTab("older"));
+
+tabProdToday?.addEventListener("click", ()=>setProdTab("today"));
   tabProdBacklog?.addEventListener("click", ()=>setProdTab("backlog"));
 
 
@@ -249,7 +271,7 @@
     // Fuente única para acciones protegidas por ADMIN_PIN
     if(state && state.session && state.session.pin) return String(state.session.pin);
     try{
-      const raw = localStorage.getItem("amared_kitchen_session");
+      const raw = localStorage.getItem(LS_KEY);
       if(raw){
         const s = JSON.parse(raw);
         if(s && s.pin) return String(s.pin);
@@ -564,6 +586,10 @@ const apiPost = (payload) => api(payload);
     state.buckets.today=pending;
     state.buckets.infoTomorrow=lateToday;
     state.buckets.inProgress=inProgDb;
+
+    // Separación En proceso: del día vs anteriores
+    state.buckets.inProgressToday = (inProgDb||[]).filter(o=>String(o.__prod_day||"")===String(state.todayKey||""));
+    state.buckets.inProgressOlder = (inProgDb||[]).filter(o=>String(o.__prod_day||"")!==String(state.todayKey||""));
     state.buckets.doneDb=doneDb;
 
     // Pendientes pagados de días anteriores (evita que se olviden)
@@ -1424,7 +1450,17 @@ function renderProfilesSelect(list, selectedId){
       else setProdTab("today");
     }catch(_e){}
 
-    renderProductCards(inProgressWrap, state.buckets.inProgress, {badgeText:"En proceso", showAction:true});
+    renderProductCards(inProgressWrapToday, state.buckets.inProgressToday||[], {badgeText:"En proceso (del día)", showAction:true});
+    renderProductCards(inProgressWrapOlder, state.buckets.inProgressOlder||[], {badgeText:"En proceso (anteriores)", showAction:true});
+
+    // actualizar tabs En proceso con conteo
+    try{
+      const cT = (state.buckets.inProgressToday||[]).length;
+      const cO = (state.buckets.inProgressOlder||[]).length;
+      if(tabInProgToday) tabInProgToday.textContent = `Del día (${cT})`;
+      if(tabInProgOlder) tabInProgOlder.textContent = `Anteriores (${cO})`;
+      setInProgTab("today");
+    }catch(_e){}
 
     // Finalizados:
     // 1) DB: pedidos con kitchen_status="Listo"
@@ -1934,6 +1970,16 @@ function renderProfilesSelect(list, selectedId){
       }
     }
 
+
+    
+    // Ver/ocultar PIN
+    if(btnTogglePin && inpPin){
+      btnTogglePin.onclick = ()=>{
+        const isPass = inpPin.type === "password";
+        inpPin.type = isPass ? "text" : "password";
+        btnTogglePin.textContent = isPass ? "🙈" : "👁";
+      };
+    }
 
     if(btnLogin) btnLogin.onclick=onLogin;
     if(btnRefresh) btnRefresh.onclick=()=> refresh().catch(e=>alert(e?.message||String(e)));
