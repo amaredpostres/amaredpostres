@@ -198,6 +198,7 @@
 
   const todayWrap = $("todayWrap");
   const tomorrowWrap = $("tomorrowWrap");
+  const inProgressWrapAll = $("inProgressWrapAll");
   const inProgressWrapToday = $("inProgressWrapToday");
   const inProgressWrapOlder = $("inProgressWrapOlder");
   const backlogWrap = $("backlogWrap");
@@ -210,8 +211,10 @@
   const prodPanelBacklog = $("prodPanelBacklog");
 
   // Tabs En proceso (Del día / Anteriores)
+  const tabInProgAll = $("tabInProgAll");
   const tabInProgToday = $("tabInProgToday");
   const tabInProgOlder = $("tabInProgOlder");
+  const inProgPanelAll = $("inProgPanelAll");
   const inProgPanelToday = $("inProgPanelToday");
   const inProgPanelOlder = $("inProgPanelOlder");
 
@@ -225,13 +228,20 @@
 
   
   function setInProgTab(which){
+    const isAll = which === "all";
     const isToday = which === "today";
+    const isOlder = which === "older";
+
+    tabInProgAll?.classList.toggle("active", isAll);
     tabInProgToday?.classList.toggle("active", isToday);
-    tabInProgOlder?.classList.toggle("active", !isToday);
+    tabInProgOlder?.classList.toggle("active", isOlder);
+
+    inProgPanelAll?.classList.toggle("hidden", !isAll);
     inProgPanelToday?.classList.toggle("hidden", !isToday);
-    inProgPanelOlder?.classList.toggle("hidden", isToday);
+    inProgPanelOlder?.classList.toggle("hidden", !isOlder);
   }
 
+  tabInProgAll?.addEventListener("click", ()=>setInProgTab("all"));
   tabInProgToday?.addEventListener("click", ()=>setInProgTab("today"));
   tabInProgOlder?.addEventListener("click", ()=>setInProgTab("older"));
 
@@ -586,6 +596,7 @@ const apiPost = (payload) => api(payload);
     state.buckets.today=pending;
     state.buckets.infoTomorrow=lateToday;
     state.buckets.inProgress=inProgDb;
+    state.buckets.inProgressAll = inProgDb || [];
 
     // Separación En proceso: del día vs anteriores
     state.buckets.inProgressToday = (inProgDb||[]).filter(o=>String(o.__prod_day||"")===String(state.todayKey||""));
@@ -1450,17 +1461,20 @@ function renderProfilesSelect(list, selectedId){
       else setProdTab("today");
     }catch(_e){}
 
+    renderProductCards(inProgressWrapAll, state.buckets.inProgressAll||[], {badgeText:"En proceso (todos)", showAction:true});
     renderProductCards(inProgressWrapToday, state.buckets.inProgressToday||[], {badgeText:"En proceso (del día)", showAction:true});
     renderProductCards(inProgressWrapOlder, state.buckets.inProgressOlder||[], {badgeText:"En proceso (anteriores)", showAction:true});
 
     // actualizar tabs En proceso con conteo
     try{
+      const cA = (state.buckets.inProgressAll||[]).length;
       const cT = (state.buckets.inProgressToday||[]).length;
       const cO = (state.buckets.inProgressOlder||[]).length;
+      if(tabInProgAll) tabInProgAll.textContent = `Todos (${cA})`;
       if(tabInProgToday) tabInProgToday.textContent = `Del día (${cT})`;
       if(tabInProgOlder) tabInProgOlder.textContent = `Anteriores (${cO})`;
-      setInProgTab("today");
-    }catch(_e){}
+      setInProgTab("all");
+    }catch(_e){} 
 
     // Finalizados:
     // 1) DB: pedidos con kitchen_status="Listo"
