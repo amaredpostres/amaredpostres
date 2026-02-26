@@ -86,6 +86,18 @@
     { id: "arroz_con_leche", name: "Arroz con leche" },
   ];
 
+  // ====== Trazabilidad por producto (JSON en una sola celda) ======
+  function nowIso(){ return new Date().toISOString(); }
+  function productMeta(pid){
+    const p = PRODUCTS.find(x=>x.id===pid);
+    return { id: pid, name: p ? p.name : String(pid||"") };
+  }
+  function buildProdStampPayload(pid){
+    const meta = productMeta(pid);
+    return { [meta.id]: { name: meta.name, at: nowIso() } };
+  }
+
+
   // ========= RECETAS (unitarias) =========
   // Puedes sobreescribir desde otro archivo definiendo window.AMARED_RECIPES antes de kitchen.js
   const RECIPE_UNIT = window.AMARED_RECIPES || {};
@@ -1056,13 +1068,24 @@ function renderProfilesSelect(list, selectedId){
     setRecipeImage(st?.img||"");
   }
 
-  function startBaseTimer(pid){
+  async function startBaseTimer(pid){
     const existing=getTimerEnd(state.todayKey,pid);
     const now=Date.now();
     if(existing && existing>now){
       startWidgetTicker();
       return;
     }
+
+    // ✅ Guardar trazabilidad en BD (por producto, JSON)
+    try{
+      const ids = (state.activeOverlay?.orderIds && state.activeOverlay.orderIds.length) ? state.activeOverlay.orderIds : [];
+      if(ids.length){
+        await kitchenBulkUpdate(ids,{ base_fridge_started_at: JSON.stringify(buildProdStampPayload(pid)) });
+      }
+    }catch(e){
+      console.warn("No se pudo guardar base_fridge_started_at:", e);
+    }
+
     const end=Date.now()+BASE_FRIDGE_MINUTES*60*1000;
     setTimerEnd(state.todayKey,pid,end);
     startWidgetTicker();
@@ -1103,14 +1126,14 @@ function renderProfilesSelect(list, selectedId){
     },250);
   }
 
-  function onNextOrTimer(){
+  async function onNextOrTimer(){
     const pid=state.recipe.productId; if(!pid) return;
     const steps=RECIPE_UNIT[pid]?.steps||[];
     const st=steps[state.recipe.stepIdx]||null;
 
     if(st?.type==="timer_base"){
       if(!state.recipe.timerStarted){
-        startBaseTimer(pid);
+        await startBaseTimer(pid);
         state.recipe.timerStarted=true;
         renderRecipeStep();
         return;
@@ -1155,7 +1178,7 @@ function renderProfilesSelect(list, selectedId){
 
     showLoading("Iniciando…","Marcando pedidos en proceso…");
     try{
-      await kitchenBulkUpdate(ids,{kitchen_status:"En proceso"});
+      await kitchenBulkUpdate(ids,{ kitchen_status:"En proceso", kitchen_products_started_at: JSON.stringify(buildProdStampPayload(pid)) });
       await refresh();
       openRecipe(pid, ids, units);
     }catch(e){
