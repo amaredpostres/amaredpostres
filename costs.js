@@ -469,28 +469,52 @@ function groupKeys(keys){
   const used = new Set();
   const out = [];
 
+  // índice por canonicalKey para tolerar tildes, comas, etc.
+  const keyByCanon = {};
+  for(const k of (keys||[])){
+    const kk = String(k||"").trim();
+    if(!kk) continue;
+    const c = canonicalKey(kk);
+    if(c && !keyByCanon[c]) keyByCanon[c] = kk;
+  }
+
   if(groups){
     for(const g of groups){
       const title = String(g?.title || "").trim();
       const gkeys = [];
       for(const raw of (g?.keys || [])){
-        const k = String(raw||"").trim();
-        if(!k) continue;
-        if(keys.includes(k)){
-          gkeys.push(k);
-          used.add(k);
+        const wantedRaw = String(raw||"").trim();
+        if(!wantedRaw) continue;
+        const hit = keyByCanon[canonicalKey(wantedRaw)] || null;
+        if(hit && !used.has(hit)){
+          gkeys.push(hit);
+          used.add(hit);
         }
       }
       if(gkeys.length) out.push({ title, keys: gkeys });
     }
   }
 
-  const other = keys.filter(k => !used.has(k));
-  other.sort((a,b)=>a.localeCompare(b,"es"));
-  if(other.length) out.push({ title: "Otros", keys: other });
+  // ✅ No crear sección "Otros". Si queda algo por fuera, lo anexamos a la primera sección.
+  const other = (keys||[]).filter(k => k && !used.has(k));
+  other.sort((a,b)=>String(a).localeCompare(String(b),"es"));
+  if(other.length){
+    if(out.length){
+      out[0].keys = out[0].keys.concat(other);
+    }else{
+      out.push({ title: "Ingredientes", keys: other });
+    }
+  }
 
   return out;
 }
+
+function groupAccent_(idx){
+  const palette = ["var(--caramel)","var(--pink)","var(--beige)","rgba(64,17,2,.35)","rgba(242,91,143,.45)","rgba(246,186,96,.45)"];
+  const i = Math.abs(Number(idx||0)) % palette.length;
+  return palette[i];
+}
+
 
 // =============== Plan de compra ===============
 function getPlan(key){
@@ -545,8 +569,16 @@ function prettyDessertName(id){
 // =============== Render: summaries ===============
 
 function canonicalKey(s){
-  return String(s||"").trim().replace(/,+$/g,"").replace(/\s+/g," ").toLowerCase();
+  return String(s||"")
+    .trim()
+    .replace(/,+$/g,"")
+    .normalize("NFD").replace(/[\u0300-\u036f]/g,"")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g," ")
+    .replace(/\s+/g," ")
+    .trim();
 }
+
 
 function ensurePackagingSection(){
   state.sections = state.sections || [];
@@ -617,13 +649,21 @@ function resolveCostForRecipe_(ingredientKey, recipeUnit){
     return { ok:false, reason:"missing_cost", ingredient_key: ik0 };
   }
 
+  let note = "";
   // Si la receta especifica unidad, validar compatibilidad
   if(want && have && want !== have){
-    return { ok:false, reason:`unit_mismatch:${want}:${have}`, ingredient_key: ik0 };
+    const bothMassVol = ((want==="g"||want==="ml") && (have==="g"||have==="ml"));
+    if(bothMassVol){
+      // ✅ Para visualización de costos, permitimos g↔ml asumiendo 1:1 (aprox)
+      note = "approx_g_ml";
+    }else{
+      return { ok:false, reason:`unit_mismatch:${want}:${have}`, ingredient_key: ik0 };
+    }
   }
 
-  return { ok:true, ingredient_key: ik, cpu: Number(base.cpu), base_unit: have || base.base_unit || "" };
+  return { ok:true, ingredient_key: ik, cpu: Number(base.cpu), base_unit: have || base.base_unit || "", note };
 }
+
 
 function moneyCOP2(n){
   const v = Number(n||0);
@@ -654,7 +694,7 @@ function dessertUnitBreakdown_(dessertId, lotQty){
       }
       const sub = qty * rc.cpu;
       sum += sub;
-      lines.push({ ingredient_key: rc.ingredient_key, qty, unit, cpu: rc.cpu, cpu_unit: rc.base_unit || unit, subtotal: sub });
+      lines.push({ ingredient_key: rc.ingredient_key, qty, unit, cpu: rc.cpu, cpu_unit: rc.base_unit || unit, note: rc.note || "", subtotal: sub });
     }
   } else {
     // fallback: recetas embebidas (compat)
@@ -690,7 +730,7 @@ function unitBreakdownHtml_(b){
       <div style="min-width:0;">
         <div style="font-weight:950;">${escapeHtml(x.ingredient_key)}</div>
         <div style="opacity:.75; font-weight:850; font-size:12.5px; margin-top:2px;">
-          ${fmtNum(x.qty)} ${escapeHtml(x.unit || "")}
+          ${fmtNum(x.qty)} ${escapeHtml(x.unit || "")}${x.note ? ` <span style="opacity:.7;">(≈)</span>` : ""}
           ${x.cpu ? (` · ${moneyCOP2(x.cpu)}/${escapeHtml(x.cpu_unit || x.unit || "")}`) : ""}
         </div>
       </div>
@@ -853,13 +893,14 @@ function renderGroups(){
     if(!keys.length) return "";
 
     const meta = groupMetaText(keys);
-    const openAttr = (idx === 0) ? "open" : "";
+    const openAttr = "";
+    const accent = groupAccent_(idx);
 
     const itemsHtml = keys.map(k => renderItemCard(computeRow(k))).join("");
 
     return `
-      <details class="pGroup" ${openAttr}>
-        <summary>
+      <details class="pGroup" ${openAttr} style="--gacc:${accent}; border-left:6px solid var(--gacc);">
+        <summary style="padding-left:10px;">
           <div>
             <div class="pGroupTitle">${escapeHtml(g.title || "Sección")}</div>
             <div class="pGroupMeta">${escapeHtml(meta)}</div>
@@ -873,6 +914,7 @@ function renderGroups(){
     `;
   }).join("");
 }
+
 
 // =============== Costos view (listado) ===============
 function costKeyPasses(k){
@@ -890,7 +932,7 @@ function renderCostItemCard(key){
   const cpu = getCostPerUnit(key);
 
   const metaA = (pack_qty>0 && pack_price>0)
-    ? `Empaque: ${fmtNum(pack_qty)} ${unit} · ${moneyCOP(pack_price)} · ${cpu!==null?moneyCOP(cpu):"—"} / ${unit}`
+    ? `Empaque: ${fmtNum(pack_qty)} ${unit} · ${moneyCOP(pack_price)} · ${cpu!==null?moneyCOP2(cpu):"—"} / ${unit}`
     : "Sin empaque (edita con ⚙️)";
 
   const brand = String(spec?.brand || "").trim();
@@ -898,7 +940,7 @@ function renderCostItemCard(key){
   const metaB = [brand, store].filter(Boolean).join(" · ") || "—";
 
   return `
-    <div class="pItem cItem" data-k="${escapeHtml(key)}">
+    <div class="pItem cItem" data-k="${escapeHtml(key)}" style="border-left:6px solid var(--gacc, rgba(64,17,2,.14));">
       <div class="pItemTop">
         <div>
           <div class="pName">${escapeHtml(key)}</div>
@@ -931,12 +973,13 @@ function renderCostsGroups(){
     if(!gkeys.length) return "";
 
     const meta = `${gkeys.length} ingrediente(s)`;
-    const openAttr = (idx === 0) ? "open" : "";
+    const openAttr = "";
+    const accent = groupAccent_(idx);
     const itemsHtml = gkeys.map(k => renderCostItemCard(k)).join("");
 
     return `
-      <details class="pGroup" ${openAttr}>
-        <summary>
+      <details class="pGroup" ${openAttr} style="--gacc:${accent}; border-left:6px solid var(--gacc);">
+        <summary style="padding-left:10px;">
           <div>
             <div class="pGroupTitle">${escapeHtml(g.title || "Sección")}</div>
             <div class="pGroupMeta">${escapeHtml(meta)}</div>
@@ -950,6 +993,7 @@ function renderCostsGroups(){
     `;
   }).join("");
 }
+
 
 function lastSpecLine(row){
   const b = row.base;
@@ -981,7 +1025,7 @@ function renderItemCard(row){
   const est = (row.cpu!==null && plannedQty>0) ? (plannedQty * row.cpu) : null;
 
   return `
-    <div class="pItem" data-k="${escapeHtml(row.key)}">
+    <div class="pItem" data-k="${escapeHtml(row.key)}" style="border-left:6px solid var(--gacc, rgba(64,17,2,.14));">
       <div class="pItemTop">
         <div>
           <div class="pName">${escapeHtml(row.key)}</div>
@@ -1026,7 +1070,7 @@ function renderItemCard(row){
         <div class="pBuyMeta">
           ${packHint ? (escapeHtml(packHint) + " · ") : ""}
           Planeado: <b>${fmtNum(plannedQty)}</b> ${escapeHtml(row.unit)}
-          ${row.cpu!==null ? (` · Costo/u: <b>${moneyCOP(row.cpu)}</b>`):""}
+          ${row.cpu!==null ? (` · Costo/u: <b>${moneyCOP2(row.cpu)}</b>`):""}
           ${est!==null ? (` · Est: <b>${moneyCOP(est)}</b>`):""}
         </div>
       </div>
@@ -1295,7 +1339,7 @@ function cmComputePreview(){
 
   if(e.unitExtra) e.unitExtra.style.display = (unit_type === "unidad") ? "block" : "none";
   if(e.computed){
-    e.computed.textContent = `Se guardará como: ${base_pack_qty ? fmtNum(base_pack_qty) : "—"} ${base_unit || "—"} por empaque · Costo/u: ${cpu?moneyCOP(cpu):"—"}`;
+    e.computed.textContent = `Se guardará como: ${base_pack_qty ? fmtNum(base_pack_qty) : "—"} ${base_unit || "—"} por empaque · Costo/u: ${cpu?moneyCOP2(cpu):"—"}`;
   }
 }
 
