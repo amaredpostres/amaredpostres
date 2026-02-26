@@ -7,7 +7,8 @@ window.AMARED_COSTS_SECTIONS = [
     keys: [
       "Leche condensada",
       "Envase plástico",
-      "Cuchara plástica"
+      "Cuchara plástica",
+      "Agua"
     ]
   },
   {
@@ -44,7 +45,6 @@ window.AMARED_COSTS_SECTIONS = [
     title: "Ingredientes para Arroz con leche",
     keys: [
       "Arroz blanco",
-      "Agua",
       "Azúcar",
       "Canela en astilla",
       "Queso costeño"
