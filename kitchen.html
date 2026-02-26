@@ -206,15 +206,21 @@
 
       
       
+      
       <section class="card" style="margin-top:14px;">
         <h2 class="cardTitle">En proceso</h2>
 
         <div class="prodTabs" style="margin-top:8px;">
-          <button id="tabInProgToday" class="tabBtn active" type="button">Del día</button>
+          <button id="tabInProgAll" class="tabBtn active" type="button">Todos</button>
+          <button id="tabInProgToday" class="tabBtn" type="button">Del día</button>
           <button id="tabInProgOlder" class="tabBtn" type="button">Anteriores</button>
         </div>
 
-        <div id="inProgPanelToday">
+        <div id="inProgPanelAll">
+          <div id="inProgressWrapAll"></div>
+        </div>
+
+        <div id="inProgPanelToday" class="hidden" style="margin-top:10px;">
           <div id="inProgressWrapToday"></div>
         </div>
 
@@ -222,6 +228,7 @@
           <div id="inProgressWrapOlder"></div>
         </div>
       </section>
+
 
 
       <section class="card" style="margin-top:14px;">
