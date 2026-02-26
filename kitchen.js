@@ -1178,7 +1178,7 @@ function renderProfilesSelect(list, selectedId){
 
     showLoading("Iniciando…","Marcando pedidos en proceso…");
     try{
-      await kitchenBulkUpdate(ids,{ kitchen_status:"En proceso", kitchen_products_started_at: JSON.stringify(buildProdStampPayload(pid)) });
+      await kitchenBulkUpdate(ids,{ kitchen_status:"En proceso", kitchen_started_at: JSON.stringify(buildProdStampPayload(pid)) });
       await refresh();
       openRecipe(pid, ids, units);
     }catch(e){
