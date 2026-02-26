@@ -34,130 +34,6 @@ let state = {
   }
 };
 
-// ====== Costo unitario por postre (recetas canónicas) ======
-const AMARED_RECIPES_PER_UNIT = {
-  "mousse_maracuya": [
-    [
-      "Pulpa de maracuyá",
-      21.4
-    ],
-    [
-      "Leche condensada",
-      42.8
-    ],
-    [
-      "Crema de leche",
-      42.8
-    ],
-    [
-      "Leche entera",
-      42.8
-    ],
-    [
-      "Gelatina sin sabor",
-      1.25
-    ],
-    [
-      "Agua",
-      5.7
-    ],
-    [
-      "Vainilla",
-      0.42
-    ],
-    [
-      "Galletas saladas",
-      25.0
-    ],
-    [
-      "Mantequilla sin sal",
-      10.0
-    ],
-    [
-      "Chocolate en polvo",
-      1.0
-    ],
-    [
-      "Chocorramo",
-      20.0
-    ],
-    [
-      "Envase plástico",
-      1.0
-    ],
-    [
-      "Cuchara plástica",
-      1.0
-    ]
-  ],
-  "cheesecake_cafe_panela": [
-    [
-      "Galletas saladas",
-      25.0
-    ],
-    [
-      "Mantequilla sin sal",
-      10.0
-    ],
-    [
-      "Queso crema",
-      75.0
-    ],
-    [
-      "Crema de leche",
-      41.7
-    ],
-    [
-      "Leche condensada",
-      25.0
-    ],
-    [
-      "Café",
-      10.0
-    ],
-    [
-      "Panela",
-      3.33
-    ],
-    [
-      "Gelatina sin sabor",
-      1.67
-    ],
-    [
-      "Agua",
-      7.5
-    ],
-    [
-      "Vainilla",
-      0.33
-    ],
-    [
-      "Galleta de leche",
-      25.0
-    ],
-    [
-      "Envase plástico",
-      1.0
-    ],
-    [
-      "Cuchara plástica",
-      1.0
-    ]
-  ],
-  "arroz_con_leche": [
-    [
-      "Envase plástico",
-      1.0
-    ],
-    [
-      "Cuchara plástica",
-      1.0
-    ]
-  ]
-};
-
-
-
 // =============== DOM helpers ===============
 const el = (id) => document.getElementById(id);
 const show = (node) => { if(node){ node.classList.remove("hidden"); node.hidden = false; node.style.display = ""; } };
@@ -306,6 +182,250 @@ function indexCosts(items){
   }
   state.costsByKey = map;
 }
+
+
+// ====== Envase + Cuchara (comparten todos los postres) ======
+function ensurePackagingNeeds(){
+  const by = state.ordersByDessert || {};
+  let total = 0;
+  for(const v of Object.values(by)) total += (Number(v)||0);
+  if(!state.needs) state.needs = {};
+
+  if(state.needs["Envase plástico"] === undefined) state.needs["Envase plástico"] = 0;
+  if(state.needs["Cuchara plástica"] === undefined) state.needs["Cuchara plástica"] = 0;
+
+  if(total > 0){
+    state.needs["Envase plástico"] = Math.max(Number(state.needs["Envase plástico"]||0), total);
+    state.needs["Cuchara plástica"] = Math.max(Number(state.needs["Cuchara plástica"]||0), total);
+  }
+}
+
+function canonicalKey(s){
+  return String(s||"").trim().replace(/,+$/g,"").replace(/\s+/g," ").toLowerCase();
+}
+
+function buildCostAliasMap(){
+  const map = {};
+  for(const k of Object.keys(state.costsByKey||{})) map[canonicalKey(k)] = k;
+  state._costAlias = map;
+}
+
+function cpuFor(ingredientKey){
+  const alias = state._costAlias?.[canonicalKey(ingredientKey)];
+  const k = alias || ingredientKey;
+  return getCostPerUnit(k);
+}
+
+const AMARED_RECIPES_PER_UNIT = {
+  "mousse_maracuya": [
+    [
+      "Pulpa de maracuyá",
+      21.4,
+      "ml"
+    ],
+    [
+      "Leche condensada",
+      42.8,
+      "ml"
+    ],
+    [
+      "Crema de leche",
+      42.8,
+      "ml"
+    ],
+    [
+      "Leche entera",
+      42.8,
+      "ml"
+    ],
+    [
+      "Gelatina sin sabor",
+      1.25,
+      "g"
+    ],
+    [
+      "Agua",
+      8.3,
+      "ml"
+    ],
+    [
+      "Vainilla",
+      0.33,
+      "ml"
+    ],
+    [
+      "Galletas saladas",
+      25.0,
+      "g"
+    ],
+    [
+      "Mantequilla sin sal",
+      11.7,
+      "g"
+    ],
+    [
+      "Chocorramo",
+      20.0,
+      "g"
+    ],
+    [
+      "Chocolate en polvo",
+      20.0,
+      "g"
+    ],
+    [
+      "Envase plástico",
+      1.0,
+      "u"
+    ],
+    [
+      "Cuchara plástica",
+      1.0,
+      "u"
+    ]
+  ],
+  "cheesecake_cafe_panela": [
+    [
+      "Galletas saladas",
+      25.0,
+      "g"
+    ],
+    [
+      "Mantequilla sin sal",
+      10.0,
+      "g"
+    ],
+    [
+      "Queso crema,",
+      75.0,
+      "g"
+    ],
+    [
+      "Crema de leche",
+      41.7,
+      "ml"
+    ],
+    [
+      "Leche condensada",
+      25.0,
+      "g"
+    ],
+    [
+      "Café",
+      10.0,
+      "ml"
+    ],
+    [
+      "Panela",
+      3.33,
+      "g"
+    ],
+    [
+      "Gelatina sin sabor",
+      1.67,
+      "g"
+    ],
+    [
+      "Agua",
+      7.5,
+      "ml"
+    ],
+    [
+      "Vainilla",
+      0.33,
+      "ml"
+    ],
+    [
+      "Galleta de leche",
+      25.0,
+      "g"
+    ],
+    [
+      "Envase plástico",
+      1.0,
+      "u"
+    ],
+    [
+      "Cuchara plástica",
+      1.0,
+      "u"
+    ]
+  ],
+  "arroz_con_leche": [
+    [
+      "Envase plástico",
+      1.0,
+      "u"
+    ],
+    [
+      "Cuchara plástica",
+      1.0,
+      "u"
+    ]
+  ]
+};
+
+
+function dessertUnitCost(dessertId){
+  const rec = AMARED_RECIPES_PER_UNIT[dessertId] || [];
+  let sum = 0;
+  const missing = [];
+  for(const [ik, qty] of rec){
+    const cpu = cpuFor(ik);
+    if(cpu===null || cpu===undefined){
+      missing.push(String(ik));
+      continue;
+    }
+    sum += (Number(qty)||0) * Number(cpu||0);
+  }
+  return { sum, missing };
+}
+
+function prettyDessertName(id){
+  const k = String(id||"");
+  if(k==="mousse_maracuya") return "Mousse de maracuyá";
+  if(k==="cheesecake_cafe_panela") return "Cheesecake de café con panela";
+  if(k==="arroz_con_leche") return "Arroz con leche";
+  return k;
+}
+
+function renderUnitCosts(){
+  const tbody = el("unitCostRows");
+  const meta = el("unitCostMeta");
+  if(!tbody) return;
+
+  buildCostAliasMap();
+
+  const by = state.ordersByDessert || {};
+  const ids = ["mousse_maracuya","cheesecake_cafe_panela","arroz_con_leche"];
+  const extra = Object.keys(by).filter(k => !ids.includes(k) && Number(by[k]||0)>0);
+  const all = ids.concat(extra);
+
+  const rows = [];
+  const miss = new Set();
+
+  for(const id of all){
+    const qty = Number(by[id]||0)||0;
+    const r = dessertUnitCost(id);
+    r.missing.forEach(x=>miss.add(x));
+    const unit = r.missing.length ? null : r.sum;
+    const lote = unit!==null ? unit*qty : null;
+    rows.push({ id, qty, unit, lote });
+  }
+
+  tbody.innerHTML = rows.map(r=>`
+    <tr>
+      <td>${escapeHtml(prettyDessertName(r.id))}</td>
+      <td class="num">${r.unit!==null ? moneyCOP(r.unit) : "$—"}</td>
+      <td class="num">${r.lote!==null ? moneyCOP(r.lote) : "$—"}</td>
+    </tr>
+  `).join("");
+
+  if(meta){
+    meta.textContent = miss.size ? ("Faltan costos de: " + Array.from(miss).slice(0,8).join(", ") + (miss.size>8?"…":"")) : "OK";
+  }
+}
+
 
 function getInvEntryRaw(key){
   const v = state.inventory?.[key];
@@ -464,112 +584,6 @@ function computeRow(key){
   const base = baseFromSpec(spec);
   return { key, need, invBase, planned, invShown, missing, unit, cpu, base };
 }
-
-
-function canonicalKey(s){
-  return String(s||"")
-    .trim()
-    .replace(/,+$/g,"")
-    .replace(/\s+/g," ")
-    .toLowerCase();
-}
-
-function buildCostAliasMap(){
-  const map = {};
-  for(const k of Object.keys(state.costsByKey||{})){
-    map[canonicalKey(k)] = k;
-  }
-  state._costAlias = map;
-}
-
-function cpuFor(key){
-  const k0 = String(key||"").trim();
-  const alias = state._costAlias?.[canonicalKey(k0)];
-  const k = alias || k0;
-  return getCostPerUnit(k);
-}
-
-function ensurePackagingNeeds(){
-  // Agrega envase/cuchara para todos los postres (1 por unidad)
-  const by = state.ordersByDessert || {};
-  let total = 0;
-  for(const v of Object.values(by)) total += Number(v||0)||0;
-  if(total<=0) return;
-
-  for(const k of ["Envase plástico","Cuchara plástica"]){
-    state.needs = state.needs || {};
-    state.needs[k] = Math.max(Number(state.needs[k]||0)||0, total);
-
-    // Asegura que exista en lista de costos (para editar)
-    state.costsByKey = state.costsByKey || {};
-    if(!state.costsByKey[k]){
-      state.costsByKey[k] = {
-        ingredient_key: k,
-        unit_type: "u",
-        pack_qty: 0,
-        pack_price: 0,
-        cop_per_unit: null,
-        brand: "",
-        store: "",
-        updated_at: "",
-        updated_by: ""
-      };
-    }
-  }
-}
-
-function dessertUnitCost(dessertId){
-  const rec = AMARED_RECIPES_PER_UNIT[dessertId] || [];
-  let sum = 0;
-  const missing = [];
-  for(const [ik, qty] of rec){
-    const cpu = cpuFor(ik);
-    if(cpu===null || cpu===undefined){
-      missing.push(String(ik));
-      continue;
-    }
-    sum += (Number(qty||0)||0) * Number(cpu||0);
-  }
-  return { sum, missing };
-}
-
-function renderUnitCosts(){
-  const tbody = el("unitCostRows");
-  const meta = el("unitCostMeta");
-  if(!tbody) return;
-
-  buildCostAliasMap();
-  ensurePackagingNeeds();
-
-  const by = state.ordersByDessert || {};
-  const ids = ["mousse_maracuya","cheesecake_cafe_panela","arroz_con_leche"];
-  const extra = Object.keys(by).filter(k => !ids.includes(k) && Number(by[k]||0)>0);
-  const all = ids.concat(extra);
-
-  const rows = [];
-  let anyMissing = new Set();
-
-  for(const id of all){
-    const qty = Number(by[id]||0)||0;
-    const r = dessertUnitCost(id);
-    r.missing.forEach(x=>anyMissing.add(x));
-    const unit = r.missing.length ? null : r.sum;
-    const lote = (unit!==null) ? (unit*qty) : null;
-    rows.push({ id, qty, unit, lote, missing: r.missing });
-  }
-
-  tbody.innerHTML = rows.map(r=>`
-    <tr>
-      <td>${escapeHtml(prettyDessertName(r.id))}</td>
-      <td class="num">${r.unit!==null ? moneyCOP(r.unit) : "$—"}</td>
-      <td class="num">${r.lote!==null ? moneyCOP(r.lote) : "$—"}</td>
-    </tr>
-  `).join("");
-
-  const missText = anyMissing.size ? ("Faltan costos de: " + Array.from(anyMissing).slice(0,6).join(", ") + (anyMissing.size>6?"…":"")) : "OK";
-  if(meta) meta.textContent = missText;
-}
-
 
 function prettyDessertName(id){
   const s = String(id||"");
@@ -1004,14 +1018,16 @@ async function loadAll(){
   applyCatalogs(catOut);
 
   state.ordersByDessert = needsOut.orders_by_dessert || needsOut.ordersByDessert || {};
+  ensurePackagingNeeds();
   state.late = needsOut.late || {};
   state.items = costsOut.items || [];
   indexCosts(state.items);
+  buildCostAliasMap();
 
   updateMetaLine();
   renderDesserts();
-  renderLate();
   renderUnitCosts();
+  renderLate();
   renderGroups();
   renderCostsGroups();
   refreshBottom();
