@@ -547,7 +547,7 @@ function unitLabel_(u){
 
 function resolveCost_(ik){
   const k0 = String(ik||"").trim();
-  const alias = COST_KEY_ALIAS?.[normalizeKey(k0)];
+  const alias = state._costAlias?.[canonicalKey(k0)];
   const key = alias || k0;
   const spec = state.costsByKey?.[key] || null;
   const base = baseFromSpec(spec);
