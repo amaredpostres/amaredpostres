@@ -1071,14 +1071,17 @@ function renderProfilesSelect(list, selectedId){
   async function startBaseTimer(pid){
 // ✅ Guardar trazabilidad en BD (por producto, JSON)
     try{
+      showLoading("Iniciando temporizador…","Guardando hora de nevera");
       const ids = (state.recipe?.orderIds && state.recipe.orderIds.length) ? state.recipe.orderIds : getTodayOrderIds();
       if(ids.length){
         const r = await kitchenBulkUpdate(ids,{ base_fridge_started_at: JSON.stringify(buildProdStampPayload(pid)) });
         if(r && r.ok===false){ showAlert("No se pudo guardar la hora de nevera."); }
+      hideLoading();
 
       }
     }catch(e){
       console.warn("No se pudo guardar base_fridge_started_at:", e);
+      hideLoading();
     }
 
     
