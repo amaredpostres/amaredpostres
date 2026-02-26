@@ -5,7 +5,9 @@ window.AMARED_COSTS_SECTIONS = [
   {
     title: "Ingredientes que comparten todos los postres",
     keys: [
-      "Leche condensada"
+      "Leche condensada",
+      "Envase plástico",
+      "Cuchara plástica"
     ]
   },
   {
