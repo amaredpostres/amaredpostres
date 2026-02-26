@@ -184,6 +184,7 @@
 
   const selOperator = $("selOperator");
   const inpPin = $("inpPin");
+  const chkRemember = $("chkRemember");
   const btnLogin = $("btnLogin");
   const loginErr = $("loginErr");
 
@@ -442,6 +443,22 @@ const apiPost = (payload) => api(payload);
     if(s?.operatorId && s?.operatorLabel && s?.pin){ state.session=s; return true; }
     return false;
   }
+  function saveRememberSession(){
+    try{
+      localStorage.setItem(LS_KEY, JSON.stringify(state.session));
+    }catch(_e){}
+  }
+  function loadRememberSession(){
+    try{
+      const raw=localStorage.getItem(LS_KEY);
+      const s=raw? safeJsonParse(raw):null;
+      if(s?.operatorId && s?.operatorLabel && s?.pin){ return s; }
+    }catch(_e){}
+    return null;
+  }
+  function clearRememberSession(){
+    try{ localStorage.removeItem(LS_KEY); }catch(_e){}
+  }
   function clearSession(){ sessionStorage.removeItem(SS_KEY); state.session={operatorId:null, operatorLabel:null, pin:null}; }
 
   async function validatePinBestEffort(pin){
@@ -516,7 +533,7 @@ const apiPost = (payload) => api(payload);
 
     const todayAll = paid.filter(o=>o.__prod_day===state.todayKey);
     const normStatus = (v)=>String(v||"").trim().toLowerCase();
-    const inProgDb = todayAll.filter(o=>normStatus(o.kitchen_status)==="en proceso");
+    const inProgDb = paid.filter(o=>normStatus(o.kitchen_status)==="en proceso");
     const doneDb = paid
       .filter(o=>normStatus(o.kitchen_status)==="listo")
       .filter(o=>{
@@ -1816,6 +1833,7 @@ function renderProfilesSelect(list, selectedId){
 
       state.session={operatorId:selectedId, operatorLabel:label, pin};
       saveSession();
+      if(chkRemember?.checked){ saveRememberSession(); } else { clearRememberSession(); }
 
       showApp();
 
@@ -1831,6 +1849,8 @@ function renderProfilesSelect(list, selectedId){
       startWidgetTicker();
     }catch(e){
       clearSession();
+    clearRememberSession();
+    if(chkRemember) chkRemember.checked=false;
       showLogin();
       loginErr.textContent = e?.message || "PIN inválido o no autorizado.";
     }finally{
@@ -1888,24 +1908,32 @@ function renderProfilesSelect(list, selectedId){
     await loadProfilesOnStart();
     hideLoading();
 
-    // 2) sesión previa
-    if(loadSession()){
-      inpPin.value = state.session.pin || "";
+    // 2) sesión previa (manual: Recuérdame)
+    const remembered = loadRememberSession();
+    if(remembered){
+      // Carga perfiles y trata de iniciar automáticamente
+      inpPin.value = remembered.pin || "";
+      if(chkRemember) chkRemember.checked = true;
       if(state.profilesLoaded){
-        renderProfilesSelect(state.profiles, state.session.operatorId);
-        const label=state.profiles.find(p=>p.id===state.session.operatorId)?.label;
-        if(label){ state.session.operatorLabel=label; saveSession(); }
+        renderProfilesSelect(state.profiles, remembered.operatorId);
       }
-      showApp();
-      // costos best-effort
-      await apiTry({action:"costs_public_list"}).then(async(r)=>{ if(r.ok===true) await fetchCostsPublic(); });
+      // Validación y entrada automática
+      state.session = remembered;
       try{
+        showLoading("Ingresando…","Validando sesión guardada…");
+        await validatePinBestEffort(remembered.pin);
+        showApp();
         await refresh();
         startWidgetTicker();
       }catch(_e){
-        onLogout();
+        clearRememberSession();
+        clearSession();
+        showLogin();
+      }finally{
+        hideLoading();
       }
     }
+
 
     if(btnLogin) btnLogin.onclick=onLogin;
     if(btnRefresh) btnRefresh.onclick=()=> refresh().catch(e=>alert(e?.message||String(e)));
