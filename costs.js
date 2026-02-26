@@ -17,8 +17,6 @@ let state = {
   items: [],
   costsByKey: {},
   inventory: {},
-  recipesRaw: [],
-  recipesIndex: {},
   needs: {},
   meta: {},
   ordersByDessert: {},
@@ -34,50 +32,11 @@ let state = {
     onlySelected: false,
     cost_q: "",
   }
-
-// ====== RECETAS desde Google Sheets (hoja RECETAS) ======
-// Objetivo: el costo unitario SIEMPRE se calcula con base en la hoja RECETAS,
-// para que cualquier cambio en recetas se refleje automáticamente aquí.
-function parseNumFlexJS_(v){
-  if(typeof v === "number") return isFinite(v) ? v : 0;
-  const s = String(v ?? "").trim();
-  if(!s) return 0;
-  // soporta "42,8" y "1.234,5"
-  const cleaned = s.replace(/\s+/g,"").replace(/\.(?=\d{3}(\D|$))/g,"").replace(",",".");
-  const n = Number(cleaned);
-  return isFinite(n) ? n : 0;
-}
-function normUnit_(u){
-  const s = String(u||"").trim().toLowerCase();
-  if(!s) return "";
-  if(s === "g" || s === "gr" || s === "gramo" || s === "gramos") return "g";
-  if(s === "ml" || s === "mililitro" || s === "mililitros") return "ml";
-  if(s === "unidad" || s === "unidades" || s === "u" || s === "un" || s === "und") return "unidad";
-  return s;
-}
-function buildRecipesIndexFromList_(rows){
-  const out = {};
-  for(const r of (rows || [])){
-    const did = String(r.dessert_id || r.dessertId || "").trim();
-    const ik  = String(r.ingredient_key || r.ingredientKey || r.ingredient || "").trim();
-    if(!did || !ik) continue;
-    const qty = parseNumFlexJS_(r.qty_per_unit ?? r.qty ?? r.quantity ?? 0);
-    const unit = normUnit_(r.unit);
-    if(!(qty>0)) continue;
-    if(!out[did]) out[did] = [];
-    out[did].push({ ingredient_key: ik, qty, unit });
-  }
-  return out;
-}
-function getRecipeLines_(dessertId){
-  const did = String(dessertId||"").trim();
-  const fromSheet = state.recipesIndex?.[did];
-  if(fromSheet && fromSheet.length) return fromSheet;
-  // Fallback: constante embebida (solo si el backend no expone RECETAS aún)
-  const rec = (typeof AMARED_RECIPES_PER_UNIT !== "undefined" && AMARED_RECIPES_PER_UNIT) ? (AMARED_RECIPES_PER_UNIT[did] || []) : [];
-  return rec.map(([ik, qty]) => ({ ingredient_key: String(ik), qty: Number(qty||0)||0, unit: "" }));
-}
 };
+
+// --- RECETAS (desde hoja RECETAS) ---
+state.recipesByDessert = null; // {dessert_id: [{ingredient_key, qty_per_unit, unit}]}
+state.recipesSource = "embedded"; // "sheet" | "embedded"
 
 // ====== Costo unitario por postre (recetas canónicas) ======
 const AMARED_RECIPES_PER_UNIT = {
@@ -213,13 +172,6 @@ function moneyCOP(n){
   return "$" + v.toLocaleString("es-CO");
 }
 
-// Para mostrar $/g o $/ml con decimales (no redondear a entero)
-function moneyCOPDec(n, maxFrac=3){
-  const v = Number(n);
-  if(!isFinite(v)) return "$—";
-  return "$" + new Intl.NumberFormat("es-CO", { maximumFractionDigits: maxFrac }).format(v);
-}
-
 function uniqSorted(arr){
   const uniq = Array.from(new Set((arr||[]).map(v=>String(v||"").trim()).filter(Boolean)));
   uniq.sort((a,b)=>a.localeCompare(b,"es"));
@@ -338,6 +290,79 @@ async function validateSecret(secret){
   return true;
 }
 
+// =============== RECETAS (desde hoja RECETAS) ===============
+function normText_(s){
+  return String(s||"")
+    .toLowerCase()
+    .normalize("NFD").replace(/[\u0300-\u036f]/g,"")
+    .replace(/\s+/g," ")
+    .trim();
+}
+const DESSERT_NAME_TO_ID_ = {
+  "mousse de maracuya": "mousse_maracuya",
+  "mousse de maracuya ": "mousse_maracuya",
+  "mousse de maracuyá": "mousse_maracuya",
+  "cheesecake de cafe con panela": "cheesecake_cafe_panela",
+  "cheesecake de café con panela": "cheesecake_cafe_panela",
+  "arroz con leche": "arroz_con_leche"
+};
+
+function normRecipeUnit_(u){
+  const t = String(u||"").trim().toLowerCase();
+  if(!t) return "";
+  if(t === "u" || t === "und" || t === "unidad" || t === "unidades") return "unidad";
+  if(t === "g" || t === "gr" || t === "gramo" || t === "gramos") return "g";
+  if(t === "ml" || t === "mililitro" || t === "mililitros") return "ml";
+  return t;
+}
+
+function buildRecipesIndex_(items){
+  const out = {};
+  const rows = Array.isArray(items) ? items : [];
+  for(const r of rows){
+    const didRaw = String(r?.dessert_id || r?.dessertId || "").trim();
+    const dname = String(r?.dessert_name || r?.dessertName || "").trim();
+    const did = didRaw || (DESSERT_NAME_TO_ID_[normText_(dname)] || "");
+    if(!did) continue;
+
+    const ing = String(r?.ingredient_key || r?.ingredientKey || r?.key || "").trim();
+    if(!ing) continue;
+
+    const qty = Number(r?.qty_per_unit ?? r?.qtyPerUnit ?? r?.qty ?? 0);
+    if(!(qty > 0)) continue;
+
+    const unit = normRecipeUnit_(r?.unit);
+    if(!unit) continue;
+
+    if(!out[did]) out[did] = [];
+    out[did].push({ ingredient_key: ing, qty_per_unit: qty, unit });
+  }
+
+  // ordenar por nombre ingrediente para consistencia visual
+  for(const k of Object.keys(out)){
+    out[k].sort((a,b)=> String(a.ingredient_key||"").localeCompare(String(b.ingredient_key||""),"es"));
+  }
+  return out;
+}
+
+async function loadRecipesFromSheet_(){
+  state.recipesByDessert = null;
+  state.recipesSource = "embedded";
+  try{
+    const out = await api({ action:"recipes_list", costs_secret: UNLOCKED_SECRET }, {timeoutMs: 45000});
+    const idx = buildRecipesIndex_(out.items || []);
+    if(Object.keys(idx).length){
+      state.recipesByDessert = idx;
+      state.recipesSource = "sheet";
+    }
+  }catch(_e){
+    // fallback: embedded (AMARED_RECIPES_PER_UNIT)
+    state.recipesByDessert = null;
+    state.recipesSource = "embedded";
+  }
+}
+
+
 // =============== Costos helpers ===============
 function indexCosts(items){
   const map = {};
@@ -361,32 +386,25 @@ function baseFromSpec(spec){
   const unit_type = String(spec?.unit_type || "").trim().toLowerCase();
   const pack_qty = Number(spec?.pack_qty || 0);
   const pack_price = Number(spec?.pack_price || 0);
-  const cpuStored = Number(spec?.cop_per_unit || 0); // legacy (no se prioriza para evitar valores viejos)
+  const cpuStored = Number(spec?.cop_per_unit || 0);
   const unit_item_qty = Number(spec?.unit_item_qty || 0);
   const unit_item_type = String(spec?.unit_item_qty_type || "").trim().toLowerCase();
   const brand = String(spec?.brand || "").trim();
   const store = String(spec?.store || "").trim();
 
-  // ✅ Regla: el costo por unidad SIEMPRE se recalcula desde pack_price / pack_qty
-  // para evitar inconsistencias cuando se edita el empaque y cop_per_unit queda viejo.
-  const cpuFromPack = (pack_qty>0 && pack_price>0) ? (pack_price/pack_qty) : null;
-  const cpuFallback = (cpuStored>0 && isFinite(cpuStored)) ? cpuStored : null;
+  const cpuOr = ((pack_qty>0 && pack_price>0) ? (pack_price/pack_qty) : ((cpuStored>0 && isFinite(cpuStored)) ? cpuStored : null));
 
   if(unit_type === "g" || unit_type === "ml"){
-    const cpu = (cpuFromPack !== null) ? cpuFromPack : cpuFallback;
-    return { base_unit: unit_type, cpu, pack_qty, pack_price, brand, store, unit_item_qty, unit_item_type, unit_type };
+    return { base_unit: unit_type, cpu: cpuOr, pack_qty, pack_price, brand, store, unit_item_qty, unit_item_type, unit_type };
   }
 
   if(unit_type === "unidad"){
-    // Unidad con contenido (ej. 1 botella = 1000 ml) => base se vuelve ml/g
     if(unit_item_qty>0 && (unit_item_type === "g" || unit_item_type === "ml")){
       const basePackQty = pack_qty * unit_item_qty;
-      const cpu = (basePackQty>0 && pack_price>0) ? (pack_price/basePackQty) : cpuFallback;
+      const cpu = (basePackQty>0 && pack_price>0) ? (pack_price/basePackQty) : null;
       return { base_unit: unit_item_type, cpu, pack_qty: basePackQty, pack_price, brand, store, unit_item_qty, unit_item_type, unit_type };
     }
-    // Unidad pura (envase, cuchara)
-    const cpu = (cpuFromPack !== null) ? cpuFromPack : cpuFallback;
-    return { base_unit: "unidad", cpu, pack_qty, pack_price, brand, store, unit_item_qty, unit_item_type, unit_type };
+    return { base_unit: "unidad", cpu: cpuOr, pack_qty, pack_price, brand, store, unit_item_qty, unit_item_type, unit_type };
   }
 
   return { base_unit: "", cpu: null, pack_qty: 0, pack_price: 0, brand:"", store:"", unit_item_qty:0, unit_item_type:"", unit_type:"" };
@@ -549,7 +567,7 @@ function ensurePackagingEntries(){
     if(!state.costsByKey[k]){
       state.costsByKey[k] = {
         ingredient_key: k,
-        unit_type: "unidad",
+        unit_type: "u",
         pack_qty: 0,
         pack_price: 0,
         cop_per_unit: null,
@@ -584,148 +602,123 @@ function cpuFor(key){
   return getCostPerUnit(k);
 }
 
-function dessertUnitCost(dessertId){
-  const bd = dessertUnitBreakdown_(dessertId);
-  return { sum: bd.total, missing: bd.missing };
-}
+function resolveCostForRecipe_(ingredientKey, recipeUnit){
+  const ik0 = String(ingredientKey||"").trim();
+  const alias = state._costAlias?.[canonicalKey(ik0)];
+  const ik = alias || ik0;
 
-function unitLabel_(u){
-  const s = String(u||"").trim().toLowerCase();
-  if(s === "g") return "g";
-  if(s === "ml") return "ml";
-  if(s === "unidad" || s === "u" || s === "und" || s === "un") return "u";
-  return s || "—";
-}
-
-function resolveCost_(ik){
-  const k0 = String(ik||"").trim();
-  const alias = state._costAlias?.[canonicalKey(k0)];
-  const key = alias || k0;
-  const spec = state.costsByKey?.[key] || null;
+  const spec = state.costsByKey?.[ik] || null;
   const base = baseFromSpec(spec);
-  const cpu = (base.cpu !== null && isFinite(base.cpu)) ? Number(base.cpu) : null;
-  return { key, spec, base, cpu };
-}
 
-function dessertUnitBreakdown_(dessertId){
-  const rec = getRecipeLines_(dessertId); // desde hoja RECETAS (preferido)
-  const lines = [];
-  let total = 0;
-  const missing = [];
+  const want = normRecipeUnit_(recipeUnit);
+  const have = normRecipeUnit_(base.base_unit);
 
-  for(const row of rec){
-    const ik = String(row.ingredient_key || "").trim();
-    if(!ik) continue;
-
-    const qtyRecipe = Number(row.qty || 0) || 0;
-    const recipeUnit = normUnit_(row.unit || ""); // g | ml | unidad | ""
-    const r = resolveCost_(ik);
-
-    const baseUnit = normUnit_(r.base?.base_unit || r.base?.unit_type || "");
-    const cpu = r.cpu;
-
-    // si RECETAS no trae unidad, asumimos la unidad base del costo
-    const displayUnit = recipeUnit || baseUnit || unitLabel_(r.base?.base_unit || r.base?.unit_type || "");
-
-    // convertir cantidad de receta a la unidad base del costo (si aplica)
-    let qtyBase = qtyRecipe;
-
-    if(recipeUnit && baseUnit && recipeUnit !== baseUnit){
-      // Caso soportado: receta en UNIDAD pero costo base en g/ml gracias a unit_item_qty
-      if(
-        recipeUnit === "unidad" &&
-        (baseUnit === "g" || baseUnit === "ml") &&
-        String(r.base?.unit_type||"").toLowerCase() === "unidad" &&
-        Number(r.base?.unit_item_qty||0) > 0 &&
-        normUnit_(r.base?.unit_item_type || "") === baseUnit
-      ){
-        qtyBase = qtyRecipe * Number(r.base.unit_item_qty||0);
-      } else {
-        // Incompatible: no podemos convertir (lo marcamos como faltante)
-        missing.push(`${ik} (unidad receta ${recipeUnit} ≠ costo ${baseUnit})`);
-        lines.push({
-          ingredient_key: ik,
-          qty: qtyRecipe,
-          unit: displayUnit || "—",
-          cpu: cpu,
-          line: null,
-          store: String(r.base?.store || ""),
-          brand: String(r.base?.brand || "")
-        });
-        continue;
-      }
-    }
-
-    const line = (cpu !== null && isFinite(cpu)) ? (qtyBase * cpu) : null;
-    if(line !== null) total += line;
-    else missing.push(String(ik));
-
-    lines.push({
-      ingredient_key: ik,
-      qty: qtyRecipe,
-      unit: displayUnit || "—",
-      cpu: (cpu !== null && isFinite(cpu)) ? cpu : null,
-      line,
-      store: String(r.base?.store || ""),
-      brand: String(r.base?.brand || "")
-    });
+  if(base.cpu === null || base.cpu === undefined || !(Number(base.cpu) > 0)) {
+    return { ok:false, reason:"missing_cost", ingredient_key: ik0 };
   }
 
-  return { lines, total, missing };
+  // Si la receta especifica unidad, validar compatibilidad
+  if(want && have && want !== have){
+    return { ok:false, reason:`unit_mismatch:${want}:${have}`, ingredient_key: ik0 };
+  }
+
+  return { ok:true, ingredient_key: ik, cpu: Number(base.cpu), base_unit: have || base.base_unit || "" };
 }
 
+function moneyCOP2(n){
+  const v = Number(n||0);
+  const frac = Math.abs(v - Math.round(v)) > 1e-9;
+  return "$" + v.toLocaleString("es-CO", { maximumFractionDigits: frac ? 2 : 0 });
+}
 
-function unitBreakdownHtml_(dessertId, lotQty){
-  const bd = dessertUnitBreakdown_(dessertId);
-  const lot = Number(lotQty||0) || 0;
-  const hasAll = bd.missing.length === 0;
+function dessertUnitBreakdown_(dessertId, lotQty){
+  const bySheet = state.recipesByDessert?.[dessertId] || null;
 
-  const lineHtml = bd.lines.map(x=>{
-    const left = `${escapeHtml(x.ingredient_key)} <span style="opacity:.7;font-weight:900;">(${fmtNum(x.qty)} ${escapeHtml(x.unit)})</span>`;
-    const mid = (x.cpu !== null) ? `${moneyCOPDec(x.cpu)}/${escapeHtml(x.unit)}` : "<span style='opacity:.75;'>Sin costo</span>";
-    const right = (x.line !== null) ? moneyCOP(x.line) : "<span style='opacity:.75;'>$—</span>";
-    const meta = (x.store || x.brand) ? `<div style="margin-top:2px; font-size:12.2px; font-weight:850; opacity:.68;">${escapeHtml([x.brand,x.store].filter(Boolean).join(" · "))}</div>` : "";
-    return `
-      <div style="display:grid; grid-template-columns: 1fr auto auto; gap:10px; align-items:start; padding:8px 10px; border:1px solid rgba(64,17,2,.10); border-radius:14px; background:rgba(255,255,255,.70);">
-        <div>
-          <div style="font-weight:950;">${left}</div>
-          ${meta}
+  let lines = [];
+  let missing = [];
+  let sum = 0;
+  let source = "embedded";
+
+  if(bySheet && bySheet.length){
+    source = "sheet";
+    for(const r of bySheet){
+      const ik = String(r.ingredient_key||"").trim();
+      const qty = Number(r.qty_per_unit||0) || 0;
+      const unit = normRecipeUnit_(r.unit);
+      if(!ik || !(qty>0) || !unit) continue;
+
+      const rc = resolveCostForRecipe_(ik, unit);
+      if(!rc.ok){
+        missing.push(ik);
+        continue;
+      }
+      const sub = qty * rc.cpu;
+      sum += sub;
+      lines.push({ ingredient_key: rc.ingredient_key, qty, unit, cpu: rc.cpu, cpu_unit: rc.base_unit || unit, subtotal: sub });
+    }
+  } else {
+    // fallback: recetas embebidas (compat)
+    const rec = AMARED_RECIPES_PER_UNIT[dessertId] || [];
+    for(const pair of rec){
+      const ik = String(pair?.[0]||"").trim();
+      const qty = Number(pair?.[1]||0) || 0;
+      if(!ik || !(qty>0)) continue;
+      const cpu = cpuFor(ik);
+      if(cpu===null || cpu===undefined){ missing.push(ik); continue; }
+      const sub = qty * Number(cpu||0);
+      sum += sub;
+      lines.push({ ingredient_key: ik, qty, unit: "", cpu: Number(cpu||0), cpu_unit: "", subtotal: sub });
+    }
+  }
+
+  // ordenar por subtotal desc para lectura rápida
+  lines.sort((a,b)=> (b.subtotal||0) - (a.subtotal||0));
+
+  const lot = (lotQty && sum) ? (sum * lotQty) : null;
+  return { dessertId, source, lines, missing, sum, lotQty: Number(lotQty||0)||0, lot };
+}
+
+function unitBreakdownHtml_(b){
+  const lotQty = b.lotQty || 0;
+  const missing = Array.isArray(b.missing) ? b.missing : [];
+  const hasMiss = missing.length > 0;
+
+  const header = `<div class="hint" style="margin-bottom:8px;">Ingredientes por <b>1 unidad</b>${b.source==="sheet" ? " (RECETAS)" : ""}</div>`;
+
+  const list = b.lines.length ? b.lines.map(x=>`
+    <div style="display:flex; justify-content:space-between; gap:12px; align-items:flex-start;">
+      <div style="min-width:0;">
+        <div style="font-weight:950;">${escapeHtml(x.ingredient_key)}</div>
+        <div style="opacity:.75; font-weight:850; font-size:12.5px; margin-top:2px;">
+          ${fmtNum(x.qty)} ${escapeHtml(x.unit || "")}
+          ${x.cpu ? (` · ${moneyCOP2(x.cpu)}/${escapeHtml(x.cpu_unit || x.unit || "")}`) : ""}
         </div>
-        <div style="text-align:right; font-weight:900;">${mid}</div>
-        <div style="text-align:right; font-weight:950;">${right}</div>
       </div>
-    `;
-  }).join("");
-
-  const totalUnitHtml = hasAll ? moneyCOP(bd.total) : "$—";
-  const totalLotHtml = (hasAll && lot>0) ? moneyCOP(bd.total * lot) : "$—";
-
-  const warn = bd.missing.length
-    ? `<div style="margin-top:10px; font-weight:900; color:rgba(64,17,2,.72);">
-         ⚠️ Faltan costos de: ${escapeHtml(bd.missing.slice(0,10).join(", "))}${bd.missing.length>10?"…":""}
-       </div>`
-    : "";
-
-  const lotInfo = lot>0
-    ? `<div style="margin-top:8px; font-weight:900; opacity:.8;">Total lote (${lot} u): <span style="font-weight:950;">${totalLotHtml}</span></div>`
-    : "";
-
-  return `
-    <div style="padding:10px 10px 2px;">
-      <div style="display:flex; justify-content:space-between; gap:10px; flex-wrap:wrap; align-items:center; margin-bottom:10px;">
-        <div style="font-weight:950;">Ingredientes por 1 unidad</div>
-        <div style="font-weight:950;">Total unitario: <span style="font-weight:950;">${totalUnitHtml}</span></div>
-      </div>
-      <div style="display:grid; gap:8px;">
-        ${lineHtml || "<div class='muted'>Sin receta configurada.</div>"}
-      </div>
-      ${lotInfo}
-      ${warn}
+      <div style="font-weight:950; white-space:nowrap;">${moneyCOP2(x.subtotal)}</div>
     </div>
-  `;
+  `).join(`<div style="height:8px;"></div>`) : `<div class="hint">No hay ingredientes en la receta.</div>`;
+
+  const total = `<div style="border-top:1px solid rgba(64,17,2,.10); padding-top:10px; margin-top:10px; display:flex; justify-content:space-between;">
+      <div style="font-weight:950;">Total unitario</div>
+      <div style="font-weight:950; white-space:nowrap;">${moneyCOP2(b.sum)}</div>
+    </div>`;
+
+  const lot = (lotQty>0) ? `<div style="opacity:.85; font-weight:850; margin-top:6px; display:flex; justify-content:space-between;">
+      <div>Total lote (${fmtNum(lotQty)} u)</div>
+      <div style="white-space:nowrap;">${b.lot!==null ? moneyCOP2(b.lot) : "$—"}</div>
+    </div>` : "";
+
+  const miss = hasMiss ? `<div class="hint" style="margin-top:10px; color:#b32020; font-weight:950;">
+      Faltan costos o unidades compatibles para: ${escapeHtml(missing.slice(0,10).join(", "))}${missing.length>10?"…":""}
+    </div>` : "";
+
+  return `<div style="padding:10px 12px;">${header}${list}${total}${lot}${miss}</div>`;
 }
 
-const UNIT_DETAILS_OPEN = window.__AMARED_UNIT_DETAILS_OPEN__ || (window.__AMARED_UNIT_DETAILS_OPEN__ = {});
+function dessertUnitCost(dessertId){
+  const b = dessertUnitBreakdown_(dessertId, 0);
+  return { sum: b.sum, missing: b.missing };
+}
 
 function renderUnitCosts(){
   const tbody = el("unitCostRows");
@@ -740,64 +733,37 @@ function renderUnitCosts(){
   const extra = Object.keys(by).filter(k => !baseIds.includes(k) && Number(by[k]||0)>0);
   const all = baseIds.concat(extra);
 
+  state.ui.unitOpen = state.ui.unitOpen || {};
+
+  const rows = [];
   const miss = new Set();
 
-  const rowsHtml = all.map(id=>{
+  for(const id of all){
     const qty = Number(by[id]||0)||0;
-    const r = dessertUnitCost(id);
-    r.missing.forEach(x=>miss.add(x));
-    const unit = r.missing.length ? null : r.sum;
+    const b = dessertUnitBreakdown_(id, qty);
+    b.missing.forEach(x=>miss.add(x));
+    const unit = b.missing.length ? null : b.sum;
     const lote = (unit!==null) ? (unit*qty) : null;
-
-    const open = !!UNIT_DETAILS_OPEN[id];
-    const chev = open ? "▼" : "▶";
-    const detailsStyle = open ? "" : "display:none;";
-
-    return `
-      <tr class="unitRow" data-id="${escapeHtml(id)}" role="button" tabindex="0" aria-expanded="${open ? "true":"false"}" style="cursor:pointer;">
-        <td><span class="uChev" style="display:inline-block; width:18px; opacity:.75; font-weight:950;">${chev}</span>${escapeHtml(prettyDessertName(id))}</td>
-        <td class="num">${unit!==null ? moneyCOP(unit) : "$—"}</td>
-        <td class="num">${lote!==null ? moneyCOP(lote) : "$—"}</td>
-      </tr>
-      <tr class="unitDetails" data-for="${escapeHtml(id)}" style="${detailsStyle}">
-        <td colspan="3">
-          ${unitBreakdownHtml_(id, qty)}
-        </td>
-      </tr>
-    `;
-  }).join("");
-
-  tbody.innerHTML = rowsHtml;
-
-  meta.textContent = miss.size
-    ? ("Faltan costos de: " + Array.from(miss).slice(0,8).join(", ") + (miss.size>8?"…":""))
-    : "OK";
-
-  // Bind toggle (once)
-  if(!tbody.dataset.unitBind){
-    tbody.dataset.unitBind = "1";
-
-    tbody.addEventListener("click", (e)=>{
-      const tr = e.target?.closest?.("tr.unitRow");
-      if(!tr) return;
-      const id = tr.getAttribute("data-id");
-      if(!id) return;
-      UNIT_DETAILS_OPEN[id] = !UNIT_DETAILS_OPEN[id];
-      // re-render to update totals + chevron state
-      renderUnitCosts();
-    });
-
-    tbody.addEventListener("keydown", (e)=>{
-      if(e.key !== "Enter" && e.key !== " ") return;
-      const tr = e.target?.closest?.("tr.unitRow");
-      if(!tr) return;
-      e.preventDefault();
-      const id = tr.getAttribute("data-id");
-      if(!id) return;
-      UNIT_DETAILS_OPEN[id] = !UNIT_DETAILS_OPEN[id];
-      renderUnitCosts();
-    });
+    rows.push({ id, qty, unit, lote, open: !!state.ui.unitOpen[id], breakdown: b });
   }
+
+  tbody.innerHTML = rows.map(r=>`
+    <tr data-dessert="${escapeHtml(r.id)}" style="cursor:pointer;">
+      <td>${escapeHtml(prettyDessertName(r.id))} <span style="opacity:.55; font-weight:950;">${r.open?"▾":"▸"}</span></td>
+      <td class="num">${r.unit!==null ? moneyCOP2(r.unit) : "$—"}</td>
+      <td class="num">${r.lote!==null ? moneyCOP2(r.lote) : "$—"}</td>
+    </tr>
+    <tr data-detail="${escapeHtml(r.id)}" style="${r.open ? "" : "display:none;"}">
+      <td colspan="3" style="padding:0; background: rgba(255,255,255,.55);">
+        ${unitBreakdownHtml_(r.breakdown)}
+      </td>
+    </tr>
+  `).join("");
+
+  const src = (state.recipesSource === "sheet") ? "RECETAS" : "receta embebida";
+  meta.textContent = miss.size
+    ? (`(${src}) Faltan costos de: ` + Array.from(miss).slice(0,8).join(", ") + (miss.size>8?"…":""))
+    : (`OK (${src})`);
 }
 
 
@@ -1210,15 +1176,11 @@ async function loadAll(){
 
   updateMetaLine();
 
-    const recipesP = api({ action:"recipes_list", costs_secret: UNLOCKED_SECRET })
-      .catch(()=>({ ok:false, recipes: [] }));
-
-  const [invOut, needsOut, costsOut, catOut, recipesOut] = await Promise.all([
+    const [invOut, needsOut, costsOut, catOut] = await Promise.all([
     api({ action:"inventory_get", costs_secret: UNLOCKED_SECRET }),
     api({ action:"costs_orders_for_purchases", costs_secret: UNLOCKED_SECRET, window_h: state.window_h }),
     api({ action:"costs_list", costs_secret: UNLOCKED_SECRET }),
     api({ action:"catalog_list", costs_secret: UNLOCKED_SECRET }),
-    recipesP,
   ]);
 
   state.inventory = invOut.inventory || {};
@@ -1231,9 +1193,8 @@ async function loadAll(){
   state.items = costsOut.items || [];
   indexCosts(state.items);
 
-  // ✅ RECETAS desde la hoja RECETAS
-  state.recipesRaw = recipesOut.recipes || recipesOut.items || [];
-  state.recipesIndex = buildRecipesIndexFromList_(state.recipesRaw);
+  // Recetas desde hoja RECETAS (para costo unitario)
+  await loadRecipesFromSheet_();
 
   updateMetaLine();
   renderDesserts();
@@ -1451,13 +1412,13 @@ function openCatalogModal(){
 }
 
 function closeCatalogModal(){ hide(el("catModalBack")); }
+
 function normalizeCatalogType_(type){
   const t = String(type||"").trim().toLowerCase();
   if(t === "stores" || t === "store" || t === "tiendas") return "store";
   if(t === "brands" || t === "brand" || t === "marcas") return "brand";
   return t;
 }
-
 
 async function addCatalogValue(type, value){
   const v = String(value||"").trim();
@@ -1480,6 +1441,17 @@ function bind(){
   // Buttons
   el("btnExit")?.addEventListener("click", logout);
   el("btnReload")?.addEventListener("click", ()=>{ showLoading("Recargando…", "Actualizando datos."); loadAll().finally(hideLoading); });
+
+  // Unit-cost breakdown (toggle)
+  el("unitCostRows")?.addEventListener("click", (ev)=>{
+    const tr = ev.target && ev.target.closest ? ev.target.closest("tr[data-dessert]") : null;
+    if(!tr) return;
+    const id = tr.getAttribute("data-dessert");
+    if(!id) return;
+    state.ui.unitOpen = state.ui.unitOpen || {};
+    state.ui.unitOpen[id] = !state.ui.unitOpen[id];
+    renderUnitCosts();
+  });
 
   // Tabs
   el("btnTabPurchases")?.addEventListener("click", ()=> setView("purchases"));
