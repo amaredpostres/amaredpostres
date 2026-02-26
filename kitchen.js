@@ -116,8 +116,8 @@
         { type:"normal", text:"Con la licuadora encendida, integra la gelatina disuelta lentamente.", img:"assets/steps/mousse/step08.webp" },
         { type:"normal", text:"Sirve la mezcla en los vasitos sobre la base (150 ml por vasito).", img:"assets/steps/mousse/step09.webp" },
         { type:"normal", text:"Refrigera mínimo 8 horas o toda la noche.", img:"assets/steps/mousse/step10.webp" },
-        { type:"normal", text:"Espolvorea chocolate con la forma del logo.", img:"assets/steps/mousse/step12.webp" },
-        { type:"normal", text:"Agregar chocorramo (20 g por postre).", img:"assets/steps/mousse/step11.webp" },
+        { type:"normal", text:"Espolvorea chocolate con la forma del logo.", img:"assets/steps/mousse/step11.webp" },
+        { type:"normal", text:"Agregar chocorramo (20 g por postre).", img:"assets/steps/mousse/step12.webp" },
         { type:"final", text:"¡Listo! Verifica presentación y limpieza del área.", img:"assets/steps/mousse/step13.webp" },
       ],
     };
