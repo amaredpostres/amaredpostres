@@ -1069,14 +1069,7 @@ function renderProfilesSelect(list, selectedId){
   }
 
   async function startBaseTimer(pid){
-    const existing=getTimerEnd(state.todayKey,pid);
-    const now=Date.now();
-    if(existing && existing>now){
-      startWidgetTicker();
-      return;
-    }
-
-    // ✅ Guardar trazabilidad en BD (por producto, JSON)
+// ✅ Guardar trazabilidad en BD (por producto, JSON)
     try{
       const ids = (state.activeOverlay?.orderIds && state.activeOverlay.orderIds.length) ? state.activeOverlay.orderIds : [];
       if(ids.length){
@@ -1084,6 +1077,14 @@ function renderProfilesSelect(list, selectedId){
       }
     }catch(e){
       console.warn("No se pudo guardar base_fridge_started_at:", e);
+    }
+
+    
+    const existing=getTimerEnd(state.todayKey,pid);
+    const now=Date.now();
+    if(existing && existing>now){
+      startWidgetTicker();
+      return;
     }
 
     const end=Date.now()+BASE_FRIDGE_MINUTES*60*1000;
