@@ -1071,9 +1071,11 @@ function renderProfilesSelect(list, selectedId){
   async function startBaseTimer(pid){
 // ✅ Guardar trazabilidad en BD (por producto, JSON)
     try{
-      const ids = (state.activeOverlay?.orderIds && state.activeOverlay.orderIds.length) ? state.activeOverlay.orderIds : [];
+      const ids = (state.recipe?.orderIds && state.recipe.orderIds.length) ? state.recipe.orderIds : getTodayOrderIds();
       if(ids.length){
-        await kitchenBulkUpdate(ids,{ base_fridge_started_at: JSON.stringify(buildProdStampPayload(pid)) });
+        const r = await kitchenBulkUpdate(ids,{ base_fridge_started_at: JSON.stringify(buildProdStampPayload(pid)) });
+        if(r && r.ok===false){ showAlert("No se pudo guardar la hora de nevera."); }
+
       }
     }catch(e){
       console.warn("No se pudo guardar base_fridge_started_at:", e);
@@ -1206,7 +1208,7 @@ function renderProfilesSelect(list, selectedId){
   }
 
   async function finalizeLoteFromOverlay(){
-    const ids=(state.activeOverlay?.orderIds && state.activeOverlay.orderIds.length)? state.activeOverlay.orderIds : getTodayOrderIds();
+    const ids=(state.recipe?.orderIds && state.recipe.orderIds.length)? state.recipe.orderIds : getTodayOrderIds();
     if(ids.length===0) return;
 
     const ok=await confirmWithDelay({title:"Finalizar lote", message:"Esto cambiará a 'Listo' en la base de datos.", seconds:2, okText:"Finalizar lote"});
