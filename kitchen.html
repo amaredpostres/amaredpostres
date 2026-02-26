@@ -4,9 +4,8 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>AMARED · Cocina</title>
-
-  <link rel="icon" href="favicon.ico" />
-  <link rel="icon" href="assets/favicon.ico" />
+  <link rel="icon" type="image/x-icon" href="assets/favicon.ico" />
+  <link rel="shortcut icon" type="image/x-icon" href="assets/favicon.ico" />
   <link rel="stylesheet" href="styles.css" />
 
   <style>
@@ -134,7 +133,10 @@
 
       <div class="field" style="margin-top:10px;">
         <label class="muted small">PIN</label>
-        <input id="inpPin" class="input" type="password" placeholder="••••••" />
+        <div style="display:flex; gap:10px; align-items:center;">
+          <input id="inpPin" class="input" type="password" placeholder="••••••" />
+          <button id="btnTogglePin" class="btn secondary" type="button" style="padding:10px 14px; border-radius:14px; min-width:52px;">👁</button>
+        </div>
       </div>
 
       
@@ -203,10 +205,24 @@
       </div>
 
       
+      
       <section class="card" style="margin-top:14px;">
         <h2 class="cardTitle">En proceso</h2>
-        <div id="inProgressWrap"></div>
+
+        <div class="prodTabs" style="margin-top:8px;">
+          <button id="tabInProgToday" class="tabBtn active" type="button">Del día</button>
+          <button id="tabInProgOlder" class="tabBtn" type="button">Anteriores</button>
+        </div>
+
+        <div id="inProgPanelToday">
+          <div id="inProgressWrapToday"></div>
+        </div>
+
+        <div id="inProgPanelOlder" class="hidden" style="margin-top:10px;">
+          <div id="inProgressWrapOlder"></div>
+        </div>
       </section>
+
 
       <section class="card" style="margin-top:14px;">
         <h2 class="cardTitle">Finalizados</h2>
