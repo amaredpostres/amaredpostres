@@ -69,7 +69,7 @@
 (() => {
   "use strict";
 
-  console.log("AMARED kitchen v2026-02-26 (recipes+inventory aligned)");
+  console.log("AMARED kitchen v2026-02-26 steps update");
 
   // ========= CONFIG =========
   const API_URL = "https://amared-orders.amaredpostres.workers.dev/";
@@ -118,54 +118,67 @@
         { key:"Mantequilla derretida (g)", qty:11.6 },
         { key:"Vainilla (ml)", qty:0.33 },
         { key:"Chocorramo (g)", qty:20 },
+        { key:"Envase plástico (unidad)", qty:1 },
+        { key:"Cuchara plástica (unidad)", qty:1 },
       ],
       steps: [
         { type:"batch_ingredients" },
-        { type:"normal", text:"Tritura las galletas (textura arenosa).", img:"assets/steps/mousse/step01.webp" },
-        { type:"normal", text:"Mezcla galleta + mantequilla derretida hasta que compacte.", img:"assets/steps/mousse/step02.webp" },
-        { type:"normal", text:"Porciona y compacta 25 g de base en cada vasito.", img:"assets/steps/mousse/step03.webp" },
-        { type:"timer_base", text:"Ingresa los vasitos con la base a la nevera (30 min). Debes iniciar el temporizador para continuar.", img:"assets/steps/mousse/step04.webp" },
-        { type:"normal", text:"En licuadora mezcla TODO junto: pulpa, leche condensada, crema, leche entera y vainilla (opcional).", img:"assets/steps/mousse/step05.webp" },
-        { type:"normal", text:"En olla: calienta agua hasta tibia (sin hervir).", img:"assets/steps/mousse/step06.webp" },
-        { type:"normal", text:"Agrega gelatina sin sabor y revuelve hasta disolver homogéneo.", img:"assets/steps/mousse/step07.webp" },
-        { type:"normal", text:"Con la licuadora encendida, integra la gelatina disuelta lentamente.", img:"assets/steps/mousse/step08.webp" },
-        { type:"normal", text:"Sirve la mezcla en los vasitos sobre la base (150 ml por vasito).", img:"assets/steps/mousse/step09.webp" },
+
+        { type:"normal", text:"Tritura las galletas hasta lograr una textura tipo arena.", img:"assets/steps/mousse/step01.webp" },
+        { type:"normal", text:"Mezcla la galleta triturada con la mantequilla derretida hasta que compacte.", img:"assets/steps/mousse/step02.webp" },
+        { type:"normal", text:"Divide 25 g por vasito y presiona firme para formar la base.", img:"assets/steps/mousse/step03.webp" },
+        { type:"timer_base", text:"Lleva los vasitos con base a la nevera por 30 min. (Inicia el temporizador para continuar).", img:"assets/steps/mousse/step04.webp" },
+
+        { type:"normal", text:"En licuadora: integra pulpa, leche condensada, crema de leche, leche entera y vainilla, hasta homogéneo.", img:"assets/steps/mousse/step05.webp" },
+        { type:"normal", text:"Calienta el agua sin dejar que hierva.", img:"assets/steps/mousse/step06.webp" },
+        { type:"normal", text:"Agrega la gelatina al agua tibia y mezcla en el fogón hasta disolver (sin grumos).", img:"assets/steps/mousse/step07.webp" },
+        { type:"normal", text:"Con la licuadora encendida, incorpora la gelatina disuelta lentamente.", img:"assets/steps/mousse/step08.webp" },
+
+        { type:"normal", text:"Vierte 150 ml de mezcla en cada vasito, sobre la base.", img:"assets/steps/mousse/step09.webp" },
         { type:"normal", text:"Refrigera mínimo 8 horas o toda la noche.", img:"assets/steps/mousse/step10.webp" },
-        { type:"normal", text:"Espolvorea chocolate con la forma del logo.", img:"assets/steps/mousse/step11.webp" },
-        { type:"normal", text:"Agregar chocorramo (20 g por postre).", img:"assets/steps/mousse/step12.webp" },
-        { type:"final", text:"¡Listo! Verifica presentación y limpieza del área.", img:"assets/steps/mousse/step13.webp" },
+        { type:"normal", text:"Decora con el logo espolvoreado.", img:"assets/steps/mousse/step11.webp" },
+        { type:"normal", text:"Añade cubos de chocorramo (≈ 20 g por postre).", img:"assets/steps/mousse/step12.webp" },
+
+        { type:"final", text:"¡Listo! Revisa presentación y deja el área limpia.", img:"assets/steps/mousse/step13.webp" },
       ],
     };
   }
   if(!RECIPE_UNIT.cheesecake_cafe_panela){
-        RECIPE_UNIT.cheesecake_cafe_panela = {
+    RECIPE_UNIT.cheesecake_cafe_panela = {
       unitIngredients: [
         { key:"Galleta de leche triturada (g)", qty:25 },
         { key:"Mantequilla derretida (g)", qty:10 },
         { key:"Queso crema (g)", qty:75 },
         { key:"Crema de leche (ml)", qty:41.66 },
-        { key:"Leche condensada (ml)", qty:25 },
+        { key:"Leche condensada (g)", qty:25 },
         { key:"Café molido (g)", qty:2.5 },
-        { key:"Agua total (ml)", qty:17.5 },
         { key:"Panela rallada (g)", qty:3.33 },
         { key:"Gelatina sin sabor (g)", qty:1.66 },
+        { key:"Agua total (ml)", qty:17.5 },
         { key:"Vainilla (ml)", qty:0.33 },
         { key:"Sal (g)", qty:0.08 },
+        { key:"Envase plástico (unidad)", qty:1 },
+        { key:"Cuchara plástica (unidad)", qty:1 },
       ],
       steps: [
-        { type:"batch_ingredients" }, // Paso 1 (sin imagen)
-        { type:"normal", text:"Tritura galletas (textura arenosa).", img:"assets/steps/cheesecake/step01.webp" }, // Paso 2
-        { type:"normal", text:"Mezcla galleta + mantequilla derretida.", img:"assets/steps/cheesecake/step02.webp" }, // Paso 3
-        { type:"normal", text:"Porciona y compacta 25 g de base en cada vasito.", img:"assets/steps/cheesecake/step03.webp" }, // Paso 4
-        { type:"timer_base", text:"Ingresa los vasitos con la base a la nevera (30 min). Debes iniciar el temporizador para continuar.", img:"assets/steps/cheesecake/step04.webp" }, // Paso 5
-        { type:"normal", text:"Mezcla queso crema + crema + leche condensada + vainilla hasta homogéneo.", img:"assets/steps/cheesecake/step05.webp" }, // Paso 6
-        { type:"normal", text:"En olla: calienta agua tibia (sin hervir).", img:"assets/steps/cheesecake/step06.webp" }, // Paso 7
-        { type:"normal", text:"Agrega gelatina y revuelve hasta disolver homogéneo.", img:"assets/steps/cheesecake/step07.webp" }, // Paso 8
-        { type:"normal", text:"Integra la gelatina disuelta lentamente mientras mezclas.", img:"assets/steps/cheesecake/step08.webp" }, // Paso 9
-        { type:"normal", text:"Agrega la mezcla sobre la base (150 ml por vasito).", img:"assets/steps/cheesecake/step09.webp" }, // Paso 10 (nuevo)
-        { type:"normal", text:"Refrigera mínimo 8 horas o toda la noche.", img:"assets/steps/cheesecake/step10.webp" }, // Paso 11
-        { type:"normal", text:"Decora espolvoreando harina de galleta de leche con la forma del logo.", img:"assets/steps/cheesecake/step11.webp" }, // Paso 12
-        { type:"final", text:"¡Listo! Verifica presentación y limpieza del área.", img:null },
+        { type:"batch_ingredients" },
+
+        { type:"normal", text:"Tritura las galletas de leche hasta que queden bien finas (tipo arena).", img:"assets/steps/cheesecake/step01.webp" },
+        { type:"normal", text:"Mezcla la galleta triturada con la mantequilla derretida hasta que compacte.", img:"assets/steps/cheesecake/step02.webp" },
+        { type:"normal", text:"Pon 25 g en cada vasito y compacta firmemente para formar la base.", img:"assets/steps/cheesecake/step03.webp" },
+        { type:"timer_base", text:"Refrigera la base 30 min. (Inicia el temporizador para continuar).", img:"assets/steps/cheesecake/step04.webp" },
+
+        { type:"normal", text:"Prepara el café y disuelve la panela. Referencia: para 6 postres (6 oz) usa 15 g de café + 60 ml de agua; por 1 postre: 2.5 g + 10 ml. Deja enfriar a temperatura ambiente. Luego mezcla: queso crema + crema de leche + leche condensada + vainilla + sal + café con panela, hasta integrar.", img:"assets/steps/cheesecake/step05.webp" },
+
+        { type:"normal", text:"Calienta agua tibia sin hervir.", img:"assets/steps/cheesecake/step06.webp" },
+        { type:"normal", text:"Añade la gelatina sin sabor y revuelve hasta disolver por completo.", img:"assets/steps/cheesecake/step07.webp" },
+        { type:"normal", text:"Incorpora la gelatina disuelta poco a poco mientras mezclas.", img:"assets/steps/cheesecake/step08.webp" },
+
+        { type:"normal", text:"Sirve 150 ml de mezcla en cada vasito, sobre la base.", img:"assets/steps/cheesecake/step09.webp" },
+        { type:"normal", text:"Refrigera mínimo 8 horas o toda la noche.", img:"assets/steps/cheesecake/step10.webp" },
+        { type:"normal", text:"Decora espolvoreando harina/galleta de leche con la forma del logo.", img:"assets/steps/cheesecake/step11.webp" },
+
+        { type:"final", text:"¡Listo! Revisa presentación y deja el área limpia.", img:"assets/steps/cheesecake/step12.webp" },
       ],
     };
   }
@@ -175,7 +188,7 @@
 
   // ========= HELPERS =========
   const $ = (id) => document.getElementById(id);
-  const safeJsonParse = (s)=>{ try{return JSON.parse(s);}catch(_e){return null;} };
+  const safeJsonParse = (s)=>{ try{return JSON.parse(s);}catch{return null;} };
   const escapeHtml = (s)=> String(s??"").replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;").replaceAll('"',"&quot;").replaceAll("'","&#039;");
   const money = (n)=> Math.round(Number(n||0)).toLocaleString("es-CO");
   const fmtQty = (q)=> (Math.round(Number(q||0)*10)/10).toLocaleString("es-CO");
