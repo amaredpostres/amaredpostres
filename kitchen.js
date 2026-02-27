@@ -69,7 +69,7 @@
 (() => {
   "use strict";
 
-  console.log("AMARED kitchen v2026-02-26 steps3");
+  console.log("AMARED kitchen v2026-02-26 steps4");
 
   // ========= CONFIG =========
   const API_URL = "https://amared-orders.amaredpostres.workers.dev/";
@@ -168,7 +168,7 @@
         { type:"normal", text:"Pon 25 g en cada vasito y compacta firmemente para formar la base.", img:"assets/steps/cheesecake/step03.webp" },
         { type:"timer_base", text:"Refrigera la base 30 min. (Inicia el temporizador para continuar).", img:"assets/steps/cheesecake/step04.webp" },
 
-        { type:"normal", text:"Prepara el café usando {{COFFEE_WATER_ML}} ml de agua (según la cantidad de postres a elaborar).", img:"assets/steps/cheesecake/step05.webp" },
+        { type:"normal", text:"Prepara el café usando {{COFFEE_WATER_ML}} ml de agua.", img:"assets/steps/cheesecake/step05.webp" },
         { type:"normal", text:"Añade la panela rallada al café caliente y mezcla hasta disolver.", img:"assets/steps/cheesecake/step05.webp" },
         { type:"normal", text:"Mezcla queso crema, crema de leche, leche condensada, vainilla, sal y el café con panela (a temperatura ambiente) hasta integrar.", img:"assets/steps/cheesecake/step05.webp" },
 
