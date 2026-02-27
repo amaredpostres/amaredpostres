@@ -106,187 +106,37 @@
   if(!RECIPE_UNIT.mousse_maracuya){
     RECIPE_UNIT.mousse_maracuya = {
       unitIngredients: [
-        { key:"Pulpa maracuyá (ml)", qty:21.4 },
-        { key:"Leche condensada (ml)", qty:42.8 },
-        { key:"Crema de leche (ml)", qty:42.8 },
-        { key:"Leche entera (ml)", qty:42.8 },
+        { key:"Pulpa de maracuyá (g)", qty:21.41 },
+        { key:"Leche condensada (ml)", qty:42.83 },
+        { key:"Crema de leche (ml)", qty:42.83 },
+        { key:"Leche entera (ml)", qty:42.83 },
         { key:"Gelatina sin sabor (g)", qty:1.25 },
-        { key:"Agua gelatina (ml)", qty:8.3 },
-        { key:"Vainilla (ml, opcional)", qty:0.33 },
+        { key:"Agua (gelatina) (g)", qty:8.33 },
         { key:"Galletas trituradas (g)", qty:25 },
-        { key:"Mantequilla (g)", qty:11.7 },
-        { key:"Chocorramo (topping)", qty:1 },
-        { key:"Chocolate en polvo (logo, decorativo)", qty:1 },
+        { key:"Mantequilla derretida (g)", qty:11.6 },
+        { key:"Vainilla (ml)", qty:0.33 },
+        { key:"Chocorramo (g)", qty:20 },
       ],
       steps: [
         { type:"batch_ingredients" },
-        { type:"normal", text:"Tritura las galletas (textura arenosa).", img:"assets/steps/mousse/step01.webp" },
-        { type:"normal", text:"Mezcla galleta + mantequilla derretida hasta que compacte.", img:"assets/steps/mousse/step02.webp" },
-        { type:"normal", text:"Porciona y compacta 25 g de base en cada vasito.", img:"assets/steps/mousse/step03.webp" },
-        { type:"timer_base", text:"Ingresa los vasitos con la base a la nevera (30 min). Debes iniciar el temporizador para continuar.", img:"assets/steps/mousse/step04.webp" },
-        { type:"normal", text:"En licuadora mezcla TODO junto: pulpa, leche condensada, crema, leche entera y vainilla (opcional).", img:"assets/steps/mousse/step05.webp" },
-        { type:"normal", text:"En olla: calienta agua hasta tibia (sin hervir).", img:"assets/steps/mousse/step06.webp" },
-        { type:"normal", text:"Agrega gelatina sin sabor y revuelve hasta disolver homogéneo.", img:"assets/steps/mousse/step07.webp" },
+        { type:"normal", text:"Tritura las galletas hasta que queden con textura arenosa.", img:"assets/steps/mousse/step01.webp" },
+        { type:"normal", text:"Mezcla la mantequilla derretida con las galletas trituradas.", img:"assets/steps/mousse/step02.webp" },
+        { type:"normal", text:"Reparte 25 g por vasito y compacta firmemente.", img:"assets/steps/mousse/step03.webp" },
+        { type:"timer_base", text:"Refrigera por 30 min. (Debes iniciar el temporizador para continuar).", img:"assets/steps/mousse/step04.webp" },
+
+        { type:"normal", text:"En la licuadora mezcla: pulpa de maracuyá, leche condensada, crema de leche, leche entera y vainilla.", img:"assets/steps/mousse/step05.webp" },
+        { type:"normal", text:"Calienta el agua sin hervir.", img:"assets/steps/mousse/step06.webp" },
+        { type:"normal", text:"Agrega la gelatina sin sabor al agua mientras el fogón sigue encendido y mezcla hasta que quede sin grumos.", img:"assets/steps/mousse/step07.webp" },
         { type:"normal", text:"Con la licuadora encendida, integra la gelatina disuelta lentamente.", img:"assets/steps/mousse/step08.webp" },
-        { type:"normal", text:"Sirve la mezcla en los vasitos sobre la base (150 ml por vasito).", img:"assets/steps/mousse/step09.webp" },
-        { type:"normal", text:"Refrigera mínimo 8 horas o toda la noche.", img:"assets/steps/mousse/step10.webp" },
-        { type:"normal", text:"Espolvorea chocolate con la forma del logo.", img:"assets/steps/mousse/step11.webp" },
-        { type:"normal", text:"Agregar chocorramo (20 g por postre).", img:"assets/steps/mousse/step12.webp" },
+
+        { type:"normal", text:"Sirve 150 ml de la mezcla en cada vasito (sobre la base).", img:"assets/steps/mousse/step09.webp" },
+        { type:"normal", text:"Deja en la nevera mínimo 8 horas o toda la noche.", img:"assets/steps/mousse/step10.webp" },
+        { type:"normal", text:"Agrega el logo espolvoreado.", img:"assets/steps/mousse/step11.webp" },
+        { type:"normal", text:"Pon los cubos de chocorramo (≈ 20 g por postre).", img:"assets/steps/mousse/step12.webp" },
         { type:"final", text:"¡Listo! Verifica presentación y limpieza del área.", img:"assets/steps/mousse/step13.webp" },
       ],
     };
-  }
-  if(!RECIPE_UNIT.cheesecake_cafe_panela){
-        RECIPE_UNIT.cheesecake_cafe_panela = {
-      unitIngredients: [
-        { key:"Galletas trituradas (g)", qty:25 },
-        { key:"Mantequilla (g)", qty:10 },
-        { key:"Queso crema (g)", qty:75 },
-        { key:"Crema de leche (ml)", qty:41.7 },
-        { key:"Leche condensada (g)", qty:25 },
-        { key:"Café preparado (ml)", qty:10 },
-        { key:"Panela (g)", qty:3.33 },
-        { key:"Gelatina sin sabor (g)", qty:1.67 },
-        { key:"Agua gelatina (ml)", qty:7.5 },
-        { key:"Vainilla (ml)", qty:0.33 },
-        { key:"Decoración: harina galleta de leche (g)", qty:1 },
-      ],
-      steps: [
-        { type:"batch_ingredients" }, // Paso 1 (sin imagen)
-        { type:"normal", text:"Tritura galletas (textura arenosa).", img:"assets/steps/cheesecake/step01.webp" }, // Paso 2
-        { type:"normal", text:"Mezcla galleta + mantequilla derretida.", img:"assets/steps/cheesecake/step02.webp" }, // Paso 3
-        { type:"normal", text:"Porciona y compacta 25 g de base en cada vasito.", img:"assets/steps/cheesecake/step03.webp" }, // Paso 4
-        { type:"timer_base", text:"Ingresa los vasitos con la base a la nevera (30 min). Debes iniciar el temporizador para continuar.", img:"assets/steps/cheesecake/step04.webp" }, // Paso 5
-        { type:"normal", text:"Mezcla queso crema + crema + leche condensada + vainilla hasta homogéneo.", img:"assets/steps/cheesecake/step05.webp" }, // Paso 6
-        { type:"normal", text:"En olla: calienta agua tibia (sin hervir).", img:"assets/steps/cheesecake/step06.webp" }, // Paso 7
-        { type:"normal", text:"Agrega gelatina y revuelve hasta disolver homogéneo.", img:"assets/steps/cheesecake/step07.webp" }, // Paso 8
-        { type:"normal", text:"Integra la gelatina disuelta lentamente mientras mezclas.", img:"assets/steps/cheesecake/step08.webp" }, // Paso 9
-        { type:"normal", text:"Agrega la mezcla sobre la base (150 ml por vasito).", img:"assets/steps/cheesecake/step09.webp" }, // Paso 10 (nuevo)
-        { type:"normal", text:"Refrigera mínimo 8 horas o toda la noche.", img:"assets/steps/cheesecake/step10.webp" }, // Paso 11
-        { type:"normal", text:"Decora espolvoreando harina de galleta de leche con la forma del logo.", img:"assets/steps/cheesecake/step11.webp" }, // Paso 12
-        { type:"final", text:"¡Listo! Verifica presentación y limpieza del área.", img:null },
-      ],
-    };
-  }
-  if(!RECIPE_UNIT.arroz_con_leche){
-    RECIPE_UNIT.arroz_con_leche = { unitIngredients: [], steps: [{ type:"batch_ingredients" }, { type:"final", text:"Receta no activa." }] };
-  }
-
-  // ========= HELPERS =========
-  const $ = (id) => document.getElementById(id);
-  const safeJsonParse = (s)=>{ try{return JSON.parse(s);}catch{return null;} };
-  const escapeHtml = (s)=> String(s??"").replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;").replaceAll('"',"&quot;").replaceAll("'","&#039;");
-  const money = (n)=> Math.round(Number(n||0)).toLocaleString("es-CO");
-  const fmtQty = (q)=> (Math.round(Number(q||0)*10)/10).toLocaleString("es-CO");
-  const sleep = (ms)=> new Promise(r=>setTimeout(r,ms));
-
-  // ========= DOM (debe existir en kitchen.html) =========
-  const loginBox = $("loginBox");
-  const app = $("app");
-
-  const selOperator = $("selOperator");
-  const inpPin = $("inpPin");
-  const btnTogglePin = $("btnTogglePin");
-  const chkRemember = $("chkRemember");
-  const btnLogin = $("btnLogin");
-  const loginErr = $("loginErr");
-
-  const btnLogout = $("btnLogout");
-  const btnRefresh = $("btnRefresh");
-  let btnShopping = $("btnShopping"); // se crea si no existe
-  let btnCosts = $("btnCosts"); // si no existe, se crea
-
-  const todayWrap = $("todayWrap");
-  const tomorrowWrap = $("tomorrowWrap");
-  const inProgressWrapAll = $("inProgressWrapAll");
-  const inProgressWrapToday = $("inProgressWrapToday");
-  const inProgressWrapOlder = $("inProgressWrapOlder");
-  const backlogWrap = $("backlogWrap");
-  const doneWrap = $("doneWrap");
-
-  // Tabs Producción (Hoy / Pendientes pagados)
-  const tabProdToday = $("tabProdToday");
-  const tabProdBacklog = $("tabProdBacklog");
-  const prodPanelToday = $("prodPanelToday");
-  const prodPanelBacklog = $("prodPanelBacklog");
-
-  // Tabs En proceso (Del día / Anteriores)
-  const tabInProgAll = $("tabInProgAll");
-  const tabInProgToday = $("tabInProgToday");
-  const tabInProgOlder = $("tabInProgOlder");
-  const inProgPanelAll = $("inProgPanelAll");
-  const inProgPanelToday = $("inProgPanelToday");
-  const inProgPanelOlder = $("inProgPanelOlder");
-
-  function setProdTab(which){
-    const isToday = which === "today";
-    tabProdToday?.classList.toggle("active", isToday);
-    tabProdBacklog?.classList.toggle("active", !isToday);
-    prodPanelToday?.classList.toggle("hidden", !isToday);
-    prodPanelBacklog?.classList.toggle("hidden", isToday);
-  }
-
-  
-  function setInProgTab(which){
-    const isAll = which === "all";
-    const isToday = which === "today";
-    const isOlder = which === "older";
-
-    tabInProgAll?.classList.toggle("active", isAll);
-    tabInProgToday?.classList.toggle("active", isToday);
-    tabInProgOlder?.classList.toggle("active", isOlder);
-
-    inProgPanelAll?.classList.toggle("hidden", !isAll);
-    inProgPanelToday?.classList.toggle("hidden", !isToday);
-    inProgPanelOlder?.classList.toggle("hidden", !isOlder);
-  }
-
-  tabInProgAll?.addEventListener("click", ()=>setInProgTab("all"));
-  tabInProgToday?.addEventListener("click", ()=>setInProgTab("today"));
-  tabInProgOlder?.addEventListener("click", ()=>setInProgTab("older"));
-
-tabProdToday?.addEventListener("click", ()=>setProdTab("today"));
-  tabProdBacklog?.addEventListener("click", ()=>setProdTab("backlog"));
-
-
-  const loading = $("loading");
-  const loadingTitle = $("loadingTitle");
-  const loadingMsg = $("loadingMsg");
-
-  const costsModal = $("costsModal");
-  const btnCloseCosts = $("btnCloseCosts");
-  const costsEditor = $("costsEditor");
-  const costsGateErr = $("costsGateErr");
-
-  // ========= STATE =========
-  const state = {
-    session: { operatorId:null, operatorLabel:null, pin:null },
-    profiles: null,
-    activeOverlay: null, // { pid, orderIds, units }
-    profilesLoaded: false,
-    pricesMap: {},
-    costsLoaded: false,
-    costsLastUpdated: null,
-    paidOrders: [],
-    todayKey: null,
-    nextKey: null,
-    buckets: { today: [], infoTomorrow: [], inProgress: [], doneDb: [] },
-    recipe: { open:false, productId:null, orderIds:[], units:0, stepIdx:0, timerStarted:false },
-    refreshNonce: 0,
-    widgetTick: null,
-  };
-
-
-  function getSessionPin(){
-    // Fuente única para acciones protegidas por ADMIN_PIN
-    if(state && state.session && state.session.pin) return String(state.session.pin);
-    try{
-      const raw = localStorage.getItem(LS_KEY);
-      if(raw){
-        const s = JSON.parse(raw);
-        if(s && s.pin) return String(s.pin);
-      }
-    }catch(_){}
+  }catch(_){}
     return "";
   }
   // ========= LOADING UI =========
