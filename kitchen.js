@@ -69,7 +69,7 @@
 (() => {
   "use strict";
 
-  console.log("AMARED kitchen v2026-02-26 steps update");
+  console.log("AMARED kitchen v2026-02-26 steps3");
 
   // ========= CONFIG =========
   const API_URL = "https://amared-orders.amaredpostres.workers.dev/";
@@ -129,7 +129,7 @@
         { type:"normal", text:"Divide 25 g por vasito y presiona firme para formar la base.", img:"assets/steps/mousse/step03.webp" },
         { type:"timer_base", text:"Lleva los vasitos con base a la nevera por 30 min. (Inicia el temporizador para continuar).", img:"assets/steps/mousse/step04.webp" },
 
-        { type:"normal", text:"En licuadora: integra pulpa, leche condensada, crema de leche, leche entera y vainilla, hasta homogéneo.", img:"assets/steps/mousse/step05.webp" },
+        { type:"normal", text:"En licuadora: integra pulpa, leche condensada, crema de leche, leche entera y vainilla, hasta obtener una mezcla uniforme.", img:"assets/steps/mousse/step05.webp" },
         { type:"normal", text:"Calienta el agua sin dejar que hierva.", img:"assets/steps/mousse/step06.webp" },
         { type:"normal", text:"Agrega la gelatina al agua tibia y mezcla en el fogón hasta disolver (sin grumos).", img:"assets/steps/mousse/step07.webp" },
         { type:"normal", text:"Con la licuadora encendida, incorpora la gelatina disuelta lentamente.", img:"assets/steps/mousse/step08.webp" },
@@ -168,7 +168,9 @@
         { type:"normal", text:"Pon 25 g en cada vasito y compacta firmemente para formar la base.", img:"assets/steps/cheesecake/step03.webp" },
         { type:"timer_base", text:"Refrigera la base 30 min. (Inicia el temporizador para continuar).", img:"assets/steps/cheesecake/step04.webp" },
 
-        { type:"normal", text:"Prepara el café y disuelve la panela. Referencia: para 6 postres (6 oz) usa 15 g de café + 60 ml de agua; por 1 postre: 2.5 g + 10 ml. Deja enfriar a temperatura ambiente. Luego mezcla: queso crema + crema de leche + leche condensada + vainilla + sal + café con panela, hasta integrar.", img:"assets/steps/cheesecake/step05.webp" },
+        { type:"normal", text:"Prepara el café usando {{COFFEE_WATER_ML}} ml de agua (según la cantidad de postres a elaborar).", img:"assets/steps/cheesecake/step05.webp" },
+        { type:"normal", text:"Añade la panela rallada al café caliente y mezcla hasta disolver.", img:"assets/steps/cheesecake/step05.webp" },
+        { type:"normal", text:"Mezcla queso crema, crema de leche, leche condensada, vainilla, sal y el café con panela (a temperatura ambiente) hasta integrar.", img:"assets/steps/cheesecake/step05.webp" },
 
         { type:"normal", text:"Calienta agua tibia sin hervir.", img:"assets/steps/cheesecake/step06.webp" },
         { type:"normal", text:"Añade la gelatina sin sabor y revuelve hasta disolver por completo.", img:"assets/steps/cheesecake/step07.webp" },
@@ -1041,7 +1043,25 @@ function renderProfilesSelect(list, selectedId){
     state.recipe.timerStarted=false;
     renderRecipeStep();
   }
-  function msToMMSS(ms){
+  
+  function fmtDec2(n){
+    const v = Number(n||0);
+    return new Intl.NumberFormat("es-CO", { maximumFractionDigits: 2 }).format(v);
+  }
+
+  // Permite textos dinámicos en el paso a paso (tokens tipo {{TOKEN}})
+  function applyStepVars(text, pid){
+    let t = String(text || "");
+    // Cheesecake: agua para preparar café (10 ml por postre)
+    if(pid === "cheesecake_cafe_panela"){
+      const units = Number(state?.recipe?.units || 0) || 0;
+      const coffeeWater = units * 10; // ml por postre (según tu receta)
+      t = t.replaceAll("{{COFFEE_WATER_ML}}", fmtDec2(coffeeWater));
+    }
+    return t;
+  }
+
+function msToMMSS(ms){
     const s=Math.max(0,Math.floor(ms/1000));
     const mm=String(Math.floor(s/60)).padStart(2,"0");
     const ss=String(s%60).padStart(2,"0");
@@ -1112,7 +1132,7 @@ function renderProfilesSelect(list, selectedId){
       return;
     }
 
-    $("amStepText").textContent = st?.text || "";
+    $("amStepText").textContent = applyStepVars(st?.text || "", pid);
     $("amStepHint").textContent = "";
 
     if(st?.type==="timer_base"){
