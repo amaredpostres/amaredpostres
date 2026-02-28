@@ -69,7 +69,7 @@
 (() => {
   "use strict";
 
-  console.log("AMARED kitchen recipes-linked UXfix4 v2026-02-26");
+  console.log("AMARED kitchen recipes-linked UXfix4b v2026-02-26");
 
   // ========= CONFIG =========
   const API_URL = "https://amared-orders.amaredpostres.workers.dev/";
@@ -1198,7 +1198,6 @@ function msToMMSS(ms){
       img.src = "";
       layoutNoImage();
     }
-  }
   }
 
   function remainingProductsCount(){
