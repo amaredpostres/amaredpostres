@@ -283,6 +283,9 @@ tabProdToday?.addEventListener("click", ()=>setProdTab("today"));
     pricesMap: {},
     costsLoaded: false,
     costsLastUpdated: null,
+    recipesIndex: {},
+    recipesLoaded: false,
+    recipesLastUpdated: null,
     paidOrders: [],
     todayKey: null,
     nextKey: null,
@@ -546,19 +549,77 @@ const apiPost = (payload) => api(payload);
     state.costsLoaded=true;
   }
 
+  async function fetchRecipesPublic(){
+    // Lee la hoja RECETAS (solo lectura). Permite que la cocina siempre use cantidades actualizadas.
+    const out = await apiTry({ action: "recipes_public_list" });
+    if(out.ok!==true) throw new Error(out.error||"Falta habilitar recipes_public_list en el Worker/Apps Script.");
+    const items = out.items || out.recipes || out.rows || [];
+    const index = {};
+    let last = null;
+
+    for(const r of (Array.isArray(items)?items:[])){
+      const did = String(r.dessert_id ?? r.dessertId ?? "").trim();
+      if(!did) continue;
+
+      const key = String(r.ingredient_key ?? r.ingredientKey ?? r.key ?? r.ingredient ?? "").trim();
+      if(!key) continue;
+
+      const qty = Number(r.qty_per_unit ?? r.qtyPerUnit ?? r.qty ?? r.quantity ?? 0) || 0;
+      const unit = String(r.unit ?? "").trim().toLowerCase();
+      if(!(qty>0) || !unit) continue;
+
+      (index[did] ||= []).push({ ingredient_key: key, qty_per_unit: qty, unit });
+
+      const u = r.updated_at || r.updatedAt || null;
+      if(u && (!last || String(u) > String(last))) last = u;
+    }
+
+    state.recipesIndex = index;
+    state.recipesLastUpdated = last;
+    state.recipesLoaded = true;
+  }
+
+
   // ========= RECETA / COSTOS LOTE =========
   function calcBatchIngredients(pid, units){
-    const recipe=RECIPE_UNIT[pid];
-    if(!recipe) return {lines:[], totalCost:0};
-    let totalCost=0;
-    const lines=(recipe.unitIngredients||[]).map(ing=>{
-      const qty=Number(ing.qty||0)*Number(units||0);
-      const ppu=priceLookup(ing.key);
-      const cost=qty*ppu;
-      totalCost+=cost;
-      return {key:ing.key, qty, pricePerUnit: ppu, cost};
+    const u = Number(units||0)||0;
+
+    // ✅ Preferir siempre RECETAS (base de datos) si ya está cargado
+    const dbList = (state.recipesIndex && Array.isArray(state.recipesIndex[pid])) ? state.recipesIndex[pid] : null;
+    if(dbList){
+      let totalCost = 0;
+      const lines = [];
+      for(const r of dbList){
+        const key = String(r.ingredient_key || "").trim();
+        if(!key) continue;
+        const qty = (Number(r.qty_per_unit||0)||0) * u;
+        const unit = String(r.unit || "").trim().toLowerCase();
+        const ppu = Number(priceLookup(key) || 0) || 0; // COP por g/ml/unidad según COSTOS_INGREDIENTES
+        const cost = qty * ppu;
+        totalCost += cost;
+        lines.push({ key, qty, unit, pricePerUnit: ppu, cost });
+      }
+      return { lines, totalCost };
+    }
+
+    // Fallback: receta embebida (si RECETAS no está disponible)
+    const recipe = RECIPE_UNIT[pid];
+    if(!recipe) return { lines:[], totalCost:0 };
+    let totalCost = 0;
+    const lines = (recipe.unitIngredients||[]).map(ing=>{
+      const rawKey = String(ing.key||"").trim();
+      const unitMatch = rawKey.match(/\(([^)]+)\)\s*$/);
+      const unit = unitMatch ? String(unitMatch[1]).trim().toLowerCase() : "";
+      const key = rawKey.replace(/\s*\([^)]*\)\s*$/,"").trim() || rawKey;
+
+      const qty = (Number(ing.qty||0)||0) * u;
+      const ppu = Number(priceLookup(key) || 0) || 0;
+      const cost = qty * ppu;
+      totalCost += cost;
+      return { key, qty, unit, pricePerUnit: ppu, cost };
     });
-    return {lines, totalCost};
+
+    return { lines, totalCost };
   }
 
   // ========= DATA LOAD =========
@@ -1122,11 +1183,22 @@ function msToMMSS(ms){
       $("amStepText").textContent = "Ingredientes totales del lote";
       $("amStepHint").innerHTML =
         `<div class="pill" style="margin:10px 0;">Costo estimado: ${costText}</div>` +
-        (lines||[]).map(li=>`
-          <div class="line">
-            <span>${escapeHtml(li.key)}</span>
-            <div>${fmtQty(li.qty)} ${li.pricePerUnit?`<span class="muted small" style="margin-left:8px;">($${money(li.pricePerUnit)}/u)</span>`:`<span class="muted small" style="margin-left:8px;">(sin costo)</span>`}</div>
-          </div>`).join("");
+        (lines||[]).map(li=>{
+          const u = li.unit ? escapeHtml(li.unit) : "u";
+          const qtyText = `${fmtQty(li.qty)} ${u}`;
+          const ppuText = (Number(li.pricePerUnit||0)>0)
+            ? `<span class="muted small" style="margin-left:8px;">($${money(li.pricePerUnit)}/${u})</span>`
+            : `<span class="muted small" style="margin-left:8px;">(sin costo)</span>`;
+          const lineCost = (Number(li.cost||0)>0) ? `$${money(li.cost)}` : "—";
+          return `
+            <div class="line">
+              <span>${escapeHtml(li.key)}</span>
+              <div style="text-align:right;">
+                <div><b>${qtyText}</b> ${ppuText}</div>
+                <div class="muted small">Total: ${lineCost}</div>
+              </div>
+            </div>`;
+        }).join("");
       setRecipeImage("");
       nextBtn.disabled=false; nextBtn.textContent="Siguiente →"; nextBtn.onclick = onNextOrTimer;
       return;
@@ -1455,14 +1527,19 @@ function msToMMSS(ms){
     const unitText = showCost ? fmtMoney(Math.round(unit)) : "—";
 
     const rows = lines.map(li=>{
-      const q = fmtQty(li.qty);
+      const u = li.unit ? escapeHtml(li.unit) : "u";
+      const q = `${fmtQty(li.qty)} ${u}`;
       const ppu = (Number(li.pricePerUnit||0)>0)
-        ? `<span class="muted small" style="margin-left:8px;">(${fmtMoney(li.pricePerUnit)}/u)</span>`
+        ? `<span class="muted small" style="margin-left:8px;">(${fmtMoney(li.pricePerUnit)}/${u})</span>`
         : `<span class="muted small" style="margin-left:8px;">(sin costo)</span>`;
+      const lineCost = (Number(li.cost||0)>0) ? fmtMoney(Math.round(li.cost)) : "—";
       return `
         <div class="line">
           <span>${escapeHtml(li.key)}</span>
-          <div>${q}${ppu}</div>
+          <div style="text-align:right;">
+            <div><b>${q}</b>${ppu}</div>
+            <div class="muted small">Total: ${lineCost}</div>
+          </div>
         </div>`;
     }).join("");
 
@@ -1889,6 +1966,8 @@ function msToMMSS(ms){
   async function refresh(){
     const myNonce=state.refreshNonce;
     showLoading("Cargando…","Actualizando pedidos…");
+    try{ await fetchRecipesPublic(); }catch(_e){}
+    try{ await fetchCostsPublic(); }catch(_e){}
     try{
       await loadData(myNonce);
       if(myNonce!==state.refreshNonce) return;
@@ -1928,6 +2007,15 @@ function msToMMSS(ms){
           await fetchCostsPublic();
         }
       }
+
+      // Recetas: cargar cantidades desde la hoja RECETAS (solo lectura)
+      if(!state.recipesLoaded){
+        const rec = await apiTry({action:"recipes_public_list"});
+        if(rec.ok===true){
+          await fetchRecipesPublic();
+        }
+      }
+
 
       await refresh();
       startWidgetTicker();
