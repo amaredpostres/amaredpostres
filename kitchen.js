@@ -69,7 +69,7 @@
 (() => {
   "use strict";
 
-  console.log("AMARED kitchen recipes-linked UXfix4b v2026-02-26");
+  console.log("AMARED kitchen recipes-linked UXfix5 v2026-02-26");
 
   // ========= CONFIG =========
   const API_URL = "https://amared-orders.amaredpostres.workers.dev/";
@@ -1023,10 +1023,10 @@ function renderProfilesSelect(list, selectedId){
         #amStepScroll{ -webkit-overflow-scrolling: touch; }
 
         @media (max-width: 920px){
-          /* Mobile: image -> nav -> text (one section) */
+          /* Mobile: texto -> imagen -> botones (una sola sección) */
           #amUnifiedCard{
             grid-template-columns: 1fr !important;
-            grid-template-areas: "img" "nav" "text" !important;
+            grid-template-areas: "text" "img" "nav" !important;
             grid-template-rows: auto auto 1fr !important;
           }
           #amNav{ justify-content:center !important; }
@@ -1035,7 +1035,7 @@ function renderProfilesSelect(list, selectedId){
       </style>
 
       <div id="amRecipeOverlayV6" class="modalOverlay" aria-hidden="true" style="display:none;">
-        <div class="modalBox" style="max-width:980px; max-height:calc(100vh - 32px); overflow:hidden; display:flex; flex-direction:column;">
+        <div class="modalBox" style="max-width:980px; max-height:calc(100vh - 32px); overflow:hidden; display:flex; flex-direction:column; position:relative;">
           <div class="rowBetween" style="align-items:flex-start;">
             <div style="min-width:0;">
               <div style="font-weight:950; font-size:18px;" id="amRecipeTitle">Receta</div>
@@ -1046,10 +1046,10 @@ function renderProfilesSelect(list, selectedId){
             </div>
 
             <!-- Close (top-right) -->
-            <button id="amRecipeClose" class="iconBtn" type="button" aria-label="Cerrar" title="Cerrar">✕</button>
+            <button id="amRecipeClose" class="iconBtn" type="button" aria-label="Cerrar" title="Cerrar" style="position:absolute; top:14px; right:14px; z-index:5;">✕</button>
           </div>
 
-          <div style="margin-top:12px; flex:1; overflow:hidden;">
+          <div style="margin-top:12px; flex:1; overflow:hidden; min-height:0;">
             <!-- Unified section -->
             <div id="amUnifiedCard" class="amCard"
               style="margin:0; overflow:hidden; min-height:0; display:grid; grid-template-columns:1.1fr .9fr; grid-template-areas:'text img' 'nav nav'; grid-template-rows:1fr auto; gap:14px;">
@@ -1080,8 +1080,7 @@ function renderProfilesSelect(list, selectedId){
               </div>
 
               <!-- Nav -->
-              <div id="amNav" class="rowBetween"
-                style="grid-area:nav; padding-top:12px; border-top:1px solid rgba(64,17,2,.08); background:rgba(255,255,255,.92);">
+              <div id="amNav" class="rowBetween" style="grid-area:nav; padding-top:12px; border-top:1px solid rgba(64,17,2,.08); background:rgba(255,255,255,.92); width:100%; max-width:560px; margin:0 auto; gap:12px; justify-content:space-between;">
                 <button id="amPrev" class="btn secondary" type="button">← Anterior</button>
                 <button id="amNextOrTimer" class="btn primary" type="button">Siguiente →</button>
               </div>
@@ -1169,6 +1168,7 @@ function msToMMSS(ms){
     const imgCol = document.getElementById("amImgCol");
     const card = document.getElementById("amUnifiedCard");
     if(!img || !card) return;
+    card.style.height = "100%";
 
     function layoutWithImage(){
       if(imgCol) imgCol.style.display = "";
