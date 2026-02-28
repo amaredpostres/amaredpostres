@@ -69,7 +69,7 @@
 (() => {
   "use strict";
 
-  console.log("AMARED kitchen v2026-02-26 steps4");
+  console.log("AMARED kitchen recipes-linked UXfix v2026-02-26");
 
   // ========= CONFIG =========
   const API_URL = "https://amared-orders.amaredpostres.workers.dev/";
@@ -930,7 +930,7 @@ function renderProfilesSelect(list, selectedId){
         const unitCost = (units>0 && totalCost>0) ? (totalCost/units) : 0;
         const unitText = unitCost>0?`$${money(unitCost)}`:"—";
         const ingHtml=(lines||[]).map(li=>`
-          <div class="line">
+          <div class="line" style="display:flex; justify-content:space-between; gap:12px; padding:10px 0; border-bottom:1px solid rgba(64,17,2,.08);">
             <span>${escapeHtml(li.key)}</span>
             <div>
               ${fmtQty(li.qty)}
@@ -1018,7 +1018,7 @@ function renderProfilesSelect(list, selectedId){
     const wrap=document.createElement("div");
     wrap.innerHTML=`
       <div id="amRecipeOverlayV6" class="modalOverlay" aria-hidden="true" style="display:none;">
-        <div class="modalBox" style="max-width:980px;">
+        <div class="modalBox" style="max-width:980px; max-height:calc(100vh - 32px); overflow:hidden; display:flex; flex-direction:column;">
           <div class="rowBetween">
             <div>
               <div style="font-weight:950; font-size:18px;" id="amRecipeTitle">Receta</div>
@@ -1030,22 +1030,26 @@ function renderProfilesSelect(list, selectedId){
             <button id="amRecipeClose" class="btn secondary" type="button">Cerrar</button>
           </div>
 
-          <div style="display:grid; grid-template-columns:1.1fr .9fr; gap:14px; margin-top:12px;" id="amGrid">
-            <div class="amCard" style="margin:0;">
-              <div class="rowBetween">
+          <div style="display:grid; grid-template-columns:1.1fr .9fr; gap:14px; margin-top:12px; flex:1; overflow:hidden;" id="amGrid">
+            
+            <div class="amCard" style="margin:0; display:flex; flex-direction:column; overflow:hidden;">
+              <div class="rowBetween" style="flex:0 0 auto;">
                 <div class="pill" id="amStepCounter">Paso</div>
                 <div class="pill" id="amTimerInline" style="display:none;">⏱️ <span id="amTimerTxt"></span></div>
               </div>
-              <div id="amStepText" style="margin-top:12px; font-weight:950; font-size:16px;"></div>
-              <div id="amStepHint" class="muted small" style="margin-top:10px;"></div>
 
-              <div class="rowBetween" style="margin-top:14px;">
+              <div id="amStepScroll" style="flex:1 1 auto; overflow:auto; padding-right:6px; margin-top:12px;">
+                <div id="amStepText" style="font-weight:950; font-size:16px;"></div>
+                <div id="amStepHint" class="muted small" style="margin-top:10px;"></div>
+              </div>
+
+              <div class="rowBetween" style="flex:0 0 auto; padding-top:12px; margin-top:8px; border-top:1px solid rgba(64,17,2,.08); position:sticky; bottom:0; background:rgba(255,255,255,.92);">
                 <button id="amPrev" class="btn secondary" type="button">← Anterior</button>
                 <button id="amNextOrTimer" class="btn primary" type="button">Siguiente →</button>
               </div>
             </div>
 
-            <div class="amCard" style="margin:0;">
+            <div class="amCard" style="margin:0; overflow:auto;">
               <img id="amStepImg" alt="" style="width:100%; height:auto; border-radius:16px; border:1px solid rgba(64,17,2,.10); display:none;" />
               <div id="amImgFallback" class="muted small" style="display:none;">Sin imagen para este paso.</div>
 
@@ -1191,7 +1195,7 @@ function msToMMSS(ms){
             : `<span class="muted small" style="margin-left:8px;">(sin costo)</span>`;
           const lineCost = (Number(li.cost||0)>0) ? `$${money(li.cost)}` : "—";
           return `
-            <div class="line">
+            <div class="line" style="display:flex; justify-content:space-between; gap:12px; padding:10px 0; border-bottom:1px solid rgba(64,17,2,.08);">
               <span>${escapeHtml(li.key)}</span>
               <div style="text-align:right;">
                 <div><b>${qtyText}</b> ${ppuText}</div>
@@ -1534,7 +1538,7 @@ function msToMMSS(ms){
         : `<span class="muted small" style="margin-left:8px;">(sin costo)</span>`;
       const lineCost = (Number(li.cost||0)>0) ? fmtMoney(Math.round(li.cost)) : "—";
       return `
-        <div class="line">
+        <div class="line" style="display:flex; justify-content:space-between; gap:12px; padding:10px 0; border-bottom:1px solid rgba(64,17,2,.08);">
           <span>${escapeHtml(li.key)}</span>
           <div style="text-align:right;">
             <div><b>${q}</b>${ppu}</div>
@@ -1716,7 +1720,7 @@ function msToMMSS(ms){
     if(!costsEditor) return;
     const keys=Object.keys(state.pricesMap||{}).sort((a,b)=>a.localeCompare(b,"es"));
     const list=keys.map(k=>({k,v:Number(state.pricesMap[k]||0)})).sort((a,b)=>(b.v-a.v)||a.k.localeCompare(b.k,"es"));
-    const html=list.map(it=>`<div class="line"><span>${escapeHtml(it.k)}</span><div>$${money(it.v)}</div></div>`).join("");
+    const html=list.map(it=>`<div class="line" style="display:flex; justify-content:space-between; gap:12px; padding:10px 0; border-bottom:1px solid rgba(64,17,2,.08);"><span>${escapeHtml(it.k)}</span><div>$${money(it.v)}</div></div>`).join("");
     const meta=state.costsLastUpdated?`<div class="muted small" style="margin-bottom:10px;">Última actualización: ${escapeHtml(state.costsLastUpdated)}</div>`:`<div class="muted small" style="margin-bottom:10px;">Costos en modo solo lectura.</div>`;
     costsEditor.innerHTML = meta + `<div class="amCard open" style="margin:0;">
       <div class="rowBetween"><div style="font-weight:950;">Costos por unidad</div><div class="pill">${keys.length} items</div></div>
