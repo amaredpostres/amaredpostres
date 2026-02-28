@@ -69,7 +69,7 @@
 (() => {
   "use strict";
 
-  console.log("AMARED kitchen recipes-linked UXfix2 v2026-02-26");
+  console.log("AMARED kitchen recipes-linked UXfix4 v2026-02-26");
 
   // ========= CONFIG =========
   const API_URL = "https://amared-orders.amaredpostres.workers.dev/";
@@ -1017,52 +1017,77 @@ function renderProfilesSelect(list, selectedId){
     if(document.getElementById("amRecipeOverlayV6")) return;
     const wrap=document.createElement("div");
     wrap.innerHTML=`
+      <style id="amRecipeCss">
+        /* Unified recipe modal */
+        #amUnifiedCard{ min-height:0; }
+        #amStepScroll{ -webkit-overflow-scrolling: touch; }
+
+        @media (max-width: 920px){
+          /* Mobile: image -> nav -> text (one section) */
+          #amUnifiedCard{
+            grid-template-columns: 1fr !important;
+            grid-template-areas: "img" "nav" "text" !important;
+            grid-template-rows: auto auto 1fr !important;
+          }
+          #amNav{ justify-content:center !important; }
+          #amNav .btn{ flex:1; max-width:260px; }
+        }
+      </style>
+
       <div id="amRecipeOverlayV6" class="modalOverlay" aria-hidden="true" style="display:none;">
         <div class="modalBox" style="max-width:980px; max-height:calc(100vh - 32px); overflow:hidden; display:flex; flex-direction:column;">
-          <div class="rowBetween">
-            <div>
+          <div class="rowBetween" style="align-items:flex-start;">
+            <div style="min-width:0;">
               <div style="font-weight:950; font-size:18px;" id="amRecipeTitle">Receta</div>
               <div class="muted small" id="amRecipeSub" style="margin-top:6px;"></div>
               <div style="height:8px; border-radius:999px; background:rgba(64,17,2,.08); overflow:hidden; margin-top:10px;">
                 <div id="amProgBar" style="height:100%; width:0%; background:rgba(245,110,150,.9); border-radius:999px;"></div>
               </div>
             </div>
-            <button id="amRecipeClose" class="btn secondary" type="button">Cerrar</button>
+
+            <!-- Close (top-right) -->
+            <button id="amRecipeClose" class="iconBtn" type="button" aria-label="Cerrar" title="Cerrar">✕</button>
           </div>
 
-          <div style="display:grid; grid-template-columns:1.1fr .9fr; gap:14px; margin-top:12px; flex:1; overflow:hidden;" id="amGrid">
-            
-            <div class="amCard" style="margin:0; display:flex; flex-direction:column; overflow:hidden;">
-              <div class="rowBetween" style="flex:0 0 auto;">
-                <div class="pill" id="amStepCounter">Paso</div>
-                <div class="pill" id="amTimerInline" style="display:none;">⏱️ <span id="amTimerTxt"></span></div>
+          <div style="margin-top:12px; flex:1; overflow:hidden;">
+            <!-- Unified section -->
+            <div id="amUnifiedCard" class="amCard"
+              style="margin:0; overflow:hidden; min-height:0; display:grid; grid-template-columns:1.1fr .9fr; grid-template-areas:'text img' 'nav nav'; grid-template-rows:1fr auto; gap:14px;">
+
+              <!-- Text -->
+              <div id="amTextCol" style="grid-area:text; display:flex; flex-direction:column; overflow:hidden; min-height:0;">
+                <div class="rowBetween" style="flex:0 0 auto;">
+                  <div class="pill" id="amStepCounter">Paso</div>
+                  <div class="pill" id="amTimerInline" style="display:none;">⏱️ <span id="amTimerTxt"></span></div>
+                </div>
+
+                <div id="amStepScroll" style="flex:1 1 auto; overflow:auto; padding-right:6px; margin-top:12px; min-height:0;">
+                  <div id="amStepText" style="font-weight:950; font-size:16px;"></div>
+                  <div id="amStepHint" class="muted small" style="margin-top:10px;"></div>
+                </div>
               </div>
 
-              <div id="amStepScroll" style="flex:1 1 auto; overflow:auto; padding-right:6px; margin-top:12px;">
-                <div id="amStepText" style="font-weight:950; font-size:16px;"></div>
-                <div id="amStepHint" class="muted small" style="margin-top:10px;"></div>
+              <!-- Image -->
+              <div id="amImgCol" style="grid-area:img; min-height:0;">
+                <img id="amStepImg" alt="" style="width:100%; height:auto; border-radius:16px; border:1px solid rgba(64,17,2,.10); display:none;" />
+
+                <div id="amFinalActions" style="display:none; margin-top:14px;">
+                  <div class="rowBetween">
+                    <button id="amFinishPostre" class="btn secondary" type="button">Finalizar postre</button>
+                    <button id="amFinishLote" class="btn primary" type="button">Finalizar lote</button>
+                  </div>
+                </div>
               </div>
 
-              <div class="rowBetween" style="flex:0 0 auto; padding-top:12px; margin-top:8px; border-top:1px solid rgba(64,17,2,.08); position:sticky; bottom:0; background:rgba(255,255,255,.92);">
+              <!-- Nav -->
+              <div id="amNav" class="rowBetween"
+                style="grid-area:nav; padding-top:12px; border-top:1px solid rgba(64,17,2,.08); background:rgba(255,255,255,.92);">
                 <button id="amPrev" class="btn secondary" type="button">← Anterior</button>
                 <button id="amNextOrTimer" class="btn primary" type="button">Siguiente →</button>
               </div>
-            </div>
 
-            <div id="amImgCard" class="amCard" style="margin:0; overflow:auto;">
-              <img id="amStepImg" alt="" style="width:100%; height:auto; border-radius:16px; border:1px solid rgba(64,17,2,.10); display:none;" />
-              <div id="amImgFallback" class="muted small" style="display:none;">Sin imagen para este paso.</div>
-
-              <div id="amFinalActions" style="display:none; margin-top:14px;">
-                <div class="rowBetween">
-                  <button id="amFinishPostre" class="btn secondary" type="button">Finalizar postre</button>
-                  <button id="amFinishLote" class="btn primary" type="button">Finalizar lote</button>
-                </div>
-              </div>
             </div>
           </div>
-
-          <div id="amImgTip" class="muted small" style="margin-top:10px;">Tip: en móvil, gira la pantalla para ver mejor la imagen.</div>
         </div>
       </div>
 
@@ -1074,7 +1099,7 @@ function renderProfilesSelect(list, selectedId){
           <div class="muted small" id="amStickySubV6" style="margin-top:8px;">Base en nevera</div>
         </div>
       </div>
-    `;
+  `;
     document.body.appendChild(wrap);
 
     // responsive overlay grid
@@ -1140,14 +1165,40 @@ function msToMMSS(ms){
     else { pill.style.display="none"; txt.textContent=""; }
   }
   function setRecipeImage(src){
-    const img=$("amStepImg"); const fb=$("amImgFallback");
-    if(!img) return;
-    img.onerror=()=>{ img.style.display="none"; if(fb) fb.style.display="block"; img.src=""; };
-    if(src){
-      img.src=src; img.style.display="block"; if(fb) fb.style.display="none";
-    }else{
-      img.style.display="none"; if(fb) fb.style.display="block"; img.src="";
+    const img = $("amStepImg");
+    const imgCol = document.getElementById("amImgCol");
+    const card = document.getElementById("amUnifiedCard");
+    if(!img || !card) return;
+
+    function layoutWithImage(){
+      if(imgCol) imgCol.style.display = "";
+      card.style.gridTemplateColumns = "1.1fr .9fr";
+      card.style.gridTemplateAreas = '"text img" "nav nav"';
+      card.style.gridTemplateRows = "1fr auto";
     }
+    function layoutNoImage(){
+      if(imgCol) imgCol.style.display = "none";
+      card.style.gridTemplateColumns = "1fr";
+      card.style.gridTemplateAreas = '"text" "nav"';
+      card.style.gridTemplateRows = "1fr auto";
+    }
+
+    img.onerror = () => {
+      img.style.display = "none";
+      img.src = "";
+      layoutNoImage();
+    };
+
+    if(src){
+      img.src = src;
+      img.style.display = "block";
+      layoutWithImage();
+    }else{
+      img.style.display = "none";
+      img.src = "";
+      layoutNoImage();
+    }
+  }
   }
 
   function remainingProductsCount(){
