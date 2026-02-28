@@ -69,7 +69,7 @@
 (() => {
   "use strict";
 
-  console.log("AMARED kitchen recipes-linked UXfix v2026-02-26");
+  console.log("AMARED kitchen recipes-linked UX+images v2026-02-26");
 
   // ========= CONFIG =========
   const API_URL = "https://amared-orders.amaredpostres.workers.dev/";
@@ -145,6 +145,7 @@
   }
   if(!RECIPE_UNIT.cheesecake_cafe_panela){
     RECIPE_UNIT.cheesecake_cafe_panela = {
+      // Nota: las cantidades reales vienen de la hoja RECETAS (backend). Esto es solo fallback visual.
       unitIngredients: [
         { key:"Galleta de leche triturada (g)", qty:25 },
         { key:"Mantequilla derretida (g)", qty:10 },
@@ -161,26 +162,31 @@
         { key:"Cuchara plástica (unidad)", qty:1 },
       ],
       steps: [
-        { type:"batch_ingredients" },
+        // Paso 1 (ingredientes) + imagen
+        { type:"batch_ingredients", img:"assets/Logo-Isotipo-Amared.svg" },
 
-        { type:"normal", text:"Tritura las galletas de leche hasta que queden bien finas (tipo arena).", img:"assets/steps/cheesecake/step01.webp" },
-        { type:"normal", text:"Mezcla la galleta triturada con la mantequilla derretida hasta que compacte.", img:"assets/steps/cheesecake/step02.webp" },
-        { type:"normal", text:"Pon 25 g en cada vasito y compacta firmemente para formar la base.", img:"assets/steps/cheesecake/step03.webp" },
-        { type:"timer_base", text:"Refrigera la base 30 min. (Inicia el temporizador para continuar).", img:"assets/steps/cheesecake/step04.webp" },
+        // Base
+        { type:"normal", text:"Tritura las galletas de leche hasta que queden bien finas (tipo arena).", img:"assets/steps/cheesecake/step01.webp" }, // Paso 2
+        { type:"normal", text:"Mezcla la galleta triturada con la mantequilla derretida hasta que compacte.", img:"assets/steps/cheesecake/step02.webp" }, // Paso 3
+        { type:"normal", text:"Pon 25 g en cada vasito y compacta firmemente para formar la base.", img:"assets/steps/cheesecake/step03.webp" }, // Paso 4
+        { type:"timer_base", text:"Refrigera la base 30 min. (Inicia el temporizador para continuar).", img:"assets/steps/cheesecake/step04.webp" }, // Paso 5
 
-        { type:"normal", text:"Prepara el café usando {{COFFEE_WATER_ML}} ml de agua.", img:"assets/steps/cheesecake/step05.webp" },
-        { type:"normal", text:"Añade la panela rallada al café caliente y mezcla hasta disolver.", img:"assets/steps/cheesecake/step05.webp" },
-        { type:"normal", text:"Mezcla queso crema, crema de leche, leche condensada, vainilla, sal y el café con panela (a temperatura ambiente) hasta integrar.", img:"assets/steps/cheesecake/step05.webp" },
+        // Café + mezcla (nuevos pasos con nuevas imágenes)
+        { type:"normal", text:"Prepara el café usando {{COFFEE_WATER_ML}} ml de agua.", img:"assets/steps/cheesecake/step05.webp" }, // Paso 6
+        { type:"normal", text:"Añade la panela rallada al café caliente y mezcla hasta disolver.", img:"assets/steps/cheesecake/step06.webp" }, // Paso 7
+        { type:"normal", text:"Mezcla queso crema, crema de leche, leche condensada, vainilla, sal y el café con panela (a temperatura ambiente) hasta integrar.", img:"assets/steps/cheesecake/step07.webp" }, // Paso 8
 
-        { type:"normal", text:"Calienta agua tibia sin hervir.", img:"assets/steps/cheesecake/step06.webp" },
-        { type:"normal", text:"Añade la gelatina sin sabor y revuelve hasta disolver por completo.", img:"assets/steps/cheesecake/step07.webp" },
-        { type:"normal", text:"Incorpora la gelatina disuelta poco a poco mientras mezclas.", img:"assets/steps/cheesecake/step08.webp" },
+        // Gelatina
+        { type:"normal", text:"Calienta agua tibia sin hervir.", img:"assets/steps/cheesecake/step08.webp" }, // Paso 9
+        { type:"normal", text:"Añade la gelatina sin sabor y revuelve hasta disolver por completo.", img:"assets/steps/cheesecake/step09.webp" }, // Paso 10
+        { type:"normal", text:"Incorpora la gelatina disuelta poco a poco mientras mezclas.", img:"assets/steps/cheesecake/step10.webp" }, // Paso 11
 
-        { type:"normal", text:"Sirve 150 ml de mezcla en cada vasito, sobre la base.", img:"assets/steps/cheesecake/step09.webp" },
-        { type:"normal", text:"Refrigera mínimo 8 horas o toda la noche.", img:"assets/steps/cheesecake/step10.webp" },
-        { type:"normal", text:"Decora espolvoreando harina/galleta de leche con la forma del logo.", img:"assets/steps/cheesecake/step11.webp" },
+        // Armado + frío + decoración
+        { type:"normal", text:"Sirve 150 ml de mezcla en cada vasito, sobre la base.", img:"assets/steps/cheesecake/step11.webp" }, // Paso 12
+        { type:"normal", text:"Refrigera mínimo 8 horas o toda la noche.", img:"assets/steps/cheesecake/step12.webp" }, // Paso 13
+        { type:"normal", text:"Decora espolvoreando harina/galleta de leche con la forma del logo.", img:"assets/steps/cheesecake/step13.webp" }, // Paso 14
 
-        { type:"final", text:"¡Listo! Revisa presentación y deja el área limpia.", img:"assets/steps/cheesecake/step12.webp" },
+        { type:"final", text:"¡Listo! Revisa presentación y deja el área limpia.", img:"assets/steps/cheesecake/step14.webp" }, // Paso 15
       ],
     };
   }
@@ -1049,9 +1055,9 @@ function renderProfilesSelect(list, selectedId){
               </div>
             </div>
 
-            <div class="amCard" style="margin:0; overflow:auto;">
+            <div id="amImgCard" class="amCard" style="margin:0; overflow:auto;">
               <img id="amStepImg" alt="" style="width:100%; height:auto; border-radius:16px; border:1px solid rgba(64,17,2,.10); display:none;" />
-              <div id="amImgFallback" class="muted small" style="display:none;">Sin imagen para este paso.</div>
+              <div id="amImgFallback" class="muted small" style="display:none;"></div>
 
               <div id="amFinalActions" style="display:none; margin-top:14px;">
                 <div class="rowBetween">
