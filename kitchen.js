@@ -69,7 +69,7 @@
 (() => {
   "use strict";
 
-  console.log("AMARED kitchen recipes-linked UXfix8 v2026-02-26");
+  console.log("AMARED kitchen recipes-linked UXfix9 v2026-02-26");
 
   // ========= CONFIG =========
   const API_URL = "https://amared-orders.amaredpostres.workers.dev/";
@@ -1035,7 +1035,15 @@ function renderProfilesSelect(list, selectedId){
           #amNav{ justify-content:center !important; }
           #amNav .btn{ flex:1; max-width:260px; }
         }
-      </style>
+      
+        /* Nav alignment */
+        #amNav{ justify-content:flex-end; }
+        #amNav .btn{ min-width:160px; }
+        @media (max-width: 920px){
+          #amNav{ justify-content:center !important; }
+          #amNav .btn{ min-width:140px; }
+        }
+</style>
 
       <div id="amRecipeOverlayV6" class="modalOverlay" aria-hidden="true" style="display:none;">
         <div class="modalBox" style="max-width:980px; height:calc(100vh - 32px); max-height:calc(100vh - 32px); overflow:hidden; display:flex; flex-direction:column; position:relative;">
@@ -1058,7 +1066,7 @@ function renderProfilesSelect(list, selectedId){
               style="margin:0; overflow:hidden; min-height:0; height:100%; flex:1; display:grid; grid-template-columns:1.1fr .9fr; grid-template-areas:'text img' 'nav nav'; grid-template-rows:minmax(0,1fr) auto; gap:14px;">
 
               <!-- Text -->
-              <div id="amTextCol" style="grid-area:text; display:flex; flex-direction:column; overflow:hidden; min-height:0;">
+              <div id="amTextCol" style="grid-area:text; display:flex; flex-direction:column; overflow:hidden; min-height:0; padding-bottom:6px;">
                 <div class="rowBetween" style="flex:0 0 auto;">
                   <div class="pill" id="amStepCounter">Paso</div>
                   <div class="pill" id="amTimerInline" style="display:none;">⏱️ <span id="amTimerTxt"></span></div>
@@ -1071,8 +1079,8 @@ function renderProfilesSelect(list, selectedId){
               </div>
 
               <!-- Image -->
-              <div id="amImgCol" style="grid-area:img; min-height:0;">
-                <img id="amStepImg" alt="" style="width:100%; height:auto; border-radius:16px; border:1px solid rgba(64,17,2,.10); display:none;" />
+              <div id="amImgCol" style="grid-area:img; min-height:0; height:100%; display:flex; align-items:center; justify-content:center; overflow:hidden;">
+                <img id="amStepImg" alt="" style="width:100%; height:100%; max-height:100%; object-fit:contain; border-radius:16px; border:1px solid rgba(64,17,2,.10); display:none;" />
 
                 <div id="amFinalActions" style="display:none; margin-top:14px;">
                   <div class="rowBetween">
