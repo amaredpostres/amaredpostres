@@ -69,7 +69,7 @@
 (() => {
   "use strict";
 
-  console.log("AMARED kitchen recipes-linked UXfix5 v2026-02-26");
+  console.log("AMARED kitchen recipes-linked UXfix6 v2026-02-26");
 
   // ========= CONFIG =========
   const API_URL = "https://amared-orders.amaredpostres.workers.dev/";
@@ -1019,7 +1019,7 @@ function renderProfilesSelect(list, selectedId){
     wrap.innerHTML=`
       <style id="amRecipeCss">
         /* Unified recipe modal */
-        #amUnifiedCard{ min-height:0; }
+        #amUnifiedCard{ min-height:0; height:100%; }
         #amStepScroll{ -webkit-overflow-scrolling: touch; }
 
         @media (max-width: 920px){
@@ -1027,7 +1027,7 @@ function renderProfilesSelect(list, selectedId){
           #amUnifiedCard{
             grid-template-columns: 1fr !important;
             grid-template-areas: "text" "img" "nav" !important;
-            grid-template-rows: auto auto 1fr !important;
+            grid-template-rows: 1fr auto auto !important;
           }
           #amNav{ justify-content:center !important; }
           #amNav .btn{ flex:1; max-width:260px; }
@@ -1052,7 +1052,7 @@ function renderProfilesSelect(list, selectedId){
           <div style="margin-top:12px; flex:1; overflow:hidden; min-height:0;">
             <!-- Unified section -->
             <div id="amUnifiedCard" class="amCard"
-              style="margin:0; overflow:hidden; min-height:0; display:grid; grid-template-columns:1.1fr .9fr; grid-template-areas:'text img' 'nav nav'; grid-template-rows:1fr auto; gap:14px;">
+              style="margin:0; overflow:hidden; min-height:0; height:100%; display:grid; grid-template-columns:1.1fr .9fr; grid-template-areas:'text img' 'nav nav'; grid-template-rows:1fr auto; gap:14px;">
 
               <!-- Text -->
               <div id="amTextCol" style="grid-area:text; display:flex; flex-direction:column; overflow:hidden; min-height:0;">
