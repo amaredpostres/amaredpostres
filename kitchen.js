@@ -69,7 +69,7 @@
 (() => {
   "use strict";
 
-  console.log("AMARED kitchen recipes-linked UXfix6 v2026-02-26");
+  console.log("AMARED kitchen recipes-linked UXfix7 v2026-02-26");
 
   // ========= CONFIG =========
   const API_URL = "https://amared-orders.amaredpostres.workers.dev/";
@@ -1019,7 +1019,10 @@ function renderProfilesSelect(list, selectedId){
     wrap.innerHTML=`
       <style id="amRecipeCss">
         /* Unified recipe modal */
-        #amUnifiedCard{ min-height:0; height:100%; }
+                #amTextCol{ min-height:0; overflow:hidden; }
+        #amStepScroll{ min-height:0; padding-bottom:14px; }
+        #amNav{ position:sticky; bottom:0; z-index:6; background:rgba(255,255,255,.92); }
+#amUnifiedCard{ min-height:0; height:100%; }
         #amStepScroll{ -webkit-overflow-scrolling: touch; }
 
         @media (max-width: 920px){
@@ -1027,7 +1030,7 @@ function renderProfilesSelect(list, selectedId){
           #amUnifiedCard{
             grid-template-columns: 1fr !important;
             grid-template-areas: "text" "img" "nav" !important;
-            grid-template-rows: 1fr auto auto !important;
+            grid-template-rows: minmax(0,1fr) auto auto !important;
           }
           #amNav{ justify-content:center !important; }
           #amNav .btn{ flex:1; max-width:260px; }
@@ -1052,7 +1055,7 @@ function renderProfilesSelect(list, selectedId){
           <div style="margin-top:12px; flex:1; overflow:hidden; min-height:0;">
             <!-- Unified section -->
             <div id="amUnifiedCard" class="amCard"
-              style="margin:0; overflow:hidden; min-height:0; height:100%; display:grid; grid-template-columns:1.1fr .9fr; grid-template-areas:'text img' 'nav nav'; grid-template-rows:1fr auto; gap:14px;">
+              style="margin:0; overflow:hidden; min-height:0; height:100%; display:grid; grid-template-columns:1.1fr .9fr; grid-template-areas:'text img' 'nav nav'; grid-template-rows:minmax(0,1fr) auto; gap:14px;">
 
               <!-- Text -->
               <div id="amTextCol" style="grid-area:text; display:flex; flex-direction:column; overflow:hidden; min-height:0;">
@@ -1174,13 +1177,13 @@ function msToMMSS(ms){
       if(imgCol) imgCol.style.display = "";
       card.style.gridTemplateColumns = "1.1fr .9fr";
       card.style.gridTemplateAreas = '"text img" "nav nav"';
-      card.style.gridTemplateRows = "1fr auto";
+      card.style.gridTemplateRows = "minmax(0,1fr) auto";
     }
     function layoutNoImage(){
       if(imgCol) imgCol.style.display = "none";
       card.style.gridTemplateColumns = "1fr";
       card.style.gridTemplateAreas = '"text" "nav"';
-      card.style.gridTemplateRows = "1fr auto";
+      card.style.gridTemplateRows = "minmax(0,1fr) auto";
     }
 
     img.onerror = () => {
