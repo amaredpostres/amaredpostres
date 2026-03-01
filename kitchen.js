@@ -69,7 +69,7 @@
 (() => {
   "use strict";
 
-  console.log("AMARED kitchen recipes-linked UXfix9 v2026-02-26");
+  console.log("AMARED kitchen recipes-linked UXfix10 v2026-02-26");
 
   // ========= CONFIG =========
   const API_URL = "https://amared-orders.amaredpostres.workers.dev/";
@@ -1022,7 +1022,7 @@ function renderProfilesSelect(list, selectedId){
                 #amTextCol{ min-height:0; overflow:hidden; }
         #amStepScroll{ min-height:0; padding-bottom:14px; }
         #amNav{ position:sticky; bottom:0; z-index:6; background:rgba(255,255,255,.92); }
-#amUnifiedCard{ min-height:0; height:100%; }
+#amUnifiedCard{ min-height:0; }
         #amStepScroll{ -webkit-overflow-scrolling: touch; }
 
         @media (max-width: 920px){
@@ -1043,16 +1043,26 @@ function renderProfilesSelect(list, selectedId){
           #amNav{ justify-content:center !important; }
           #amNav .btn{ min-width:140px; }
         }
+
+        /* Desktop: botones abajo a la derecha */
+        #amNav{ display:flex; gap:12px; justify-content:flex-end; max-width:520px; margin-left:auto; }
+        #amNav .btn{ min-width:160px; }
+        /* Móvil: botones centrados (bloque centrado con espacio entre) */
+        @media (max-width: 920px){
+          #amNav{ justify-content:space-between; margin:0 auto; max-width:420px; }
+          #amNav .btn{ min-width:140px; flex:1; }
+          #amStepScroll{ max-height:45vh; }
+        }
 </style>
 
       <div id="amRecipeOverlayV6" class="modalOverlay" aria-hidden="true" style="display:none;">
-        <div class="modalBox" style="max-width:980px; height:calc(100vh - 32px); max-height:calc(100vh - 32px); overflow:hidden; display:flex; flex-direction:column; position:relative;">
+        <div class="modalBox" style="max-width:980px; max-height:calc(100vh - 32px); overflow:hidden; display:flex; flex-direction:column; position:relative;">
           <div class="rowBetween" style="align-items:flex-start;">
             <div style="min-width:0;">
               <div style="font-weight:950; font-size:18px;" id="amRecipeTitle">Receta</div>
               <div class="muted small" id="amRecipeSub" style="margin-top:6px;"></div>
               <div style="height:8px; border-radius:999px; background:rgba(64,17,2,.08); overflow:hidden; margin-top:10px;">
-                <div id="amProgBar" style="height:100%; width:0%; background:rgba(245,110,150,.9); border-radius:999px;"></div>
+                <div id="amProgBar" style="width:0%; background:rgba(245,110,150,.9); border-radius:999px;"></div>
               </div>
             </div>
 
@@ -1060,10 +1070,10 @@ function renderProfilesSelect(list, selectedId){
             <button id="amRecipeClose" class="iconBtn" type="button" aria-label="Cerrar" title="Cerrar" style="position:absolute; top:14px; right:14px; z-index:5;">✕</button>
           </div>
 
-          <div style="margin-top:12px; flex:1; overflow:hidden; min-height:0; display:flex; flex-direction:column;">
+          <div style="margin-top:12px; overflow:hidden; min-height:0;">
             <!-- Unified section -->
             <div id="amUnifiedCard" class="amCard"
-              style="margin:0; overflow:hidden; min-height:0; height:100%; flex:1; display:grid; grid-template-columns:1.1fr .9fr; grid-template-areas:'text img' 'nav nav'; grid-template-rows:minmax(0,1fr) auto; gap:14px;">
+              style="margin:0; overflow:hidden; min-height:0; display:grid; grid-template-columns:1.1fr .9fr; grid-template-areas:'text img' 'nav nav'; grid-template-rows:auto auto; gap:14px;">
 
               <!-- Text -->
               <div id="amTextCol" style="grid-area:text; display:flex; flex-direction:column; overflow:hidden; min-height:0; padding-bottom:6px;">
@@ -1072,15 +1082,15 @@ function renderProfilesSelect(list, selectedId){
                   <div class="pill" id="amTimerInline" style="display:none;">⏱️ <span id="amTimerTxt"></span></div>
                 </div>
 
-                <div id="amStepScroll" style="flex:1 1 auto; overflow:auto; padding-right:6px; padding-bottom:18px; margin-top:12px; min-height:0;">
+                <div id="amStepScroll" style="overflow:auto; max-height:52vh; padding-right:6px; padding-bottom:18px; margin-top:12px; min-height:0;">
                   <div id="amStepText" style="font-weight:950; font-size:16px;"></div>
                   <div id="amStepHint" class="muted small" style="margin-top:10px;"></div>
                 </div>
               </div>
 
               <!-- Image -->
-              <div id="amImgCol" style="grid-area:img; min-height:0; height:100%; display:flex; align-items:center; justify-content:center; overflow:hidden;">
-                <img id="amStepImg" alt="" style="width:100%; height:100%; max-height:100%; object-fit:contain; border-radius:16px; border:1px solid rgba(64,17,2,.10); display:none;" />
+              <div id="amImgCol" style="grid-area:img; min-height:0; display:flex; align-items:center; justify-content:center; overflow:hidden;">
+                <img id="amStepImg" alt="" style="width:100%; max-object-fit:contain; border-radius:16px; border:1px solid rgba(64,17,2,.10); display:none;" />
 
                 <div id="amFinalActions" style="display:none; margin-top:14px;">
                   <div class="rowBetween">
@@ -1091,7 +1101,7 @@ function renderProfilesSelect(list, selectedId){
               </div>
 
               <!-- Nav -->
-              <div id="amNav" class="rowBetween" style="grid-area:nav; padding-top:12px; border-top:1px solid rgba(64,17,2,.08); background:rgba(255,255,255,.92); width:100%; max-width:560px; margin:0 auto; gap:12px; justify-content:space-between;">
+              <div id="amNav" class="rowBetween" style="grid-area:nav; padding-top:12px; border-top:1px solid rgba(64,17,2,.08); background:rgba(255,255,255,.92); width:100%;">
                 <button id="amPrev" class="btn secondary" type="button">← Anterior</button>
                 <button id="amNextOrTimer" class="btn primary" type="button">Siguiente →</button>
               </div>
@@ -1179,19 +1189,19 @@ function msToMMSS(ms){
     const imgCol = document.getElementById("amImgCol");
     const card = document.getElementById("amUnifiedCard");
     if(!img || !card) return;
-    card.style.height = "100%";
+    card.style.height = "auto";
 
     function layoutWithImage(){
       if(imgCol) imgCol.style.display = "";
       card.style.gridTemplateColumns = "1.1fr .9fr";
       card.style.gridTemplateAreas = '"text img" "nav nav"';
-      card.style.gridTemplateRows = "minmax(0,1fr) auto";
+      card.style.gridTemplateRows = "auto auto";
     }
     function layoutNoImage(){
       if(imgCol) imgCol.style.display = "none";
       card.style.gridTemplateColumns = "1fr";
       card.style.gridTemplateAreas = '"text" "nav"';
-      card.style.gridTemplateRows = "minmax(0,1fr) auto";
+      card.style.gridTemplateRows = "auto auto";
     }
 
     img.onerror = () => {
