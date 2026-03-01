@@ -69,7 +69,7 @@
 (() => {
   "use strict";
 
-  console.log("AMARED kitchen recipes-linked UXfix7 v2026-02-26");
+  console.log("AMARED kitchen recipes-linked UXfix8 v2026-02-26");
 
   // ========= CONFIG =========
   const API_URL = "https://amared-orders.amaredpostres.workers.dev/";
@@ -1038,7 +1038,7 @@ function renderProfilesSelect(list, selectedId){
       </style>
 
       <div id="amRecipeOverlayV6" class="modalOverlay" aria-hidden="true" style="display:none;">
-        <div class="modalBox" style="max-width:980px; max-height:calc(100vh - 32px); overflow:hidden; display:flex; flex-direction:column; position:relative;">
+        <div class="modalBox" style="max-width:980px; height:calc(100vh - 32px); max-height:calc(100vh - 32px); overflow:hidden; display:flex; flex-direction:column; position:relative;">
           <div class="rowBetween" style="align-items:flex-start;">
             <div style="min-width:0;">
               <div style="font-weight:950; font-size:18px;" id="amRecipeTitle">Receta</div>
@@ -1052,10 +1052,10 @@ function renderProfilesSelect(list, selectedId){
             <button id="amRecipeClose" class="iconBtn" type="button" aria-label="Cerrar" title="Cerrar" style="position:absolute; top:14px; right:14px; z-index:5;">✕</button>
           </div>
 
-          <div style="margin-top:12px; flex:1; overflow:hidden; min-height:0;">
+          <div style="margin-top:12px; flex:1; overflow:hidden; min-height:0; display:flex; flex-direction:column;">
             <!-- Unified section -->
             <div id="amUnifiedCard" class="amCard"
-              style="margin:0; overflow:hidden; min-height:0; height:100%; display:grid; grid-template-columns:1.1fr .9fr; grid-template-areas:'text img' 'nav nav'; grid-template-rows:minmax(0,1fr) auto; gap:14px;">
+              style="margin:0; overflow:hidden; min-height:0; height:100%; flex:1; display:grid; grid-template-columns:1.1fr .9fr; grid-template-areas:'text img' 'nav nav'; grid-template-rows:minmax(0,1fr) auto; gap:14px;">
 
               <!-- Text -->
               <div id="amTextCol" style="grid-area:text; display:flex; flex-direction:column; overflow:hidden; min-height:0;">
@@ -1064,7 +1064,7 @@ function renderProfilesSelect(list, selectedId){
                   <div class="pill" id="amTimerInline" style="display:none;">⏱️ <span id="amTimerTxt"></span></div>
                 </div>
 
-                <div id="amStepScroll" style="flex:1 1 auto; overflow:auto; padding-right:6px; margin-top:12px; min-height:0;">
+                <div id="amStepScroll" style="flex:1 1 auto; overflow:auto; padding-right:6px; padding-bottom:18px; margin-top:12px; min-height:0;">
                   <div id="amStepText" style="font-weight:950; font-size:16px;"></div>
                   <div id="amStepHint" class="muted small" style="margin-top:10px;"></div>
                 </div>
