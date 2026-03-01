@@ -1080,7 +1080,7 @@ async function submitReview(){
 
     hideReviewModal();
     if(btnSubmitReview) btnSubmitReview.disabled = false;
-    showAlert("¡Gracias! Tu opinión se publicará si tu pedido aparece como ENVIADO.");
+    showAlert("✅ Opinión publicada con éxito. ¡Gracias por compartir tu experiencia!");
     await fetchReviews();
   }catch(e){
     hideLoading();
