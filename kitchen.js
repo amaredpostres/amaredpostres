@@ -80,7 +80,6 @@
             return { id, name, qty, unit_price };
           }).filter(it=>it.id && it.qty>0);
         }
-        // Si es objeto único {name, qty}, normalizarlo
         if(parsed && typeof parsed === "object" && (parsed.name || parsed.product_name) && (parsed.qty || parsed.units || parsed.quantity)){
           const name = String(parsed.name || parsed.product_name || "");
           let id = String(parsed.id || parsed.product_id || "");
@@ -101,7 +100,6 @@
         const clean0 = line0.replace(/^[\-\•\*\u2022]\s*/,"").trim();
         if(!clean0) continue;
 
-        // Patterns:
         // A) "Nombre: 2" / "Nombre x 2" / "Nombre × 2"
         let mm = clean0.match(/^(.+?)\s*[:xX×]\s*(\d+(?:[.,]\d+)?)\s*$/);
 
@@ -118,122 +116,44 @@
         if(!mm) mm = clean0.match(/^(\d+(?:[.,]\d+)?)\s+(.+?)\s*$/);
 
         if(mm){
-          // Normalizar según el patrón
           let name="", qtyStr="";
           if(mm.length===3){
-            // patterns A/C/D => name first, qty second OR patterns B/E => qty first, name second
-            const a = mm[1], b = mm[2];
-            // Detect if a is qty
-            if(/^\d/.test(String(a).trim()) && !/^\d/.test(String(b).trim())){
-              qtyStr = String(a); name = String(b);
+            const a = String(mm[1]).trim();
+            const b = String(mm[2]).trim();
+            if(/^\d/.test(a) && !/^\d/.test(b)){
+              qtyStr = a; name = b;
             }else{
-              name = String(a); qtyStr = String(b);
+              name = a; qtyStr = b;
             }
           }
           const qty = Number(qtyStr.replace(",", ".")) || 0;
           if(!(qty>0)) continue;
           const nameClean = name.trim();
-          let id = guessProductIdByName_(nameClean);
+          const id = guessProductIdByName_(nameClean);
           if(id) out.push({ id, name: nameClean, qty, unit_price:0 });
           continue;
         }
 
-        // F) Si no hay qty, pero el nombre coincide con un producto conocido → asumir 1
-        const guess = guessProductIdByName_(clean0);
-        if(guess){
-          out.push({ id: guess, name: clean0, qty: 1, unit_price:0 });
+        // F) Nombre sin qty -> si coincide, asumir 1
+        const gid = guessProductIdByName_(clean0);
+        if(gid){
+          out.push({ id: gid, name: clean0, qty: 1, unit_price:0 });
           continue;
         }
 
-        // G) Si hay múltiples productos separados por coma y sin qty → asumir 1 cada uno
+        // G) Lista separada por coma -> asumir 1 cada uno
         if(clean0.includes(",")){
           const parts = clean0.split(",").map(s=>s.trim()).filter(Boolean);
           for(const p of parts){
-            const gid = guessProductIdByName_(p);
-            if(gid) out.push({ id: gid, name: p, qty: 1, unit_price:0 });
+            const pid = guessProductIdByName_(p);
+            if(pid) out.push({ id: pid, name: p, qty: 1, unit_price:0 });
           }
         }
       }
       if(out.length) return out;
     }
 
-    // 4) Last resort: product_id + qty columns (si el backend lo trae)
-    if(order.product_id && order.qty){
-      const id = String(order.product_id||"").trim();
-      const qty = Number(order.qty||0) || 0;
-      if(id && qty>0) return [{ id, name:String(order.product_name||id), qty, unit_price:0 }];
-    }
-
-    // Debug (solo si hay pedido pero no pudimos parsear items)
-    try{
-      if((order.items || order.items_json || order.items_text) && !order.___warned_no_items){
-        order.___warned_no_items = true;
-        console.warn("No pude parsear items del pedido", {
-          order_id: order.order_id,
-          items: order.items,
-          items_text: order.items_text,
-          items_json: order.items_json
-        });
-      }
-    }catch(_e){}
-
-    return [];
-  }).filter(it=>it.id && it.qty>0);
-    }
-
-    // 1) Prefer items_json (string/array)
-    const raw = order.items_json ?? order.itemsJson ?? order.itemsJSON ?? order.itemsJSONText;
-    if(raw){
-      const parsed = (typeof raw === "string") ? safeJsonParse(raw) : raw;
-      if(Array.isArray(parsed)){
-        return parsed.map(it=>{
-          const name = String(it.name || it.product_name || it.title || "");
-          let id = String(it.id || it.product_id || it.productId || it.sku || "");
-          if(!id && name) id = guessProductIdByName_(name);
-          const qty = Number(it.qty ?? it.units ?? it.quantity ?? it.count ?? 0) || 0;
-          const unit_price = Number(it.unit_price ?? it.price ?? it.unitPrice ?? 0) || 0;
-          return { id, name, qty, unit_price };
-        }).filter(it=>it.id && it.qty>0);
-      }
-    }
-
-    // 2) If "items" is JSON string, parse it
-    if(typeof order.items === "string"){
-      const t = order.items.trim();
-      if(t.startsWith("[") && t.endsWith("]")){
-        const parsed = safeJsonParse(t);
-        if(Array.isArray(parsed)){
-          return parsed.map(it=>{
-            const name = String(it.name || it.product_name || it.title || "");
-            let id = String(it.id || it.product_id || it.productId || it.sku || "");
-            if(!id && name) id = guessProductIdByName_(name);
-            const qty = Number(it.qty ?? it.units ?? it.quantity ?? it.count ?? 0) || 0;
-            const unit_price = Number(it.unit_price ?? it.price ?? it.unitPrice ?? 0) || 0;
-            return { id, name, qty, unit_price };
-          }).filter(it=>it.id && it.qty>0);
-        }
-      }
-    }
-
-    // 3) Fallback: items text like "- Nombre: 2" or "• Nombre x 2"
-    const txt = String(order.items || order.items_text || order.itemsText || "").trim();
-    if(txt){
-      const lines = txt.split("\n").map(s=>s.trim()).filter(Boolean);
-      const out=[];
-      for(const line0 of lines){
-        const clean = line0.replace(/^[\-\•\*]\s*/,"").trim();
-        const mm = clean.match(/^(.+?)\s*[:xX]\s*(\d+(?:[.,]\d+)?)\s*$/);
-        if(!mm) continue;
-        const name = mm[1].trim();
-        const qty = Number(String(mm[2]).replace(",", ".")) || 0;
-        if(!(qty>0)) continue;
-        let id = guessProductIdByName_(name);
-        if(id) out.push({ id, name, qty, unit_price:0 });
-      }
-      if(out.length) return out;
-    }
-
-    // 4) Last resort: product_id + qty columns (si el backend lo trae)
+    // 4) Last resort: product_id + qty columns
     if(order.product_id && order.qty){
       const id = String(order.product_id||"").trim();
       const qty = Number(order.qty||0) || 0;
@@ -260,7 +180,7 @@
 (() => {
   "use strict";
 
-  console.log("AMARED kitchen v2026-03-02 fix7d items parse++");
+  console.log("AMARED kitchen v2026-03-02 fix7e itemsparse");
 
   // ========= CONFIG =========
   const API_URL = "https://amared-orders.amaredpostres.workers.dev/";
