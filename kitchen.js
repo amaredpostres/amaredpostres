@@ -13,6 +13,24 @@
     }
   }
 
+  // Obtener campo de un objeto sin depender de mayúsculas/guiones/espacios (robusto para headers de Sheets)
+  function getFieldAny_(obj, ...names){
+    try{
+      if(!obj) return undefined;
+      const norm = (s)=> String(s||"").toLowerCase().replace(/[^a-z0-9]/g,"");
+      const map = {};
+      for(const k in obj){
+        map[norm(k)] = obj[k];
+      }
+      for(const n of names){
+        const key = norm(n);
+        if(Object.prototype.hasOwnProperty.call(map, key)) return map[key];
+      }
+    }catch(_e){}
+    return undefined;
+  }
+
+
 
   
   function normTextKey_(s){
@@ -36,111 +54,63 @@
   function normalizeItemsFromAnyOrder(order){
     if(!order) return [];
 
-    const mkItem = (name, qty, id, unit_price=0)=>{
-      const n = String(name||"").trim();
-      const q = Number(qty||0) || 0;
-      let pid = String(id||"").trim();
-      if(!pid && n) pid = guessProductIdByName_(n);
-      return (pid && q>0) ? { id: pid, name: n, qty: q, unit_price: Number(unit_price||0)||0 } : null;
-    };
-
     // 0) Direct array in "items"
-    if(Array.isArray(order.items)){
-      const out = order.items.map(it=>{
-        const name = it?.name ?? it?.product_name ?? it?.title ?? "";
-        const id = it?.id ?? it?.product_id ?? it?.productId ?? it?.sku ?? "";
-        const qty = it?.qty ?? it?.units ?? it?.quantity ?? it?.count ?? 0;
-        const unit_price = it?.unit_price ?? it?.price ?? it?.unitPrice ?? 0;
-        return mkItem(name, qty, id, unit_price);
-      }).filter(Boolean);
-      if(out.length) return out;
+    const directArr = getFieldAny_(order,'items') ?? order.items;
+    if(Array.isArray(directArr)){
+      return directArr.map(it=>{
+        const name = String(it.name || it.product_name || it.title || "");
+        let id = String(it.id || it.product_id || it.productId || it.sku || "");
+        if(!id && name) id = guessProductIdByName_(name);
+        const qty = Number(it.qty ?? it.units ?? it.quantity ?? it.count ?? 0) || 0;
+        const unit_price = Number(it.unit_price ?? it.price ?? it.unitPrice ?? 0) || 0;
+        return { id, name, qty, unit_price };
+      }).filter(it=>it.id && it.qty>0);
     }
 
-    // 1) Prefer items_json (string/array/object)
-    const raw = order.items_json ?? order.itemsJson ?? order.itemsJSON ?? order.itemsJSONText ?? order.itemsJsonText;
+    // 1) Prefer items_json (string/array)
+    const raw = getFieldAny_(order,'items_json','itemsjson','items json','Items_json','ITEMS_JSON','itemsJSON','itemsJson') ?? (order.items_json ?? order.itemsJson ?? order.itemsJSON ?? order.itemsJSONText ?? order.itemsJsonText);
     if(raw){
       const parsed = (typeof raw === "string") ? safeJsonParse(raw) : raw;
-
       if(Array.isArray(parsed)){
-        const out = parsed.map(it=>{
-          const name = it?.name ?? it?.product_name ?? it?.title ?? "";
-          const id = it?.id ?? it?.product_id ?? it?.productId ?? it?.sku ?? "";
-          const qty = it?.qty ?? it?.units ?? it?.quantity ?? it?.count ?? 0;
-          const unit_price = it?.unit_price ?? it?.price ?? it?.unitPrice ?? 0;
-          return mkItem(name, qty, id, unit_price);
-        }).filter(Boolean);
-        if(out.length) return out;
-      }
-
-      // Wrapper {items:[...]}
-      if(parsed && typeof parsed === "object" && Array.isArray(parsed.items)){
-        const out = parsed.items.map(it=>{
-          const name = it?.name ?? it?.product_name ?? it?.title ?? "";
-          const id = it?.id ?? it?.product_id ?? it?.productId ?? it?.sku ?? "";
-          const qty = it?.qty ?? it?.units ?? it?.quantity ?? it?.count ?? 0;
-          const unit_price = it?.unit_price ?? it?.price ?? it?.unitPrice ?? 0;
-          return mkItem(name, qty, id, unit_price);
-        }).filter(Boolean);
-        if(out.length) return out;
-      }
-
-      // Map object {mousse_maracuya:2, cheesecake_cafe_panela:1} or {"Mousse de maracuyá":2}
-      if(parsed && typeof parsed === "object"){
-        const out=[];
-        for(const [k,v] of Object.entries(parsed)){
-          if(k==="items" || k==="meta") continue;
-          const qty = Number(v);
-          if(!(qty>0)) continue;
-          const key = String(k||"").trim();
-          const pid = (key.includes("_") ? key : guessProductIdByName_(key));
-          const item = mkItem(key, qty, pid, 0);
-          if(item) out.push(item);
-        }
-        if(out.length) return out;
+        return parsed.map(it=>{
+          const name = String(it.name || it.product_name || it.title || "");
+          let id = String(it.id || it.product_id || it.productId || it.sku || "");
+          if(!id && name) id = guessProductIdByName_(name);
+          const qty = Number(it.qty ?? it.units ?? it.quantity ?? it.count ?? 0) || 0;
+          const unit_price = Number(it.unit_price ?? it.price ?? it.unitPrice ?? 0) || 0;
+          return { id, name, qty, unit_price };
+        }).filter(it=>it.id && it.qty>0);
       }
     }
 
     // 2) If "items" is JSON string, parse it
-    if(typeof order.items === "string"){
-      const t = order.items.trim();
+    if(typeof (getFieldAny_(order,"items") ?? order.items) === "string"){
+      const t = String(getFieldAny_(order,'items') ?? order.items).trim();
       if((t.startsWith("[") && t.endsWith("]")) || (t.startsWith("{") && t.endsWith("}"))){
         const parsed = safeJsonParse(t);
         if(Array.isArray(parsed)){
-          const out = parsed.map(it=>{
-            const name = it?.name ?? it?.product_name ?? it?.title ?? "";
-            const id = it?.id ?? it?.product_id ?? it?.productId ?? it?.sku ?? "";
-            const qty = it?.qty ?? it?.units ?? it?.quantity ?? it?.count ?? 0;
-            const unit_price = it?.unit_price ?? it?.price ?? it?.unitPrice ?? 0;
-            return mkItem(name, qty, id, unit_price);
-          }).filter(Boolean);
-          if(out.length) return out;
+          return parsed.map(it=>{
+            const name = String(it.name || it.product_name || it.title || "");
+            let id = String(it.id || it.product_id || it.productId || it.sku || "");
+            if(!id && name) id = guessProductIdByName_(name);
+            const qty = Number(it.qty ?? it.units ?? it.quantity ?? it.count ?? 0) || 0;
+            const unit_price = Number(it.unit_price ?? it.price ?? it.unitPrice ?? 0) || 0;
+            return { id, name, qty, unit_price };
+          }).filter(it=>it.id && it.qty>0);
         }
-        if(parsed && typeof parsed === "object"){
-          // {name, qty}
-          if((parsed.name || parsed.product_name) && (parsed.qty || parsed.units || parsed.quantity)){
-            const item = mkItem(parsed.name || parsed.product_name, parsed.qty ?? parsed.units ?? parsed.quantity, parsed.id || parsed.product_id, parsed.unit_price ?? parsed.price ?? 0);
-            if(item) return [item];
-          }
-          // map object
-          const out=[];
-          for(const [k,v] of Object.entries(parsed)){
-            const qty = Number(v);
-            if(!(qty>0)) continue;
-            const pid = (String(k).includes("_") ? String(k) : guessProductIdByName_(k));
-            const item = mkItem(k, qty, pid, 0);
-            if(item) out.push(item);
-          }
-          if(out.length) return out;
+        if(parsed && typeof parsed === "object" && (parsed.name || parsed.product_name) && (parsed.qty || parsed.units || parsed.quantity)){
+          const name = String(parsed.name || parsed.product_name || "");
+          let id = String(parsed.id || parsed.product_id || "");
+          if(!id && name) id = guessProductIdByName_(name);
+          const qty = Number(parsed.qty ?? parsed.units ?? parsed.quantity ?? 0) || 0;
+          const unit_price = Number(parsed.unit_price ?? parsed.price ?? 0) || 0;
+          return (id && qty>0) ? [{ id, name, qty, unit_price }] : [];
         }
       }
     }
 
-    // 3) Text fallback: use known fields first
-    const candidates = [];
-    for(const k of ["items_text","itemsText","items","items_summary","itemsSummary","wa_message","message","note","order_text","orderText"]){
-      if(typeof order[k] === "string" && order[k].trim()) candidates.push(order[k].trim());
-    }
-    const txt = candidates.join("\n").trim();
+    // 3) Text fallback (WhatsApp / plain lines)
+    const txt = String(getFieldAny_(order,'items_text','itemstext','items text','Items_text','ITEMS_TEXT') || getFieldAny_(order,'itemsText') || getFieldAny_(order,'items') || order.items_text || order.itemsText || order.items || "").trim();
     if(txt){
       const lines = txt.split("\n").map(s=>s.trim()).filter(Boolean);
       const out=[];
@@ -148,63 +118,70 @@
         const clean0 = line0.replace(/^[\-\•\*\u2022]\s*/,"").trim();
         if(!clean0) continue;
 
+        // A) "Nombre: 2" / "Nombre x 2" / "Nombre × 2"
         let mm = clean0.match(/^(.+?)\s*[:xX×]\s*(\d+(?:[.,]\d+)?)\s*$/);
+
+        // B) "2 x Nombre" / "2x Nombre"
         if(!mm) mm = clean0.match(/^(\d+(?:[.,]\d+)?)\s*(?:x|X|×)\s*(.+?)\s*$/);
+
+        // C) "Nombre (2)" / "Nombre (x2)"
         if(!mm) mm = clean0.match(/^(.+?)\s*\(\s*(?:x\s*)?(\d+(?:[.,]\d+)?)\s*\)\s*$/);
+
+        // D) "Nombre - 2" / "Nombre — 2"
         if(!mm) mm = clean0.match(/^(.+?)\s*[-—–]\s*(\d+(?:[.,]\d+)?)\s*$/);
+
+        // E) "2 Nombre" (qty al inicio)
         if(!mm) mm = clean0.match(/^(\d+(?:[.,]\d+)?)\s+(.+?)\s*$/);
 
-        if(mm && mm.length===3){
-          const a = String(mm[1]).trim();
-          const b = String(mm[2]).trim();
-          const qtyStr = (/^\d/.test(a) && !/^\d/.test(b)) ? a : b;
-          const name   = (/^\d/.test(a) && !/^\d/.test(b)) ? b : a;
+        if(mm){
+          let name="", qtyStr="";
+          if(mm.length===3){
+            const a = String(mm[1]).trim();
+            const b = String(mm[2]).trim();
+            if(/^\d/.test(a) && !/^\d/.test(b)){
+              qtyStr = a; name = b;
+            }else{
+              name = a; qtyStr = b;
+            }
+          }
           const qty = Number(qtyStr.replace(",", ".")) || 0;
-          const item = mkItem(name, qty, "", 0);
-          if(item) out.push(item);
+          if(!(qty>0)) continue;
+          const nameClean = name.trim();
+          const id = guessProductIdByName_(nameClean);
+          if(id) out.push({ id, name: nameClean, qty, unit_price:0 });
           continue;
         }
 
+        // F) Nombre sin qty -> si coincide, asumir 1
         const gid = guessProductIdByName_(clean0);
         if(gid){
-          const item = mkItem(clean0, 1, gid, 0);
-          if(item) out.push(item);
+          out.push({ id: gid, name: clean0, qty: 1, unit_price:0 });
+          continue;
+        }
+
+        // G) Lista separada por coma -> asumir 1 cada uno
+        if(clean0.includes(",")){
+          const parts = clean0.split(",").map(s=>s.trim()).filter(Boolean);
+          for(const p of parts){
+            const pid = guessProductIdByName_(p);
+            if(pid) out.push({ id: pid, name: p, qty: 1, unit_price:0 });
+          }
         }
       }
       if(out.length) return out;
     }
 
-    // 4) FINAL FALLBACK: stringify completo del pedido y buscar patrones/ids/nombres
+    // 4) Last resort: product_id + qty columns
+    if(order.product_id && order.qty){
+      const id = String(order.product_id||"").trim();
+      const qty = Number(order.qty||0) || 0;
+      if(id && qty>0) return [{ id, name:String(order.product_name||id), qty, unit_price:0 }];
+    }
+
     try{
-      const blob = JSON.stringify(order).toLowerCase();
-      const flat = blob.replace(/\\+/g, "");
-      const out=[];
-      for(const p of PRODUCTS){
-        const pid = p.id.toLowerCase();
-        const pname = p.name.toLowerCase();
-        if(blob.includes(pid) || blob.includes(pname) || (pid.includes("mousse") && blob.includes("mousse")) || (pid.includes("cheesecake") && blob.includes("cheesecake"))){
-          let qty = 1;
-
-          // map: "mousse_maracuya":2
-          let m1 = flat.match(new RegExp('"'+pid+'"' + '\\s*:\\s*(\\d+)', 'i'));
-          if(m1) qty = Number(m1[1])||1;
-
-          // array: {"id":"mousse_maracuya","qty":2}
-          if(!m1){
-            let m2 = flat.match(new RegExp('"id"\\s*:\\s*"'+pid+'".{0,120}?"qty"\\s*:\\s*(\\d+)', 'i'));
-            if(m2) qty = Number(m2[1])||1;
-          }
-          if(!m1){
-            let m3 = flat.match(new RegExp('"qty"\\s*:\\s*(\\d+).{0,120}?"id"\\s*:\\s*"'+pid+'"', 'i'));
-            if(m3) qty = Number(m3[1])||1;
-          }
-
-          out.push({ id: p.id, name: p.name, qty, unit_price:0 });
-        }
-      }
-      if(out.length) return out;
+      const oid = getFieldAny_(order,'order_id','orderid','Order_id','ORDER_ID') || order.order_id;
+      if(oid){ console.warn('AMARED: items vacíos para order_id', oid, 'keys:', Object.keys(order||{})); }
     }catch(_e){}
-
     return [];
   }
 /* kitchen.js (REFactor V6) — AMARED Cocina
@@ -225,7 +202,7 @@
 (() => {
   "use strict";
 
-  console.log("AMARED kitchen v2026-03-02 fix7h stringify fallback");
+  console.log("AMARED kitchen v2026-03-02 fix7i keynorm");
 
   // ========= CONFIG =========
   const API_URL = "https://amared-orders.amaredpostres.workers.dev/";
@@ -568,7 +545,6 @@ const apiPost = (payload) => api(payload);
 
   // ========= ORDERS =========
   function normalizeItemsFromOrder(order){
-    // Fuente única: parser robusto
     return normalizeItemsFromAnyOrder(order);
   }
   function aggregateByProduct(orders){
