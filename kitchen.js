@@ -92,7 +92,7 @@
 (() => {
   "use strict";
 
-  console.log("AMARED kitchen v2026-03-01 doneQty fix3");
+  console.log("AMARED kitchen v2026-03-01 doneQty fix4 prodDay");
 
   // ========= CONFIG =========
   const API_URL = "https://amared-orders.amaredpostres.workers.dev/";
@@ -419,9 +419,8 @@ const apiPost = (payload) => api(payload);
   function getTodayProductionDayKey(){
     const now=new Date();
     const p=getBogotaParts(now);
-    const wd=getWeekdayBogota(now);
-    if(wd===6) return addDaysBogotaKey(p.key,2);
-    if(wd===0) return addDaysBogotaKey(p.key,1);
+    // Importante: "hoy" es el día calendario (Bogotá), incluso si no es laboral.
+    // Los pedidos se asignan a su día de producción con computeProductionDayKeyForOrder().
     return p.key;
   }
   function getNextProductionDayKey(todayKey){
@@ -690,18 +689,15 @@ const clearTimer=(day,pid)=>{ const m=getTimersMap(); if(m?.[day]){ delete m[day
       });
     const pending = todayAll.filter(o=>{ const ks=normStatus(o.kitchen_status); return ks!=="en proceso" && ks!=="listo"; });
 
-    // Informativo mañana (pedidos creados hoy >= 3pm)
-    const lateToday = paid.filter(o=>{
-      const d=new Date(o.created_at); if(Number.isNaN(d.getTime())) return false;
-      const p=getBogotaParts(d); const wd=getWeekdayBogota(d);
-      const nowKey=getBogotaParts(new Date()).key;
-      if(p.key!==nowKey) return false;
-      if(wd===6||wd===0) return false;
-      return p.hh>=CUTOFF_HOUR;
+    // Informativo (próxima producción): pedidos cuyo día de producción es state.nextKey
+    const infoTomorrow = paid.filter(o=>{
+      const ks=normStatus(o.kitchen_status);
+      if(ks==="en proceso" || ks==="listo") return false;
+      return String(o.__prod_day||"") === String(state.nextKey||"");
     });
 
     state.buckets.today=pending;
-    state.buckets.infoTomorrow=lateToday;
+    state.buckets.infoTomorrow=infoTomorrow;
     state.buckets.inProgress=inProgDb;
     state.buckets.inProgressAll = inProgDb || [];
 
