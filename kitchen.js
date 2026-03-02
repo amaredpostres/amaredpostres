@@ -109,30 +109,6 @@
     }
 
     return [];
-  };
-        }).filter(it=>it.id && it.qty>0);
-      }
-    }
-
-    // 2) fallback: items text like "- Nombre: 2"
-    const txt = String(order.items || "").trim();
-    if(txt){
-      const lines = txt.split("\n").map(s=>s.trim()).filter(Boolean);
-      const out = [];
-      for(const line0 of lines){
-        const line = line0.replace(/^-+\s*/, "");
-        const m = line.match(/^(.+?)\s*:\s*(\d+(?:[\.,]\d+)?)$/);
-        if(!m) continue;
-        const name = m[1].trim();
-        const qty = Number(String(m[2]).replace(",",".")) || 0;
-        if(!(qty>0)) continue;
-        // try map name -> product id
-        const p = PRODUCTS.find(x => String(x.name||"").toLowerCase() === name.toLowerCase());
-        out.push({ id: p?.id || name.toLowerCase().replace(/\s+/g,"_"), name, qty, unit_price: Number(p?.unit_price||0) });
-      }
-      return out;
-    }
-    return [];
   }
 /* kitchen.js (REFactor V6) — AMARED Cocina
    Objetivos V6 (según tu último mensaje):
@@ -152,7 +128,7 @@
 (() => {
   "use strict";
 
-  console.log("AMARED kitchen v2026-03-02 fix7b items+final");
+  console.log("AMARED kitchen v2026-03-02 fix7c clean");
 
   // ========= CONFIG =========
   const API_URL = "https://amared-orders.amaredpostres.workers.dev/";
@@ -1808,12 +1784,10 @@ function msToMMSS(ms){
 
     // Finalizados:
     // 1) DB: pedidos con kitchen_status="Listo"
-    // 2) Local: progreso del operador (si aplica)
-    if(doneWrap){
-      doneWrap.innerHTML = `<div id="doneDbBlock"></div><div style="height:12px;"></div><div id="doneLocalBlock"></div>`;
-      renderFinalizadosDb(document.getElementById("doneDbBlock"), state.buckets.doneDb);
-      renderFinalizadosLocal(document.getElementById("doneLocalBlock"), state.paidOrders.filter(o=>String(o.__prod_day||"")===String(state.todayKey||"")), "Finalizado (operador)");
-    }  }
+    renderFinalizadosDb(doneWrap, state.buckets.doneDb);
+    // 2) Local (si marcaste postres como hechos en vista, sin cerrar lote)
+    renderFinalizadosLocal(doneWrap, state.paidOrders.filter(o=>o.__prod_day===state.todayKey), "Finalizado (operador)");
+  }
 
     // ========= Compras (enviar lista a Costos) =========
   function ensureShoppingButton(){
