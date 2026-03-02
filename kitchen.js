@@ -50,6 +50,138 @@
     }
 
     // 1) Prefer items_json (string/array)
+    const raw = order.items_json ?? order.itemsJson ?? order.itemsJSON ?? order.itemsJSONText ?? order.itemsJsonText;
+    if(raw){
+      const parsed = (typeof raw === "string") ? safeJsonParse(raw) : raw;
+      if(Array.isArray(parsed)){
+        return parsed.map(it=>{
+          const name = String(it.name || it.product_name || it.title || "");
+          let id = String(it.id || it.product_id || it.productId || it.sku || "");
+          if(!id && name) id = guessProductIdByName_(name);
+          const qty = Number(it.qty ?? it.units ?? it.quantity ?? it.count ?? 0) || 0;
+          const unit_price = Number(it.unit_price ?? it.price ?? it.unitPrice ?? 0) || 0;
+          return { id, name, qty, unit_price };
+        }).filter(it=>it.id && it.qty>0);
+      }
+    }
+
+    // 2) If "items" is JSON string, parse it
+    if(typeof order.items === "string"){
+      const t = order.items.trim();
+      if((t.startsWith("[") && t.endsWith("]")) || (t.startsWith("{") && t.endsWith("}"))){
+        const parsed = safeJsonParse(t);
+        if(Array.isArray(parsed)){
+          return parsed.map(it=>{
+            const name = String(it.name || it.product_name || it.title || "");
+            let id = String(it.id || it.product_id || it.productId || it.sku || "");
+            if(!id && name) id = guessProductIdByName_(name);
+            const qty = Number(it.qty ?? it.units ?? it.quantity ?? it.count ?? 0) || 0;
+            const unit_price = Number(it.unit_price ?? it.price ?? it.unitPrice ?? 0) || 0;
+            return { id, name, qty, unit_price };
+          }).filter(it=>it.id && it.qty>0);
+        }
+        // Si es objeto único {name, qty}, normalizarlo
+        if(parsed && typeof parsed === "object" && (parsed.name || parsed.product_name) && (parsed.qty || parsed.units || parsed.quantity)){
+          const name = String(parsed.name || parsed.product_name || "");
+          let id = String(parsed.id || parsed.product_id || "");
+          if(!id && name) id = guessProductIdByName_(name);
+          const qty = Number(parsed.qty ?? parsed.units ?? parsed.quantity ?? 0) || 0;
+          const unit_price = Number(parsed.unit_price ?? parsed.price ?? 0) || 0;
+          return (id && qty>0) ? [{ id, name, qty, unit_price }] : [];
+        }
+      }
+    }
+
+    // 3) Text fallback (WhatsApp / plain lines)
+    const txt = String(order.items_text || order.itemsText || order.items || "").trim();
+    if(txt){
+      const lines = txt.split("\n").map(s=>s.trim()).filter(Boolean);
+      const out=[];
+      for(const line0 of lines){
+        const clean0 = line0.replace(/^[\-\•\*\u2022]\s*/,"").trim();
+        if(!clean0) continue;
+
+        // Patterns:
+        // A) "Nombre: 2" / "Nombre x 2" / "Nombre × 2"
+        let mm = clean0.match(/^(.+?)\s*[:xX×]\s*(\d+(?:[.,]\d+)?)\s*$/);
+
+        // B) "2 x Nombre" / "2x Nombre"
+        if(!mm) mm = clean0.match(/^(\d+(?:[.,]\d+)?)\s*(?:x|X|×)\s*(.+?)\s*$/);
+
+        // C) "Nombre (2)" / "Nombre (x2)"
+        if(!mm) mm = clean0.match(/^(.+?)\s*\(\s*(?:x\s*)?(\d+(?:[.,]\d+)?)\s*\)\s*$/);
+
+        // D) "Nombre - 2" / "Nombre — 2"
+        if(!mm) mm = clean0.match(/^(.+?)\s*[-—–]\s*(\d+(?:[.,]\d+)?)\s*$/);
+
+        // E) "2 Nombre" (qty al inicio)
+        if(!mm) mm = clean0.match(/^(\d+(?:[.,]\d+)?)\s+(.+?)\s*$/);
+
+        if(mm){
+          // Normalizar según el patrón
+          let name="", qtyStr="";
+          if(mm.length===3){
+            // patterns A/C/D => name first, qty second OR patterns B/E => qty first, name second
+            const a = mm[1], b = mm[2];
+            // Detect if a is qty
+            if(/^\d/.test(String(a).trim()) && !/^\d/.test(String(b).trim())){
+              qtyStr = String(a); name = String(b);
+            }else{
+              name = String(a); qtyStr = String(b);
+            }
+          }
+          const qty = Number(qtyStr.replace(",", ".")) || 0;
+          if(!(qty>0)) continue;
+          const nameClean = name.trim();
+          let id = guessProductIdByName_(nameClean);
+          if(id) out.push({ id, name: nameClean, qty, unit_price:0 });
+          continue;
+        }
+
+        // F) Si no hay qty, pero el nombre coincide con un producto conocido → asumir 1
+        const guess = guessProductIdByName_(clean0);
+        if(guess){
+          out.push({ id: guess, name: clean0, qty: 1, unit_price:0 });
+          continue;
+        }
+
+        // G) Si hay múltiples productos separados por coma y sin qty → asumir 1 cada uno
+        if(clean0.includes(",")){
+          const parts = clean0.split(",").map(s=>s.trim()).filter(Boolean);
+          for(const p of parts){
+            const gid = guessProductIdByName_(p);
+            if(gid) out.push({ id: gid, name: p, qty: 1, unit_price:0 });
+          }
+        }
+      }
+      if(out.length) return out;
+    }
+
+    // 4) Last resort: product_id + qty columns (si el backend lo trae)
+    if(order.product_id && order.qty){
+      const id = String(order.product_id||"").trim();
+      const qty = Number(order.qty||0) || 0;
+      if(id && qty>0) return [{ id, name:String(order.product_name||id), qty, unit_price:0 }];
+    }
+
+    // Debug (solo si hay pedido pero no pudimos parsear items)
+    try{
+      if((order.items || order.items_json || order.items_text) && !order.___warned_no_items){
+        order.___warned_no_items = true;
+        console.warn("No pude parsear items del pedido", {
+          order_id: order.order_id,
+          items: order.items,
+          items_text: order.items_text,
+          items_json: order.items_json
+        });
+      }
+    }catch(_e){}
+
+    return [];
+  }).filter(it=>it.id && it.qty>0);
+    }
+
+    // 1) Prefer items_json (string/array)
     const raw = order.items_json ?? order.itemsJson ?? order.itemsJSON ?? order.itemsJSONText;
     if(raw){
       const parsed = (typeof raw === "string") ? safeJsonParse(raw) : raw;
@@ -128,7 +260,7 @@
 (() => {
   "use strict";
 
-  console.log("AMARED kitchen v2026-03-02 fix7c clean");
+  console.log("AMARED kitchen v2026-03-02 fix7d items parse++");
 
   // ========= CONFIG =========
   const API_URL = "https://amared-orders.amaredpostres.workers.dev/";
