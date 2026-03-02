@@ -92,7 +92,7 @@
 (() => {
   "use strict";
 
-  console.log("AMARED kitchen v2026-03-01 doneQty fix4 prodDay");
+  console.log("AMARED kitchen v2026-03-01 doneQty fix5 finalBtn");
 
   // ========= CONFIG =========
   const API_URL = "https://amared-orders.amaredpostres.workers.dev/";
@@ -1250,11 +1250,13 @@ function msToMMSS(ms){
   }
 
   function remainingProductsCount(){
-    const todayAll = state.paidOrders.filter(o=>o.__prod_day===state.todayKey);
-    const byProd = aggregateByProduct(todayAll);
+    const todayAll = state.paidOrders.filter(o=>String(o.__prod_day||"")===String(state.todayKey||""));
+    const normStatus = (v)=>String(v||"").trim().toLowerCase();
+    // Contar por producto SOLO los pedidos que aún no están LISTO en BD
+    const pending = todayAll.filter(o=>{ const ks=normStatus(o.kitchen_status); return ks!=="listo"; });
+    const byProd = aggregateByProduct(pending);
     const needed = PRODUCTS.map(p=>p.id).filter(pid=>(byProd.get(pid)||0)>0);
-    const remaining = needed.filter(pid=> getDoneQty(state.todayKey,pid) < (byProd.get(pid)||0));
-    return remaining.length;
+    return needed.length;
   }
 
   function renderRecipeStep(){
