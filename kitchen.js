@@ -215,7 +215,7 @@
 (() => {
   "use strict";
 
-  console.log("AMARED kitchen v2026-03-02 fix7l UI diag");
+  console.log("AMARED kitchen v2026-03-02 fix7m ui-diag+build");
 
   // ========= CONFIG =========
   const API_URL = "https://amared-orders.amaredpostres.workers.dev/";
@@ -1038,7 +1038,7 @@ function startDayRolloverWatch_(){
   }
 function renderProfilesSelect(list, selectedId){
     const arr=Array.isArray(list)?list:[];
-    selOperator.innerHTML = `<option value="">Seleccionar…</option>` + arr.map(p=>`<option value="${escapeHtml(p.name||p.id)}">${escapeHtml(p.label)}</option>`).join("");
+    selOperator.innerHTML = `<option value="">Seleccionar…</option>` + arr.map(p=>`<option value="${escapeHtml(p.id)}">${escapeHtml(p.label)}</option>`).join("");
     if(selectedId) selOperator.value=selectedId;
   }
 
@@ -1085,7 +1085,7 @@ function renderProfilesSelect(list, selectedId){
       if(showAction && doneLocal) continue; // ocultar arriba si ya completó todas las unidades de este postre
 
       cards.push(`
-        <div class="amCard" data-pid="${escapeHtml(p.name||p.id)}" data-units="${qty}">
+        <div class="amCard" data-pid="${escapeHtml(p.id)}" data-units="${qty}">
           <div class="amHead" role="button" tabindex="0" aria-expanded="false">
             <div style="min-width:0;">
               <div class="amName">${escapeHtml(p.name)}</div>
@@ -1106,6 +1106,37 @@ function renderProfilesSelect(list, selectedId){
     }
 
     if(cards.length===0){
+      // Diagnóstico visible: hay pedidos pero no se pueden construir tarjetas (productos no detectados)
+      if((orders||[]).length){
+        const o0 = orders[0] || {};
+        let byList = "";
+        try{
+          const by = aggregateByProduct(orders||[]);
+          byList = [...by.entries()].map(([k,v])=>`${k}: ${v}`).join(", ");
+        }catch(_e){}
+        const diag = {
+          order_id: getFieldAny_(o0,"order_id","orderid","id") ?? o0.order_id,
+          created_at: getFieldAny_(o0,"created_at","createdat") ?? o0.created_at,
+          kitchen_status: getFieldAny_(o0,"kitchen_status","kitchenstatus") ?? o0.kitchen_status,
+          payment_status: getFieldAny_(o0,"payment_status","paymentstatus") ?? o0.payment_status,
+          keys: Object.keys(o0||{}),
+          items: getFieldAny_(o0,"items") ?? o0.items,
+          items_json: getFieldAny_(o0,"items_json","itemsjson","items json","itemsJSON","itemsJson") ?? o0.items_json,
+          items_text: getFieldAny_(o0,"items_text","itemstext","items text","itemsText") ?? o0.items_text,
+        };
+        container.innerHTML = `
+          <div class="muted small" style="padding:8px 0;">
+            Hay <b>${orders.length}</b> pedido(s) en esta sección, pero no se pudieron generar tarjetas de postres.
+          </div>
+          <details style="background:rgba(255,255,255,.75); border:1px solid rgba(64,17,2,.12); border-radius:12px; padding:10px;">
+            <summary style="cursor:pointer; font-weight:900;">Ver diagnóstico</summary>
+            <div class="small muted" style="margin-top:8px;">Productos detectados: <b>${escapeHtml(byList||"(ninguno)")}</b></div>
+            <pre style="white-space:pre-wrap; word-break:break-word; max-height:220px; overflow:auto; margin-top:10px; padding:10px; border-radius:10px; background:rgba(255,255,255,.92); border:1px solid rgba(64,17,2,.10);">${escapeHtml(JSON.stringify(diag,null,2))}</pre>
+          </details>
+        `;
+        console.warn("AMARED DIAG (no cards)", diag, "byProd:", byList);
+        return;
+      }
       container.innerHTML=`<div class="muted small" style="padding:8px 0;">Sin datos.</div>`;
       return;
     }
@@ -1685,7 +1716,7 @@ function msToMMSS(ms){
       if(getDoneQty(state.todayKey,p.id) < qty) continue;
 
       cards.push(`
-        <div class="amCard" data-pid="${escapeHtml(p.name||p.id)}" data-units="${qty}">
+        <div class="amCard" data-pid="${escapeHtml(p.id)}" data-units="${qty}">
           <div class="amHead">
             <div style="min-width:0;">
               <div class="amName">${escapeHtml(p.name)}</div>
@@ -1770,7 +1801,7 @@ function msToMMSS(ms){
         <details class="amCard" open="false">
           <summary class="amHead">
             <div style="min-width:0;">
-              <div class="amName">${escapeHtml(p.label||p.id)}</div>
+              <div class="amName">${escapeHtml(p.name||p.id)}</div>
               <div class="muted small">Listo · ${ids.length} pedido(s)</div>
             </div>
             <div style="text-align:right;">
