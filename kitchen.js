@@ -61,7 +61,6 @@
     if(raw){
       const parsed = (typeof raw === "string") ? safeJsonParse(raw) : raw;
 
-      // 1a) Array of items
       if(Array.isArray(parsed)){
         const out = parsed.map(it=>{
           const name = it?.name ?? it?.product_name ?? it?.title ?? "";
@@ -73,7 +72,7 @@
         if(out.length) return out;
       }
 
-      // 1b) Object wrapper {items:[...]}
+      // Wrapper {items:[...]}
       if(parsed && typeof parsed === "object" && Array.isArray(parsed.items)){
         const out = parsed.items.map(it=>{
           const name = it?.name ?? it?.product_name ?? it?.title ?? "";
@@ -85,7 +84,7 @@
         if(out.length) return out;
       }
 
-      // 1c) Map object {mousse_maracuya:2, cheesecake_cafe_panela:1} OR { "Mousse de maracuyá": 2, ... }
+      // Map object {mousse_maracuya:2, cheesecake_cafe_panela:1} or {"Mousse de maracuyá":2}
       if(parsed && typeof parsed === "object"){
         const out=[];
         for(const [k,v] of Object.entries(parsed)){
@@ -106,7 +105,6 @@
       const t = order.items.trim();
       if((t.startsWith("[") && t.endsWith("]")) || (t.startsWith("{") && t.endsWith("}"))){
         const parsed = safeJsonParse(t);
-
         if(Array.isArray(parsed)){
           const out = parsed.map(it=>{
             const name = it?.name ?? it?.product_name ?? it?.title ?? "";
@@ -117,8 +115,6 @@
           }).filter(Boolean);
           if(out.length) return out;
         }
-
-        // object forms
         if(parsed && typeof parsed === "object"){
           // {name, qty}
           if((parsed.name || parsed.product_name) && (parsed.qty || parsed.units || parsed.quantity)){
@@ -139,26 +135,12 @@
       }
     }
 
-    // 3) Text fallback: try dedicated fields then scan all string fields
-    const collectTextFields = ()=>{
-      const fields = [];
-      const keys = ["items_text","itemsText","items","items_summary","itemsSummary","wa_message","message","note","order_text","orderText"];
-      for(const k of keys){
-        if(typeof order[k] === "string" && order[k].trim()) fields.push(order[k].trim());
-      }
-      // scan all string values (last resort)
-      for(const [k,v] of Object.entries(order)){
-        if(typeof v === "string" && v.length>0 && v.length<=3000){
-          if(keys.includes(k)) continue;
-          // avoid URLs/ids only
-          fields.push(v);
-        }
-      }
-      // de-dup
-      return [...new Set(fields)].join("\n");
-    };
-
-    const txt = collectTextFields().trim();
+    // 3) Text fallback: use known fields first
+    const candidates = [];
+    for(const k of ["items_text","itemsText","items","items_summary","itemsSummary","wa_message","message","note","order_text","orderText"]){
+      if(typeof order[k] === "string" && order[k].trim()) candidates.push(order[k].trim());
+    }
+    const txt = candidates.join("\n").trim();
     if(txt){
       const lines = txt.split("\n").map(s=>s.trim()).filter(Boolean);
       const out=[];
@@ -166,71 +148,61 @@
         const clean0 = line0.replace(/^[\-\•\*\u2022]\s*/,"").trim();
         if(!clean0) continue;
 
-        // A) "Nombre: 2" / "Nombre x 2" / "Nombre × 2"
         let mm = clean0.match(/^(.+?)\s*[:xX×]\s*(\d+(?:[.,]\d+)?)\s*$/);
-
-        // B) "2 x Nombre"
         if(!mm) mm = clean0.match(/^(\d+(?:[.,]\d+)?)\s*(?:x|X|×)\s*(.+?)\s*$/);
-
-        // C) "Nombre (2)" / "Nombre (x2)"
         if(!mm) mm = clean0.match(/^(.+?)\s*\(\s*(?:x\s*)?(\d+(?:[.,]\d+)?)\s*\)\s*$/);
-
-        // D) "Nombre - 2"
         if(!mm) mm = clean0.match(/^(.+?)\s*[-—–]\s*(\d+(?:[.,]\d+)?)\s*$/);
-
-        // E) "2 Nombre"
         if(!mm) mm = clean0.match(/^(\d+(?:[.,]\d+)?)\s+(.+?)\s*$/);
 
-        if(mm){
-          let name="", qtyStr="";
-          if(mm.length===3){
-            const a = String(mm[1]).trim();
-            const b = String(mm[2]).trim();
-            if(/^\d/.test(a) && !/^\d/.test(b)){ qtyStr=a; name=b; }
-            else { name=a; qtyStr=b; }
-          }
+        if(mm && mm.length===3){
+          const a = String(mm[1]).trim();
+          const b = String(mm[2]).trim();
+          const qtyStr = (/^\d/.test(a) && !/^\d/.test(b)) ? a : b;
+          const name   = (/^\d/.test(a) && !/^\d/.test(b)) ? b : a;
           const qty = Number(qtyStr.replace(",", ".")) || 0;
-          if(!(qty>0)) continue;
-          const item = mkItem(name.trim(), qty, "", 0);
+          const item = mkItem(name, qty, "", 0);
           if(item) out.push(item);
           continue;
         }
 
-        // F) Name only -> assume 1 if recognizable
         const gid = guessProductIdByName_(clean0);
         if(gid){
           const item = mkItem(clean0, 1, gid, 0);
           if(item) out.push(item);
-          continue;
-        }
-
-        // G) comma list -> assume 1 each
-        if(clean0.includes(",")){
-          const parts = clean0.split(",").map(s=>s.trim()).filter(Boolean);
-          for(const p of parts){
-            const item = mkItem(p, 1, "", 0);
-            if(item) out.push(item);
-          }
         }
       }
       if(out.length) return out;
     }
 
-    // 4) Last resort: product_id + qty
-    if(order.product_id && order.qty){
-      const item = mkItem(order.product_name || order.product_id, order.qty, order.product_id, 0);
-      if(item) return [item];
-    }
-
-    // Debug (si hay pedido pero no pudimos parsear)
+    // 4) FINAL FALLBACK: stringify completo del pedido y buscar patrones/ids/nombres
     try{
-      console.warn("AMARED: No pude detectar items del pedido", {
-        order_id: order.order_id,
-        keys: Object.keys(order||{}).slice(0,50),
-        items: order.items,
-        items_text: order.items_text,
-        items_json: order.items_json
-      });
+      const blob = JSON.stringify(order).toLowerCase();
+      const flat = blob.replace(/\\+/g, "");
+      const out=[];
+      for(const p of PRODUCTS){
+        const pid = p.id.toLowerCase();
+        const pname = p.name.toLowerCase();
+        if(blob.includes(pid) || blob.includes(pname) || (pid.includes("mousse") && blob.includes("mousse")) || (pid.includes("cheesecake") && blob.includes("cheesecake"))){
+          let qty = 1;
+
+          // map: "mousse_maracuya":2
+          let m1 = flat.match(new RegExp('"'+pid+'"' + '\\s*:\\s*(\\d+)', 'i'));
+          if(m1) qty = Number(m1[1])||1;
+
+          // array: {"id":"mousse_maracuya","qty":2}
+          if(!m1){
+            let m2 = flat.match(new RegExp('"id"\\s*:\\s*"'+pid+'".{0,120}?"qty"\\s*:\\s*(\\d+)', 'i'));
+            if(m2) qty = Number(m2[1])||1;
+          }
+          if(!m1){
+            let m3 = flat.match(new RegExp('"qty"\\s*:\\s*(\\d+).{0,120}?"id"\\s*:\\s*"'+pid+'"', 'i'));
+            if(m3) qty = Number(m3[1])||1;
+          }
+
+          out.push({ id: p.id, name: p.name, qty, unit_price:0 });
+        }
+      }
+      if(out.length) return out;
     }catch(_e){}
 
     return [];
@@ -253,7 +225,7 @@
 (() => {
   "use strict";
 
-  console.log("AMARED kitchen v2026-03-02 fix7g items detect all");
+  console.log("AMARED kitchen v2026-03-02 fix7h stringify fallback");
 
   // ========= CONFIG =========
   const API_URL = "https://amared-orders.amaredpostres.workers.dev/";
