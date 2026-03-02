@@ -50,6 +50,17 @@
     return "";
   }
 
+  const KNOWN_PRODUCT_IDS = new Set(["mousse_maracuya","cheesecake_cafe_panela","arroz_con_leche"]);
+  // Canoniza IDs: si el backend trae un "id" raro (ej: nombre del producto), lo convertimos a los IDs internos esperados.
+  function canonicalProductId_(pid, name){
+    const p = String(pid||"").trim();
+    if(p && KNOWN_PRODUCT_IDS.has(p)) return p;
+    const g = guessProductIdByName_(name || p);
+    if(g) return g;
+    return p;
+  }
+
+
 // Items parser (works with Apps Script rows: items_json + items text)
   function normalizeItemsFromAnyOrder(order){
     if(!order) return [];
@@ -75,7 +86,8 @@
         return parsed.map(it=>{
           const name = String(it.name || it.product_name || it.title || "");
           let id = String(it.id || it.product_id || it.productId || it.sku || "");
-          if(!id && name) id = guessProductIdByName_(name);
+          id = canonicalProductId_(id, name);
+          if(!id && name) id = canonicalProductId_("", name);
           const qty = Number(it.qty ?? it.units ?? it.quantity ?? it.count ?? 0) || 0;
           const unit_price = Number(it.unit_price ?? it.price ?? it.unitPrice ?? 0) || 0;
           return { id, name, qty, unit_price };
@@ -101,7 +113,8 @@
         if(parsed && typeof parsed === "object" && (parsed.name || parsed.product_name) && (parsed.qty || parsed.units || parsed.quantity)){
           const name = String(parsed.name || parsed.product_name || "");
           let id = String(parsed.id || parsed.product_id || "");
-          if(!id && name) id = guessProductIdByName_(name);
+          id = canonicalProductId_(id, name);
+          if(!id && name) id = canonicalProductId_("", name);
           const qty = Number(parsed.qty ?? parsed.units ?? parsed.quantity ?? 0) || 0;
           const unit_price = Number(parsed.unit_price ?? parsed.price ?? 0) || 0;
           return (id && qty>0) ? [{ id, name, qty, unit_price }] : [];
@@ -153,7 +166,7 @@
         }
 
         // F) Nombre sin qty -> si coincide, asumir 1
-        const gid = guessProductIdByName_(clean0);
+        const gid = canonicalProductId_(guessProductIdByName_(clean0), clean0);
         if(gid){
           out.push({ id: gid, name: clean0, qty: 1, unit_price:0 });
           continue;
@@ -175,7 +188,7 @@
     if(order.product_id && order.qty){
       const id = String(order.product_id||"").trim();
       const qty = Number(order.qty||0) || 0;
-      if(id && qty>0) return [{ id, name:String(order.product_name||id), qty, unit_price:0 }];
+      if(id && qty>0) return [{ id: canonicalProductId_(id, String(order.product_name||id)), name:String(order.product_name||id), qty, unit_price:0 }];
     }
 
     try{
@@ -202,7 +215,7 @@
 (() => {
   "use strict";
 
-  console.log("AMARED kitchen v2026-03-02 fix7i keynorm");
+  console.log("AMARED kitchen v2026-03-02 fix7j canonical IDs");
 
   // ========= CONFIG =========
   const API_URL = "https://amared-orders.amaredpostres.workers.dev/";
@@ -554,6 +567,10 @@ const apiPost = (payload) => api(payload);
         map.set(it.id,(map.get(it.id)||0)+it.qty);
       }
     }
+        try{
+      const unknownKeys = [...map.keys()].filter(k=>!KNOWN_PRODUCT_IDS.has(String(k)));
+      if(unknownKeys.length) console.warn('AMARED: IDs de productos desconocidos en pedido(s):', unknownKeys);
+    }catch(_e){}
     return map;
   }
   function getOrderIdsThatContainProduct(orders,pid){
@@ -1852,10 +1869,11 @@ function msToMMSS(ms){
     }catch(_e){} 
 
     // Finalizados:
-    // 1) DB: pedidos con kitchen_status="Listo"
-    renderFinalizadosDb(doneWrap, state.buckets.doneDb);
-    // 2) Local (si marcaste postres como hechos en vista, sin cerrar lote)
-    renderFinalizadosLocal(doneWrap, state.paidOrders.filter(o=>o.__prod_day===state.todayKey), "Finalizado (operador)");
+    if(doneWrap){
+      doneWrap.innerHTML = `<div id="doneDbBlock"></div><div style="height:12px;"></div><div id="doneLocalBlock"></div>`;
+      renderFinalizadosDb(document.getElementById("doneDbBlock"), state.buckets.doneDb);
+      renderFinalizadosLocal(document.getElementById("doneLocalBlock"), state.paidOrders.filter(o=>String(o.__prod_day||"")===String(state.todayKey||"")), "Finalizado (operador)");
+    }
   }
 
     // ========= Compras (enviar lista a Costos) =========
