@@ -180,7 +180,7 @@
 (() => {
   "use strict";
 
-  console.log("AMARED kitchen v2026-03-02 fix7e itemsparse");
+  console.log("AMARED kitchen v2026-03-02 fix7f items-wired");
 
   // ========= CONFIG =========
   const API_URL = "https://amared-orders.amaredpostres.workers.dev/";
@@ -523,12 +523,8 @@ const apiPost = (payload) => api(payload);
 
   // ========= ORDERS =========
   function normalizeItemsFromOrder(order){
-    const raw=order?.items_json;
-    const parsed = raw ? (typeof raw==="string"? safeJsonParse(raw):raw) : null;
-    if(Array.isArray(parsed)){
-      return parsed.map(it=>({id:String(it.id||""),name:String(it.name||""),qty:Number(it.qty||0)})).filter(it=>it.id && it.qty>0);
-    }
-    return [];
+    // Fuente única: parser robusto
+    return normalizeItemsFromAnyOrder(order);
   }
   function aggregateByProduct(orders){
     const map=new Map();
