@@ -14,7 +14,25 @@
   }
 
 
-  // Items parser (works with Apps Script rows: items_json + items text)
+  
+  function normTextKey_(s){
+    return String(s||"")
+      .toLowerCase()
+      .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+      .replace(/[^a-z0-9\s]/g, " ")
+      .replace(/\s{2,}/g, " ")
+      .trim();
+  }
+  function guessProductIdByName_(name){
+    const n = normTextKey_(name);
+    if(!n) return "";
+    if(n.includes("mousse") && (n.includes("maracuya") || n.includes("maracuja") || n.includes("maracu"))) return "mousse_maracuya";
+    if(n.includes("cheesecake") && (n.includes("cafe") || n.includes("caf"))) return "cheesecake_cafe_panela";
+    if(n.includes("arroz") && n.includes("leche")) return "arroz_con_leche";
+    return "";
+  }
+
+// Items parser (works with Apps Script rows: items_json + items text)
   function normalizeItemsFromAnyOrder(order){
     if(!order) return [];
     // 1) prefer items_json
@@ -22,12 +40,17 @@
     if(raw){
       const parsed = (typeof raw === "string") ? safeJsonParse(raw) : raw;
       if(Array.isArray(parsed)){
-        return parsed.map(it=>({
-          id: String(it.id || it.product_id || ""),
-          name: String(it.name || ""),
-          qty: Number(it.qty || it.units || 0) || 0,
-          unit_price: Number(it.unit_price ?? it.price ?? 0) || 0,
-        })).filter(it=>it.id && it.qty>0);
+        return parsed.map(it=>{
+          const name = String(it.name || "");
+          let id = String(it.id || it.product_id || "");
+          if(!id && name) id = guessProductIdByName_(name);
+          return {
+            id,
+            name,
+            qty: Number(it.qty || it.units || 0) || 0,
+            unit_price: Number(it.unit_price ?? it.price ?? 0) || 0,
+          };
+        }).filter(it=>it.id && it.qty>0);
       }
     }
 
@@ -69,7 +92,7 @@
 (() => {
   "use strict";
 
-  console.log("AMARED kitchen v2026-03-01 doneQty fix2");
+  console.log("AMARED kitchen v2026-03-01 doneQty fix3");
 
   // ========= CONFIG =========
   const API_URL = "https://amared-orders.amaredpostres.workers.dev/";
@@ -677,11 +700,6 @@ const clearTimer=(day,pid)=>{ const m=getTimersMap(); if(m?.[day]){ delete m[day
       return p.hh>=CUTOFF_HOUR;
     });
 
-    
-    // Mapas de control por producto (para evitar errores cuando entran pedidos nuevos)
-    state.requiredByProdToday = aggregateByProduct(todayAll);           // total pagado del día (incluye listo/en proceso/no iniciar)
-    state.doneDbByProdToday = aggregateByProduct(doneDb.filter(o=>String(o.__prod_day||"")===String(state.todayKey||"")));
-
     state.buckets.today=pending;
     state.buckets.infoTomorrow=lateToday;
     state.buckets.inProgress=inProgDb;
@@ -895,49 +913,24 @@ function renderProfilesSelect(list, selectedId){
     // Decide qué mostrar en cada bloque: ocultar los hechos (local) arriba
     const cards=[];
     for(const p of PRODUCTS){
-      const qtyRaw=byProd.get(p.id)||0;
-      if(qtyRaw<=0) continue;
+      const qty=byProd.get(p.id)||0;
+      if(qty<=0) continue;
 
-      const dayKey = (opts && opts.dayKey) ? String(opts.dayKey) : String(todayKey||"");
-      const requiredMap = opts && opts.requiredMap;
-      const doneDbMap = opts && opts.doneDbMap;
-
-      // Progreso local (unidades hechas) y ajuste para evitar que se oculten postres cuando entran pedidos nuevos
-      const doneLocalQty = getDoneQty(dayKey, p.id);
-
-      let qtyTodo = qtyRaw;       // unidades a producir en esta vista
-      let requiredTotal = qtyRaw; // total del día (si se pasa map)
-      let doneDbQty = 0;
-
-      if(showAction && requiredMap && doneDbMap){
-        requiredTotal = Number(requiredMap.get(p.id)||0) || qtyRaw;
-        doneDbQty = Number(doneDbMap.get(p.id)||0) || 0;
-
-        // Unidades hechas localmente pero aún NO reflejadas en BD (siguen contando en "pendientes")
-        const localExtra = Math.max(0, doneLocalQty - doneDbQty);
-
-        // Para esta tarjeta (pendientes) solo mostramos lo que realmente falta hacer
-        qtyTodo = Math.max(0, qtyRaw - localExtra);
-
-        if(qtyTodo<=0) continue;
-      }
-
-      const doneShown = Math.min(doneLocalQty, requiredTotal);
-      const doneLocal = (requiredTotal>0) && (doneShown >= requiredTotal);
-      const partial = (doneShown > 0) && (doneShown < requiredTotal);
-
-      const pill = doneLocal ? "✅ Hecho" : (partial ? ("Hecho " + fmtQty(doneShown) + "/" + fmtQty(requiredTotal)) : "Ver");
+      const doneQty = getDoneQty(todayKey, p.id);
+      const doneLocal = (qty>0) && (doneQty >= qty);
+      const partial = (doneQty > 0) && (doneQty < qty);
+      if(showAction && doneLocal) continue; // ocultar arriba si ya completó todas las unidades de este postre
 
       cards.push(`
-        <div class="amCard" data-pid="${escapeHtml(p.id)}" data-units="${qtyTodo}">
+        <div class="amCard" data-pid="${escapeHtml(p.id)}" data-units="${qty}">
           <div class="amHead" role="button" tabindex="0" aria-expanded="false">
             <div style="min-width:0;">
               <div class="amName">${escapeHtml(p.name)}</div>
               <div class="muted small" style="margin-top:8px;">${escapeHtml(badgeText||"")}</div>
             </div>
             <div style="display:flex; flex-direction:column; align-items:flex-end; gap:10px;">
-              <div class="amQty">${qtyTodo}</div>
-              <div class="amPill">${pill} <span aria-hidden="true">▾</span></div>
+              <div class="amQty">${qty}</div>
+              <div class="amPill">${doneLocal ? "✅ Hecho" : (partial ? ("Hecho " + fmtQty(doneQty) + "/" + qty) : "Ver")} <span aria-hidden="true">▾</span></div>
             </div>
           </div>
           <div class="amBody" data-loaded="0"><div class="muted small">Cargando ingredientes…</div></div>
@@ -1476,11 +1469,13 @@ function msToMMSS(ms){
 
     // Guardar progreso en unidades producidas para este día/producto
     try{
-      const produced = Number(state.recipe.units||0) || 0;
-      if(produced>0) addDoneQty(state.todayKey, pid, produced);
+      const todayAll = state.paidOrders.filter(o=>o.__prod_day===state.todayKey);
+      const byProdNow = aggregateByProduct(todayAll);
+      const required = Number(byProdNow.get(pid)||0) || Number(state.recipe.units||0) || 0;
+      // Si ya había avance, conservar el máximo
+      setDoneQty(state.todayKey, pid, Math.max(getDoneQty(state.todayKey,pid), required));
     }catch(_e){
-      const produced = Number(state.recipe.units||0) || 0;
-      if(produced>0) addDoneQty(state.todayKey, pid, produced);
+      setDoneQty(state.todayKey, pid, Math.max(getDoneQty(state.todayKey,pid), Number(state.recipe.units||0)||0));
     }
     clearTimer(state.todayKey,pid);
     closeRecipe();
@@ -1520,22 +1515,20 @@ function msToMMSS(ms){
     const byProd = aggregateByProduct(orders);
     const cards=[];
     for(const p of PRODUCTS){
-      const required = Number(byProd.get(p.id)||0) || 0;
-      if(required<=0) continue;
-      const doneQtyLocal = getDoneQty(state.todayKey, p.id);
-      if(doneQtyLocal<=0) continue;
-      const qtyDone = Math.min(doneQtyLocal, required);
+      const qty=byProd.get(p.id)||0;
+      if(qty<=0) continue;
+      if(getDoneQty(state.todayKey,p.id) < qty) continue;
 
       cards.push(`
-        <div class="amCard" data-pid="${escapeHtml(p.id)}" data-units="${qtyTodo}">
+        <div class="amCard" data-pid="${escapeHtml(p.id)}" data-units="${qty}">
           <div class="amHead">
             <div style="min-width:0;">
               <div class="amName">${escapeHtml(p.name)}</div>
-              <div class="muted small" style="margin-top:8px;">${escapeHtml(badge||"Progreso")}</div>
+              <div class="muted small" style="margin-top:8px;">${escapeHtml(badge||"Finalizado")}</div>
             </div>
             <div style="display:flex; flex-direction:column; align-items:flex-end; gap:10px;">
-              <div class="amQty">${qtyTodo}</div>
-              <div class="amPill">${(qtyDone>=required) ? "✅ Hecho" : ("Hecho " + fmtQty(qtyDone) + "/" + fmtQty(required))}</div>
+              <div class="amQty">${qty}</div>
+              <div class="amPill">✅ Hecho</div>
               <div class="muted small">Ver ▾</div>
             </div>
           </div>
@@ -1616,7 +1609,7 @@ function msToMMSS(ms){
               <div class="muted small">Listo · ${ids.length} pedido(s)</div>
             </div>
             <div style="text-align:right;">
-              <div class="amQty">${qtyTodo}</div>
+              <div class="amQty">${qty}</div>
               <div class="muted small">unidades</div>
             </div>
           </summary>
@@ -1679,7 +1672,7 @@ function msToMMSS(ms){
   }
 
   function renderAll(){
-    renderProductCards(todayWrap, state.buckets.today, {badgeText:`Producción ${state.todayKey}`, showAction:true, requiredMap: state.requiredByProdToday, doneDbMap: state.doneDbByProdToday, dayKey: state.todayKey});
+    renderProductCards(todayWrap, state.buckets.today, {badgeText:`Producción ${state.todayKey}`, showAction:true});
     renderProductCards(tomorrowWrap, state.buckets.infoTomorrow, {badgeText:`Informativo (${state.nextKey})`, showAction:false});
     renderProductCards(backlogWrap, state.buckets.backlog||[], {badgeText:"Pendientes pagados", showAction:true});
 
@@ -1711,13 +1704,11 @@ function msToMMSS(ms){
     }catch(_e){} 
 
     // Finalizados:
-    // - DB: pedidos con kitchen_status="Listo"
-    // - Local: progreso del operador (aunque no haya cerrado lote aún)
-    if(doneWrap){
-      doneWrap.innerHTML = `<div id="doneDbWrap"></div><div id="doneLocalWrap" style="margin-top:12px;"></div>`;
-      renderFinalizadosDb(document.getElementById("doneDbWrap"), state.buckets.doneDb);
-      renderFinalizadosLocal(document.getElementById("doneLocalWrap"), state.paidOrders.filter(o=>o.__prod_day===state.todayKey), "Progreso del operador");
-    }
+    // 1) DB: pedidos con kitchen_status="Listo"
+    renderFinalizadosDb(doneWrap, state.buckets.doneDb);
+    // 2) Local (si marcaste postres como hechos en vista, sin cerrar lote)
+    renderFinalizadosLocal(doneWrap, state.paidOrders.filter(o=>o.__prod_day===state.todayKey), "Finalizado (operador)");
+  }
 
     // ========= Compras (enviar lista a Costos) =========
   function ensureShoppingButton(){
