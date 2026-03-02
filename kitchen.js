@@ -69,7 +69,7 @@
 (() => {
   "use strict";
 
-  console.log("AMARED kitchen recipes-linked UXfix10 v2026-02-26");
+  console.log("AMARED kitchen v2026-03-01 doneQty fix");
 
   // ========= CONFIG =========
   const API_URL = "https://amared-orders.amaredpostres.workers.dev/";
@@ -438,20 +438,27 @@ const apiPost = (payload) => api(payload);
   }
 
   // ========= DONE / TIMERS (LOCAL) =========
-  const getDoneMap=()=>{ const r=localStorage.getItem(LS_DONE_KEY); const o=r?safeJsonParse(r):null; return (o&&typeof o==="object")?o:{}; };
-  const setDoneMap=(o)=> localStorage.setItem(LS_DONE_KEY, JSON.stringify(o||{}));
-  const isProductDone=(day,pid)=> !!(getDoneMap()?.[day]?.[pid]);
-  function markProductDone(day,pid,val){
-    const m=getDoneMap(); if(!m[day]) m[day]={}; m[day][pid]=!!val; setDoneMap(m);
-  }
+// Guardamos progreso por día y por producto en CANTIDAD (no boolean).
+// Así, si llegan pedidos nuevos (más unidades), el postre vuelve a aparecer como pendiente.
+const getDoneMap=()=>{ const r=localStorage.getItem(LS_DONE_KEY); const o=r?safeJsonParse(r):null; return (o&&typeof o==="object")?o:{}; };
+const setDoneMap=(o)=> localStorage.setItem(LS_DONE_KEY, JSON.stringify(o||{}));
+const getDoneQty=(day,pid)=> Number(getDoneMap()?.[day]?.[pid]||0);
+function setDoneQty(day,pid,qty){
+  const m=getDoneMap(); if(!m[day]) m[day]={};
+  m[day][pid]=Math.max(0, Number(qty||0));
+  setDoneMap(m);
+}
+function addDoneQty(day,pid,delta){
+  setDoneQty(day,pid, getDoneQty(day,pid) + Number(delta||0));
+}
 
-  const getTimersMap=()=>{ const r=localStorage.getItem(LS_TIMER_KEY); const o=r?safeJsonParse(r):null; return (o&&typeof o==="object")?o:{}; };
-  const setTimersMap=(o)=> localStorage.setItem(LS_TIMER_KEY, JSON.stringify(o||{}));
-  const setTimerEnd=(day,pid,end)=>{ const m=getTimersMap(); if(!m[day]) m[day]={}; m[day][pid]=Number(end||0); setTimersMap(m); };
-  const getTimerEnd=(day,pid)=> Number(getTimersMap()?.[day]?.[pid]||0);
-  const clearTimer=(day,pid)=>{ const m=getTimersMap(); if(m?.[day]){ delete m[day][pid]; setTimersMap(m); } };
+const getTimersMap=()=>{ const r=localStorage.getItem(LS_TIMER_KEY); const o=r?safeJsonParse(r):null; return (o&&typeof o==="object")?o:{}; };
+const setTimersMap=(o)=> localStorage.setItem(LS_TIMER_KEY, JSON.stringify(o||{}));
+const setTimerEnd=(day,pid,end)=>{ const m=getTimersMap(); if(!m[day]) m[day]={}; m[day][pid]=Number(end||0); setTimersMap(m); };
+const getTimerEnd=(day,pid)=> Number(getTimersMap()?.[day]?.[pid]||0);
+const clearTimer=(day,pid)=>{ const m=getTimersMap(); if(m?.[day]){ delete m[day][pid]; setTimersMap(m); } };
 
-  // ========= COSTOS (normalización) =========
+// ========= COSTOS (normalización) =========
   const stripAccents=(s)=> String(s||"").normalize("NFD").replace(/[\u0300-\u036f]/g,"");
   const normalizeKey1=(s)=> String(s||"").replace(/\([^\)]*\)/g,"").replace(/\s{2,}/g," ").trim();
   function normalizeKey2(s){
@@ -886,8 +893,10 @@ function renderProfilesSelect(list, selectedId){
       const qty=byProd.get(p.id)||0;
       if(qty<=0) continue;
 
-      const doneLocal = isProductDone(todayKey, p.id);
-      if(showAction && doneLocal) continue; // ocultar arriba si ya finalizó postre
+      const doneQty = getDoneQty(todayKey, p.id);
+      const doneLocal = (qty>0) && (doneQty >= qty);
+      const partial = (doneQty > 0) && (doneQty < qty);
+      if(showAction && doneLocal) continue; // ocultar arriba si ya completó todas las unidades de este postre
 
       cards.push(`
         <div class="amCard" data-pid="${escapeHtml(p.id)}" data-units="${qty}">
@@ -898,7 +907,7 @@ function renderProfilesSelect(list, selectedId){
             </div>
             <div style="display:flex; flex-direction:column; align-items:flex-end; gap:10px;">
               <div class="amQty">${qty}</div>
-              <div class="amPill">${doneLocal?"✅ Hecho":"Ver"} <span aria-hidden="true">▾</span></div>
+              <div class="amPill">${doneLocal ? "✅ Hecho" : (partial ? ("Hecho " + fmtQty(doneQty) + "/" + qty) : "Ver")} <span aria-hidden="true">▾</span></div>
             </div>
           </div>
           <div class="amBody" data-loaded="0"><div class="muted small">Cargando ingredientes…</div></div>
@@ -1225,7 +1234,7 @@ function msToMMSS(ms){
     const todayAll = state.paidOrders.filter(o=>o.__prod_day===state.todayKey);
     const byProd = aggregateByProduct(todayAll);
     const needed = PRODUCTS.map(p=>p.id).filter(pid=>(byProd.get(pid)||0)>0);
-    const remaining = needed.filter(pid=>!isProductDone(state.todayKey,pid));
+    const remaining = needed.filter(pid=> getDoneQty(state.todayKey,pid) < (byProd.get(pid)||0));
     return remaining.length;
   }
 
@@ -1435,7 +1444,16 @@ function msToMMSS(ms){
     const ok=await confirmWithDelay({title:"Finalizar postre", message:"Este postre pasará a Finalizados (vista).", seconds:2, okText:"Finalizar"});
     if(!ok) return;
 
-    markProductDone(state.todayKey,pid,true);
+    // Guardar progreso en unidades producidas para este día/producto
+    try{
+      const todayAll = state.paidOrders.filter(o=>o.__prod_day===state.todayKey);
+      const byProdNow = aggregateByProduct(todayAll);
+      const required = Number(byProdNow.get(pid)||0) || Number(state.recipe.units||0) || 0;
+      // Si ya había avance, conservar el máximo
+      setDoneQty(state.todayKey, pid, Math.max(getDoneQty(state.todayKey,pid), required));
+    }catch(_e){
+      setDoneQty(state.todayKey, pid, Math.max(getDoneQty(state.todayKey,pid), Number(state.recipe.units||0)||0));
+    }
     clearTimer(state.todayKey,pid);
     closeRecipe();
     renderAll();
@@ -1455,8 +1473,8 @@ function msToMMSS(ms){
     showLoading("Finalizando lote…","Actualizando base de datos…");
     try{
       await kitchenBulkUpdate(ids,{kitchen_status:"Listo"});
-      // Limpieza local
-      for(const p of PRODUCTS) markProductDone(state.todayKey,p.id,false);
+      // Limpieza local (solo temporizadores). No borramos progreso por producto, para evitar inconsistencias si llegan pedidos nuevos.
+      for(const p of PRODUCTS) clearTimer(state.todayKey, p.id);
       closeRecipe();
       await refresh();
     }catch(e){
@@ -1476,7 +1494,7 @@ function msToMMSS(ms){
     for(const p of PRODUCTS){
       const qty=byProd.get(p.id)||0;
       if(qty<=0) continue;
-      if(!isProductDone(state.todayKey,p.id)) continue;
+      if(getDoneQty(state.todayKey,p.id) < qty) continue;
 
       cards.push(`
         <div class="amCard" data-pid="${escapeHtml(p.id)}" data-units="${qty}">
