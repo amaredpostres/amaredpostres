@@ -1,15 +1,37 @@
 
 
   // Safe JSON parse (returns fallback on error)
-  function safeJsonParse(v, fallback){
+  function safeJsonParse(v){
     try{
-      if(v == null) return fallback;
-      if(typeof v === "object") return v;
-      const s = String(v).trim();
-      if(!s) return fallback;
-      return JSON.parse(s);
-    }catch(_e){
-      return fallback;
+      if(v==null) return null;
+      if(typeof v==="object") return v;
+      let t=String(v).trim();
+      if(!t) return null;
+
+      // If double-quoted JSON inside quotes: "\"[{...}]\""
+      if((t.startsWith('"') && t.endsWith('"')) || (t.startsWith("'") && t.endsWith("'"))){
+        t = t.slice(1,-1);
+      }
+
+      // First attempt
+      try{ return JSON.parse(t); }catch(_e){}
+
+      // Unescape common \" sequences
+      try{ return JSON.parse(t.replace(/\\"/g,'"')); }catch(_e){}
+
+      // decodeURIComponent if looks encoded
+      if(/%7B|%5B|%22/.test(t)){
+        try{ return JSON.parse(decodeURIComponent(t)); }catch(_e){}
+      }
+
+      // Replace single quotes to double (last resort)
+      if(t.includes("'") && !t.includes('"')){
+        try{ return JSON.parse(t.replace(/'/g,'"')); }catch(_e){}
+      }
+
+      return null;
+    }catch(e){
+      return null;
     }
   }
 
@@ -65,65 +87,100 @@
   function normalizeItemsFromAnyOrder(order){
     if(!order) return [];
 
+    const pick = (it, ...keys)=>{
+      for(const k of keys){
+        if(it && Object.prototype.hasOwnProperty.call(it,k) && it[k]!=null) return it[k];
+      }
+      // try case-insensitive / non-alnum match
+      try{
+        const norm=(s)=>String(s||"").toLowerCase().replace(/[^a-z0-9]/g,"");
+        const map={};
+        for(const kk in it){ map[norm(kk)]=it[kk]; }
+        for(const k of keys){
+          const nk=norm(k);
+          if(Object.prototype.hasOwnProperty.call(map,nk)) return map[nk];
+        }
+      }catch(_e){}
+      return undefined;
+    };
+
+    const mkItem = (name, qty, pid, unit_price)=>{
+      const n=String(name||"").trim();
+      const q=Number(qty||0)||0;
+      let id=String(pid||"").trim();
+      id = canonicalProductId_(id, n);
+      if(!id && n) id = canonicalProductId_("", n);
+      const up=Number(unit_price||0)||0;
+      return (id && q>0) ? { id, name:n, qty:q, unit_price:up } : null;
+    };
+
     // 0) Direct array in "items"
-    const directArr = getFieldAny_(order,'items') ?? order.items;
+    const directArr = getFieldAny_(order,"items") ?? order.items;
     if(Array.isArray(directArr)){
-      return directArr.map(it=>{
-        const name = String(it.name || it.product_name || it.title || "");
-        let id = String(it.id || it.product_id || it.productId || it.sku || "");
-        if(!id && name) id = guessProductIdByName_(name);
-        const qty = Number(it.qty ?? it.units ?? it.quantity ?? it.count ?? 0) || 0;
-        const unit_price = Number(it.unit_price ?? it.price ?? it.unitPrice ?? 0) || 0;
-        return { id, name, qty, unit_price };
-      }).filter(it=>it.id && it.qty>0);
+      const out = directArr.map(it=>{
+        const name = pick(it,"name","product_name","title","label");
+        const pid  = pick(it,"id","pid","product_id","productId","product","sku");
+        const qty  = pick(it,"qty","q","units","quantity","count");
+        const up   = pick(it,"unit_price","unitPrice","price","up");
+        return mkItem(name, qty, pid, up);
+      }).filter(Boolean);
+      if(out.length) return out;
     }
 
-    // 1) Prefer items_json (string/array)
-    const raw = getFieldAny_(order,'items_json','itemsjson','items json','Items_json','ITEMS_JSON','itemsJSON','itemsJson') ?? (order.items_json ?? order.itemsJson ?? order.itemsJSON ?? order.itemsJSONText ?? order.itemsJsonText);
+    // 1) items_json variants (string/array/object)
+    const raw = getFieldAny_(order,"items_json","itemsjson","itemsJSON","itemsJson","items json","Items_json","ITEMS_JSON") 
+      ?? order.items_json ?? order.itemsJson ?? order.itemsJSON ?? order.itemsJSONText ?? order.itemsJsonText;
+
     if(raw){
-      const parsed = (typeof raw === "string") ? safeJsonParse(raw) : raw;
+      const parsed = (typeof raw==="string") ? safeJsonParse(raw) : raw;
+
+      // 1a) Array
       if(Array.isArray(parsed)){
-        return parsed.map(it=>{
-          const name = String(it.name || it.product_name || it.title || "");
-          let id = String(it.id || it.product_id || it.productId || it.sku || "");
-          id = canonicalProductId_(id, name);
-          if(!id && name) id = canonicalProductId_("", name);
-          const qty = Number(it.qty ?? it.units ?? it.quantity ?? it.count ?? 0) || 0;
-          const unit_price = Number(it.unit_price ?? it.price ?? it.unitPrice ?? 0) || 0;
-          return { id, name, qty, unit_price };
-        }).filter(it=>it.id && it.qty>0);
+        const out = parsed.map(it=>{
+          const name = pick(it,"name","product_name","title","label");
+          const pid  = pick(it,"id","pid","product_id","productId","product","sku");
+          const qty  = pick(it,"qty","q","units","quantity","count");
+          const up   = pick(it,"unit_price","unitPrice","price","up");
+          return mkItem(name, qty, pid, up);
+        }).filter(Boolean);
+        if(out.length) return out;
+      }
+
+      // 1b) Wrapper object with items list
+      if(parsed && typeof parsed==="object" && Array.isArray(parsed.items)){
+        const out = parsed.items.map(it=>{
+          const name = pick(it,"name","product_name","title","label");
+          const pid  = pick(it,"id","pid","product_id","productId","product","sku");
+          const qty  = pick(it,"qty","q","units","quantity","count");
+          const up   = pick(it,"unit_price","unitPrice","price","up");
+          return mkItem(name, qty, pid, up);
+        }).filter(Boolean);
+        if(out.length) return out;
+      }
+
+      // 1c) Map object: {mousse_maracuya:2, cheesecake_cafe_panela:1} or {"Mousse de Maracuyá":2}
+      if(parsed && typeof parsed==="object"){
+        const out=[];
+        for(const [k,v] of Object.entries(parsed)){
+          if(k==="items" || k==="meta") continue;
+          const qty = Number(v);
+          if(!(qty>0)) continue;
+          const id = canonicalProductId_(k, k);
+          const it = mkItem(k, qty, id, 0);
+          if(it) out.push(it);
+        }
+        if(out.length) return out;
       }
     }
 
-    // 2) If "items" is JSON string, parse it
-    if(typeof (getFieldAny_(order,"items") ?? order.items) === "string"){
-      const t = String(getFieldAny_(order,'items') ?? order.items).trim();
-      if((t.startsWith("[") && t.endsWith("]")) || (t.startsWith("{") && t.endsWith("}"))){
-        const parsed = safeJsonParse(t);
-        if(Array.isArray(parsed)){
-          return parsed.map(it=>{
-            const name = String(it.name || it.product_name || it.title || "");
-            let id = String(it.id || it.product_id || it.productId || it.sku || "");
-            if(!id && name) id = guessProductIdByName_(name);
-            const qty = Number(it.qty ?? it.units ?? it.quantity ?? it.count ?? 0) || 0;
-            const unit_price = Number(it.unit_price ?? it.price ?? it.unitPrice ?? 0) || 0;
-            return { id, name, qty, unit_price };
-          }).filter(it=>it.id && it.qty>0);
-        }
-        if(parsed && typeof parsed === "object" && (parsed.name || parsed.product_name) && (parsed.qty || parsed.units || parsed.quantity)){
-          const name = String(parsed.name || parsed.product_name || "");
-          let id = String(parsed.id || parsed.product_id || "");
-          id = canonicalProductId_(id, name);
-          if(!id && name) id = canonicalProductId_("", name);
-          const qty = Number(parsed.qty ?? parsed.units ?? parsed.quantity ?? 0) || 0;
-          const unit_price = Number(parsed.unit_price ?? parsed.price ?? 0) || 0;
-          return (id && qty>0) ? [{ id, name, qty, unit_price }] : [];
-        }
-      }
-    }
+    // 2) Text fallback: items_text / items / any known fields
+    const txt = String(
+      getFieldAny_(order,"items_text","itemstext","items text","Items_text") 
+      ?? getFieldAny_(order,"itemsText") 
+      ?? getFieldAny_(order,"items") 
+      ?? order.items_text ?? order.itemsText ?? order.items ?? ""
+    ).trim();
 
-    // 3) Text fallback (WhatsApp / plain lines)
-    const txt = String(getFieldAny_(order,'items_text','itemstext','items text','Items_text','ITEMS_TEXT') || getFieldAny_(order,'itemsText') || getFieldAny_(order,'items') || order.items_text || order.itemsText || order.items || "").trim();
     if(txt){
       const lines = txt.split("\n").map(s=>s.trim()).filter(Boolean);
       const out=[];
@@ -131,70 +188,41 @@
         const clean0 = line0.replace(/^[\-\•\*\u2022]\s*/,"").trim();
         if(!clean0) continue;
 
-        // A) "Nombre: 2" / "Nombre x 2" / "Nombre × 2"
+        // "Nombre: 2" / "Nombre x 2"
         let mm = clean0.match(/^(.+?)\s*[:xX×]\s*(\d+(?:[.,]\d+)?)\s*$/);
-
-        // B) "2 x Nombre" / "2x Nombre"
+        // "2 x Nombre"
         if(!mm) mm = clean0.match(/^(\d+(?:[.,]\d+)?)\s*(?:x|X|×)\s*(.+?)\s*$/);
-
-        // C) "Nombre (2)" / "Nombre (x2)"
-        if(!mm) mm = clean0.match(/^(.+?)\s*\(\s*(?:x\s*)?(\d+(?:[.,]\d+)?)\s*\)\s*$/);
-
-        // D) "Nombre - 2" / "Nombre — 2"
-        if(!mm) mm = clean0.match(/^(.+?)\s*[-—–]\s*(\d+(?:[.,]\d+)?)\s*$/);
-
-        // E) "2 Nombre" (qty al inicio)
-        if(!mm) mm = clean0.match(/^(\d+(?:[.,]\d+)?)\s+(.+?)\s*$/);
-
         if(mm){
           let name="", qtyStr="";
-          if(mm.length===3){
-            const a = String(mm[1]).trim();
-            const b = String(mm[2]).trim();
-            if(/^\d/.test(a) && !/^\d/.test(b)){
-              qtyStr = a; name = b;
-            }else{
-              name = a; qtyStr = b;
-            }
-          }
-          const qty = Number(qtyStr.replace(",", ".")) || 0;
-          if(!(qty>0)) continue;
-          const nameClean = name.trim();
-          const id = guessProductIdByName_(nameClean);
-          if(id) out.push({ id, name: nameClean, qty, unit_price:0 });
-          continue;
-        }
-
-        // F) Nombre sin qty -> si coincide, asumir 1
-        const gid = canonicalProductId_(guessProductIdByName_(clean0), clean0);
-        if(gid){
-          out.push({ id: gid, name: clean0, qty: 1, unit_price:0 });
-          continue;
-        }
-
-        // G) Lista separada por coma -> asumir 1 cada uno
-        if(clean0.includes(",")){
-          const parts = clean0.split(",").map(s=>s.trim()).filter(Boolean);
-          for(const p of parts){
-            const pid = guessProductIdByName_(p);
-            if(pid) out.push({ id: pid, name: p, qty: 1, unit_price:0 });
-          }
+          const a=String(mm[1]).trim(), b=String(mm[2]).trim();
+          if(/^\d/.test(a) && !/^\d/.test(b)){ qtyStr=a; name=b; }
+          else { name=a; qtyStr=b; }
+          const qty=Number(qtyStr.replace(",", "."))||0;
+          const it=mkItem(name, qty, "", 0);
+          if(it) out.push(it);
+        }else{
+          // name only -> assume 1 if known
+          const id = canonicalProductId_("", clean0);
+          if(id) out.push({ id, name: clean0, qty:1, unit_price:0 });
         }
       }
       if(out.length) return out;
     }
 
-    // 4) Last resort: product_id + qty columns
-    if(order.product_id && order.qty){
-      const id = String(order.product_id||"").trim();
-      const qty = Number(order.qty||0) || 0;
-      if(id && qty>0) return [{ id: canonicalProductId_(id, String(order.product_name||id)), name:String(order.product_name||id), qty, unit_price:0 }];
-    }
-
+    // 3) Last resort: look inside whole object as string for known IDs/names
     try{
-      const oid = getFieldAny_(order,'order_id','orderid','Order_id','ORDER_ID') || order.order_id;
-      if(oid){ console.warn('AMARED: items vacíos para order_id', oid, 'keys:', Object.keys(order||{})); }
+      const blob = JSON.stringify(order||{}).toLowerCase();
+      const out=[];
+      for(const p of PRODUCTS){
+        const nameKey = normTextKey_(p.name);
+        const hit = blob.includes(p.id) || (nameKey && blob.includes(nameKey.replace(/ /g,"")));
+        if(hit){
+          out.push({ id:p.id, name:p.name, qty:1, unit_price:0 });
+        }
+      }
+      if(out.length) return out;
     }catch(_e){}
+
     return [];
   }
 /* kitchen.js (REFactor V6) — AMARED Cocina
@@ -215,7 +243,7 @@
 (() => {
   "use strict";
 
-  console.log("AMARED kitchen v2026-03-02 fix7j canonical IDs");
+  console.log("AMARED kitchen v2026-03-02 fix7k parse+debug");
 
   // ========= CONFIG =========
   const API_URL = "https://amared-orders.amaredpostres.workers.dev/";
@@ -855,6 +883,21 @@ function startDayRolloverWatch_(){
         return o.__prod_day === state.todayKey;
       });
     const pending = todayAll.filter(o=>{ const ks=normStatus(o.kitchen_status); return ks!=="en proceso" && ks!=="listo"; });
+    // DEBUG: si hay pedidos pendientes pero no se detectan productos, loguear un ejemplo
+    try{
+      const byProdPending = aggregateByProduct(pending);
+      if(pending.length && byProdPending.size===0){
+        const o0 = pending[0];
+        console.log("DEBUG_ITEMS_PENDING keys:", Object.keys(o0||{}));
+        console.log("DEBUG_ITEMS_PENDING sample:", {
+          order_id: o0.order_id,
+          items: getFieldAny_(o0,'items') ?? o0.items,
+          items_json: getFieldAny_(o0,'items_json','itemsjson','items json') ?? o0.items_json,
+          items_text: getFieldAny_(o0,'items_text','itemstext','items text') ?? o0.items_text
+        });
+      }
+    }catch(_e){}
+
 
     // Informativo (próxima producción): pedidos cuyo día de producción es state.nextKey
     const infoTomorrow = paid.filter(o=>{
@@ -1770,7 +1813,7 @@ function msToMMSS(ms){
         <details class="amCard" open="false">
           <summary class="amHead">
             <div style="min-width:0;">
-              <div class="amName">${escapeHtml(p.label||p.id)}</div>
+              <div class="amName">${escapeHtml(p.name||p.id)}</div>
               <div class="muted small">Listo · ${ids.length} pedido(s)</div>
             </div>
             <div style="text-align:right;">
