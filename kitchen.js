@@ -36,32 +36,68 @@
   function normalizeItemsFromAnyOrder(order){
     if(!order) return [];
 
+    const mkItem = (name, qty, id, unit_price=0)=>{
+      const n = String(name||"").trim();
+      const q = Number(qty||0) || 0;
+      let pid = String(id||"").trim();
+      if(!pid && n) pid = guessProductIdByName_(n);
+      return (pid && q>0) ? { id: pid, name: n, qty: q, unit_price: Number(unit_price||0)||0 } : null;
+    };
+
     // 0) Direct array in "items"
-    const directArr = order.items;
-    if(Array.isArray(directArr)){
-      return directArr.map(it=>{
-        const name = String(it.name || it.product_name || it.title || "");
-        let id = String(it.id || it.product_id || it.productId || it.sku || "");
-        if(!id && name) id = guessProductIdByName_(name);
-        const qty = Number(it.qty ?? it.units ?? it.quantity ?? it.count ?? 0) || 0;
-        const unit_price = Number(it.unit_price ?? it.price ?? it.unitPrice ?? 0) || 0;
-        return { id, name, qty, unit_price };
-      }).filter(it=>it.id && it.qty>0);
+    if(Array.isArray(order.items)){
+      const out = order.items.map(it=>{
+        const name = it?.name ?? it?.product_name ?? it?.title ?? "";
+        const id = it?.id ?? it?.product_id ?? it?.productId ?? it?.sku ?? "";
+        const qty = it?.qty ?? it?.units ?? it?.quantity ?? it?.count ?? 0;
+        const unit_price = it?.unit_price ?? it?.price ?? it?.unitPrice ?? 0;
+        return mkItem(name, qty, id, unit_price);
+      }).filter(Boolean);
+      if(out.length) return out;
     }
 
-    // 1) Prefer items_json (string/array)
+    // 1) Prefer items_json (string/array/object)
     const raw = order.items_json ?? order.itemsJson ?? order.itemsJSON ?? order.itemsJSONText ?? order.itemsJsonText;
     if(raw){
       const parsed = (typeof raw === "string") ? safeJsonParse(raw) : raw;
+
+      // 1a) Array of items
       if(Array.isArray(parsed)){
-        return parsed.map(it=>{
-          const name = String(it.name || it.product_name || it.title || "");
-          let id = String(it.id || it.product_id || it.productId || it.sku || "");
-          if(!id && name) id = guessProductIdByName_(name);
-          const qty = Number(it.qty ?? it.units ?? it.quantity ?? it.count ?? 0) || 0;
-          const unit_price = Number(it.unit_price ?? it.price ?? it.unitPrice ?? 0) || 0;
-          return { id, name, qty, unit_price };
-        }).filter(it=>it.id && it.qty>0);
+        const out = parsed.map(it=>{
+          const name = it?.name ?? it?.product_name ?? it?.title ?? "";
+          const id = it?.id ?? it?.product_id ?? it?.productId ?? it?.sku ?? "";
+          const qty = it?.qty ?? it?.units ?? it?.quantity ?? it?.count ?? 0;
+          const unit_price = it?.unit_price ?? it?.price ?? it?.unitPrice ?? 0;
+          return mkItem(name, qty, id, unit_price);
+        }).filter(Boolean);
+        if(out.length) return out;
+      }
+
+      // 1b) Object wrapper {items:[...]}
+      if(parsed && typeof parsed === "object" && Array.isArray(parsed.items)){
+        const out = parsed.items.map(it=>{
+          const name = it?.name ?? it?.product_name ?? it?.title ?? "";
+          const id = it?.id ?? it?.product_id ?? it?.productId ?? it?.sku ?? "";
+          const qty = it?.qty ?? it?.units ?? it?.quantity ?? it?.count ?? 0;
+          const unit_price = it?.unit_price ?? it?.price ?? it?.unitPrice ?? 0;
+          return mkItem(name, qty, id, unit_price);
+        }).filter(Boolean);
+        if(out.length) return out;
+      }
+
+      // 1c) Map object {mousse_maracuya:2, cheesecake_cafe_panela:1} OR { "Mousse de maracuyá": 2, ... }
+      if(parsed && typeof parsed === "object"){
+        const out=[];
+        for(const [k,v] of Object.entries(parsed)){
+          if(k==="items" || k==="meta") continue;
+          const qty = Number(v);
+          if(!(qty>0)) continue;
+          const key = String(k||"").trim();
+          const pid = (key.includes("_") ? key : guessProductIdByName_(key));
+          const item = mkItem(key, qty, pid, 0);
+          if(item) out.push(item);
+        }
+        if(out.length) return out;
       }
     }
 
@@ -70,29 +106,59 @@
       const t = order.items.trim();
       if((t.startsWith("[") && t.endsWith("]")) || (t.startsWith("{") && t.endsWith("}"))){
         const parsed = safeJsonParse(t);
+
         if(Array.isArray(parsed)){
-          return parsed.map(it=>{
-            const name = String(it.name || it.product_name || it.title || "");
-            let id = String(it.id || it.product_id || it.productId || it.sku || "");
-            if(!id && name) id = guessProductIdByName_(name);
-            const qty = Number(it.qty ?? it.units ?? it.quantity ?? it.count ?? 0) || 0;
-            const unit_price = Number(it.unit_price ?? it.price ?? it.unitPrice ?? 0) || 0;
-            return { id, name, qty, unit_price };
-          }).filter(it=>it.id && it.qty>0);
+          const out = parsed.map(it=>{
+            const name = it?.name ?? it?.product_name ?? it?.title ?? "";
+            const id = it?.id ?? it?.product_id ?? it?.productId ?? it?.sku ?? "";
+            const qty = it?.qty ?? it?.units ?? it?.quantity ?? it?.count ?? 0;
+            const unit_price = it?.unit_price ?? it?.price ?? it?.unitPrice ?? 0;
+            return mkItem(name, qty, id, unit_price);
+          }).filter(Boolean);
+          if(out.length) return out;
         }
-        if(parsed && typeof parsed === "object" && (parsed.name || parsed.product_name) && (parsed.qty || parsed.units || parsed.quantity)){
-          const name = String(parsed.name || parsed.product_name || "");
-          let id = String(parsed.id || parsed.product_id || "");
-          if(!id && name) id = guessProductIdByName_(name);
-          const qty = Number(parsed.qty ?? parsed.units ?? parsed.quantity ?? 0) || 0;
-          const unit_price = Number(parsed.unit_price ?? parsed.price ?? 0) || 0;
-          return (id && qty>0) ? [{ id, name, qty, unit_price }] : [];
+
+        // object forms
+        if(parsed && typeof parsed === "object"){
+          // {name, qty}
+          if((parsed.name || parsed.product_name) && (parsed.qty || parsed.units || parsed.quantity)){
+            const item = mkItem(parsed.name || parsed.product_name, parsed.qty ?? parsed.units ?? parsed.quantity, parsed.id || parsed.product_id, parsed.unit_price ?? parsed.price ?? 0);
+            if(item) return [item];
+          }
+          // map object
+          const out=[];
+          for(const [k,v] of Object.entries(parsed)){
+            const qty = Number(v);
+            if(!(qty>0)) continue;
+            const pid = (String(k).includes("_") ? String(k) : guessProductIdByName_(k));
+            const item = mkItem(k, qty, pid, 0);
+            if(item) out.push(item);
+          }
+          if(out.length) return out;
         }
       }
     }
 
-    // 3) Text fallback (WhatsApp / plain lines)
-    const txt = String(order.items_text || order.itemsText || order.items || "").trim();
+    // 3) Text fallback: try dedicated fields then scan all string fields
+    const collectTextFields = ()=>{
+      const fields = [];
+      const keys = ["items_text","itemsText","items","items_summary","itemsSummary","wa_message","message","note","order_text","orderText"];
+      for(const k of keys){
+        if(typeof order[k] === "string" && order[k].trim()) fields.push(order[k].trim());
+      }
+      // scan all string values (last resort)
+      for(const [k,v] of Object.entries(order)){
+        if(typeof v === "string" && v.length>0 && v.length<=3000){
+          if(keys.includes(k)) continue;
+          // avoid URLs/ids only
+          fields.push(v);
+        }
+      }
+      // de-dup
+      return [...new Set(fields)].join("\n");
+    };
+
+    const txt = collectTextFields().trim();
     if(txt){
       const lines = txt.split("\n").map(s=>s.trim()).filter(Boolean);
       const out=[];
@@ -103,16 +169,16 @@
         // A) "Nombre: 2" / "Nombre x 2" / "Nombre × 2"
         let mm = clean0.match(/^(.+?)\s*[:xX×]\s*(\d+(?:[.,]\d+)?)\s*$/);
 
-        // B) "2 x Nombre" / "2x Nombre"
+        // B) "2 x Nombre"
         if(!mm) mm = clean0.match(/^(\d+(?:[.,]\d+)?)\s*(?:x|X|×)\s*(.+?)\s*$/);
 
         // C) "Nombre (2)" / "Nombre (x2)"
         if(!mm) mm = clean0.match(/^(.+?)\s*\(\s*(?:x\s*)?(\d+(?:[.,]\d+)?)\s*\)\s*$/);
 
-        // D) "Nombre - 2" / "Nombre — 2"
+        // D) "Nombre - 2"
         if(!mm) mm = clean0.match(/^(.+?)\s*[-—–]\s*(\d+(?:[.,]\d+)?)\s*$/);
 
-        // E) "2 Nombre" (qty al inicio)
+        // E) "2 Nombre"
         if(!mm) mm = clean0.match(/^(\d+(?:[.,]\d+)?)\s+(.+?)\s*$/);
 
         if(mm){
@@ -120,45 +186,52 @@
           if(mm.length===3){
             const a = String(mm[1]).trim();
             const b = String(mm[2]).trim();
-            if(/^\d/.test(a) && !/^\d/.test(b)){
-              qtyStr = a; name = b;
-            }else{
-              name = a; qtyStr = b;
-            }
+            if(/^\d/.test(a) && !/^\d/.test(b)){ qtyStr=a; name=b; }
+            else { name=a; qtyStr=b; }
           }
           const qty = Number(qtyStr.replace(",", ".")) || 0;
           if(!(qty>0)) continue;
-          const nameClean = name.trim();
-          const id = guessProductIdByName_(nameClean);
-          if(id) out.push({ id, name: nameClean, qty, unit_price:0 });
+          const item = mkItem(name.trim(), qty, "", 0);
+          if(item) out.push(item);
           continue;
         }
 
-        // F) Nombre sin qty -> si coincide, asumir 1
+        // F) Name only -> assume 1 if recognizable
         const gid = guessProductIdByName_(clean0);
         if(gid){
-          out.push({ id: gid, name: clean0, qty: 1, unit_price:0 });
+          const item = mkItem(clean0, 1, gid, 0);
+          if(item) out.push(item);
           continue;
         }
 
-        // G) Lista separada por coma -> asumir 1 cada uno
+        // G) comma list -> assume 1 each
         if(clean0.includes(",")){
           const parts = clean0.split(",").map(s=>s.trim()).filter(Boolean);
           for(const p of parts){
-            const pid = guessProductIdByName_(p);
-            if(pid) out.push({ id: pid, name: p, qty: 1, unit_price:0 });
+            const item = mkItem(p, 1, "", 0);
+            if(item) out.push(item);
           }
         }
       }
       if(out.length) return out;
     }
 
-    // 4) Last resort: product_id + qty columns
+    // 4) Last resort: product_id + qty
     if(order.product_id && order.qty){
-      const id = String(order.product_id||"").trim();
-      const qty = Number(order.qty||0) || 0;
-      if(id && qty>0) return [{ id, name:String(order.product_name||id), qty, unit_price:0 }];
+      const item = mkItem(order.product_name || order.product_id, order.qty, order.product_id, 0);
+      if(item) return [item];
     }
+
+    // Debug (si hay pedido pero no pudimos parsear)
+    try{
+      console.warn("AMARED: No pude detectar items del pedido", {
+        order_id: order.order_id,
+        keys: Object.keys(order||{}).slice(0,50),
+        items: order.items,
+        items_text: order.items_text,
+        items_json: order.items_json
+      });
+    }catch(_e){}
 
     return [];
   }
@@ -180,7 +253,7 @@
 (() => {
   "use strict";
 
-  console.log("AMARED kitchen v2026-03-02 fix7f items-wired");
+  console.log("AMARED kitchen v2026-03-02 fix7g items detect all");
 
   // ========= CONFIG =========
   const API_URL = "https://amared-orders.amaredpostres.workers.dev/";
