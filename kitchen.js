@@ -27,7 +27,7 @@
     const n = normTextKey_(name);
     if(!n) return "";
     if(n.includes("mousse") && (n.includes("maracuya") || n.includes("maracuja") || n.includes("maracu"))) return "mousse_maracuya";
-    if(n.includes("cheesecake") && (n.includes("cafe") || n.includes("caf"))) return "cheesecake_cafe_panela";
+    if((n.includes("cheesecake") || n.includes("quesecake")) && (n.includes("cafe") || n.includes("caf"))) return "cheesecake_cafe_panela";
     if(n.includes("arroz") && n.includes("leche")) return "arroz_con_leche";
     return "";
   }
@@ -35,21 +35,82 @@
 // Items parser (works with Apps Script rows: items_json + items text)
   function normalizeItemsFromAnyOrder(order){
     if(!order) return [];
-    // 1) prefer items_json
-    const raw = order.items_json ?? order.itemsJson ?? order.itemsJSON;
+
+    // 0) Direct array in "items"
+    const directArr = order.items;
+    if(Array.isArray(directArr)){
+      return directArr.map(it=>{
+        const name = String(it.name || it.product_name || it.title || "");
+        let id = String(it.id || it.product_id || it.productId || it.sku || "");
+        if(!id && name) id = guessProductIdByName_(name);
+        const qty = Number(it.qty ?? it.units ?? it.quantity ?? it.count ?? 0) || 0;
+        const unit_price = Number(it.unit_price ?? it.price ?? it.unitPrice ?? 0) || 0;
+        return { id, name, qty, unit_price };
+      }).filter(it=>it.id && it.qty>0);
+    }
+
+    // 1) Prefer items_json (string/array)
+    const raw = order.items_json ?? order.itemsJson ?? order.itemsJSON ?? order.itemsJSONText;
     if(raw){
       const parsed = (typeof raw === "string") ? safeJsonParse(raw) : raw;
       if(Array.isArray(parsed)){
         return parsed.map(it=>{
-          const name = String(it.name || "");
-          let id = String(it.id || it.product_id || "");
+          const name = String(it.name || it.product_name || it.title || "");
+          let id = String(it.id || it.product_id || it.productId || it.sku || "");
           if(!id && name) id = guessProductIdByName_(name);
-          return {
-            id,
-            name,
-            qty: Number(it.qty || it.units || 0) || 0,
-            unit_price: Number(it.unit_price ?? it.price ?? 0) || 0,
-          };
+          const qty = Number(it.qty ?? it.units ?? it.quantity ?? it.count ?? 0) || 0;
+          const unit_price = Number(it.unit_price ?? it.price ?? it.unitPrice ?? 0) || 0;
+          return { id, name, qty, unit_price };
+        }).filter(it=>it.id && it.qty>0);
+      }
+    }
+
+    // 2) If "items" is JSON string, parse it
+    const rawItems = order.items;
+    if(typeof rawItems === "string"){
+      const t = rawItems.trim();
+      if(t.startsWith("[") && t.endsWith("]")){
+        const parsed = safeJsonParse(t);
+        if(Array.isArray(parsed)){
+          return parsed.map(it=>{
+            const name = String(it.name || it.product_name || it.title || "");
+            let id = String(it.id || it.product_id || it.productId || it.sku || "");
+            if(!id && name) id = guessProductIdByName_(name);
+            const qty = Number(it.qty ?? it.units ?? it.quantity ?? it.count ?? 0) || 0;
+            const unit_price = Number(it.unit_price ?? it.price ?? it.unitPrice ?? 0) || 0;
+            return { id, name, qty, unit_price };
+          }).filter(it=>it.id && it.qty>0);
+        }
+      }
+    }
+
+    // 3) Fallback: items text like "- Nombre: 2" (WhatsApp format)
+    const txt = String(order.items || order.items_text || order.itemsText || "").trim();
+    if(txt){
+      const lines = txt.split("\n").map(s=>s.trim()).filter(Boolean);
+      const out=[];
+      for(const line of lines){
+        // soporta "- Nombre: 2", "• Nombre: 2", "Nombre: 2"
+        const clean = line.replace(/^[\-\•\*]\s*/,"").trim();
+        const m = clean.match(/^(.+?)\s*[:xX]\s*(\d+(?:[.,]\d+)?)\s*$/);
+        if(!m) continue;
+        const name = m[1].trim();
+        const qty = Number(String(m[2]).replace(",", ".")) || 0;
+        let id = guessProductIdByName_(name);
+        if(id && qty>0) out.push({ id, name, qty, unit_price:0 });
+      }
+      if(out.length) return out;
+    }
+
+    // 4) Last resort: product_id + qty columns (si el backend lo trae)
+    if(order.product_id && order.qty){
+      const id = String(order.product_id||"").trim();
+      const qty = Number(order.qty||0) || 0;
+      if(id && qty>0) return [{ id, name:String(order.product_name||id), qty, unit_price:0 }];
+    }
+
+    return [];
+  };
         }).filter(it=>it.id && it.qty>0);
       }
     }
@@ -92,7 +153,7 @@
 (() => {
   "use strict";
 
-  console.log("AMARED kitchen v2026-03-02 rollover+prune");
+  console.log("AMARED kitchen v2026-03-02 prod+final render fix");
 
   // ========= CONFIG =========
   const API_URL = "https://amared-orders.amaredpostres.workers.dev/";
@@ -1748,10 +1809,12 @@ function msToMMSS(ms){
 
     // Finalizados:
     // 1) DB: pedidos con kitchen_status="Listo"
-    renderFinalizadosDb(doneWrap, state.buckets.doneDb);
-    // 2) Local (si marcaste postres como hechos en vista, sin cerrar lote)
-    renderFinalizadosLocal(doneWrap, state.paidOrders.filter(o=>o.__prod_day===state.todayKey), "Finalizado (operador)");
-  }
+    // 2) Local: progreso del operador (si aplica)
+    if(doneWrap){
+      doneWrap.innerHTML = `<div id="doneDbBlock"></div><div style="height:12px;"></div><div id="doneLocalBlock"></div>`;
+      renderFinalizadosDb(document.getElementById("doneDbBlock"), state.buckets.doneDb);
+      renderFinalizadosLocal(document.getElementById("doneLocalBlock"), state.paidOrders.filter(o=>String(o.__prod_day||"")===String(state.todayKey||"")), "Finalizado (operador)");
+    }  }
 
     // ========= Compras (enviar lista a Costos) =========
   function ensureShoppingButton(){
