@@ -66,9 +66,8 @@
     }
 
     // 2) If "items" is JSON string, parse it
-    const rawItems = order.items;
-    if(typeof rawItems === "string"){
-      const t = rawItems.trim();
+    if(typeof order.items === "string"){
+      const t = order.items.trim();
       if(t.startsWith("[") && t.endsWith("]")){
         const parsed = safeJsonParse(t);
         if(Array.isArray(parsed)){
@@ -84,20 +83,20 @@
       }
     }
 
-    // 3) Fallback: items text like "- Nombre: 2" (WhatsApp format)
+    // 3) Fallback: items text like "- Nombre: 2" or "• Nombre x 2"
     const txt = String(order.items || order.items_text || order.itemsText || "").trim();
     if(txt){
       const lines = txt.split("\n").map(s=>s.trim()).filter(Boolean);
       const out=[];
-      for(const line of lines){
-        // soporta "- Nombre: 2", "• Nombre: 2", "Nombre: 2"
-        const clean = line.replace(/^[\-\•\*]\s*/,"").trim();
-        const m = clean.match(/^(.+?)\s*[:xX]\s*(\d+(?:[.,]\d+)?)\s*$/);
-        if(!m) continue;
-        const name = m[1].trim();
-        const qty = Number(String(m[2]).replace(",", ".")) || 0;
+      for(const line0 of lines){
+        const clean = line0.replace(/^[\-\•\*]\s*/,"").trim();
+        const mm = clean.match(/^(.+?)\s*[:xX]\s*(\d+(?:[.,]\d+)?)\s*$/);
+        if(!mm) continue;
+        const name = mm[1].trim();
+        const qty = Number(String(mm[2]).replace(",", ".")) || 0;
+        if(!(qty>0)) continue;
         let id = guessProductIdByName_(name);
-        if(id && qty>0) out.push({ id, name, qty, unit_price:0 });
+        if(id) out.push({ id, name, qty, unit_price:0 });
       }
       if(out.length) return out;
     }
@@ -153,7 +152,7 @@
 (() => {
   "use strict";
 
-  console.log("AMARED kitchen v2026-03-02 prod+final render fix");
+  console.log("AMARED kitchen v2026-03-02 fix7b items+final");
 
   // ========= CONFIG =========
   const API_URL = "https://amared-orders.amaredpostres.workers.dev/";
