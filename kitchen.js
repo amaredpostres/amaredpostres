@@ -92,7 +92,7 @@
 (() => {
   "use strict";
 
-  console.log("AMARED kitchen v2026-03-01 doneQty fix5 finalBtn");
+  console.log("AMARED kitchen v2026-03-02 rollover+prune");
 
   // ========= CONFIG =========
   const API_URL = "https://amared-orders.amaredpostres.workers.dev/";
@@ -480,6 +480,50 @@ const setTimerEnd=(day,pid,end)=>{ const m=getTimersMap(); if(!m[day]) m[day]={}
 const getTimerEnd=(day,pid)=> Number(getTimersMap()?.[day]?.[pid]||0);
 const clearTimer=(day,pid)=>{ const m=getTimersMap(); if(m?.[day]){ delete m[day][pid]; setTimersMap(m); } };
 
+
+// Limpieza: mantener SOLO progreso del día actual (evita que "Finalizados" se arrastre al día siguiente)
+function pruneLocalProgressToDay_(keepDayKey){
+  try{
+    const dk = String(keepDayKey||"");
+    // DONE
+    const dm = getDoneMap();
+    const ndm = {};
+    if(dk && dm && dm[dk]) ndm[dk] = dm[dk];
+    setDoneMap(ndm);
+
+    // TIMERS
+    const tm = getTimersMap();
+    const ntm = {};
+    if(dk && tm && tm[dk]) ntm[dk] = tm[dk];
+    setTimersMap(ntm);
+  }catch(e){
+    console.warn("pruneLocalProgressToDay_ error:", e);
+  }
+}
+
+// Observa cambio de día (Bogotá) incluso si la pestaña queda abierta.
+// Si cambia el día, limpiamos progreso local y recargamos buckets.
+function startDayRolloverWatch_(){
+  let lastKey = String(state.todayKey||"");
+  setInterval(async ()=>{
+    try{
+      const nowKey = String(getTodayProductionDayKey() || "");
+      if(nowKey && nowKey !== lastKey){
+        lastKey = nowKey;
+        state.todayKey = nowKey;
+        state.nextKey = getNextProductionDayKey(state.todayKey);
+
+        // Regla pedida: a las 00:00 se limpia el progreso local (Finalizado operador)
+        pruneLocalProgressToDay_(state.todayKey);
+
+        // Refrescar UI/BD
+        await refresh();
+      }
+    }catch(e){
+      console.warn("day rollover watch error:", e);
+    }
+  }, 60_000); // cada 60s
+}
 // ========= COSTOS (normalización) =========
   const stripAccents=(s)=> String(s||"").normalize("NFD").replace(/[\u0300-\u036f]/g,"");
   const normalizeKey1=(s)=> String(s||"").replace(/\([^\)]*\)/g,"").replace(/\s{2,}/g," ").trim();
@@ -656,6 +700,7 @@ const clearTimer=(day,pid)=>{ const m=getTimersMap(); if(m?.[day]){ delete m[day
     if(!state.session.pin) throw new Error("Unauthorized admin");
     state.todayKey=getTodayProductionDayKey();
     state.nextKey=getNextProductionDayKey(state.todayKey);
+    pruneLocalProgressToDay_(state.todayKey);
 
     showLoading("Cargando cocina…","Obteniendo pedidos…");
     const outPaid = await api({action:"list_orders", payment_status:"Pagado", admin_pin: state.session.pin});
