@@ -215,7 +215,7 @@
 (() => {
   "use strict";
 
-  console.log("AMARED kitchen v2026-03-02 fix7s costs UX");
+  console.log("AMARED kitchen v2026-03-02 fix7t costs scroll");
 
   // ========= CONFIG =========
   const API_URL = "https://amared-orders.amaredpostres.workers.dev/";
@@ -2276,7 +2276,7 @@ async function finalizePostreFromOverlay(){
       </div>
     `;
 
-    costsEditor.innerHTML = meta + `<div class="costsScroll">` + dessertsWrap + ingredientsWrap + `</div>`;
+    costsEditor.innerHTML = meta + dessertsWrap + ingredientsWrap;
 
     // Toggle: clic en cualquier parte del postre (cabecera completa)
     const toggleCard = (card)=>{
