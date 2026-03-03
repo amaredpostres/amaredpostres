@@ -215,7 +215,7 @@
 (() => {
   "use strict";
 
-  console.log("AMARED kitchen v2026-03-02 fix7q finalizados breakdown");
+  console.log("AMARED kitchen v2026-03-02 fix7r kitchen-costs dessert");
 
   // ========= CONFIG =========
   const API_URL = "https://amared-orders.amaredpostres.workers.dev/";
@@ -2167,8 +2167,12 @@ async function finalizePostreFromOverlay(){
     if(!costsModal) return;
     costsGateErr.textContent="";
     try{
-      showLoading("Sincronizando…","Actualizando costos desde la base de datos.");
-      await fetchCostsPublic();
+      showLoading("Sincronizando…","Actualizando costos y recetas desde la base de datos.");
+      // Asegurar RECETAS + COSTOS
+      await Promise.all([
+        fetchCostsPublic(),
+        fetchRecipesPublic().catch(e=>{ console.warn("recipes_public_list:", e); })
+      ]);
     }catch(e){
       costsGateErr.textContent = (e && e.message) ? e.message : "No se pudieron actualizar los costos.";
     }finally{
@@ -2185,14 +2189,113 @@ async function finalizePostreFromOverlay(){
   }
   function renderCostsReadOnly(){
     if(!costsEditor) return;
+
     const keys=Object.keys(state.pricesMap||{}).sort((a,b)=>a.localeCompare(b,"es"));
     const list=keys.map(k=>({k,v:Number(state.pricesMap[k]||0)})).sort((a,b)=>(b.v-a.v)||a.k.localeCompare(b.k,"es"));
-    const html=list.map(it=>`<div class="line" style="display:flex; justify-content:space-between; gap:12px; padding:10px 0; border-bottom:1px solid rgba(64,17,2,.08);"><span>${escapeHtml(it.k)}</span><div>$${money(it.v)}</div></div>`).join("");
-    const meta=state.costsLastUpdated?`<div class="muted small" style="margin-bottom:10px;">Última actualización: ${escapeHtml(state.costsLastUpdated)}</div>`:`<div class="muted small" style="margin-bottom:10px;">Costos en modo solo lectura.</div>`;
-    costsEditor.innerHTML = meta + `<div class="amCard open" style="margin:0;">
-      <div class="rowBetween"><div style="font-weight:950;">Costos por unidad</div><div class="pill">${keys.length} items</div></div>
-      <div class="amBody" style="margin-top:10px; max-height:55vh; overflow:auto; display:block;">${html||`<div class="muted small">Sin datos.</div>`}</div>
-    </div>`;
+    const ingHtml=list.map(it=>`
+      <div class="line" style="display:flex; justify-content:space-between; gap:12px; padding:10px 0; border-bottom:1px solid rgba(64,17,2,.08);">
+        <span>${escapeHtml(it.k)}</span>
+        <div>$${money(it.v)}</div>
+      </div>`).join("");
+
+    const metaParts = [];
+    metaParts.push(state.costsLastUpdated ? `Costos: ${escapeHtml(state.costsLastUpdated)}` : `Costos: —`);
+    metaParts.push(state.recipesLastUpdated ? `Recetas: ${escapeHtml(state.recipesLastUpdated)}` : `Recetas: —`);
+    const meta = `<div class="muted small" style="margin-bottom:10px;">Modo solo lectura · ${metaParts.join(" · ")}</div>`;
+
+    // ====== Postres: costo unitario + desglose ======
+    const dessertCards = (PRODUCTS||[])
+      .filter(p=>p && p.id && p.id!=="arroz_con_leche") // arroz aún no activo
+      .map(p=>{
+        const hasRecipe = state.recipesIndex && Array.isArray(state.recipesIndex[p.id]) && state.recipesIndex[p.id].length>0;
+        const {lines,totalCost} = hasRecipe ? calcBatchIngredients(p.id, 1) : ({lines:[], totalCost:0});
+        const unitText = totalCost>0 ? `$${money(totalCost)}` : "—";
+        const body = (lines||[]).length ? (lines.map(li=>{
+          const per = li.pricePerUnit ? `$${money(li.pricePerUnit)}/${escapeHtml(li.unit||"u")}` : "sin costo";
+          const tot = (li.cost && li.cost>0) ? `$${money(li.cost)}` : "—";
+          return `
+            <div style="display:flex; justify-content:space-between; gap:12px; padding:10px 0; border-bottom:1px solid rgba(64,17,2,.08);">
+              <div style="min-width:0;">
+                <div style="font-weight:800;">${escapeHtml(li.key)}</div>
+                <div class="muted small">${fmtQty(li.qty)} ${escapeHtml(li.unit||"")}</div>
+              </div>
+              <div style="text-align:right;">
+                <div class="muted small">${per}</div>
+                <div style="font-weight:900;">${tot}</div>
+              </div>
+            </div>`;
+        }).join("")) : `<div class="muted small">Sin receta configurada para este postre.</div>`;
+
+        return `
+          <div class="amCard" data-pid="${escapeHtml(p.id)}" style="margin:0 0 10px 0;">
+            <div class="amHead" role="button" tabindex="0" aria-expanded="false" style="align-items:center;">
+              <div style="min-width:0;">
+                <div class="amName">${escapeHtml(p.name||p.id)}</div>
+                <div class="muted small" style="margin-top:6px;">Precio unitario estimado</div>
+              </div>
+              <div style="display:flex; flex-direction:column; align-items:flex-end; gap:8px;">
+                <button type="button" class="pill" data-role="toggleDessert" style="cursor:pointer; border:none;">
+                  ${unitText} <span aria-hidden="true">▾</span>
+                </button>
+                <div class="muted small">toca para ver desglose</div>
+              </div>
+            </div>
+            <div class="amBody" data-loaded="1" style="display:none;">
+              <div class="rowBetween" style="margin-bottom:10px;">
+                <div class="pill">Ingredientes por unidad</div>
+                <div class="pill">Total: ${unitText}</div>
+              </div>
+              ${body}
+            </div>
+          </div>`;
+      }).join("");
+
+    const dessertsWrap = `
+      <div class="amCard open" style="margin:0 0 14px 0;">
+        <div class="rowBetween">
+          <div style="font-weight:950;">Precio unitario por postre</div>
+          <div class="pill">${(PRODUCTS||[]).filter(p=>p&&p.id&&p.id!=="arroz_con_leche").length} postres</div>
+        </div>
+        <div class="amBody" style="margin-top:10px; display:block;">
+          ${dessertCards || `<div class="muted small">Sin datos.</div>`}
+        </div>
+      </div>
+    `;
+
+    const ingredientsWrap = `
+      <div class="amCard open" style="margin:0;">
+        <div class="rowBetween">
+          <div style="font-weight:950;">Costos por unidad (ingredientes)</div>
+          <div class="pill">${keys.length} items</div>
+        </div>
+        <div class="amBody" style="margin-top:10px; max-height:40vh; overflow:auto; display:block;">
+          ${ingHtml||`<div class="muted small">Sin datos.</div>`}
+        </div>
+      </div>
+    `;
+
+    costsEditor.innerHTML = meta + dessertsWrap + ingredientsWrap;
+
+    // Toggle handlers (solo cuando se hace clic en el precio unitario)
+    costsEditor.onclick = (e)=>{
+      const btn = e.target.closest('[data-role="toggleDessert"]');
+      if(!btn) return;
+      const card = btn.closest('.amCard');
+      if(!card) return;
+      const head = card.querySelector('.amHead');
+      const body = card.querySelector('.amBody');
+      const open = card.classList.toggle('open');
+      if(head) head.setAttribute('aria-expanded', open?'true':'false');
+      if(body) body.style.display = open ? 'block' : 'none';
+    };
+
+    costsEditor.addEventListener("keydown", (e)=>{
+      if(e.key!=="Enter" && e.key!==" ") return;
+      const btn = e.target.closest('[data-role="toggleDessert"]');
+      if(!btn) return;
+      e.preventDefault();
+      btn.click();
+    });
   }
 
   
