@@ -215,7 +215,7 @@
 (() => {
   "use strict";
 
-  console.log("AMARED kitchen v2026-03-02 fix7r kitchen-costs dessert");
+  console.log("AMARED kitchen v2026-03-02 fix7s costs UX");
 
   // ========= CONFIG =========
   const API_URL = "https://amared-orders.amaredpostres.workers.dev/";
@@ -2189,6 +2189,7 @@ async function finalizePostreFromOverlay(){
   }
   function renderCostsReadOnly(){
     if(!costsEditor) return;
+    injectStylesV6();
 
     const keys=Object.keys(state.pricesMap||{}).sort((a,b)=>a.localeCompare(b,"es"));
     const list=keys.map(k=>({k,v:Number(state.pricesMap[k]||0)})).sort((a,b)=>(b.v-a.v)||a.k.localeCompare(b.k,"es"));
@@ -2205,11 +2206,12 @@ async function finalizePostreFromOverlay(){
 
     // ====== Postres: costo unitario + desglose ======
     const dessertCards = (PRODUCTS||[])
-      .filter(p=>p && p.id && p.id!=="arroz_con_leche") // arroz aún no activo
+      .filter(p=>p && p.id && p.id!=="arroz_con_leche")
       .map(p=>{
         const hasRecipe = state.recipesIndex && Array.isArray(state.recipesIndex[p.id]) && state.recipesIndex[p.id].length>0;
         const {lines,totalCost} = hasRecipe ? calcBatchIngredients(p.id, 1) : ({lines:[], totalCost:0});
         const unitText = totalCost>0 ? `$${money(totalCost)}` : "—";
+
         const body = (lines||[]).length ? (lines.map(li=>{
           const per = li.pricePerUnit ? `$${money(li.pricePerUnit)}/${escapeHtml(li.unit||"u")}` : "sin costo";
           const tot = (li.cost && li.cost>0) ? `$${money(li.cost)}` : "—";
@@ -2234,13 +2236,13 @@ async function finalizePostreFromOverlay(){
                 <div class="muted small" style="margin-top:6px;">Precio unitario estimado</div>
               </div>
               <div style="display:flex; flex-direction:column; align-items:flex-end; gap:8px;">
-                <button type="button" class="pill" data-role="toggleDessert" style="cursor:pointer; border:none;">
+                <div class="pill" style="cursor:pointer; user-select:none;">
                   ${unitText} <span aria-hidden="true">▾</span>
-                </button>
+                </div>
                 <div class="muted small">toca para ver desglose</div>
               </div>
             </div>
-            <div class="amBody" data-loaded="1" style="display:none;">
+            <div class="amBody dessertBreakdown" style="display:none;">
               <div class="rowBetween" style="margin-bottom:10px;">
                 <div class="pill">Ingredientes por unidad</div>
                 <div class="pill">Total: ${unitText}</div>
@@ -2274,14 +2276,10 @@ async function finalizePostreFromOverlay(){
       </div>
     `;
 
-    costsEditor.innerHTML = meta + dessertsWrap + ingredientsWrap;
+    costsEditor.innerHTML = meta + `<div class="costsScroll">` + dessertsWrap + ingredientsWrap + `</div>`;
 
-    // Toggle handlers (solo cuando se hace clic en el precio unitario)
-    costsEditor.onclick = (e)=>{
-      const btn = e.target.closest('[data-role="toggleDessert"]');
-      if(!btn) return;
-      const card = btn.closest('.amCard');
-      if(!card) return;
+    // Toggle: clic en cualquier parte del postre (cabecera completa)
+    const toggleCard = (card)=>{
       const head = card.querySelector('.amHead');
       const body = card.querySelector('.amBody');
       const open = card.classList.toggle('open');
@@ -2289,12 +2287,22 @@ async function finalizePostreFromOverlay(){
       if(body) body.style.display = open ? 'block' : 'none';
     };
 
+    costsEditor.onclick = (e)=>{
+      const head = e.target.closest('.amHead');
+      if(!head) return;
+      const card = head.closest('.amCard[data-pid]');
+      if(!card) return;
+      toggleCard(card);
+    };
+
     costsEditor.addEventListener("keydown", (e)=>{
       if(e.key!=="Enter" && e.key!==" ") return;
-      const btn = e.target.closest('[data-role="toggleDessert"]');
-      if(!btn) return;
+      const head = e.target.closest('.amHead');
+      if(!head) return;
+      const card = head.closest('.amCard[data-pid]');
+      if(!card) return;
       e.preventDefault();
-      btn.click();
+      toggleCard(card);
     });
   }
 
