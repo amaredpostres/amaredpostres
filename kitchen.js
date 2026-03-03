@@ -215,7 +215,7 @@
 (() => {
   "use strict";
 
-  console.log("AMARED kitchen v2026-03-02 fix7t costs scroll");
+  console.log("AMARED kitchen v2026-03-02 fix7u costs scroll lock");
 
   // ========= CONFIG =========
   const API_URL = "https://amared-orders.amaredpostres.workers.dev/";
@@ -1067,6 +1067,13 @@ function startDayRolloverWatch_(){
       .histDay{background: rgba(255,255,255,.82); border:1px solid rgba(64,17,2,.12); border-radius:16px; padding:12px;}
       .histDay summary{cursor:pointer; font-weight:950; list-style:none; display:flex; align-items:center; justify-content:space-between; gap:10px;}
       .histDay summary::-webkit-details-marker{display:none;}
+
+      /* ===== Costos modal scroll ===== */
+      #costsModal{ align-items:flex-start; overflow:auto; -webkit-overflow-scrolling:touch; }
+      #costsModal .modalBox{ max-height: calc(100vh - 32px); overflow:hidden; display:flex; flex-direction:column; }
+      #costsModal #costsEditor{ flex:1; min-height:0; overflow:auto; -webkit-overflow-scrolling:touch; padding-right:6px; }
+      #costsModal #costsGateErr{ flex:0 0 auto; }
+      
       .histRows{margin-top:10px; display:flex; flex-direction:column; gap:8px;}
       .histRow{display:flex; align-items:center; justify-content:space-between; gap:10px; padding:10px 12px; border-radius:14px; background: rgba(255,255,255,.75); border:1px solid rgba(64,17,2,.08);}
       .histRow .n{font-weight:950;}
@@ -2179,6 +2186,8 @@ async function finalizePostreFromOverlay(){
       hideLoading();
     }
     costsModal.style.display="flex";
+      try{ costsModal.scrollTop=0; }catch(_e){}
+      try{ costsEditor.scrollTop=0; costsEditor.style.overflow="auto"; }catch(_e){}
     costsModal.setAttribute("aria-hidden","false");
     renderCostsReadOnly();
   }
@@ -2276,7 +2285,7 @@ async function finalizePostreFromOverlay(){
       </div>
     `;
 
-    costsEditor.innerHTML = meta + dessertsWrap + ingredientsWrap;
+    costsEditor.innerHTML = meta + `<div class="costsScroll">` + dessertsWrap + ingredientsWrap + `</div>`;
 
     // Toggle: clic en cualquier parte del postre (cabecera completa)
     const toggleCard = (card)=>{
