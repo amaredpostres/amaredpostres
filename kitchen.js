@@ -215,7 +215,7 @@
 (() => {
   "use strict";
 
-  console.log("AMARED kitchen v2026-03-02 fix7n show cards");
+  console.log("AMARED kitchen v2026-03-02 fix7o per-order done");
 
   // ========= CONFIG =========
   const API_URL = "https://amared-orders.amaredpostres.workers.dev/";
@@ -228,6 +228,7 @@
 
   const LS_TIMER_KEY = "AMARED_KITCHEN_TIMERS_V1";
   const LS_DONE_KEY  = "AMARED_KITCHEN_DONE_V1";
+const LS_ORDER_DONE_KEY = "AMARED_KITCHEN_ORDER_DONE_V1";
 
   // ========= PRODUCTOS =========
   const PRODUCTS = [
@@ -573,9 +574,37 @@ const apiPost = (payload) => api(payload);
     }catch(_e){}
     return map;
   }
+  function aggregateByProductRemaining(orders){
+    const map=new Map();
+    for(const o of (orders||[])){
+      const day=String(o.__prod_day||state.todayKey||"");
+      const oid=String(o.order_id||"");
+      for(const it of normalizeItemsFromOrder(o)){
+        if(isOrderProductDone(day, oid, it.id)) continue;
+        map.set(it.id,(map.get(it.id)||0)+it.qty);
+      }
+    }
+    return map;
+  }
+  function aggregateByProductDone(orders){
+    const map=new Map();
+    for(const o of (orders||[])){
+      const day=String(o.__prod_day||state.todayKey||"");
+      const oid=String(o.order_id||"");
+      for(const it of normalizeItemsFromOrder(o)){
+        if(!isOrderProductDone(day, oid, it.id)) continue;
+        map.set(it.id,(map.get(it.id)||0)+it.qty);
+      }
+    }
+    return map;
+  }
+
   function getOrderIdsThatContainProduct(orders,pid){
     const ids=[];
     for(const o of (orders||[])){
+      const day=String(o.__prod_day||state.todayKey||"");
+      const oid=String(o.order_id||"");
+      if(isOrderProductDone(day, oid, pid)) continue;
       if(normalizeItemsFromOrder(o).some(it=>it.id===pid && it.qty>0)) ids.push(String(o.order_id));
     }
     return ids;
@@ -604,6 +633,27 @@ const clearTimer=(day,pid)=>{ const m=getTimersMap(); if(m?.[day]){ delete m[day
 
 
 // Limpieza: mantener SOLO progreso del día actual (evita que "Finalizados" se arrastre al día siguiente)
+
+// Progreso por pedido: qué productos ya se completaron (para NO marcar el pedido como LISTO hasta que termine todo)
+const getOrderDoneMap=()=>{ const r=localStorage.getItem(LS_ORDER_DONE_KEY); const o=r?safeJsonParse(r):null; return (o&&typeof o==="object")?o:{}; };
+const setOrderDoneMap=(o)=> localStorage.setItem(LS_ORDER_DONE_KEY, JSON.stringify(o||{}));
+function isOrderProductDone(day, orderId, pid){
+  const m=getOrderDoneMap(); return !!(m?.[day]?.[orderId]?.[pid]);
+}
+function setOrderProductDone(day, orderId, pid, val=true){
+  const m=getOrderDoneMap();
+  const d=String(day||""); const oid=String(orderId||""); const p=String(pid||"");
+  if(!d || !oid || !p) return;
+  if(!m[d]) m[d]={};
+  if(!m[d][oid]) m[d][oid]={};
+  if(val) m[d][oid][p]=true;
+  else delete m[d][oid][p];
+  setOrderDoneMap(m);
+}
+function clearOrderDoneDay(day){
+  const m=getOrderDoneMap(); const d=String(day||"");
+  if(m && d && m[d]){ delete m[d]; setOrderDoneMap(m); }
+}
 function pruneLocalProgressToDay_(keepDayKey){
   try{
     const dk = String(keepDayKey||"");
@@ -618,6 +668,12 @@ function pruneLocalProgressToDay_(keepDayKey){
     const ntm = {};
     if(dk && tm && tm[dk]) ntm[dk] = tm[dk];
     setTimersMap(ntm);
+
+    // ORDER_DONE
+    const om = getOrderDoneMap();
+    const nom = {};
+    if(dk && om && om[dk]) nom[dk] = om[dk];
+    setOrderDoneMap(nom);
   }catch(e){
     console.warn("pruneLocalProgressToDay_ error:", e);
   }
@@ -1070,7 +1126,7 @@ function renderProfilesSelect(list, selectedId){
     injectStylesV6();
 
     const { badgeText, showAction } = opts||{};
-    const byProd = aggregateByProduct(orders);
+    const byProd = (opts&&opts.showAction) ? aggregateByProductRemaining(orders) : aggregateByProduct(orders);
     const todayKey = state.todayKey;
 
     // Decide qué mostrar en cada bloque: ocultar los hechos (local) arriba
@@ -1640,7 +1696,7 @@ function msToMMSS(ms){
   // ========= Flujos: iniciar paso a paso =========
   async function startRecipeFlow(pid, baseOrders){
     const orders=baseOrders||[];
-    const byProd=aggregateByProduct(orders);
+    const byProd=aggregateByProductRemaining(orders);
     const units=byProd.get(pid)||0;
     const ids=getOrderIdsThatContainProduct(orders,pid);
     if(ids.length===0) return;
@@ -1658,24 +1714,64 @@ function msToMMSS(ms){
   }
 
   // ========= Finalizar postre/lote =========
-  async function finalizePostreFromOverlay(){
+  
+  function getRequiredProductIdsForOrder_(order){
+    const set=new Set();
+    for(const it of normalizeItemsFromOrder(order||{})){
+      if(it && it.id && (Number(it.qty)||0)>0) set.add(String(it.id));
+    }
+    return [...set];
+  }
+async function finalizePostreFromOverlay(){
     const pid=state.recipe.productId; if(!pid) return;
-    const ok=await confirmWithDelay({title:"Finalizar postre", message:"Este postre pasará a Finalizados (vista).", seconds:2, okText:"Finalizar"});
+    const orderIds=(state.recipe?.orderIds||[]).map(String);
+    if(orderIds.length===0) return;
+
+    const ok=await confirmWithDelay({
+      title:"Finalizar postre",
+      message:"Se marcará este postre como completado. Los pedidos que aún tengan otro postre pendiente seguirán en proceso.",
+      seconds:2,
+      okText:"Finalizar"
+    });
     if(!ok) return;
 
-    // Guardar progreso en unidades producidas para este día/producto
-    try{
-      const todayAll = state.paidOrders.filter(o=>o.__prod_day===state.todayKey);
-      const byProdNow = aggregateByProduct(todayAll);
-      const required = Number(byProdNow.get(pid)||0) || Number(state.recipe.units||0) || 0;
-      // Si ya había avance, conservar el máximo
-      setDoneQty(state.todayKey, pid, Math.max(getDoneQty(state.todayKey,pid), required));
-    }catch(_e){
-      setDoneQty(state.todayKey, pid, Math.max(getDoneQty(state.todayKey,pid), Number(state.recipe.units||0)||0));
+    // 1) Marcar localmente este producto como listo por pedido
+    const day=String(state.todayKey||"");
+    for(const oid of orderIds){
+      setOrderProductDone(day, oid, pid, true);
     }
-    clearTimer(state.todayKey,pid);
+    clearTimer(day, pid);
+
+    // 2) Pasar a LISTO en BD solo los pedidos que ya tengan TODOS sus productos listos
+    const byId=new Map((state.paidOrders||[]).map(o=>[String(o.order_id||""), o]));
+    const toListo=[];
+    for(const oid of orderIds){
+      const o=byId.get(String(oid));
+      if(!o) continue;
+      const req=getRequiredProductIdsForOrder_(o);
+      if(!req.length) continue;
+      const allDone=req.every(pp=>isOrderProductDone(String(o.__prod_day||day), String(oid), String(pp)));
+      if(allDone) toListo.push(String(oid));
+    }
+
+    if(toListo.length){
+      showLoading("Finalizando…","Marcando pedidos como LISTO…");
+      try{
+        const nowIso=new Date().toISOString();
+        await kitchenBulkUpdate(toListo,{
+          kitchen_status:"Listo",
+          kitchen_done_at: nowIso,
+          kitchen_done_by: state.session.operatorLabel||"COCINA",
+        });
+      }catch(e){
+        alert(e?.message||String(e));
+      }finally{
+        hideLoading();
+      }
+    }
+
     closeRecipe();
-    renderAll();
+    await refresh();
   }
 
   function getTodayOrderIds(){
@@ -1692,8 +1788,11 @@ function msToMMSS(ms){
     showLoading("Finalizando lote…","Actualizando base de datos…");
     try{
       await kitchenBulkUpdate(ids,{kitchen_status:"Listo"});
-      // Limpieza local (solo temporizadores). No borramos progreso por producto, para evitar inconsistencias si llegan pedidos nuevos.
+      // Limpieza local: temporizadores + progreso por pedido/producto (cerramos el día).
       for(const p of PRODUCTS) clearTimer(state.todayKey, p.id);
+      clearOrderDoneDay(state.todayKey);
+      // (Opcional) también limpiar doneQty
+      try{ const dm=getDoneMap(); delete dm[state.todayKey]; setDoneMap(dm); }catch(_e){}
       closeRecipe();
       await refresh();
     }catch(e){
@@ -1708,19 +1807,22 @@ function msToMMSS(ms){
     if(!container) return;
     injectStylesV6();
 
-    const byProd = aggregateByProduct(orders);
+    // Mostrar solo progreso operador que AÚN NO está marcado como LISTO en BD (evita duplicados)
+    const normStatus = (v)=>String(v||"").trim().toLowerCase();
+    const notDoneDb = (orders||[]).filter(o=>normStatus(o.kitchen_status)!=="listo");
+
+    const byProd = aggregateByProductDone(notDoneDb);
     const cards=[];
     for(const p of PRODUCTS){
       const qty=byProd.get(p.id)||0;
       if(qty<=0) continue;
-      if(getDoneQty(state.todayKey,p.id) < qty) continue;
 
       cards.push(`
         <div class="amCard" data-pid="${escapeHtml(p.id)}" data-units="${qty}">
           <div class="amHead">
             <div style="min-width:0;">
               <div class="amName">${escapeHtml(p.name)}</div>
-              <div class="muted small" style="margin-top:8px;">${escapeHtml(badge||"Finalizado")}</div>
+              <div class="muted small" style="margin-top:8px;">${escapeHtml(badge||"Finalizado (operador)")}</div>
             </div>
             <div style="display:flex; flex-direction:column; align-items:flex-end; gap:10px;">
               <div class="amQty">${qty}</div>
@@ -1733,7 +1835,7 @@ function msToMMSS(ms){
       `);
     }
 
-    container.innerHTML = cards.length ? cards.join("") : `<div class="muted small" style="padding:8px 0;">Sin datos.</div>`;
+    container.innerHTML = cards.length ? cards.join("") : ``;
 
     container.onclick=async(e)=>{
       const card=e.target.closest(".amCard"); if(!card) return;
@@ -1749,33 +1851,17 @@ function msToMMSS(ms){
       body.setAttribute("data-loaded","1");
 
       const pid=card.getAttribute("data-pid");
-      const units=Number(card.getAttribute("data-units")||0);
-
-      const {lines,totalCost}=calcBatchIngredients(pid,units);
-      const costText= totalCost>0?`$${money(totalCost)}`:"—";
-      const unitCost = (units>0 && totalCost>0) ? (totalCost/units) : 0;
-      const unitText = unitCost>0?`$${money(unitCost)}`:"—";
-
-      const ingHtml=(lines||[]).map(li=>`
-        <div class="amIngRow">
-          <div class="amIngName">${escapeHtml(li.key)}</div>
-          <div class="amIngRight">
-            <div class="amIngQty">${fmtQty(li.qty)}</div>
-            <div class="amIngCost ${(Number(li.pricePerUnit||0)>0) ? "hasCost" : ""}">${(Number(li.pricePerUnit||0)>0)?`($${money(li.pricePerUnit)}/u)`:"(sin costo)"}</div>
-          </div>
-        </div>
-      `).join("");
-
-      body.innerHTML=`
-        <div class="rowBetween" style="margin-bottom:10px;">
-          <div class="pill">Ingredientes (lote)</div>
-          <div style="display:flex; gap:8px; flex-wrap:wrap; justify-content:flex-end;">
-            <div class="pill">Unitario: ${unitText}</div>
-            <div class="pill">Lote: ${costText}</div>
-          </div>
-        </div>
-        ${ingHtml||`<div class="muted small">Sin receta configurada.</div>`}
-      `;
+      const rows=[];
+      for(const o of notDoneDb){
+        const day=String(o.__prod_day||state.todayKey||"");
+        const oid=String(o.order_id||"");
+        if(!isOrderProductDone(day, oid, pid)) continue;
+        const it = normalizeItemsFromOrder(o).find(x=>String(x.id)===String(pid));
+        const q = Number(it?.qty||0)||0;
+        if(q<=0) continue;
+        rows.push(`<div class="rowLine"><span class="muted">Pedido</span> <b>${escapeHtml(oid)}</b> <span class="muted">·</span> <b>${q}</b></div>`);
+      }
+      body.innerHTML = rows.length ? rows.join("") : `<div class="muted small" style="padding:10px 0;">Sin detalle.</div>`;
     };
   }
 
@@ -1901,7 +1987,7 @@ function msToMMSS(ms){
 
     // Finalizados:
     if(doneWrap){
-      doneWrap.innerHTML = `<div id="doneDbBlock"></div><div style="height:12px;"></div><div id="doneLocalBlock"></div>`;
+      doneWrap.innerHTML = `<div class="muted small" style="margin:6px 0 10px; font-weight:900;">Listo (BD)</div><div id="doneDbBlock"></div><div style="height:14px;"></div><div class="muted small" style="margin:6px 0 10px; font-weight:900;">Finalizado (operador)</div><div id="doneLocalBlock"></div>`;
       renderFinalizadosDb(document.getElementById("doneDbBlock"), state.buckets.doneDb);
       renderFinalizadosLocal(document.getElementById("doneLocalBlock"), state.paidOrders.filter(o=>String(o.__prod_day||"")===String(state.todayKey||"")), "Finalizado (operador)");
     }
