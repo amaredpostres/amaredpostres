@@ -791,10 +791,11 @@ function renderUnitCosts(){
     <tr data-dessert="${escapeHtml(r.id)}" style="cursor:pointer;">
       <td>${escapeHtml(prettyDessertName(r.id))} <span style="opacity:.55; font-weight:950;">${r.open?"▾":"▸"}</span></td>
       <td class="num">${r.unit!==null ? moneyCOP2(r.unit) : "$—"}</td>
+      <td class="num">${r.unit!==null ? moneyCOP2(r.unit/0.40) : "$—"}</td>
       <td class="num">${r.lote!==null ? moneyCOP2(r.lote) : "$—"}</td>
     </tr>
     <tr data-detail="${escapeHtml(r.id)}" style="${r.open ? "" : "display:none;"}">
-      <td colspan="3" style="padding:0; background: rgba(255,255,255,.55);">
+      <td colspan="4" style="padding:0; background: rgba(255,255,255,.55);">
         ${unitBreakdownHtml_(r.breakdown)}
       </td>
     </tr>
@@ -803,7 +804,7 @@ function renderUnitCosts(){
   const src = (state.recipesSource === "sheet") ? "RECETAS" : "receta embebida";
   meta.textContent = miss.size
     ? (`(${src}) Faltan costos de: ` + Array.from(miss).slice(0,8).join(", ") + (miss.size>8?"…":""))
-    : (`OK (${src})`);
+    : (`OK (${src}) · Precio 60% = costo / 0.40`);
 }
 
 
