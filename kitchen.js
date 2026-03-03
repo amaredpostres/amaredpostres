@@ -215,7 +215,7 @@
 (() => {
   "use strict";
 
-  console.log("AMARED kitchen v2026-03-02 fix7m ui-diag+build");
+  console.log("AMARED kitchen v2026-03-02 fix7n show cards");
 
   // ========= CONFIG =========
   const API_URL = "https://amared-orders.amaredpostres.workers.dev/";
@@ -1082,7 +1082,7 @@ function renderProfilesSelect(list, selectedId){
       const doneQty = getDoneQty(todayKey, p.id);
       const doneLocal = (qty>0) && (doneQty >= qty);
       const partial = (doneQty > 0) && (doneQty < qty);
-      if(showAction && doneLocal) continue; // ocultar arriba si ya completó todas las unidades de este postre
+      // Nota: no ocultamos tarjetas en Producción/En proceso por progreso local; siempre se muestran si hay pedidos.
 
       cards.push(`
         <div class="amCard" data-pid="${escapeHtml(p.id)}" data-units="${qty}">
@@ -1093,7 +1093,7 @@ function renderProfilesSelect(list, selectedId){
             </div>
             <div style="display:flex; flex-direction:column; align-items:flex-end; gap:10px;">
               <div class="amQty">${qty}</div>
-              <div class="amPill">${doneLocal ? "✅ Hecho" : (partial ? ("Hecho " + fmtQty(doneQty) + "/" + qty) : "Ver")} <span aria-hidden="true">▾</span></div>
+              <div class="amPill">${showAction ? "Ver" : (doneLocal ? "✅ Hecho" : (partial ? ("Hecho " + fmtQty(doneQty) + "/" + qty) : "Ver"))} <span aria-hidden="true">▾</span></div>
             </div>
           </div>
           <div class="amBody" data-loaded="0"><div class="muted small">Cargando ingredientes…</div></div>
