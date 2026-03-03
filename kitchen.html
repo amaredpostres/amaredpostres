@@ -48,6 +48,11 @@
       backdrop-filter: blur(6px);
     }
 
+    /* Costos modal scroll (HTML fallback) */
+    #costsModal{ align-items:flex-start; overflow:auto; -webkit-overflow-scrolling:touch; }
+    #costsModal .modalBox{ max-height: calc(100vh - 32px); overflow:hidden; display:flex; flex-direction:column; }
+    #costsModal #costsEditor{ flex:1; min-height:0; overflow:auto; -webkit-overflow-scrolling:touch; padding-right:6px; }
+
       /* ✅ Login actions responsive */
       .loginActions{
         display: flex;
@@ -269,9 +274,9 @@
     </div>
   </div>
 
-  <script src="kitchen-profiles.js?v=20260302-fix7t"></script>
-  <script src="kitchen-costs.js?v=20260302-fix7t"></script>
-  <script src="kitchen.js?v=20260302-fix7t"></script>
+  <script src="kitchen-profiles.js?v=20260302-fix7u"></script>
+  <script src="kitchen-costs.js?v=20260302-fix7u"></script>
+  <script src="kitchen.js?v=20260302-fix7u"></script>
 
 </body>
 </html>
