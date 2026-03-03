@@ -215,7 +215,7 @@
 (() => {
   "use strict";
 
-  console.log("AMARED kitchen v2026-03-02 fix7p info+final detail");
+  console.log("AMARED kitchen v2026-03-02 fix7q finalizados breakdown");
 
   // ========= CONFIG =========
   const API_URL = "https://amared-orders.amaredpostres.workers.dev/";
@@ -1816,39 +1816,84 @@ async function finalizePostreFromOverlay(){
       const qty=byProd.get(p.id)||0;
       if(qty<=0) continue;
 
-      // Ingredientes del lote (según receta) + costos (si hay COSTOS_INGREDIENTES cargado)
-      const ing = calcBatchIngredients(p.id, qty);
-      const ingHtml = renderIngredientsPretty(ing, true, qty, p.id);
-
-      // IDs asociados (solo de pedidos NO listos)
       const ids = getOrderIdsThatContainProduct(notDoneDb, p.id);
 
       cards.push(`
-        <details class="amCard">
-          <summary class="amHead">
+        <div class="amCard" data-pid="${escapeHtml(p.id)}" data-units="${qty}">
+          <div class="amHead" role="button" tabindex="0" aria-expanded="false">
             <div style="min-width:0;">
               <div class="amName">${escapeHtml(p.name||p.id)}</div>
-              <div class="muted small">${escapeHtml(badge||"Finalizado (operador)")}</div>
+              <div class="muted small" style="margin-top:8px;">${escapeHtml(badge||"Finalizado (operador)")}</div>
             </div>
-            <div style="display:flex; flex-direction:column; align-items:flex-end; gap:10px;">
+            <div style="display:flex; flex-direction:column; align-items:flex-end; gap:8px;">
               <div class="amQty">${fmtQty(qty)}</div>
-              <div class="amPill">Hecho</div>
-            </div>
-          </summary>
-
-          <div style="padding:10px 14px 14px 14px;">
-            <div class="muted small" style="margin-bottom:8px;">Pedidos (referencia): ${ids.length ? ids.map(x=>`<code>${escapeHtml(x)}</code>`).join(" ") : "—"}</div>
-            <div style="border-top:1px solid rgba(64,17,2,.08); padding-top:10px;">
-              ${ingHtml}
+              <div class="muted small">unidades</div>
+              <div class="amPill">Ver <span aria-hidden="true">▾</span></div>
             </div>
           </div>
-        </details>
+          <div class="amBody" data-loaded="0"><div class="muted small">Cargando ingredientes…</div></div>
+        </div>
       `);
     }
 
-    container.innerHTML = cards.length
-      ? cards.join("")
-      : `<div class="muted small">Sin datos.</div>`;
+    container.innerHTML = cards.length ? cards.join("") : ``;
+
+    async function toggleCard(card){
+      const head=card.querySelector(".amHead");
+      const expanded=card.classList.toggle("open");
+      if(head) head.setAttribute("aria-expanded", expanded?"true":"false");
+      const body=card.querySelector(".amBody");
+      if(!expanded || !body) return;
+
+      if(body.getAttribute("data-loaded")==="1") return;
+      body.setAttribute("data-loaded","1");
+
+      const pid=card.getAttribute("data-pid");
+      const units=Number(card.getAttribute("data-units")||0);
+
+      // IDs asociados (solo referencia)
+      const ids = getOrderIdsThatContainProduct(notDoneDb, pid);
+
+      const {lines,totalCost}=calcBatchIngredients(pid,units);
+      const costText= totalCost>0?`$${money(totalCost)}`:"—";
+      const unitCost = (units>0 && totalCost>0) ? (totalCost/units) : 0;
+      const unitText = unitCost>0?`$${money(unitCost)}`:"—";
+
+      const ingHtml=(lines||[]).map(li=>`
+        <div class="line" style="display:flex; justify-content:space-between; gap:12px; padding:10px 0; border-bottom:1px solid rgba(64,17,2,.08);">
+          <span>${escapeHtml(li.key)}</span>
+          <div>
+            ${fmtQty(li.qty)} ${li.unit?escapeHtml(li.unit):""}
+            ${li.pricePerUnit?`<span class="muted small" style="margin-left:8px;">($${money(li.pricePerUnit)}/${escapeHtml(li.unit||"u")})</span>`:`<span class="muted small" style="margin-left:8px;">(sin costo)</span>`}
+          </div>
+        </div>`).join("");
+
+      body.innerHTML = `
+        <div class="muted small" style="margin-bottom:10px;"><b>IDs:</b> ${ids.length?ids.map(x=>`<code>${escapeHtml(x)}</code>`).join(" "):"—"}</div>
+        <div class="rowBetween" style="margin-bottom:10px;">
+          <div class="pill">Ingredientes (lote)</div>
+          <div style="display:flex; gap:8px; flex-wrap:wrap; justify-content:flex-end;">
+            <div class="pill">Unitario: ${unitText}</div>
+            <div class="pill">Lote: ${costText}</div>
+          </div>
+        </div>
+        ${ingHtml||`<div class="muted small">Sin receta configurada.</div>`}
+      `;
+    }
+
+    container.onclick=async(e)=>{
+      const card=e.target.closest(".amCard"); if(!card) return;
+      const head=e.target.closest(".amHead"); if(!head) return;
+      await toggleCard(card);
+    };
+
+    container.addEventListener("keydown", async(e)=>{
+      if(e.key!=="Enter" && e.key!==" ") return;
+      const head=e.target.closest(".amHead"); if(!head) return;
+      const card=head.closest(".amCard"); if(!card) return;
+      e.preventDefault();
+      await toggleCard(card);
+    });
   }
 
 
@@ -1856,46 +1901,87 @@ async function finalizePostreFromOverlay(){
     if(!container) return;
     injectStylesV6();
     const orders = Array.isArray(doneOrders) ? doneOrders : [];
-    // Render por postre agregando detalle desplegable con pedidos (IDs) e ingredientes
     const byProd = aggregateByProduct(orders);
+
     const cards=[];
     for(const p of PRODUCTS){
       const qty=byProd.get(p.id)||0;
       if(qty<=0) continue;
-      // Ingredientes del lote (según receta)
-      const ing = calcBatchIngredients(p.id, qty);
-      const ingHtml = renderIngredientsPretty(ing, true, qty, p.id);
 
-      // IDs asociados
       const ids = getOrderIdsThatContainProduct(orders, p.id);
 
       cards.push(`
-        <details class="amCard">
-          <summary class="amHead">
+        <div class="amCard" data-pid="${escapeHtml(p.id)}" data-units="${qty}">
+          <div class="amHead" role="button" tabindex="0" aria-expanded="false">
             <div style="min-width:0;">
               <div class="amName">${escapeHtml(p.name||p.id)}</div>
-              <div class="muted small">Listo · ${ids.length} pedido(s)</div>
+              <div class="muted small" style="margin-top:8px;">Listo · ${ids.length} pedido(s)</div>
             </div>
-            <div style="text-align:right;">
-              <div class="amQty">${qty}</div>
+            <div style="display:flex; flex-direction:column; align-items:flex-end; gap:8px;">
+              <div class="amQty">${fmtQty(qty)}</div>
               <div class="muted small">unidades</div>
+              <div class="amPill">Ver <span aria-hidden="true">▾</span></div>
             </div>
-          </summary>
-
-          <div class="amBody" style="margin-top:10px;">
-            <div class="muted small" style="margin:0 0 10px 0;"><b>IDs:</b> ${ids.map(escapeHtml).join(", ")}</div>
-            ${ingHtml}
           </div>
-        </details>
+          <div class="amBody" data-loaded="0"><div class="muted small">Cargando ingredientes…</div></div>
+        </div>
       `);
     }
 
-    if(cards.length===0){
-      container.innerHTML = `<div class="muted small">Sin datos.</div>`;
-      return;
+    container.innerHTML = cards.length ? cards.join("") : `<div class="muted small">Sin datos.</div>`;
+
+    async function toggleCard(card){
+      const head=card.querySelector(".amHead");
+      const expanded=card.classList.toggle("open");
+      if(head) head.setAttribute("aria-expanded", expanded?"true":"false");
+      const body=card.querySelector(".amBody");
+      if(expanded && body && body.getAttribute("data-loaded")!=="1"){
+        body.setAttribute("data-loaded","1");
+        const pid=card.getAttribute("data-pid");
+        const units=Number(card.getAttribute("data-units")||0);
+        const ids = getOrderIdsThatContainProduct(orders, pid);
+
+        const {lines,totalCost}=calcBatchIngredients(pid,units);
+        const costText= totalCost>0?`$${money(totalCost)}`:"—";
+        const unitCost = (units>0 && totalCost>0) ? (totalCost/units) : 0;
+        const unitText = unitCost>0?`$${money(unitCost)}`:"—";
+
+        const ingHtml=(lines||[]).map(li=>`
+          <div class="line" style="display:flex; justify-content:space-between; gap:12px; padding:10px 0; border-bottom:1px solid rgba(64,17,2,.08);">
+            <span>${escapeHtml(li.key)}</span>
+            <div>
+              ${fmtQty(li.qty)} ${li.unit?escapeHtml(li.unit):""}
+              ${li.pricePerUnit?`<span class="muted small" style="margin-left:8px;">($${money(li.pricePerUnit)}/${escapeHtml(li.unit||"u")})</span>`:`<span class="muted small" style="margin-left:8px;">(sin costo)</span>`}
+            </div>
+          </div>`).join("");
+
+        body.innerHTML=`
+          <div class="muted small" style="margin-bottom:10px;"><b>IDs:</b> ${ids.length?ids.map(x=>`<code>${escapeHtml(x)}</code>`).join(" "):"—"}</div>
+          <div class="rowBetween" style="margin-bottom:10px;">
+            <div class="pill">Ingredientes (lote)</div>
+            <div style="display:flex; gap:8px; flex-wrap:wrap; justify-content:flex-end;">
+              <div class="pill">Unitario: ${unitText}</div>
+              <div class="pill">Lote: ${costText}</div>
+            </div>
+          </div>
+          ${ingHtml||`<div class="muted small">Sin receta configurada.</div>`}
+        `;
+      }
     }
 
-    container.innerHTML = `<div class="amStack">${cards.join("")}</div>`;
+    container.onclick=async(e)=>{
+      const card=e.target.closest(".amCard"); if(!card) return;
+      const head=e.target.closest(".amHead");
+      if(head) await toggleCard(card);
+    };
+
+    container.addEventListener("keydown", async(e)=>{
+      if(e.key!=="Enter" && e.key!==" ") return;
+      const head=e.target.closest(".amHead"); if(!head) return;
+      const card=head.closest(".amCard"); if(!card) return;
+      e.preventDefault();
+      await toggleCard(card);
+    });
   }
 
 
