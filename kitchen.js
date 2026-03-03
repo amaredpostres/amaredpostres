@@ -215,7 +215,7 @@
 (() => {
   "use strict";
 
-  console.log("AMARED kitchen v2026-03-02 fix7o per-order done");
+  console.log("AMARED kitchen v2026-03-02 fix7p info+final detail");
 
   // ========= CONFIG =========
   const API_URL = "https://amared-orders.amaredpostres.workers.dev/";
@@ -1127,7 +1127,7 @@ function renderProfilesSelect(list, selectedId){
 
     const { badgeText, showAction } = opts||{};
     const byProd = (opts&&opts.showAction) ? aggregateByProductRemaining(orders) : aggregateByProduct(orders);
-    const todayKey = state.todayKey;
+    const dayKey = (opts && opts.dayKey) ? String(opts.dayKey) : String(state.todayKey);
 
     // Decide qué mostrar en cada bloque: ocultar los hechos (local) arriba
     const cards=[];
@@ -1135,7 +1135,7 @@ function renderProfilesSelect(list, selectedId){
       const qty=byProd.get(p.id)||0;
       if(qty<=0) continue;
 
-      const doneQty = getDoneQty(todayKey, p.id);
+      const doneQty = getDoneQty(dayKey, p.id);
       const doneLocal = (qty>0) && (doneQty >= qty);
       const partial = (doneQty > 0) && (doneQty < qty);
       // Nota: no ocultamos tarjetas en Producción/En proceso por progreso local; siempre se muestran si hay pedidos.
@@ -1149,7 +1149,7 @@ function renderProfilesSelect(list, selectedId){
             </div>
             <div style="display:flex; flex-direction:column; align-items:flex-end; gap:10px;">
               <div class="amQty">${qty}</div>
-              <div class="amPill">${showAction ? "Ver" : (doneLocal ? "✅ Hecho" : (partial ? ("Hecho " + fmtQty(doneQty) + "/" + qty) : "Ver"))} <span aria-hidden="true">▾</span></div>
+              <div class="amPill">${(opts&&opts.mode==="info") ? "Ver" : (showAction ? "Ver" : (doneLocal ? "✅ Hecho" : (partial ? ("Hecho " + fmtQty(doneQty) + "/" + qty) : "Ver")))} <span aria-hidden="true">▾</span></div>
             </div>
           </div>
           <div class="amBody" data-loaded="0"><div class="muted small">Cargando ingredientes…</div></div>
@@ -1807,7 +1807,6 @@ async function finalizePostreFromOverlay(){
     if(!container) return;
     injectStylesV6();
 
-    // Mostrar solo progreso operador que AÚN NO está marcado como LISTO en BD (evita duplicados)
     const normStatus = (v)=>String(v||"").trim().toLowerCase();
     const notDoneDb = (orders||[]).filter(o=>normStatus(o.kitchen_status)!=="listo");
 
@@ -1817,52 +1816,39 @@ async function finalizePostreFromOverlay(){
       const qty=byProd.get(p.id)||0;
       if(qty<=0) continue;
 
+      // Ingredientes del lote (según receta) + costos (si hay COSTOS_INGREDIENTES cargado)
+      const ing = calcBatchIngredients(p.id, qty);
+      const ingHtml = renderIngredientsPretty(ing, true, qty, p.id);
+
+      // IDs asociados (solo de pedidos NO listos)
+      const ids = getOrderIdsThatContainProduct(notDoneDb, p.id);
+
       cards.push(`
-        <div class="amCard" data-pid="${escapeHtml(p.id)}" data-units="${qty}">
-          <div class="amHead">
+        <details class="amCard">
+          <summary class="amHead">
             <div style="min-width:0;">
-              <div class="amName">${escapeHtml(p.name)}</div>
-              <div class="muted small" style="margin-top:8px;">${escapeHtml(badge||"Finalizado (operador)")}</div>
+              <div class="amName">${escapeHtml(p.name||p.id)}</div>
+              <div class="muted small">${escapeHtml(badge||"Finalizado (operador)")}</div>
             </div>
             <div style="display:flex; flex-direction:column; align-items:flex-end; gap:10px;">
-              <div class="amQty">${qty}</div>
-              <div class="amPill">✅ Hecho</div>
-              <div class="muted small">Ver ▾</div>
+              <div class="amQty">${fmtQty(qty)}</div>
+              <div class="amPill">Hecho</div>
+            </div>
+          </summary>
+
+          <div style="padding:10px 14px 14px 14px;">
+            <div class="muted small" style="margin-bottom:8px;">Pedidos (referencia): ${ids.length ? ids.map(x=>`<code>${escapeHtml(x)}</code>`).join(" ") : "—"}</div>
+            <div style="border-top:1px solid rgba(64,17,2,.08); padding-top:10px;">
+              ${ingHtml}
             </div>
           </div>
-          <div class="amBody"></div>
-        </div>
+        </details>
       `);
     }
 
-    container.innerHTML = cards.length ? cards.join("") : ``;
-
-    container.onclick=async(e)=>{
-      const card=e.target.closest(".amCard"); if(!card) return;
-      const head=e.target.closest(".amHead"); if(!head) return;
-
-      card.classList.toggle("open");
-      const body=card.querySelector(".amBody");
-      if(!body) return;
-
-      if(!card.classList.contains("open")) return;
-
-      if(body.getAttribute("data-loaded")==="1") return;
-      body.setAttribute("data-loaded","1");
-
-      const pid=card.getAttribute("data-pid");
-      const rows=[];
-      for(const o of notDoneDb){
-        const day=String(o.__prod_day||state.todayKey||"");
-        const oid=String(o.order_id||"");
-        if(!isOrderProductDone(day, oid, pid)) continue;
-        const it = normalizeItemsFromOrder(o).find(x=>String(x.id)===String(pid));
-        const q = Number(it?.qty||0)||0;
-        if(q<=0) continue;
-        rows.push(`<div class="rowLine"><span class="muted">Pedido</span> <b>${escapeHtml(oid)}</b> <span class="muted">·</span> <b>${q}</b></div>`);
-      }
-      body.innerHTML = rows.length ? rows.join("") : `<div class="muted small" style="padding:10px 0;">Sin detalle.</div>`;
-    };
+    container.innerHTML = cards.length
+      ? cards.join("")
+      : `<div class="muted small">Sin datos.</div>`;
   }
 
 
@@ -1884,7 +1870,7 @@ async function finalizePostreFromOverlay(){
       const ids = getOrderIdsThatContainProduct(orders, p.id);
 
       cards.push(`
-        <details class="amCard" open="false">
+        <details class="amCard">
           <summary class="amHead">
             <div style="min-width:0;">
               <div class="amName">${escapeHtml(p.name||p.id)}</div>
@@ -1955,7 +1941,7 @@ async function finalizePostreFromOverlay(){
 
   function renderAll(){
     renderProductCards(todayWrap, state.buckets.today, {badgeText:`Producción ${state.todayKey}`, showAction:true});
-    renderProductCards(tomorrowWrap, state.buckets.infoTomorrow, {badgeText:`Informativo (${state.nextKey})`, showAction:false});
+    renderProductCards(tomorrowWrap, state.buckets.infoTomorrow, {badgeText:`Informativo (${state.nextKey})`, showAction:false, mode:"info", dayKey: state.nextKey});
     renderProductCards(backlogWrap, state.buckets.backlog||[], {badgeText:"Pendientes pagados", showAction:true});
 
     // actualizar tabs con conteo y vista por defecto
