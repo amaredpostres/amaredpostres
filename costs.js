@@ -218,6 +218,11 @@ function escapeHtml(s){
   return String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#039;"}[c]));
 }
 
+function escapeHtmlAttr(s){
+  return escapeHtml(s).replace(/"/g,"&quot;");
+}
+
+
 // =============== Loading ===============
 function showLoading(title, sub){
   if(el("loadingTitle")) el("loadingTitle").textContent = title || "Cargando…";
@@ -1458,6 +1463,70 @@ function openCatalogModal(){
 
 function closeCatalogModal(){ hide(el("catModalBack")); }
 
+
+
+function openIngredientsModal(){
+  if(!UNLOCKED_SECRET){
+    openUnlock("Ingresa tu clave para continuar.");
+    return;
+  }
+  if(el("ingAddMsg")) el("ingAddMsg").textContent = "";
+  if(el("ingDelMsg")) el("ingDelMsg").textContent = "";
+  // llenar select con ingredientes actuales (desde COSTOS_INGREDIENTES)
+  const keys = Object.keys(state.costsByKey||{}).sort((a,b)=>a.localeCompare(b,"es"));
+  const sel = el("ingSelect");
+  if(sel){
+    sel.innerHTML = keys.map(k=>`<option value="${escapeHtmlAttr(k)}">${escapeHtml(k)}</option>`).join("");
+  }
+  show(el("ingModalBack"));
+}
+function closeIngredientsModal(){ hide(el("ingModalBack")); }
+
+function normalizeUnitType_(u){
+  const t = String(u||"").trim().toLowerCase();
+  if(t==="g"||t==="gr"||t==="gramo"||t==="gramos") return "g";
+  if(t==="ml"||t==="mililitro"||t==="mililitros") return "ml";
+  if(t==="u"||t==="und"||t==="unidad"||t==="unidades") return "unidad";
+  return t;
+}
+
+async function addIngredient(){
+  const key = String(el("ingNewKey")?.value||"").trim();
+  const unit_type = normalizeUnitType_(el("ingNewUnit")?.value||"");
+  const unit_item_qty_raw = String(el("ingUnitItemQty")?.value||"").trim();
+  const unit_item_qty = unit_item_qty_raw ? Number(unit_item_qty_raw.replace(",", ".")) : null;
+  const unit_item_qty_type = normalizeUnitType_(el("ingUnitItemQtyType")?.value||"");
+
+  if(!key) throw new Error("Escribe el nombre del ingrediente.");
+  if(!unit_type || !["g","ml","unidad"].includes(unit_type)) throw new Error("Selecciona un tipo válido (g/ml/unidad).");
+  if(unit_item_qty_raw && !(unit_item_qty>0)) throw new Error("Cantidad por unidad inválida.");
+  if(unit_item_qty_raw && !["g","ml"].includes(unit_item_qty_type)) throw new Error("Selecciona g o ml en “Cantidad por unidad”.");
+
+  await api({
+    action:"ingredient_add",
+    costs_secret: UNLOCKED_SECRET,
+    ingredient_key: key,
+    unit_type,
+    unit_item_qty: unit_item_qty_raw ? unit_item_qty : "",
+    unit_item_qty_type: unit_item_qty_raw ? unit_item_qty_type : ""
+  });
+
+  // refrescar costos/inventario para que aparezca de inmediato
+  await loadAll();
+  if(el("ingNewKey")) el("ingNewKey").value = "";
+  if(el("ingUnitItemQty")) el("ingUnitItemQty").value = "";
+  if(el("ingUnitItemQtyType")) el("ingUnitItemQtyType").value = "";
+  if(el("ingAddMsg")) el("ingAddMsg").textContent = "Ingrediente agregado con éxito.";
+}
+
+async function deleteIngredient(){
+  const key = String(el("ingSelect")?.value||"").trim();
+  if(!key) throw new Error("Selecciona un ingrediente.");
+  // Confirmación mínima (sin ventanas nativas para no bloquear UX)
+  await api({ action:"ingredient_delete", costs_secret: UNLOCKED_SECRET, ingredient_key: key });
+  await loadAll();
+  if(el("ingDelMsg")) el("ingDelMsg").textContent = "Ingrediente eliminado.";
+}
 function normalizeCatalogType_(type){
   const t = String(type||"").trim().toLowerCase();
   if(t === "stores" || t === "store" || t === "tiendas") return "store";
@@ -1505,6 +1574,7 @@ function bind(){
   // Costos view
   el("btnCostsRefresh")?.addEventListener("click", ()=>{ showLoading("Refrescando…","Leyendo datos actualizados."); loadAll().finally(hideLoading); });
   el("btnCatalogs")?.addEventListener("click", ()=> openCatalogModal());
+  el("btnIngredients")?.addEventListener("click", ()=> openIngredientsModal());
   el("inpCostSearch")?.addEventListener("input", (e)=>{ state.ui.cost_q = String(e.target.value||""); renderCostsGroups(); });
 
   // Unlock
@@ -1620,6 +1690,10 @@ function bind(){
 
   // Catalog modal
   el("catCloseX")?.addEventListener("click", closeCatalogModal);
+  el("ingCloseX")?.addEventListener("click", closeIngredientsModal);
+  el("btnAddIng")?.addEventListener("click", async()=>{ try{ if(el("ingAddMsg")) el("ingAddMsg").textContent=""; await addIngredient(); }catch(e){ if(el("ingAddMsg")) el("ingAddMsg").textContent=String(e.message||e); } });
+  el("btnDelIng")?.addEventListener("click", async()=>{ try{ if(el("ingDelMsg")) el("ingDelMsg").textContent=""; await deleteIngredient(); }catch(e){ if(el("ingDelMsg")) el("ingDelMsg").textContent=String(e.message||e); } });
+  el("ingModalBack")?.addEventListener("click", (e)=>{ if(e.target && e.target.id==="ingModalBack") closeIngredientsModal(); });
   el("btnAddStore")?.addEventListener("click", async ()=>{
     try{
       if(el("catErr")) el("catErr").textContent = "";
