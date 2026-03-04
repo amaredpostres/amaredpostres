@@ -37,6 +37,8 @@ let state = {
 // --- RECETAS (desde hoja RECETAS) ---
 state.recipesByDessert = null; // {dessert_id: [{ingredient_key, qty_per_unit, unit}]}
 state.recipesSource = "embedded"; // "sheet" | "embedded"
+state.recipesPinUnlocked = false;
+state.recipesPin = "";
 
 // ====== Costo unitario por postre (recetas canónicas) ======
 const AMARED_RECIPES_PER_UNIT = {
@@ -233,32 +235,47 @@ function hideLoading(){ hide(el("loadingBack")); }
 
 // =============== Tabs ===============
 function setView(view){
-  const v = (view === "costs") ? "costs" : "purchases";
+  const v = (view === "costs") ? "costs" : (view === "recipes" ? "recipes" : "purchases");
   state.view = v;
 
   const vp = el("viewPurchases");
   const vc = el("viewCosts");
+  const vr = el("viewRecipes");
   const bb = el("bottomBar");
+
   const tp = el("btnTabPurchases");
   const tc = el("btnTabCosts");
+  const tr = el("btnTabRecipes");
+
+  if(tp){ tp.classList.remove("isActive"); tp.setAttribute("aria-selected","false"); }
+  if(tc){ tc.classList.remove("isActive"); tc.setAttribute("aria-selected","false"); }
+  if(tr){ tr.classList.remove("isActive"); tr.setAttribute("aria-selected","false"); }
+
+  show(vp); hide(vc); hide(vr);
+  if(bb) bb.style.display = "";
 
   if(v === "costs"){
     hide(vp);
     show(vc);
     if(bb) bb.style.display = "none";
-    if(tp){ tp.classList.remove("isActive"); tp.setAttribute("aria-selected","false"); }
     if(tc){ tc.classList.add("isActive"); tc.setAttribute("aria-selected","true"); }
     renderCostsGroups();
-  renderUnitCosts();
-  } else {
-    show(vp);
-    hide(vc);
-    if(bb) bb.style.display = "";
-    if(tp){ tp.classList.add("isActive"); tp.setAttribute("aria-selected","true"); }
-    if(tc){ tc.classList.remove("isActive"); tc.setAttribute("aria-selected","false"); }
-    renderGroups();
-    refreshBottom();
+    renderUnitCosts();
+    return;
   }
+
+  if(v === "recipes"){
+    hide(vp); hide(vc); show(vr);
+    if(bb) bb.style.display = "none";
+    if(tr){ tr.classList.add("isActive"); tr.setAttribute("aria-selected","true"); }
+    ensureRecipesUnlocked_();
+    return;
+  }
+
+  show(vp); hide(vc); hide(vr);
+  if(tp){ tp.classList.add("isActive"); tp.setAttribute("aria-selected","true"); }
+  renderGroups();
+  refreshBottom();
 }
 
 function setCostsMeta(msg){
@@ -1687,6 +1704,237 @@ async function deleteCatalogValue(type, value){
   await refreshCatalogs();
 }
 
+// =============== Recetas (admin) ===============
+function getStoredRecipesPin_(){
+  try{ return String(localStorage.getItem("amared_recipes_pin")||""); }catch(_e){ return ""; }
+}
+function storeRecipesPin_(pin){
+  try{ localStorage.setItem("amared_recipes_pin", String(pin||"")); }catch(_e){}
+}
+
+async function validateRecipesPin_(pin){
+  const p = String(pin||"").trim();
+  if(!p) return false;
+  try{
+    const out = await api({ action:"recipes_pin_check", costs_secret: UNLOCKED_SECRET, recipes_pin: p }, {timeoutMs: 15000});
+    return !!out.valid;
+  }catch(_e){
+    return false;
+  }
+}
+
+function openRecipesUnlock_(msg){
+  if(el("recipesUnlockMsg")) el("recipesUnlockMsg").textContent = msg || "";
+  if(el("recipesPinInput")) el("recipesPinInput").value = "";
+  show(el("recipesUnlockBack"));
+  setTimeout(()=>{ el("recipesPinInput")?.focus(); }, 60);
+}
+function closeRecipesUnlock_(){ hide(el("recipesUnlockBack")); }
+
+async function doRecipesUnlock_(silent=false){
+  const pin = String(el("recipesPinInput")?.value || (silent ? getStoredRecipesPin_() : "") || "").trim();
+  if(!pin){
+    if(!silent) openRecipesUnlock_("Escribe el código de Recetas.");
+    return false;
+  }
+  const ok = await validateRecipesPin_(pin);
+  if(!ok){
+    if(!silent){
+      if(el("recipesUnlockMsg")) el("recipesUnlockMsg").textContent = "Código inválido.";
+      el("recipesPinInput")?.focus();
+    }
+    return false;
+  }
+  state.recipesPinUnlocked = true;
+  state.recipesPin = pin;
+  storeRecipesPin_(pin);
+  closeRecipesUnlock_();
+  renderRecipesView_();
+  return true;
+}
+
+async function ensureRecipesUnlocked_(){
+  if(state.recipesPinUnlocked){ renderRecipesView_(); return; }
+  const stored = getStoredRecipesPin_();
+  if(stored){
+    const ok = await validateRecipesPin_(stored);
+    if(ok){
+      state.recipesPinUnlocked = true;
+      state.recipesPin = stored;
+      renderRecipesView_();
+      return;
+    }
+  }
+  openRecipesUnlock_("");
+}
+
+function collectDessertIds_(){
+  const base = ["mousse_maracuya","cheesecake_cafe_panela","arroz_con_leche"];
+  const set = new Set(base);
+  Object.keys(state.recipesByDessert||{}).forEach(id=>set.add(id));
+  Object.keys(state.ordersByDessert||{}).forEach(id=>set.add(id));
+  const late = state.late?.orders_by_dessert || state.late?.ordersByDessert || {};
+  Object.keys(late||{}).forEach(id=>set.add(id));
+  set.delete("arroz_con_leche");
+  return Array.from(set).filter(Boolean);
+}
+
+function getDraftMap_(dessertId){
+  state.ui.recipeDraftByDessert = state.ui.recipeDraftByDessert || {};
+  if(!state.ui.recipeDraftByDessert[dessertId]){
+    const seed = {};
+    const rows = state.recipesByDessert?.[dessertId] || [];
+    for(const r of rows){
+      const k = String(r.ingredient_key||"").trim();
+      if(!k) continue;
+      seed[k] = { use:true, qty: Number(r.qty_per_unit||0), unit: String(r.unit||"").trim() };
+    }
+    state.ui.recipeDraftByDessert[dessertId] = seed;
+  }
+  return state.ui.recipeDraftByDessert[dessertId];
+}
+
+function renderDessertList_(){
+  const box = el("dessertList");
+  if(!box) return;
+  const q = String(state.ui.dessert_q||"").trim().toLowerCase();
+  const ids = collectDessertIds_();
+  const rows = ids.map(id=>({ id, name: prettyDessertName(id) }))
+    .filter(x=> !q || x.name.toLowerCase().includes(q) || x.id.toLowerCase().includes(q))
+    .sort((a,b)=>a.name.localeCompare(b.name,"es"));
+
+  box.innerHTML = rows.map(r=>{
+    const active = (state.ui.activeDessert === r.id);
+    return `<button class="pDessertBtn ${active?"isActive":""}" data-did="${escapeHtmlAttr(r.id)}">${escapeHtml(r.name)}<div class="meta">${escapeHtml(r.id)}</div></button>`;
+  }).join("") || `<div class="hint">Sin postres.</div>`;
+}
+
+function renderRecipeEditor_(){
+  const did = String(state.ui.activeDessert||"").trim();
+  const editor = el("recipeEditor");
+  const title = el("recipeEditorTitle");
+  const sub = el("recipeEditorSub");
+  const btnSave = el("btnRecipeSave");
+
+  if(!did){
+    if(title) title.textContent = "Selecciona un postre";
+    if(sub) sub.textContent = "Marca ingredientes y define cantidades por unidad.";
+    if(editor) editor.innerHTML = "";
+    if(btnSave) btnSave.disabled = true;
+    return;
+  }
+
+  if(title) title.textContent = prettyDessertName(did);
+  if(sub) sub.textContent = "Ingredientes por unidad (se guardan en RECETAS).";
+  if(btnSave) btnSave.disabled = false;
+
+  const draft = getDraftMap_(did);
+  const q = String(state.ui.ingredient_q||"").trim().toLowerCase();
+  const keys = Object.keys(state.costsByKey||{}).sort((a,b)=>a.localeCompare(b,"es"));
+  const filtered = keys.filter(k => !q || k.toLowerCase().includes(q));
+
+  const rows = filtered.map(k=>{
+    const d = draft[k] || { use:false, qty:"", unit:getUnitFor(k) };
+    const unit = String(d.unit || getUnitFor(k) || "g");
+    const checked = !!d.use;
+    const qtyVal = (d.qty!=="" && d.qty!=null) ? String(d.qty).replace(".", ",") : "";
+    return `<div class="pRecipeRow" data-k="${escapeHtmlAttr(k)}">
+      <label style="display:flex; align-items:center; gap:8px; min-width:84px;">
+        <input type="checkbox" data-act="r_toggle" ${checked?"checked":""} />
+        <span class="meta">Usar</span>
+      </label>
+      <div class="name">${escapeHtml(k)}<div class="meta">Unidad: <b>${escapeHtml(unit)}</b></div></div>
+      <input class="input qty" data-act="r_qty" type="number" step="any" min="0" placeholder="Cantidad" value="${escapeHtmlAttr(qtyVal)}" ${checked?"":"disabled"} />
+    </div>`;
+  }).join("");
+
+  editor.innerHTML = rows || `<div class="hint">No hay ingredientes.</div>`;
+}
+
+function setRecipesMeta_(txt){
+  const m = el("recipesMeta");
+  if(m) m.textContent = txt || "";
+}
+
+function renderRecipesView_(){
+  setRecipesMeta_(state.recipesSource === "sheet" ? "Fuente: RECETAS (hoja)" : "Fuente: receta embebida (fallback)");
+  renderDessertList_();
+  renderRecipeEditor_();
+}
+
+async function saveRecipe_(){
+  const did = String(state.ui.activeDessert||"").trim();
+  if(!did) return;
+  const draft = getDraftMap_(did);
+
+  const items = [];
+  for(const [k,v] of Object.entries(draft)){
+    if(!v || !v.use) continue;
+    const qty = Number(String(v.qty||"").replace(",", "."));
+    if(!(qty>0)) continue;
+    const unit = String(v.unit || getUnitFor(k) || "").trim().toLowerCase();
+    if(!unit) continue;
+    items.push({ ingredient_key: k, qty_per_unit: qty, unit });
+  }
+
+  showLoading("Guardando…","Actualizando RECETAS.");
+  try{
+    await api({ action: "recipes_set", costs_secret: UNLOCKED_SECRET, recipes_pin: state.recipesPin, dessert_id: did, dessert_name: prettyDessertName(did), items }, {timeoutMs: 45000});
+    await loadRecipesFromSheet_();
+    setRecipesMeta_("Receta guardada con éxito.");
+  } finally { hideLoading(); }
+}
+
+function joinNames_(names){
+  const arr = (names||[]).filter(Boolean);
+  if(arr.length<=1) return arr[0]||"";
+  if(arr.length===2) return `${arr[0]} y ${arr[1]}`;
+  return arr.slice(0,-1).join(", ") + " y " + arr[arr.length-1];
+}
+
+function computeAutoSections_(){
+  const dessertIds = collectDessertIds_();
+  const names = dessertIds.map(id=>prettyDessertName(id));
+  const n = dessertIds.length;
+  const fullMask = (1<<n) - 1;
+
+  const mem = {};
+  dessertIds.forEach((did, idx)=>{
+    const rows = state.recipesByDessert?.[did] || [];
+    for(const r of rows){
+      const k = String(r.ingredient_key||"").trim();
+      if(!k) continue;
+      mem[k] = (mem[k] || 0) | (1<<idx);
+    }
+  });
+
+  const out = [];
+  for(const k of Object.keys(mem)){
+    const mask = mem[k];
+    const inIdx = [];
+    for(let i=0;i<n;i++){ if(mask & (1<<i)) inIdx.push(i); }
+    const inNames = inIdx.map(i=>names[i]);
+
+    let title = "";
+    if(mask === fullMask) title = "Ingredientes que comparten todos los postres";
+    else if(inIdx.length > 1) title = "Ingredientes que comparten " + joinNames_(inNames);
+    else title = "Ingredientes para " + (inNames[0] || "Postre");
+
+    out.push({ ingredient_key: k, section_title: title });
+  }
+  return out;
+}
+
+async function autoClassifyCostsSections_(){
+  showLoading("Clasificando…","Actualizando secciones en COSTOS_INGREDIENTES.");
+  try{
+    const items = computeAutoSections_();
+    await api({ action:"costs_sections_set", costs_secret: UNLOCKED_SECRET, recipes_pin: state.recipesPin, items }, {timeoutMs: 45000});
+    await loadAll();
+    setRecipesMeta_("Secciones actualizadas con éxito.");
+  } finally { hideLoading(); }
+}
+
 // =============== Events ===============
 function bind(){
   // Buttons
@@ -1707,6 +1955,7 @@ function bind(){
   // Tabs
   el("btnTabPurchases")?.addEventListener("click", ()=> setView("purchases"));
   el("btnTabCosts")?.addEventListener("click", ()=> setView("costs"));
+  el("btnTabRecipes")?.addEventListener("click", ()=> setView("recipes"));
 
   // Costos view
   el("btnCostsRefresh")?.addEventListener("click", ()=>{ showLoading("Refrescando…","Leyendo datos actualizados."); loadAll().finally(hideLoading); });
@@ -1714,10 +1963,60 @@ function bind(){
   el("btnIngredients")?.addEventListener("click", ()=> openIngredientsModal());
   el("inpCostSearch")?.addEventListener("input", (e)=>{ state.ui.cost_q = String(e.target.value||""); renderCostsGroups(); });
 
+  // Recetas view
+  el("inpDessertSearch")?.addEventListener("input", (e)=>{ state.ui.dessert_q = String(e.target.value||""); renderDessertList_(); });
+  el("dessertList")?.addEventListener("click", (e)=>{
+    const btn = e.target.closest(".pDessertBtn");
+    if(!btn) return;
+    const did = String(btn.getAttribute("data-did")||"");
+    if(!did) return;
+    state.ui.activeDessert = did;
+    renderDessertList_();
+    renderRecipeEditor_();
+  });
+  el("inpIngredientSearch")?.addEventListener("input", (e)=>{ state.ui.ingredient_q = String(e.target.value||""); renderRecipeEditor_(); });
+  el("recipeEditor")?.addEventListener("input", (e)=>{
+    const row = e.target.closest(".pRecipeRow");
+    if(!row) return;
+    const k = String(row.getAttribute("data-k")||"");
+    if(!k) return;
+    const did = String(state.ui.activeDessert||"");
+    if(!did) return;
+    const draft = getDraftMap_(did);
+    draft[k] = draft[k] || { use:false, qty:"", unit:getUnitFor(k) };
+    const act = e.target.getAttribute("data-act") || "";
+    if(act==="r_qty"){ draft[k].qty = String(e.target.value||"").replace(",","."); }
+  });
+  el("recipeEditor")?.addEventListener("change", (e)=>{
+    const row = e.target.closest(".pRecipeRow");
+    if(!row) return;
+    const k = String(row.getAttribute("data-k")||"");
+    if(!k) return;
+    const did = String(state.ui.activeDessert||"");
+    if(!did) return;
+    const draft = getDraftMap_(did);
+    draft[k] = draft[k] || { use:false, qty:"", unit:getUnitFor(k) };
+    const act = e.target.getAttribute("data-act") || "";
+    if(act==="r_toggle"){
+      draft[k].use = !!e.target.checked;
+      const qtyInp = row.querySelector("input.qty");
+      if(qtyInp) qtyInp.disabled = !draft[k].use;
+      if(draft[k].use && !draft[k].qty){ if(qtyInp) qtyInp.value="1"; draft[k].qty = 1; }
+    }
+  });
+  el("btnRecipeSave")?.addEventListener("click", ()=> saveRecipe_().catch(e=> setRecipesMeta_(String(e.message||e)) ));
+  el("btnRecipesRefresh")?.addEventListener("click", ()=>{ showLoading("Refrescando…","Leyendo datos."); loadAll().finally(hideLoading); });
+  el("btnRecipesAutoClassify")?.addEventListener("click", ()=>{ if(!state.recipesPinUnlocked) return; autoClassifyCostsSections_().catch(e=> setRecipesMeta_(String(e.message||e)) ); });
+
   // Unlock
   el("btnDoUnlock")?.addEventListener("click", ()=>doUnlock(false));
   el("btnClear")?.addEventListener("click", ()=>{ if(el("secretInput")) el("secretInput").value = ""; if(el("unlockMsg")) el("unlockMsg").textContent = ""; el("secretInput")?.focus(); });
   el("secretInput")?.addEventListener("keydown", (e)=>{ if(e.key === "Enter") doUnlock(false); });
+
+  // Recipes unlock
+  el("btnDoRecipesUnlock")?.addEventListener("click", ()=>doRecipesUnlock_(false));
+  el("btnRecipesClear")?.addEventListener("click", ()=>{ if(el("recipesPinInput")) el("recipesPinInput").value=""; if(el("recipesUnlockMsg")) el("recipesUnlockMsg").textContent=""; el("recipesPinInput")?.focus(); });
+  el("recipesPinInput")?.addEventListener("keydown", (e)=>{ if(e.key==="Enter") doRecipesUnlock_(false); });
 
   // Controls
   el("inpSearch")?.addEventListener("input", (e)=>{ state.ui.q = String(e.target.value||""); renderGroups(); refreshBottom(); updateMetaLine(); });
