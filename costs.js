@@ -474,6 +474,37 @@ function groupKeys(keys){
   const used = new Set();
   const out = [];
 
+  // 🔶 Asignación manual por sección (desde COSTOS_INGREDIENTES.section_title)
+  const titleToGroup = {};
+
+  // Primero: ubicar ingredientes con sección fija
+  for(const k of (keys||[])){
+    const kk = String(k||"").trim();
+    if(!kk) continue;
+    const spec = state.costsByKey?.[kk];
+    const sec = String(spec?.section_title || spec?.section || "").trim();
+    if(!sec) continue;
+
+    // crear grupo si no existe
+    let grp = out.find(x=>String(x.title||"")===sec);
+    if(!grp){
+      grp = { title: sec, keys: [] };
+      out.push(grp);
+    }
+    // evitar duplicados
+    if(!used.has(kk)){
+      grp.keys.push(kk);
+      used.add(kk);
+    }
+  }
+
+  if(groups){
+    for(const g of groups){
+      const t = String(g?.title||"").trim();
+      if(t) titleToGroup[t] = g;
+    }
+  }
+
   // índice por canonicalKey para tolerar tildes, comas, etc.
   const keyByCanon = {};
   for(const k of (keys||[])){
@@ -481,6 +512,28 @@ function groupKeys(keys){
     if(!kk) continue;
     const c = canonicalKey(kk);
     if(c && !keyByCanon[c]) keyByCanon[c] = kk;
+  }
+
+
+  // Primero: ubicar ingredientes con sección fija
+  for(const k of (keys||[])){
+    const kk = String(k||"").trim();
+    if(!kk) continue;
+    const spec = state.costsByKey?.[kk];
+    const sec = String(spec?.section_title || spec?.section || "").trim();
+    if(!sec) continue;
+
+    // crear grupo si no existe
+    let grp = out.find(x=>String(x.title||"")===sec);
+    if(!grp){
+      grp = { title: sec, keys: [] };
+      out.push(grp);
+    }
+    // evitar duplicados
+    if(!used.has(kk)){
+      grp.keys.push(kk);
+      used.add(kk);
+    }
   }
 
   if(groups){
@@ -1472,6 +1525,23 @@ function openIngredientsModal(){
   }
   if(el("ingAddMsg")) el("ingAddMsg").textContent = "";
   if(el("ingDelMsg")) el("ingDelMsg").textContent = "";
+  // Secciones disponibles (desde kitchen-costs.js)
+  const secSel = el("ingNewSection");
+  if(secSel){
+    const base = Array.isArray(window.AMARED_COSTS_SECTIONS) ? window.AMARED_COSTS_SECTIONS.map(s=>String(s.title||"").trim()).filter(Boolean) : [];
+    // incluir secciones personalizadas que ya existan en COSTOS_INGREDIENTES
+    const extra = [];
+    for(const k of Object.keys(state.costsByKey||{})){
+      const t = String(state.costsByKey?.[k]?.section_title || state.costsByKey?.[k]?.section || "").trim();
+      if(t) extra.push(t);
+    }
+    const uniq = Array.from(new Set(["(Sin asignar)"].concat(base).concat(extra)));
+    secSel.innerHTML = uniq.map(t=>{
+      const val = (t==="(Sin asignar)") ? "" : t;
+      return `<option value="${escapeHtmlAttr(val)}">${escapeHtml(t)}</option>`;
+    }).join("");
+  }
+
   // llenar select con ingredientes actuales (desde COSTOS_INGREDIENTES)
   const keys = Object.keys(state.costsByKey||{}).sort((a,b)=>a.localeCompare(b,"es"));
   const sel = el("ingSelect");
@@ -1491,8 +1561,14 @@ function normalizeUnitType_(u){
 }
 
 async function addIngredient(){
+  if(state.ingBusy) return;
+  state.ingBusy = true;
+  const btn = el("btnAddIng"); if(btn) btn.disabled = true;
+  showLoading("Publicando ingrediente…","Guardando en COSTOS_INGREDIENTES e INVENTARIO.");
+
   const key = String(el("ingNewKey")?.value||"").trim();
   const unit_type = normalizeUnitType_(el("ingNewUnit")?.value||"");
+  const section_title = String(el("ingNewSection")?.value||"").trim();
   const unit_item_qty_raw = String(el("ingUnitItemQty")?.value||"").trim();
   const unit_item_qty = unit_item_qty_raw ? Number(unit_item_qty_raw.replace(",", ".")) : null;
   const unit_item_qty_type = normalizeUnitType_(el("ingUnitItemQtyType")?.value||"");
@@ -1502,17 +1578,24 @@ async function addIngredient(){
   if(unit_item_qty_raw && !(unit_item_qty>0)) throw new Error("Cantidad por unidad inválida.");
   if(unit_item_qty_raw && !["g","ml"].includes(unit_item_qty_type)) throw new Error("Selecciona g o ml en “Cantidad por unidad”.");
 
+  try{
   await api({
     action:"ingredient_add",
     costs_secret: UNLOCKED_SECRET,
     ingredient_key: key,
     unit_type,
+    section_title,
     unit_item_qty: unit_item_qty_raw ? unit_item_qty : "",
     unit_item_qty_type: unit_item_qty_raw ? unit_item_qty_type : ""
   });
 
   // refrescar costos/inventario para que aparezca de inmediato
   await loadAll();
+  } finally {
+    hideLoading();
+    state.ingBusy = false;
+    const btn2 = el("btnAddIng"); if(btn2) btn2.disabled = false;
+  }
   if(el("ingNewKey")) el("ingNewKey").value = "";
   if(el("ingUnitItemQty")) el("ingUnitItemQty").value = "";
   if(el("ingUnitItemQtyType")) el("ingUnitItemQtyType").value = "";
@@ -1520,11 +1603,22 @@ async function addIngredient(){
 }
 
 async function deleteIngredient(){
+  if(state.ingBusy) return;
+  state.ingBusy = true;
+  const btn = el("btnDelIng"); if(btn) btn.disabled = true;
+  showLoading("Eliminando ingrediente…","Actualizando base de datos.");
+
   const key = String(el("ingSelect")?.value||"").trim();
   if(!key) throw new Error("Selecciona un ingrediente.");
   // Confirmación mínima (sin ventanas nativas para no bloquear UX)
+  try{
   await api({ action:"ingredient_delete", costs_secret: UNLOCKED_SECRET, ingredient_key: key });
   await loadAll();
+  } finally {
+    hideLoading();
+    state.ingBusy = false;
+    const btn2 = el("btnDelIng"); if(btn2) btn2.disabled = false;
+  }
   if(el("ingDelMsg")) el("ingDelMsg").textContent = "Ingrediente eliminado.";
 }
 function normalizeCatalogType_(type){
