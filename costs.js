@@ -1704,6 +1704,13 @@ async function deleteCatalogValue(type, value){
   await refreshCatalogs();
 }
 
+
+function resetRecipesAuth_(){
+  state.recipesPinUnlocked = false;
+  state.recipesPin = "";
+  try{ localStorage.removeItem("amared_recipes_pin"); }catch(_e){}
+}
+
 // =============== Recetas (admin) ===============
 function getStoredRecipesPin_(){
   try{ return String(localStorage.getItem("amared_recipes_pin")||""); }catch(_e){ return ""; }
@@ -1732,40 +1739,86 @@ function openRecipesUnlock_(msg){
 function closeRecipesUnlock_(){ hide(el("recipesUnlockBack")); }
 
 async function doRecipesUnlock_(silent=false){
+  if(!UNLOCKED_SECRET){
+    openUnlock("Ingresa tu COSTS_SECRET para validar el código de Recetas.");
+    return false;
+  }
+
   const pin = String(el("recipesPinInput")?.value || (silent ? getStoredRecipesPin_() : "") || "").trim();
   if(!pin){
     if(!silent) openRecipesUnlock_("Escribe el código de Recetas.");
     return false;
   }
-  const ok = await validateRecipesPin_(pin);
-  if(!ok){
-    if(!silent){
-      if(el("recipesUnlockMsg")) el("recipesUnlockMsg").textContent = "Código inválido.";
-      el("recipesPinInput")?.focus();
+
+  const btn = el("btnDoRecipesUnlock");
+  if(btn){ btn.disabled = true; btn.textContent = "Validando…"; }
+
+  showLoading("Validando…","Verificando código de Recetas.");
+  try{
+    const ok = await validateRecipesPin_(pin);
+    if(!ok){
+      if(!silent){
+        if(el("recipesUnlockMsg")) el("recipesUnlockMsg").textContent = "Código inválido.";
+        el("recipesPinInput")?.focus();
+      }
+      return false;
     }
-    return false;
+
+    state.recipesPinUnlocked = true;
+    state.recipesPin = pin;
+    storeRecipesPin_(pin);
+
+    // Asegurar datos y renderizar
+    try{ await loadAll(); }catch(_e){}
+    closeRecipesUnlock_();
+    renderRecipesView_();
+    return true;
+  } finally {
+    hideLoading();
+    if(btn){ btn.disabled = false; btn.textContent = "Entrar"; }
   }
-  state.recipesPinUnlocked = true;
-  state.recipesPin = pin;
-  storeRecipesPin_(pin);
-  closeRecipesUnlock_();
-  renderRecipesView_();
-  return true;
 }
 
 async function ensureRecipesUnlocked_(){
-  if(state.recipesPinUnlocked){ renderRecipesView_(); return; }
-  const stored = getStoredRecipesPin_();
-  if(stored){
-    const ok = await validateRecipesPin_(stored);
-    if(ok){
-      state.recipesPinUnlocked = true;
-      state.recipesPin = stored;
+  // Requiere COSTS_SECRET (base)
+  if(!UNLOCKED_SECRET){
+    openUnlock("Ingresa tu COSTS_SECRET para acceder a Recetas.");
+    setView("purchases");
+    return;
+  }
+
+  showLoading("Cargando…","Preparando módulo de Recetas.");
+  try{
+    // Asegurar datos base (costos + recetas)
+    if(!state.items || !state.items.length || !state.recipesByDessert){
+      try{ await loadAll(); }catch(_e){}
+    }else if(!state.recipesByDessert){
+      try{ await loadRecipesFromSheet_(); }catch(_e){}
+    }
+
+    // ya desbloqueado
+    if(state.recipesPinUnlocked && state.recipesPin){
       renderRecipesView_();
       return;
     }
+
+    // intento silencioso con pin guardado
+    const stored = getStoredRecipesPin_();
+    if(stored){
+      const ok = await validateRecipesPin_(stored);
+      if(ok){
+        state.recipesPinUnlocked = true;
+        state.recipesPin = stored;
+        renderRecipesView_();
+        return;
+      }
+    }
+
+    // pedir pin
+    openRecipesUnlock_("");
+  } finally {
+    hideLoading();
   }
-  openRecipesUnlock_("");
 }
 
 function collectDessertIds_(){
@@ -2016,7 +2069,10 @@ function bind(){
   // Recipes unlock
   el("btnDoRecipesUnlock")?.addEventListener("click", ()=>doRecipesUnlock_(false));
   el("btnRecipesClear")?.addEventListener("click", ()=>{ if(el("recipesPinInput")) el("recipesPinInput").value=""; if(el("recipesUnlockMsg")) el("recipesUnlockMsg").textContent=""; el("recipesPinInput")?.focus(); });
+  el("btnRecipesCancel")?.addEventListener("click", ()=>{ closeRecipesUnlock_(); setView("purchases"); });
+  el("btnRecipesRelog")?.addEventListener("click", ()=>{ resetRecipesAuth_(); openRecipesUnlock_(""); });
   el("recipesPinInput")?.addEventListener("keydown", (e)=>{ if(e.key==="Enter") doRecipesUnlock_(false); });
+  el("recipesUnlockBack")?.addEventListener("click", (e)=>{ if(e.target && e.target.id==="recipesUnlockBack") closeRecipesUnlock_(); });
 
   // Controls
   el("inpSearch")?.addEventListener("input", (e)=>{ state.ui.q = String(e.target.value||""); renderGroups(); refreshBottom(); updateMetaLine(); });
