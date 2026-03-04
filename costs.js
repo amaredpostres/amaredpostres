@@ -1744,9 +1744,9 @@ async function doRecipesUnlock_(silent=false){
     return false;
   }
 
-  const pin = String(el("recipesPinInput")?.value || (silent ? getStoredRecipesPin_() : "") || "").trim();
+  const pin = String(el("recipesPinInput")?.value || "").trim();
   if(!pin){
-    if(!silent) openRecipesUnlock_("Escribe el código de Recetas.");
+    openRecipesUnlock_("Escribe el código de Recetas.");
     return false;
   }
 
@@ -1757,19 +1757,17 @@ async function doRecipesUnlock_(silent=false){
   try{
     const ok = await validateRecipesPin_(pin);
     if(!ok){
-      if(!silent){
-        if(el("recipesUnlockMsg")) el("recipesUnlockMsg").textContent = "Código inválido.";
-        el("recipesPinInput")?.focus();
-      }
+      if(el("recipesUnlockMsg")) el("recipesUnlockMsg").textContent = "Código inválido.";
+      el("recipesPinInput")?.focus();
       return false;
     }
 
     state.recipesPinUnlocked = true;
     state.recipesPin = pin;
-    storeRecipesPin_(pin);
 
-    // Asegurar datos y renderizar
+    // Cargar datos base y RECETAS
     try{ await loadAll(); }catch(_e){}
+
     closeRecipesUnlock_();
     renderRecipesView_();
     return true;
@@ -1787,38 +1785,21 @@ async function ensureRecipesUnlocked_(){
     return;
   }
 
-  showLoading("Cargando…","Preparando módulo de Recetas.");
+  // Siempre pedir código (privacidad adicional)
+  state.recipesPinUnlocked = false;
+  state.recipesPin = "";
+
+  // Preparar UI mínima (evita pantalla vacía)
   try{
-    // Asegurar datos base (costos + recetas)
-    if(!state.items || !state.items.length || !state.recipesByDessert){
-      try{ await loadAll(); }catch(_e){}
-    }else if(!state.recipesByDessert){
-      try{ await loadRecipesFromSheet_(); }catch(_e){}
-    }
+    setRecipesMeta_("Bloqueado: ingresa el código de Recetas.");
+    if(el("dessertList")) el("dessertList").innerHTML = `<div class="hint">Ingresa el código para ver postres.</div>`;
+    if(el("recipeEditor")) el("recipeEditor").innerHTML = ``;
+    if(el("btnRecipeSave")) el("btnRecipeSave").disabled = true;
+    if(el("recipeEditorTitle")) el("recipeEditorTitle").textContent = "Acceso protegido";
+    if(el("recipeEditorSub")) el("recipeEditorSub").textContent = "Ingresa el código de Recetas para continuar.";
+  }catch(_e){}
 
-    // ya desbloqueado
-    if(state.recipesPinUnlocked && state.recipesPin){
-      renderRecipesView_();
-      return;
-    }
-
-    // intento silencioso con pin guardado
-    const stored = getStoredRecipesPin_();
-    if(stored){
-      const ok = await validateRecipesPin_(stored);
-      if(ok){
-        state.recipesPinUnlocked = true;
-        state.recipesPin = stored;
-        renderRecipesView_();
-        return;
-      }
-    }
-
-    // pedir pin
-    openRecipesUnlock_("");
-  } finally {
-    hideLoading();
-  }
+  openRecipesUnlock_("");
 }
 
 function collectDessertIds_(){
