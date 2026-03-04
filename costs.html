@@ -14,6 +14,23 @@
 
   <!-- ✅ estilos SOLO de purchases (incluye pestaña Costos) -->
   <link rel="stylesheet" href="costs.css" />
+
+<style>
+/* ===== Ingredientes modal responsive ===== */
+#ingModalBack .pCatGrid.ingGrid{grid-template-columns: 1fr 1fr;}
+@media (max-width: 720px){
+  #ingModalBack .modal{width: min(560px, 96vw) !important;}
+  #ingModalBack .pCatGrid.ingGrid{grid-template-columns: 1fr !important; gap: 12px;}
+}
+
+/* ===== Confirm delete modal ===== */
+#ingConfirmBack.hidden{display:none;}
+#ingConfirmBack .modal{width:min(520px, 92vw);}
+#ingConfirmBack .modalBody{padding:14px;}
+#ingConfirmBack .confirmBtns{display:flex; gap:10px; justify-content:flex-end; flex-wrap:wrap;}
+#ingConfirmBack .confirmHint{margin-top:8px;}
+</style>
+
 </head>
 
 <body class="costsPage">
@@ -264,7 +281,7 @@
       </div>
 
       <div class="modalBody" style="padding:14px;">
-        <div class="pCatGrid" style="grid-template-columns: 1fr 1fr;">
+        <div class="pCatGrid ingGrid">
           <div class="pCatBox">
             <div class="k" style="font-weight:950;">Agregar ingrediente</div>
             <div class="hint" style="margin-top:6px;">Crea el ingrediente en la base de datos con cantidad inicial 0 en inventario.</div>
@@ -318,6 +335,32 @@
       </div>
     </div>
   </div>
+
+  <!-- MODAL: confirmar eliminación de ingrediente -->
+  <div id="ingConfirmBack" class="modalOverlay hidden">
+    <div class="modal">
+      <div class="modalHeader">
+        <div>
+          <div class="modalTitle" style="font-weight:950;">⚠️ Confirmar eliminación</div>
+          <div class="modalSub" style="margin-top:4px;">Esta acción eliminará el ingrediente de <b>COSTOS_INGREDIENTES</b> e <b>INVENTARIO</b>.</div>
+        </div>
+        <button id="ingConfirmCloseX" class="btn">Cerrar</button>
+      </div>
+      <div class="modalBody">
+        <div class="pCatBox" style="margin:0;">
+          <div class="k" style="font-weight:950;">Ingrediente</div>
+          <div id="ingConfirmName" style="margin-top:6px; font-weight:900;"></div>
+          <div id="ingConfirmWarn" class="hint confirmHint">Si el ingrediente está usado en RECETAS, la eliminación será bloqueada automáticamente.</div>
+          <div id="ingConfirmCountdown" class="pSmallMeta" style="margin-top:10px; color:#7a2b00;"></div>
+          <div class="confirmBtns" style="margin-top:12px;">
+            <button id="ingConfirmCancel" class="btn secondary">Cancelar</button>
+            <button id="ingConfirmGo" class="btn" disabled>Eliminar</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
 <!-- MODAL: administrar catálogos -->
   <div id="catModalBack" class="modalOverlay hidden">
     <div class="modal" style="width:min(900px, 96vw);">
