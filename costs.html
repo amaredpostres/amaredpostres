@@ -127,6 +127,7 @@
 
             <div class="pTopBtns" style="justify-content:flex-end;">
               <button id="btnCatalogs" class="btn secondary">⚙️ Tiendas/Marcas</button>
+              <button id="btnIngredients" class="btn secondary">🧩 Ingredientes</button>
               <button id="btnCostsRefresh" class="btn secondary">Refrescar</button>
             </div>
           </div>
@@ -250,7 +251,69 @@
     </div>
   </div>
 
-  <!-- MODAL: administrar catálogos -->
+  
+  <!-- MODAL: administrar ingredientes -->
+  <div id="ingModalBack" class="modalOverlay hidden">
+    <div class="modal" style="width:min(980px, 96vw);">
+      <div class="modalHeader">
+        <div>
+          <div class="modalTitle" style="font-weight:950;">🧩 Ingredientes (Productos)</div>
+          <div class="modalSub" style="margin-top:4px;">Agrega o elimina ingredientes. Se refleja en <b>COSTOS_INGREDIENTES</b> e <b>INVENTARIO</b>.</div>
+        </div>
+        <button id="ingCloseX" class="btn">Cerrar</button>
+      </div>
+
+      <div class="modalBody" style="padding:14px;">
+        <div class="pCatGrid" style="grid-template-columns: 1fr 1fr;">
+          <div class="pCatBox">
+            <div class="k" style="font-weight:950;">Agregar ingrediente</div>
+            <div class="hint" style="margin-top:6px;">Crea el ingrediente en la base de datos con cantidad inicial 0 en inventario.</div>
+
+            <div class="pCatRow" style="margin-top:10px;">
+              <input id="ingNewKey" class="input" placeholder="Nombre del ingrediente (ej: Azúcar morena)" />
+            </div>
+
+            <div class="pCatRow" style="margin-top:10px;">
+              <select id="ingNewUnit" class="input">
+                <option value="g">g</option>
+                <option value="ml">ml</option>
+                <option value="unidad">unidad</option>
+              </select>
+              <button id="btnAddIng" class="btn secondary">Agregar</button>
+            </div>
+
+            <div class="hint" style="margin-top:10px;">
+              Opcional (solo si el ingrediente se compra por unidades pero se consume en g/ml): “Cantidad por unidad”.
+            </div>
+
+            <div class="pCatRow" style="margin-top:10px;">
+              <input id="ingUnitItemQty" class="input" placeholder="Cantidad por unidad (opcional)" />
+              <select id="ingUnitItemQtyType" class="input">
+                <option value="">—</option>
+                <option value="g">g</option>
+                <option value="ml">ml</option>
+              </select>
+            </div>
+
+            <div id="ingAddMsg" class="pSmallMeta" style="margin-top:10px; color:#7a2b00;"></div>
+          </div>
+
+          <div class="pCatBox">
+            <div class="k" style="font-weight:950;">Eliminar ingrediente</div>
+            <div class="hint" style="margin-top:6px;">Eliminación segura: se bloqueará si el ingrediente está usado en RECETAS.</div>
+
+            <div class="pCatRow" style="margin-top:10px;">
+              <select id="ingSelect" class="input"></select>
+              <button id="btnDelIng" class="btn">Eliminar</button>
+            </div>
+
+            <div id="ingDelMsg" class="pSmallMeta" style="margin-top:10px; color:#7a2b00;"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+<!-- MODAL: administrar catálogos -->
   <div id="catModalBack" class="modalOverlay hidden">
     <div class="modal" style="width:min(900px, 96vw);">
       <div class="modalHeader">
