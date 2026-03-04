@@ -1893,6 +1893,18 @@ el("ingModalBack")?.addEventListener("click", (e)=>{ if(e.target && e.target.id=
   el("costModalBack")?.addEventListener("click", (e)=>{ if(e.target === el("costModalBack")) closeCostModal(); });
   el("confirmBack")?.addEventListener("click", (e)=>{ if(e.target === el("confirmBack")) closeConfirm(); });
   el("catModalBack")?.addEventListener("click", (e)=>{ if(e.target === el("catModalBack")) closeCatalogModal(); });
+
+
+  // Confirm delete modal
+  el("ingConfirmCancel")?.addEventListener("click", closeIngConfirm);
+  el("ingConfirmBack")?.addEventListener("click", (e)=>{ if(e.target && e.target.id==="ingConfirmBack") closeIngConfirm(); });
+
+  // ESC para cancelar
+  document.addEventListener("keydown", (e)=>{
+    if(e.key !== "Escape") return;
+    const back = el("ingConfirmBack");
+    if(back && !back.classList.contains("hidden")) closeIngConfirm();
+  });
 }
 
 // =============== Boot ===============
