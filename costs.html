@@ -48,6 +48,7 @@
           <div class="pTabs" role="tablist" aria-label="Compras y Costos">
             <button id="btnTabPurchases" class="pTabBtn isActive" role="tab" aria-selected="true">Compras</button>
             <button id="btnTabCosts" class="pTabBtn" role="tab" aria-selected="false">Costos</button>
+            <button id="btnTabRecipes" class="pTabBtn" role="tab" aria-selected="false">Recetas</button>
           </div>
 
           <button id="btnExit" class="btn">Salir</button>
@@ -162,7 +163,56 @@
         </section>
 
         <div style="height:24px;"></div>
+      
+
+      <!-- =================== VIEW: RECETAS =================== -->
+      <div id="viewRecipes" class="hidden" style="display:none;">
+        <section class="card">
+          <div class="pCostsHead">
+            <div>
+              <div class="pMetaTitle">Recetas</div>
+              <div class="hint" style="margin-top:6px;">Selecciona un postre, marca ingredientes y define cantidades por unidad. Se guarda en <b>RECETAS</b>.</div>
+              <div class="hint" style="margin-top:6px;">⚠️ Este módulo requiere un <b>código adicional</b> para editar.</div>
+            </div>
+
+            <div class="pTopBtns" style="justify-content:flex-end;">
+              <button id="btnRecipesAutoClassify" class="btn secondary">✨ Clasificar secciones</button>
+              <button id="btnRecipesRefresh" class="btn secondary">Refrescar</button>
+            </div>
+          </div>
+
+          <div id="recipesMeta" class="pSmallMeta" style="margin-top:10px;"></div>
+        </section>
+
+        <section class="card" style="margin-top:14px;">
+          <div class="pRecipeGrid">
+            <div class="pRecipeLeft">
+              <div class="cardTitle" style="margin-bottom:8px;">Postres</div>
+              <input id="inpDessertSearch" class="input" placeholder="Buscar postre…" />
+              <div id="dessertList" class="pList" style="margin-top:10px;"></div>
+            </div>
+
+            <div class="pRecipeRight">
+              <div class="rowBetween" style="gap:10px; align-items:center;">
+                <div>
+                  <div class="cardTitle" id="recipeEditorTitle" style="margin-bottom:4px;">Selecciona un postre</div>
+                  <div id="recipeEditorSub" class="hint">Marca ingredientes y define cantidades por unidad.</div>
+                </div>
+                <button id="btnRecipeSave" class="btn primary" disabled>Guardar receta</button>
+              </div>
+
+              <div class="pControls" style="margin-top:12px;">
+                <input id="inpIngredientSearch" class="input" placeholder="Buscar ingrediente…" />
+              </div>
+
+              <div id="recipeEditor" class="pGroups" style="margin-top:12px;"></div>
+            </div>
+          </div>
+        </section>
+
+        <div style="height:24px;"></div>
       </div>
+</div>
     </main>
 
     <!-- Bottom bar (solo Compras) -->
@@ -197,7 +247,29 @@
     </div>
   </div>
 
-  <!-- MODAL: detalle/edición de costo (reutilizado en Compras y Costos) -->
+  
+  <!-- LOGIN: RECETAS (código adicional) -->
+  <div id="recipesUnlockBack" class="modalOverlay hidden">
+    <div class="modal">
+      <div class="modalHeader">
+        <div>
+          <div class="modalTitle" style="font-weight:950;">🔐 Acceso a Recetas</div>
+          <div class="modalSub" style="margin-top:4px;">Ingresa tu <b>código de Recetas</b>. Se valida en el servidor.</div>
+        </div>
+      </div>
+      <div class="modalBody" style="padding:14px;">
+        <div class="pLoginRow">
+          <input id="recipesPinInput" class="input" type="password" placeholder="Código de Recetas" autocomplete="off" />
+          <button id="btnDoRecipesUnlock" class="btn primary">Entrar</button>
+          <button id="btnRecipesClear" class="btn">Limpiar</button>
+        </div>
+        <div id="recipesUnlockMsg" class="pErr"></div>
+        <div class="hint" style="margin-top:10px;">Tip: si ya ingresaste antes en este navegador, se intentará validar automáticamente.</div>
+      </div>
+    </div>
+  </div>
+
+<!-- MODAL: detalle/edición de costo (reutilizado en Compras y Costos) -->
   <div id="costModalBack" class="modalOverlay hidden">
     <div class="modal" style="width:min(920px, 96vw);">
       <div class="modalHeader">
