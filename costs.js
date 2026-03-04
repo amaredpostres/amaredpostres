@@ -1518,6 +1518,10 @@ function closeCatalogModal(){ hide(el("catModalBack")); }
 
 
 
+let ingDeleteTimer = null;
+let ingDeleteCountdown = 0;
+let ingDeletePendingKey = "";
+
 function openIngredientsModal(){
   if(!UNLOCKED_SECRET){
     openUnlock("Ingresa tu clave para continuar.");
@@ -1552,6 +1556,45 @@ function openIngredientsModal(){
 }
 function closeIngredientsModal(){ hide(el("ingModalBack")); }
 
+
+
+function openIngConfirm(key){
+  ingDeletePendingKey = String(key||"").trim();
+  if(el("ingConfirmName")) el("ingConfirmName").textContent = ingDeletePendingKey || "—";
+  if(el("ingConfirmCountdown")) el("ingConfirmCountdown").textContent = "";
+  ingDeleteCountdown = 2;
+
+  const btn = el("ingConfirmGo");
+  if(btn){
+    btn.disabled = true;
+    btn.textContent = `Eliminar (${ingDeleteCountdown})`;
+  }
+  show(el("ingConfirmBack"));
+
+  if(ingDeleteTimer) clearInterval(ingDeleteTimer);
+  ingDeleteTimer = setInterval(()=>{
+    ingDeleteCountdown -= 1;
+    const b = el("ingConfirmGo");
+    if(!b) return;
+    if(ingDeleteCountdown > 0){
+      b.disabled = true;
+      b.textContent = `Eliminar (${ingDeleteCountdown})`;
+    }else{
+      b.disabled = false;
+      b.textContent = "Eliminar";
+      clearInterval(ingDeleteTimer);
+      ingDeleteTimer = null;
+    }
+  }, 1000);
+}
+
+function closeIngConfirm(){
+  if(ingDeleteTimer) clearInterval(ingDeleteTimer);
+  ingDeleteTimer = null;
+  ingDeleteCountdown = 0;
+  ingDeletePendingKey = "";
+  hide(el("ingConfirmBack"));
+}
 function normalizeUnitType_(u){
   const t = String(u||"").trim().toLowerCase();
   if(t==="g"||t==="gr"||t==="gramo"||t==="gramos") return "g";
@@ -1785,9 +1828,16 @@ function bind(){
   // Catalog modal
   el("catCloseX")?.addEventListener("click", closeCatalogModal);
   el("ingCloseX")?.addEventListener("click", closeIngredientsModal);
-  el("btnAddIng")?.addEventListener("click", async()=>{ try{ if(el("ingAddMsg")) el("ingAddMsg").textContent=""; await addIngredient(); }catch(e){ if(el("ingAddMsg")) el("ingAddMsg").textContent=String(e.message||e); } });
-  el("btnDelIng")?.addEventListener("click", async()=>{ try{ if(el("ingDelMsg")) el("ingDelMsg").textContent=""; await deleteIngredient(); }catch(e){ if(el("ingDelMsg")) el("ingDelMsg").textContent=String(e.message||e); } });
-  el("ingModalBack")?.addEventListener("click", (e)=>{ if(e.target && e.target.id==="ingModalBack") closeIngredientsModal(); });
+  el("btnAddIng")?.addEventListener("click", async()=>{ try{ if(el("ingAddMsg")) el("ingAddMsg").textContent=""; await addIngredient(); }catch(e){ try{ hideLoading(); }catch(_e){} if(el("ingAddMsg")) el("ingAddMsg").textContent=String(e.message||e); } });
+  el("btnDelIng")?.addEventListener("click", ()=>{
+    try{
+      if(el("ingDelMsg")) el("ingDelMsg").textContent="";
+      const key = String(el("ingSelect")?.value||"").trim();
+      if(!key) throw new Error("Selecciona un ingrediente.");
+      openIngConfirm(key);
+    }catch(e){ if(el("ingDelMsg")) el("ingDelMsg").textContent=String(e.message||e); }
+  });
+el("ingModalBack")?.addEventListener("click", (e)=>{ if(e.target && e.target.id==="ingModalBack") closeIngredientsModal(); });
   el("btnAddStore")?.addEventListener("click", async ()=>{
     try{
       if(el("catErr")) el("catErr").textContent = "";
