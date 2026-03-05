@@ -148,8 +148,6 @@
 <div class="hint" style="margin-top:6px;">⚠️ Este módulo requiere un <b>código adicional</b> para editar.</div>
 </div>
 <div class="pTopBtns" style="justify-content:flex-end;">
-<button class="btn secondary" id="btnRecipesRelog">🔐 Código</button>
-<button class="btn secondary" id="btnRecipesAutoClassify">✨ Clasificar secciones</button>
 <button class="btn secondary" id="btnRecipesRefresh">Refrescar</button>
 </div>
 </div>
@@ -162,7 +160,9 @@
 <input class="input" id="inpDessertSearch" placeholder="Buscar postre…"/>
 <div class="pList" id="dessertList" style="margin-top:10px;"></div>
 </div>
-<div class="pRecipeRight">
+<div class="pRecipeRight" id="recipeRightWrap">
+<div id="recipeRightLocked" class="hint" style="padding:14px; border:1px dashed rgba(64,17,2,.18); border-radius:14px; background:rgba(255,255,255,.6);">Selecciona un postre para editar su receta.</div>
+<div id="recipeRightInner" style="display:none;">
 <div class="rowBetween" style="gap:10px; align-items:center;">
 <div>
 <div class="cardTitle" id="recipeEditorTitle" style="margin-bottom:4px;">Selecciona un postre</div>
@@ -296,6 +296,32 @@
 </div>
 </div>
 </div>
+
+  <!-- MODAL: crear postre -->
+  <div id="dessertModalBack" class="modalOverlay hidden">
+    <div class="modal" style="width:min(560px, 92vw);">
+      <div class="modalHeader">
+        <div>
+          <div class="modalTitle" style="font-weight:950;">➕ Crear postre</div>
+          <div class="modalSub" style="margin-top:4px;">Crea un postre nuevo para usarlo en RECETAS.</div>
+        </div>
+      </div>
+      <div class="modalBody" style="padding:14px;">
+        <div class="pCatBox" style="margin:0;">
+          <div class="k" style="font-weight:950;">Nombre</div>
+          <input id="dessertNameInput" class="input" placeholder="Ej: Arroz con leche" style="margin-top:8px;" />
+          <div class="hint" style="margin-top:10px;">El ID se genera automáticamente. (Puedes editarlo si deseas)</div>
+          <input id="dessertIdInput" class="input" placeholder="Ej: arroz_con_leche" style="margin-top:8px;" />
+          <div id="dessertCreateMsg" class="pErr" style="margin-top:10px;"></div>
+          <div class="confirmBtns" style="margin-top:12px; display:flex; gap:10px; justify-content:flex-end; flex-wrap:wrap;">
+            <button id="btnDessertCancel" class="btn secondary">Cancelar</button>
+            <button id="btnDessertCreate" class="btn primary">Crear</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
 <!-- MODAL: administrar ingredientes -->
 <div class="modalOverlay hidden" id="ingModalBack">
 <div class="modal" style="width:min(980px, 96vw);">
@@ -314,10 +340,6 @@
 <div class="pCatRow" style="margin-top:10px;">
 <input class="input" id="ingNewKey" placeholder="Nombre del ingrediente (ej: Azúcar morena)"/>
 </div>
-<div class="pCatRow" style="margin-top:10px;">
-<select class="input" id="ingNewSection"></select>
-</div>
-<div class="hint" style="margin-top:6px;">Selecciona la sección donde quieres ver este ingrediente en el listado.</div>
 <div class="pCatRow" style="margin-top:10px;">
 <select class="input" id="ingNewUnit">
 <option value="g">g</option>
@@ -452,6 +474,6 @@
 </div>
 </div>
 <script src="kitchen-costs.js?v=20260304-recipes-fixednest"></script>
-<script src="costs.js?v=20260304-recipes-fixednest"></script>
+<script src="costs.js?v=20260304-recipes-ui-v2"></script>
 </body>
 </html>
