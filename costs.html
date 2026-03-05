@@ -331,12 +331,9 @@
 <button class="btn primary" id="btnDoUnlock">Entrar</button>
 <button class="btn" id="btnClear">Limpiar</button>
 </div>
-<label class="pRemember" style="display:flex; align-items:center; gap:10px; margin-top:10px; font-weight:900; color: rgba(64,17,2,.78);">
-  <input type="checkbox" id="rememberDevice"/>
-  Recuérdame en este dispositivo
-</label>
 <div class="pErr" id="unlockMsg"></div>
-<div class="hint" style="margin-top:10px;">Si activas “Recuérdame”, no se pedirá el código en este dispositivo.</div>
+<label class="pToggle" style="margin-top:10px; display:inline-flex;"><input id="chkRememberDevice" type="checkbox"/>Recuérdame en este dispositivo</label>
+<div class="hint" style="margin-top:10px;">Si lo activas, podrás entrar automáticamente en este dispositivo.</div>
 </div>
 </div>
 </div>
@@ -357,7 +354,7 @@
 <button class="btn secondary" id="btnRecipesCancel">Cancelar</button>
 </div>
 <div class="pErr" id="recipesUnlockMsg"></div>
-<div class="hint" style="margin-top:10px;">Si activas “Recuérdame”, no se pedirá el código en este dispositivo.</div>
+<div class="hint" style="margin-top:10px;">Este módulo siempre pide el código por seguridad.</div>
 </div>
 </div>
 </div>
@@ -440,65 +437,12 @@
         <div class="pCatBox" style="margin:0;">
           <div class="k" style="font-weight:950;">Nombre</div>
           <input id="dessertNameInput" class="input" placeholder="Ej: Arroz con leche" style="margin-top:8px;" />
-          <div class="hint" style="margin-top:10px;">El ID se genera automáticamente a partir del nombre (no editable).</div>
-          <input id="dessertIdInput" class="input" placeholder="Ej: arroz_con_leche" style="margin-top:8px;" readonly/>
+          <div class="hint" style="margin-top:10px;">El ID se genera automáticamente a partir del nombre.</div>
+          <input id="dessertIdInput" class="input" placeholder="Ej: arroz_con_leche" style="margin-top:8px;" / readonly>
           <div id="dessertCreateMsg" class="pErr" style="margin-top:10px;"></div>
           <div class="confirmBtns" style="margin-top:12px; display:flex; gap:10px; justify-content:flex-end; flex-wrap:wrap;">
             <button id="btnDessertCancel" class="btn secondary">Cancelar</button>
             <button id="btnDessertCreate" class="btn primary">Crear</button>
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
-
-
-
-  <!-- MODAL: confirmar eliminación de postre -->
-  <div class="modalOverlay hidden" id="dessertDeleteBack">
-    <div class="modal" style="width:min(560px, 92vw);">
-      <div class="modalHeader">
-        <div>
-          <div class="modalTitle" style="font-weight:950;">⚠️ Eliminar postre</div>
-          <div class="modalSub" style="margin-top:4px;">Esta acción eliminará el postre de <b>POSTRES</b> y borrará su receta en <b>RECETAS</b>.</div>
-        </div>
-      </div>
-      <div class="modalBody" style="padding:14px;">
-        <div class="pCatBox" style="margin:0;">
-          <div class="k" style="font-weight:950;">Postre</div>
-          <div id="dessertDeleteName" style="margin-top:6px; font-weight:900;"></div>
-          <div class="hint" style="margin-top:6px;">ID: <b id="dessertDeleteId"></b></div>
-          <div class="pSmallMeta" id="dessertDeleteCountdown" style="margin-top:10px; color:#7a2b00;"></div>
-          <div id="dessertDeleteMsg" class="pErr" style="margin-top:10px;"></div>
-          <div class="confirmBtns" style="margin-top:12px; display:flex; gap:10px; justify-content:flex-end; flex-wrap:wrap;">
-            <button class="btn secondary" id="btnDessertDeleteCancel">Cancelar</button>
-            <button class="btn danger" disabled id="btnDessertDeleteConfirm">Eliminar</button>
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
-
-
-  <!-- MODAL: confirmar eliminación de postre -->
-  <div id="dessertConfirmBack" class="modalOverlay hidden">
-    <div class="modal" style="width:min(520px, 92vw);">
-      <div class="modalHeader">
-        <div>
-          <div class="modalTitle" style="font-weight:950;">⚠️ Confirmar eliminación</div>
-          <div class="modalSub" style="margin-top:4px;">Esta acción eliminará el postre y su receta asociada.</div>
-        </div>
-      </div>
-      <div class="modalBody">
-        <div class="pCatBox" style="margin:0;">
-          <div class="k" style="font-weight:950;">Postre</div>
-          <div id="dessertConfirmName" style="margin-top:6px; font-weight:900;"></div>
-          <div class="hint confirmHint" id="dessertConfirmWarn">Espera 3 segundos para habilitar “Eliminar”.</div>
-          <div class="pSmallMeta" id="dessertConfirmCountdown" style="margin-top:10px; color:#7a2b00;"></div>
-          <div class="pErr" id="dessertConfirmMsg" style="margin-top:8px;"></div>
-          <div class="confirmBtns" style="margin-top:12px;">
-            <button class="btn secondary" id="dessertConfirmCancel">Cancelar</button>
-            <button class="btn" disabled id="dessertConfirmGo">Eliminar</button>
           </div>
         </div>
       </div>
@@ -656,7 +600,7 @@
 </div>
 </div>
 </div>
-<script src="kitchen-costs.js?v=20260304-recipes-fixednest"></script>
-<script src="costs.js?v=20260304-recipes-inline-normkey"></script>
+<script src="kitchen-costs.js?v=20260305-remember-ingdelfix"></script>
+<script src="costs.js?v=20260305-remember-ingdelfix"></script>
 </body>
 </html>
