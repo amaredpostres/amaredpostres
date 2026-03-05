@@ -218,3 +218,11 @@ select.input{
   background-repeat: no-repeat;
   padding-right: 46px;
 }
+
+
+/* Danger button (eliminar) */
+.btn.danger{
+  background: linear-gradient(180deg, rgba(220,38,38,.92), rgba(220,38,38,.82));
+  color: #fff;
+  border-color: rgba(220,38,38,.35);
+}
