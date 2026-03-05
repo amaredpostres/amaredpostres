@@ -1847,9 +1847,6 @@ function collectDessertIds_(){
   const late = state.late?.orders_by_dessert || state.late?.ordersByDessert || {};
   Object.keys(late||{}).forEach(id=>set.add(id));
 
-  // Arroz aún no activo
-  set.delete("arroz_con_leche");
-
   return Array.from(set).filter(Boolean);
 }
 
@@ -1892,7 +1889,11 @@ function slugifyDessertId_(name){
 function openDessertModal_(){
   if(el("dessertCreateMsg")) el("dessertCreateMsg").textContent = "";
   if(el("dessertNameInput")) el("dessertNameInput").value = "";
-  if(el("dessertIdInput")) el("dessertIdInput").value = "";
+  if(el("dessertIdInput")){
+    el("dessertIdInput").value = "";
+    el("dessertIdInput").readOnly = true;
+    el("dessertIdInput").setAttribute("readonly","readonly");
+  }
   show(el("dessertModalBack"));
   setTimeout(()=> el("dessertNameInput")?.focus(), 50);
 }
@@ -1902,10 +1903,11 @@ function closeDessertModal_(){
 
 async function createDessert_(){
   const name = String(el("dessertNameInput")?.value||"").trim();
-  let id = String(el("dessertIdInput")?.value||"").trim();
   if(!name) throw new Error("Escribe el nombre del postre.");
-  if(!id) id = slugifyDessertId_(name);
-  id = slugifyDessertId_(id);
+
+  // ✅ ID SIEMPRE automático desde el nombre
+  const id = slugifyDessertId_(name);
+  if(el("dessertIdInput")) el("dessertIdInput").value = id;
 
   showLoading("Creando…","Guardando postre.");
   try{
@@ -1918,9 +1920,9 @@ async function createDessert_(){
     }, {timeoutMs: 30000});
 
     await loadDessertsFromSheet_();
-    // seleccionar el nuevo postre
     state.ui.activeDessert = id;
-    // reset draft
+    state.ui.ingredient_q = "";
+
     state.ui.recipeDraftByDessert = state.ui.recipeDraftByDessert || {};
     delete state.ui.recipeDraftByDessert[id];
 
@@ -1984,7 +1986,11 @@ function renderDessertPanelShell_(dessertId){
         <div class="cardTitle" style="margin:0;">Editar receta: ${escapeHtml(name)}</div>
         <div class="hint">Activa ingredientes (switch) y define cantidades por unidad.</div>
       </div>
-      <button class="btn primary" data-act="save_recipe">Guardar receta</button>
+
+      <div style="display:flex; gap:10px; flex-wrap:wrap; justify-content:flex-end;">
+        <button class="btn danger" data-act="delete_dessert">Eliminar</button>
+        <button class="btn primary" data-act="save_recipe">Guardar receta</button>
+      </div>
     </div>
 
     <div class="pDessertPanelControls" style="margin-top:10px;">
@@ -1998,68 +2004,33 @@ function renderDessertPanelShell_(dessertId){
 }
 
 function bindInlineRecipeEditor_(panel, dessertId){
+  // Editor inline (panel del postre)
+  // Cantidades y switches se manejan por delegación en #dessertList (ver bind()).
   if(!panel || panel.__bound) return;
   panel.__bound = true;
 
-  // Guardar
-  panel.addEventListener('click', (e)=>{
-    const btn = e.target.closest('[data-act="save_recipe"]');
-    if(!btn) return;
-    saveRecipe_().catch(err=> setRecipesMeta_(String(err.message||err)));
+  // Guardar / Eliminar
+  panel.addEventListener("click", (e)=>{
+    const btnSave = e.target.closest?.('[data-act="save_recipe"]');
+    if(btnSave){
+      e.preventDefault();
+      saveRecipe_().catch(err=> setRecipesMeta_(String(err?.message||err)));
+      return;
+    }
+    const btnDel = e.target.closest?.('[data-act="delete_dessert"]');
+    if(btnDel){
+      e.preventDefault();
+      openDessertDeleteModal_(dessertId);
+      return;
+    }
   });
 
   // Buscar ingrediente
-  panel.addEventListener('input', (e)=>{
-    const inp = e.target.closest('[data-act="ing_search"]');
+  panel.addEventListener("input", (e)=>{
+    const inp = e.target.closest?.('[data-act="ing_search"]');
     if(!inp) return;
-    state.ui.ingredient_q = String(inp.value||'');
+    state.ui.ingredient_q = String(inp.value||"");
     renderRecipeEditor_();
-  });
-
-  // Cantidad
-  panel.addEventListener('input', (e)=>{
-    const row = e.target.closest('.pRecipeRow');
-    if(!row) return;
-    const k = String(row.getAttribute('data-k')||'');
-    if(!nk) return;
-    const did = String(state.ui.activeDessert||'');
-    if(!did) return;
-    const draft = getDraftMap_(did);
-    draft[k] = draft[k] || { use:false, qty:'', unit:getUnitFor(k) };
-    const act = e.target.getAttribute('data-act') || '';
-    if(act==='r_qty') draft[nk].qty = String(e.target.value||'').replace(',', '.');
-  });
-
-  // Switch
-  panel.addEventListener('change', (e)=>{
-    const row = e.target.closest('.pRecipeRow');
-    if(!row) return;
-    const k = String(row.getAttribute('data-k')||'');
-    if(!nk) return;
-    const did = String(state.ui.activeDessert||'');
-    if(!did) return;
-    const draft = getDraftMap_(did);
-    draft[k] = draft[k] || { use:false, qty:'', unit:getUnitFor(k) };
-    const act = e.target.getAttribute('data-act') || '';
-    if(act==='r_toggle'){
-      draft[nk].use = !!e.target.checked;
-    draft[nk].rawKey = kRaw;
-      row.classList.toggle('isOn', draft[k].use);
-      row.classList.toggle('isOff', !draft[k].use);
-      const sw = row.querySelector('.switchWrap');
-      if(sw){
-        sw.classList.toggle('isOn', draft[k].use);
-        sw.classList.toggle('isOff', !draft[k].use);
-        const meta = sw.querySelector('.meta');
-        if(meta) meta.textContent = draft[k].use ? 'Incluido' : 'No';
-      }
-      const qtyInp = row.querySelector('input.qty');
-      if(qtyInp) qtyInp.disabled = !draft[nk].use;
-      if(draft[k].use && (!draft[nk].qty || Number(draft[nk].qty) <= 0)){
-        if(qtyInp) qtyInp.value = '1';
-        draft[nk].qty = 1;
-      }
-    }
   });
 }
 
@@ -2082,7 +2053,18 @@ function renderDessertPanel_(dessertId){
 
 function renderRecipeEditor_(){
   const did = String(state.ui.activeDessert||"").trim();
-  const editor = el("recipeEditor");
+
+  // Preferimos el editor inline (panel abierto). Si no existe, fallback al editor clásico (#recipeEditor).
+  function getEditorEl_(){
+    if(did){
+      const panel = el("dessertPanel_" + did);
+      const inline = panel?.querySelector?.('[data-act="recipe_editor"]');
+      if(inline) return inline;
+    }
+    return el("recipeEditor");
+  }
+
+  const editor = getEditorEl_();
 
   if(!did){
     if(editor) editor.innerHTML = "";
@@ -2092,18 +2074,45 @@ function renderRecipeEditor_(){
   const draft = getDraftMap_(did);
   const q = String(state.ui.ingredient_q||"").trim().toLowerCase();
 
-  const keys = Object.keys(state.costsByKey||{}).sort((a,b)=>a.localeCompare(b,"es"));
-  const filtered = keys.filter(k => !q || k.toLowerCase().includes(q));
+  // Ingredientes: catálogo base (COSTOS_INGREDIENTES) + extras que ya estén guardados en la receta,
+  // incluso si no existen en COSTOS_INGREDIENTES (para no “perderlos” en la UI).
+  const baseKeys = Object.keys(state.costsByKey||{});
+  const extras = [];
+  for(const v of Object.values(draft||{})){
+    const rk = String(v?.rawKey||"").trim();
+    if(rk) extras.push(rk);
+  }
+
+  const seen = new Set();
+  const keys = [];
+  for(const k of baseKeys.concat(extras)){
+    const nk = normKey_(k);
+    if(!nk || seen.has(nk)) continue;
+    seen.add(nk);
+    keys.push(k);
+  }
+  keys.sort((a,b)=>a.localeCompare(b,"es"));
+
+  const filtered = keys.filter(k => !q || String(k).toLowerCase().includes(q));
 
   const rows = filtered.map(kRaw=>{
     const nk = normKey_(kRaw);
     const d = draft[nk] || { use:false, qty:"", unit:getUnitFor(kRaw), rawKey:kRaw };
-    // si viene de hoja con otra variación, preferimos la clave visible actual
+
+    // Mantener la clave “real” para guardar en Sheets
     if(!d.rawKey) d.rawKey = kRaw;
 
-    const unit = String(d.unit || getUnitFor(kRaw) || "g");
+    const unit = String(d.unit || getUnitFor(kRaw) || "g").trim().toLowerCase();
     const checked = !!d.use;
-    const qtyVal = (d.qty!=="" && d.qty!=null) ? String(d.qty).replace(".", ",") : "";
+
+    // Para mostrar decimales en es-CO: coma (input tipo text)
+    let qtyVal = "";
+    if(d.qty !== "" && d.qty != null){
+      qtyVal = String(d.qty).replace(".", ",");
+    }
+
+    const exists = !!state.costsByKey?.[kRaw];
+    const warn = exists ? "" : `<div class="meta" style="margin-top:4px; color:rgba(64,17,2,.62);">⚠️ No está en COSTOS_INGREDIENTES</div>`;
 
     return `
       <div class="pRecipeRow ${checked?"isOn":"isOff"}" data-nk="${escapeHtmlAttr(nk)}" data-kraw="${escapeHtmlAttr(kRaw)}">
@@ -2116,9 +2125,17 @@ function renderRecipeEditor_(){
         <div class="name">
           ${escapeHtml(kRaw)}
           <div class="meta">Unidad: <b>${escapeHtml(unit)}</b></div>
+          ${warn}
         </div>
 
-        <input class="input qty" data-act="r_qty" type="number" step="any" min="0" placeholder="Cantidad" value="${escapeHtmlAttr(qtyVal)}" ${checked?"":"disabled"} />
+        <input class="input qty"
+          data-act="r_qty"
+          type="text"
+          inputmode="decimal"
+          pattern="[0-9]+([.,][0-9]+)?"
+          placeholder="Cantidad"
+          value="${escapeHtmlAttr(qtyVal)}"
+          ${checked?"":"disabled"} />
       </div>`;
   }).join("");
 
@@ -2534,9 +2551,10 @@ el("ingModalBack")?.addEventListener("click", (e)=>{ if(e.target && e.target.id=
   // Recetas: crear postre / crear ingrediente
   el("btnDessertAdd")?.addEventListener("click", ()=> openDessertModal_());
   el("btnRecipesAddIngredient")?.addEventListener("click", ()=> openIngredientsModal());
-  el("dessertNameInput")?.addEventListener("input", (e)=>{ 
-    const name = String(e.target.value||""); 
-    if(el("dessertIdInput") && !String(el("dessertIdInput").value||"").trim()) el("dessertIdInput").value = slugifyDessertId_(name);
+  el("dessertNameInput")?.addEventListener("input", (e)=>{
+    const name = String(e.target.value||"");
+    const id = slugifyDessertId_(name);
+    if(el("dessertIdInput")) el("dessertIdInput").value = id;
   });
   el("btnDessertCancel")?.addEventListener("click", closeDessertModal_);
   el("dessertModalBack")?.addEventListener("click", (e)=>{ if(e.target && e.target.id==="dessertModalBack") closeDessertModal_(); });
@@ -2548,6 +2566,18 @@ el("ingModalBack")?.addEventListener("click", (e)=>{ if(e.target && e.target.id=
       if(el("dessertCreateMsg")) el("dessertCreateMsg").textContent = String(e.message||e);
     }
   });
+
+  // Eliminar postre (modal con temporizador)
+  el("btnDessertDeleteCancel")?.addEventListener("click", closeDessertDeleteModal_);
+  el("dessertDeleteBack")?.addEventListener("click", (e)=>{ if(e.target && e.target.id==="dessertDeleteBack") closeDessertDeleteModal_(); });
+  el("btnDessertDeleteConfirm")?.addEventListener("click", ()=>{ if(_dessertDelLeft>0) return; confirmDessertDelete_(); });
+
+  document.addEventListener("keydown", (e)=>{
+    if(e.key !== "Escape") return;
+    const back = el("dessertDeleteBack");
+    if(back && !back.classList.contains("hidden")) closeDessertDeleteModal_();
+  });
+
 }
 
 // =============== Boot ===============
