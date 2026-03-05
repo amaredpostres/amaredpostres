@@ -2129,6 +2129,8 @@ function bind(){
     state.ui.activeDessert = did;
     renderDessertList_();
     renderRecipeEditor_();
+    // UX: en móvil, lleva al editor
+    try{ if(window.innerWidth <= 860){ el("recipeRightWrap")?.scrollIntoView({behavior:"smooth", block:"start"}); } }catch(_e){}
   });el("inpIngredientSearch")?.addEventListener("input", (e)=>{ state.ui.ingredient_q = String(e.target.value||""); renderRecipeEditor_(); });
   el("recipeEditor")?.addEventListener("input", (e)=>{
     const row = e.target.closest(".pRecipeRow");
