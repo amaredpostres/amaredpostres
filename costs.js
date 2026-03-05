@@ -39,6 +39,7 @@ state.recipesByDessert = null; // {dessert_id: [{ingredient_key, qty_per_unit, u
 state.recipesSource = "embedded"; // "sheet" | "embedded"
 state.recipesPinUnlocked = false;
 state.recipesPin = "";
+state.desserts = [];
 
 // ====== Costo unitario por postre (recetas canónicas) ======
 const AMARED_RECIPES_PER_UNIT = {
@@ -1708,6 +1709,7 @@ async function deleteCatalogValue(type, value){
 function resetRecipesAuth_(){
   state.recipesPinUnlocked = false;
   state.recipesPin = "";
+state.desserts = [];
   try{ localStorage.removeItem("amared_recipes_pin"); }catch(_e){}
 }
 
@@ -1767,8 +1769,10 @@ async function doRecipesUnlock_(silent=false){
 
     // Cargar datos base y RECETAS
     try{ await loadAll(); }catch(_e){}
+    try{ await loadDessertsFromSheet_(); }catch(_e){}
 
     closeRecipesUnlock_();
+    show(el("viewRecipes"));
     renderRecipesView_();
     return true;
   } finally {
@@ -1788,6 +1792,7 @@ async function ensureRecipesUnlocked_(){
   // Siempre pedir código (privacidad adicional)
   state.recipesPinUnlocked = false;
   state.recipesPin = "";
+state.desserts = [];
 
   // Preparar UI mínima (evita pantalla vacía)
   try{
@@ -1799,17 +1804,30 @@ async function ensureRecipesUnlocked_(){
     if(el("recipeEditorSub")) el("recipeEditorSub").textContent = "Ingresa el código de Recetas para continuar.";
   }catch(_e){}
 
+  hide(el("viewRecipes"));
   openRecipesUnlock_("");
 }
 
 function collectDessertIds_(){
-  const base = ["mousse_maracuya","cheesecake_cafe_panela","arroz_con_leche"];
-  const set = new Set(base);
+  const set = new Set();
+
+  // 1) Desde POSTRES (sheet)
+  (state.desserts||[]).forEach(d=>{
+    const id = String(d.dessert_id || d.id || "").trim();
+    if(id) set.add(id);
+  });
+
+  // 2) Desde RECETAS existentes
   Object.keys(state.recipesByDessert||{}).forEach(id=>set.add(id));
+
+  // 3) Desde pedidos (por si llega un postre nuevo)
   Object.keys(state.ordersByDessert||{}).forEach(id=>set.add(id));
   const late = state.late?.orders_by_dessert || state.late?.ordersByDessert || {};
   Object.keys(late||{}).forEach(id=>set.add(id));
+
+  // Arroz aún no activo
   set.delete("arroz_con_leche");
+
   return Array.from(set).filter(Boolean);
 }
 
@@ -1828,42 +1846,121 @@ function getDraftMap_(dessertId){
   return state.ui.recipeDraftByDessert[dessertId];
 }
 
+
+async function loadDessertsFromSheet_(){
+  if(!UNLOCKED_SECRET) return;
+  if(!state.recipesPin) return;
+  try{
+    const out = await api({ action:"desserts_list", costs_secret: UNLOCKED_SECRET, recipes_pin: state.recipesPin }, {timeoutMs: 20000});
+    state.desserts = Array.isArray(out.items) ? out.items : [];
+  }catch(_e){
+    state.desserts = state.desserts || [];
+  }
+}
+
+function slugifyDessertId_(name){
+  let s = String(name||"").trim().toLowerCase();
+  s = s.normalize("NFD").replace(/[\u0300-\u036f]/g, ""); // quita acentos
+  s = s.replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g,"");
+  if(!s) s = "postre";
+  return s;
+}
+
+function openDessertModal_(){
+  if(el("dessertCreateMsg")) el("dessertCreateMsg").textContent = "";
+  if(el("dessertNameInput")) el("dessertNameInput").value = "";
+  if(el("dessertIdInput")) el("dessertIdInput").value = "";
+  show(el("dessertModalBack"));
+  setTimeout(()=> el("dessertNameInput")?.focus(), 50);
+}
+function closeDessertModal_(){
+  hide(el("dessertModalBack"));
+}
+
+async function createDessert_(){
+  const name = String(el("dessertNameInput")?.value||"").trim();
+  let id = String(el("dessertIdInput")?.value||"").trim();
+  if(!name) throw new Error("Escribe el nombre del postre.");
+  if(!id) id = slugifyDessertId_(name);
+  id = slugifyDessertId_(id);
+
+  showLoading("Creando…","Guardando postre.");
+  try{
+    await api({
+      action:"dessert_add",
+      costs_secret: UNLOCKED_SECRET,
+      recipes_pin: state.recipesPin,
+      dessert_id: id,
+      dessert_name: name
+    }, {timeoutMs: 30000});
+
+    await loadDessertsFromSheet_();
+    // seleccionar el nuevo postre
+    state.ui.activeDessert = id;
+    // reset draft
+    state.ui.recipeDraftByDessert = state.ui.recipeDraftByDessert || {};
+    delete state.ui.recipeDraftByDessert[id];
+
+    closeDessertModal_();
+    renderRecipesView_();
+  } finally {
+    hideLoading();
+  }
+}
 function renderDessertList_(){
   const box = el("dessertList");
   if(!box) return;
   const q = String(state.ui.dessert_q||"").trim().toLowerCase();
   const ids = collectDessertIds_();
-  const rows = ids.map(id=>({ id, name: prettyDessertName(id) }))
+
+  const rows = ids
+    .map(id=>{
+      const name = prettyDessertName(id);
+      const cnt = (state.recipesByDessert?.[id]||[]).length;
+      return { id, name, cnt };
+    })
     .filter(x=> !q || x.name.toLowerCase().includes(q) || x.id.toLowerCase().includes(q))
     .sort((a,b)=>a.name.localeCompare(b.name,"es"));
 
   box.innerHTML = rows.map(r=>{
     const active = (state.ui.activeDessert === r.id);
-    return `<button class="pDessertBtn ${active?"isActive":""}" data-did="${escapeHtmlAttr(r.id)}">${escapeHtml(r.name)}<div class="meta">${escapeHtml(r.id)}</div></button>`;
+    const sub = r.cnt ? `${r.cnt} ingrediente(s) configurado(s)` : `sin receta aún`;
+    return `<button class="pDessertBtn ${active?"isActive":""}" data-did="${escapeHtmlAttr(r.id)}">
+      <div style="min-width:0;">
+        <div style="font-weight:950;">${escapeHtml(r.name)}</div>
+        <div class="sub">${escapeHtml(sub)}</div>
+      </div>
+      <div class="badge">${r.cnt || 0}</div>
+    </button>`;
   }).join("") || `<div class="hint">Sin postres.</div>`;
 }
 
 function renderRecipeEditor_(){
   const did = String(state.ui.activeDessert||"").trim();
-  const editor = el("recipeEditor");
+  const locked = el("recipeRightLocked");
+  const inner = el("recipeRightInner");
   const title = el("recipeEditorTitle");
   const sub = el("recipeEditorSub");
   const btnSave = el("btnRecipeSave");
 
   if(!did){
-    if(title) title.textContent = "Selecciona un postre";
-    if(sub) sub.textContent = "Marca ingredientes y define cantidades por unidad.";
-    if(editor) editor.innerHTML = "";
+    if(locked) locked.style.display = "";
+    if(inner) inner.style.display = "none";
     if(btnSave) btnSave.disabled = true;
     return;
   }
+
+  if(locked) locked.style.display = "none";
+  if(inner) inner.style.display = "";
 
   if(title) title.textContent = prettyDessertName(did);
   if(sub) sub.textContent = "Ingredientes por unidad (se guardan en RECETAS).";
   if(btnSave) btnSave.disabled = false;
 
+  const editor = el("recipeEditor");
   const draft = getDraftMap_(did);
   const q = String(state.ui.ingredient_q||"").trim().toLowerCase();
+
   const keys = Object.keys(state.costsByKey||{}).sort((a,b)=>a.localeCompare(b,"es"));
   const filtered = keys.filter(k => !q || k.toLowerCase().includes(q));
 
@@ -1872,17 +1969,23 @@ function renderRecipeEditor_(){
     const unit = String(d.unit || getUnitFor(k) || "g");
     const checked = !!d.use;
     const qtyVal = (d.qty!=="" && d.qty!=null) ? String(d.qty).replace(".", ",") : "";
-    return `<div class="pRecipeRow" data-k="${escapeHtmlAttr(k)}">
-      <label style="display:flex; align-items:center; gap:8px; min-width:84px;">
-        <input type="checkbox" data-act="r_toggle" ${checked?"checked":""} />
-        <span class="meta">Usar</span>
-      </label>
-      <div class="name">${escapeHtml(k)}<div class="meta">Unidad: <b>${escapeHtml(unit)}</b></div></div>
-      <input class="input qty" data-act="r_qty" type="number" step="any" min="0" placeholder="Cantidad" value="${escapeHtmlAttr(qtyVal)}" ${checked?"":"disabled"} />
-    </div>`;
+    return `
+      <div class="pRecipeRow ${checked?"isOn":"isOff"}" data-k="${escapeHtmlAttr(k)}">
+        <label style="display:flex; align-items:center; gap:8px; min-width:84px;">
+          <input type="checkbox" data-act="r_toggle" ${checked?"checked":""} />
+          <span class="meta">Usar</span>
+        </label>
+
+        <div class="name">
+          ${escapeHtml(k)}
+          <div class="meta">Unidad: <b>${escapeHtml(unit)}</b></div>
+        </div>
+
+        <input class="input qty" data-act="r_qty" type="number" step="any" min="0" placeholder="Cantidad" value="${escapeHtmlAttr(qtyVal)}" ${checked?"":"disabled"} />
+      </div>`;
   }).join("");
 
-  editor.innerHTML = rows || `<div class="hint">No hay ingredientes.</div>`;
+  if(editor) editor.innerHTML = rows || `<div class="hint">No hay ingredientes.</div>`;
 }
 
 function setRecipesMeta_(txt){
@@ -1915,6 +2018,8 @@ async function saveRecipe_(){
   try{
     await api({ action: "recipes_set", costs_secret: UNLOCKED_SECRET, recipes_pin: state.recipesPin, dessert_id: did, dessert_name: prettyDessertName(did), items }, {timeoutMs: 45000});
     await loadRecipesFromSheet_();
+    // Clasificar secciones automáticamente (sin botón manual)
+    try{ await autoClassifyCostsSections_(); }catch(_e){}
     setRecipesMeta_("Receta guardada con éxito.");
   } finally { hideLoading(); }
 }
@@ -2040,7 +2145,7 @@ function bind(){
   });
   el("btnRecipeSave")?.addEventListener("click", ()=> saveRecipe_().catch(e=> setRecipesMeta_(String(e.message||e)) ));
   el("btnRecipesRefresh")?.addEventListener("click", ()=>{ showLoading("Refrescando…","Leyendo datos."); loadAll().finally(hideLoading); });
-  el("btnRecipesAutoClassify")?.addEventListener("click", ()=>{ if(!state.recipesPinUnlocked) return; autoClassifyCostsSections_().catch(e=> setRecipesMeta_(String(e.message||e)) ); });
+  
 
   // Unlock
   el("btnDoUnlock")?.addEventListener("click", ()=>doUnlock(false));
@@ -2051,7 +2156,6 @@ function bind(){
   el("btnDoRecipesUnlock")?.addEventListener("click", ()=>doRecipesUnlock_(false));
   el("btnRecipesClear")?.addEventListener("click", ()=>{ if(el("recipesPinInput")) el("recipesPinInput").value=""; if(el("recipesUnlockMsg")) el("recipesUnlockMsg").textContent=""; el("recipesPinInput")?.focus(); });
   el("btnRecipesCancel")?.addEventListener("click", ()=>{ closeRecipesUnlock_(); setView("purchases"); });
-  el("btnRecipesRelog")?.addEventListener("click", ()=>{ resetRecipesAuth_(); openRecipesUnlock_(""); });
   el("recipesPinInput")?.addEventListener("keydown", (e)=>{ if(e.key==="Enter") doRecipesUnlock_(false); });
   el("recipesUnlockBack")?.addEventListener("click", (e)=>{ if(e.target && e.target.id==="recipesUnlockBack") closeRecipesUnlock_(); });
 
@@ -2240,6 +2344,24 @@ el("ingModalBack")?.addEventListener("click", (e)=>{ if(e.target && e.target.id=
     if(e.key !== "Escape") return;
     const back = el("ingConfirmBack");
     if(back && !back.classList.contains("hidden")) closeIngConfirm();
+  });
+
+  // Recetas: crear postre / crear ingrediente
+  el("btnDessertAdd")?.addEventListener("click", ()=> openDessertModal_());
+  el("btnRecipesAddIngredient")?.addEventListener("click", ()=> openIngredientsModal());
+  el("dessertNameInput")?.addEventListener("input", (e)=>{ 
+    const name = String(e.target.value||""); 
+    if(el("dessertIdInput") && !String(el("dessertIdInput").value||"").trim()) el("dessertIdInput").value = slugifyDessertId_(name);
+  });
+  el("btnDessertCancel")?.addEventListener("click", closeDessertModal_);
+  el("dessertModalBack")?.addEventListener("click", (e)=>{ if(e.target && e.target.id==="dessertModalBack") closeDessertModal_(); });
+  el("btnDessertCreate")?.addEventListener("click", async()=>{
+    try{
+      if(el("dessertCreateMsg")) el("dessertCreateMsg").textContent="";
+      await createDessert_();
+    }catch(e){
+      if(el("dessertCreateMsg")) el("dessertCreateMsg").textContent = String(e.message||e);
+    }
   });
 }
 
