@@ -11,6 +11,7 @@
 
 const API_URL = "https://amared-orders.amaredpostres.workers.dev/";
 const LS_SECRET_KEY = "AMARED_COSTS_SECRET";
+const LS_REMEMBER_KEY = "AMARED_COSTS_REMEMBER_V1";
 
 let UNLOCKED_SECRET = "";
 let state = {
@@ -282,8 +283,6 @@ function setView(view){
     show(vc);
     if(bb) bb.style.display = "none";
     if(tc){ tc.classList.add("isActive"); tc.setAttribute("aria-selected","true"); }
-    // Auto-clasificar secciones según RECETAS (silencioso)
-    autoClassifyCostsSections_({silent:true}).catch(()=>null);
     renderCostsGroups();
     renderUnitCosts();
     return;
@@ -1340,7 +1339,6 @@ async function loadAll(){
 
   // Recetas desde hoja RECETAS (para costo unitario)
   await loadRecipesFromSheet_();
-  try{ await autoClassifyCostsSections_({silent:true}); }catch(_e){}
 
   updateMetaLine();
   renderDesserts();
@@ -1352,15 +1350,30 @@ async function loadAll(){
 }
 
 // =============== Unlock / logout ===============
+
+function isRememberDeviceEnabled_(){
+  try{ return String(localStorage.getItem(LS_REMEMBER_KEY)||"") === "1"; }catch(_e){ return false; }
+}
+function setRememberDeviceEnabled_(v){
+  try{
+    if(v) localStorage.setItem(LS_REMEMBER_KEY, "1");
+    else localStorage.removeItem(LS_REMEMBER_KEY);
+  }catch(_e){}
+}
+function getRememberCheckbox_(){
+  return el("chkRememberDevice");
+}
+
 function openUnlock(msg){
   if(el("unlockMsg")) el("unlockMsg").textContent = msg || "";
-  // Sincronizar checkbox “Recuérdame” con lo guardado
-  try{
-    const saved = String(localStorage.getItem(LS_SECRET_KEY) || "").trim();
-    if(el("rememberDevice")) el("rememberDevice").checked = !!saved;
-  }catch(_e){}
   show(el("unlockBack"));
   hide(el("appRoot"));
+  // ✅ checkbox "Recuérdame"
+  const chk = getRememberCheckbox_();
+  if(chk){
+    const saved = String(localStorage.getItem(LS_SECRET_KEY) || "").trim();
+    chk.checked = !!saved && isRememberDeviceEnabled_();
+  }
   if(el("secretInput")) el("secretInput").focus();
 }
 
@@ -1380,11 +1393,16 @@ async function doUnlock(isAuto=false){
   try{
     await validateSecret(secret);
     UNLOCKED_SECRET = secret;
-    const remember = !!el("rememberDevice")?.checked;
-    try{
-      if(remember || isAuto) localStorage.setItem(LS_SECRET_KEY, secret);
-      else localStorage.removeItem(LS_SECRET_KEY);
-    }catch(_e){}
+    const chk = getRememberCheckbox_();
+    const remember = !!(chk && chk.checked);
+    // ✅ Guardar clave solo si el usuario lo pidió
+    if(remember || isAuto){
+      try{ localStorage.setItem(LS_SECRET_KEY, secret); }catch(_e){}
+      setRememberDeviceEnabled_(true);
+    }else{
+      try{ localStorage.removeItem(LS_SECRET_KEY); }catch(_e){}
+      setRememberDeviceEnabled_(false);
+    }
 
     closeUnlock();
     show(el("appRoot"));
@@ -1394,8 +1412,11 @@ async function doUnlock(isAuto=false){
     await loadAll();
   } catch(err){
     if(el("unlockMsg")) el("unlockMsg").textContent = (err && err.message) ? err.message : "No autorizado";
-    try{ localStorage.removeItem(LS_SECRET_KEY); }catch(_e){}
-    if(el("rememberDevice")) el("rememberDevice").checked = false;
+    // Si falla el auto-ingreso, limpiamos el recuerdo para obligar login manual
+    if(isAuto){
+      try{ localStorage.removeItem(LS_SECRET_KEY); }catch(_e){}
+      setRememberDeviceEnabled_(false);
+    }
   } finally {
     hideLoading();
   }
@@ -1403,8 +1424,13 @@ async function doUnlock(isAuto=false){
 
 function logout(){
   UNLOCKED_SECRET = "";
-  localStorage.removeItem(LS_SECRET_KEY);
+  try{ localStorage.removeItem(LS_SECRET_KEY); }catch(_e){}
+  setRememberDeviceEnabled_(false);
   state.buyPlan = {};
+  // reset UI
+  if(el("secretInput")) el("secretInput").value = "";
+  const chk = getRememberCheckbox_();
+  if(chk) chk.checked = false;
   openUnlock("Sesión cerrada.");
 }
 
@@ -1609,6 +1635,16 @@ function openIngredientsModal(){
 }
 function closeIngredientsModal(){ hide(el("ingModalBack")); }
 
+function refreshIngredientSelect_(){
+  const sel = el("ingSelect");
+  if(!sel) return;
+  const keys = Object.keys(state.costsByKey||{}).sort((a,b)=>a.localeCompare(b,"es"));
+  const current = String(sel.value||"").trim();
+  sel.innerHTML = keys.map(k=>`<option value="${escapeHtmlAttr(k)}">${escapeHtml(k)}</option>`).join("");
+  if(current && keys.includes(current)) sel.value = current;
+  else if(keys.length) sel.value = keys[0];
+}
+
 
 
 function openIngConfirm(key){
@@ -1648,80 +1684,6 @@ function closeIngConfirm(){
   ingDeletePendingKey = "";
   hide(el("ingConfirmBack"));
 }
-
-// ===== Confirmación: eliminar postre =====
-let dessertDeleteTimer = null;
-let dessertDeleteCountdown = 0;
-let dessertDeletePendingId = "";
-
-function openDessertConfirm_(dessertId){
-  dessertDeletePendingId = String(dessertId||"").trim();
-  if(el("dessertConfirmMsg")) el("dessertConfirmMsg").textContent = "";
-  if(el("dessertConfirmName")) el("dessertConfirmName").textContent = `${prettyDessertName(dessertDeletePendingId)} (${dessertDeletePendingId})`;
-  dessertDeleteCountdown = 3;
-
-  const btn = el("dessertConfirmGo");
-  if(btn){
-    btn.disabled = true;
-    btn.textContent = `Eliminar (${dessertDeleteCountdown})`;
-  }
-  show(el("dessertConfirmBack"));
-
-  if(dessertDeleteTimer) clearInterval(dessertDeleteTimer);
-  dessertDeleteTimer = setInterval(()=>{
-    dessertDeleteCountdown -= 1;
-    const b = el("dessertConfirmGo");
-    if(!b) return;
-    if(dessertDeleteCountdown > 0){
-      b.disabled = true;
-      b.textContent = `Eliminar (${dessertDeleteCountdown})`;
-    }else{
-      b.disabled = false;
-      b.textContent = "Eliminar";
-      clearInterval(dessertDeleteTimer);
-      dessertDeleteTimer = null;
-    }
-  }, 1000);
-}
-
-function closeDessertConfirm_(){
-  if(dessertDeleteTimer) clearInterval(dessertDeleteTimer);
-  dessertDeleteTimer = null;
-  dessertDeleteCountdown = 0;
-  dessertDeletePendingId = "";
-  hide(el("dessertConfirmBack"));
-}
-
-async function deleteDessert_(){
-  const did = String(dessertDeletePendingId||"").trim();
-  if(!did) return;
-
-  if(!state.recipesPinUnlocked || !state.recipesPin){
-    // pedir pin si no está desbloqueado
-    closeDessertConfirm_();
-    openRecipesUnlock_("Ingresa el código de Recetas para eliminar postres.");
-    return;
-  }
-
-  showLoading("Eliminando postre…","Actualizando base de datos.");
-  try{
-    await api({ action:"dessert_delete", costs_secret: UNLOCKED_SECRET, recipes_pin: state.recipesPin, dessert_id: did }, {timeoutMs: 30000});
-    // refrescar data
-    state.ui.activeDessert = "";
-    state.ui.ingredient_q = "";
-    await loadDessertsFromSheet_();
-    await loadAll();
-    renderRecipesView_();
-    closeDessertConfirm_();
-  }catch(err){
-    if(el("dessertConfirmMsg")) el("dessertConfirmMsg").textContent = String(err?.message || err || "Error");
-  }finally{
-    hideLoading();
-  }
-}
-
-
-
 function normalizeUnitType_(u){
   const t = String(u||"").trim().toLowerCase();
   if(t==="g"||t==="gr"||t==="gramo"||t==="gramos") return "g";
@@ -1761,6 +1723,12 @@ async function addIngredient(){
 
   // refrescar costos/inventario para que aparezca de inmediato
   await loadAll();
+  // ✅ si el modal de ingredientes está abierto, actualiza el select al instante
+  const back = el("ingModalBack");
+  if(back && !back.classList.contains("hidden")) refreshIngredientSelect_();
+  // ✅ si hay un postre activo en Recetas, re-render para incluir el nuevo ingrediente
+  if(state.view==="recipes" && state.ui && state.ui.activeDessert) renderDessertPanel_(state.ui.activeDessert);
+
   } finally {
     hideLoading();
     state.ingBusy = false;
@@ -1772,6 +1740,16 @@ async function addIngredient(){
   if(el("ingAddMsg")) el("ingAddMsg").textContent = "Ingrediente agregado con éxito.";
 }
 
+async function deleteIngredientByKey_(key){
+  const k = String(key||"").trim();
+  if(!k) throw new Error("Selecciona un ingrediente.");
+  await api({ action:"ingredient_delete", costs_secret: UNLOCKED_SECRET, ingredient_key: k });
+  await loadAll();
+  const back = el("ingModalBack");
+  if(back && !back.classList.contains("hidden")) refreshIngredientSelect_();
+  if(state.view==="recipes" && state.ui && state.ui.activeDessert) renderDessertPanel_(state.ui.activeDessert);
+}
+
 async function deleteIngredient(){
   if(state.ingBusy) return;
   state.ingBusy = true;
@@ -1780,10 +1758,9 @@ async function deleteIngredient(){
 
   const key = String(el("ingSelect")?.value||"").trim();
   if(!key) throw new Error("Selecciona un ingrediente.");
-  // Confirmación mínima (sin ventanas nativas para no bloquear UX)
+  // Confirmación se maneja en el modal (openIngConfirm)
   try{
-  await api({ action:"ingredient_delete", costs_secret: UNLOCKED_SECRET, ingredient_key: key });
-  await loadAll();
+  await deleteIngredientByKey_(key);
   } finally {
     hideLoading();
     state.ingBusy = false;
@@ -1934,6 +1911,9 @@ function collectDessertIds_(){
   const late = state.late?.orders_by_dessert || state.late?.ordersByDessert || {};
   Object.keys(late||{}).forEach(id=>set.add(id));
 
+  // Arroz aún no activo
+  set.delete("arroz_con_leche");
+
   return Array.from(set).filter(Boolean);
 }
 
@@ -1976,11 +1956,7 @@ function slugifyDessertId_(name){
 function openDessertModal_(){
   if(el("dessertCreateMsg")) el("dessertCreateMsg").textContent = "";
   if(el("dessertNameInput")) el("dessertNameInput").value = "";
-  if(el("dessertIdInput")){
-    el("dessertIdInput").value = "";
-    el("dessertIdInput").readOnly = true;
-    el("dessertIdInput").setAttribute("readonly","readonly");
-  }
+  if(el("dessertIdInput")) el("dessertIdInput").value = "";
   show(el("dessertModalBack"));
   setTimeout(()=> el("dessertNameInput")?.focus(), 50);
 }
@@ -1988,13 +1964,17 @@ function closeDessertModal_(){
   hide(el("dessertModalBack"));
 }
 
+// ✅ Compat: si existe modal/botón de eliminar postre en tu versión, evitamos ReferenceError
+function closeDessertDeleteModal_(){
+  hide(el("dessertDeleteBack"));
+}
+
 async function createDessert_(){
   const name = String(el("dessertNameInput")?.value||"").trim();
+  let id = String(el("dessertIdInput")?.value||"").trim();
   if(!name) throw new Error("Escribe el nombre del postre.");
-
-  // ✅ ID SIEMPRE automático desde el nombre
-  const id = slugifyDessertId_(name);
-  if(el("dessertIdInput")) el("dessertIdInput").value = id;
+  if(!id) id = slugifyDessertId_(name);
+  id = slugifyDessertId_(id);
 
   showLoading("Creando…","Guardando postre.");
   try{
@@ -2007,9 +1987,9 @@ async function createDessert_(){
     }, {timeoutMs: 30000});
 
     await loadDessertsFromSheet_();
+    // seleccionar el nuevo postre
     state.ui.activeDessert = id;
-    state.ui.ingredient_q = "";
-
+    // reset draft
     state.ui.recipeDraftByDessert = state.ui.recipeDraftByDessert || {};
     delete state.ui.recipeDraftByDessert[id];
 
@@ -2073,11 +2053,7 @@ function renderDessertPanelShell_(dessertId){
         <div class="cardTitle" style="margin:0;">Editar receta: ${escapeHtml(name)}</div>
         <div class="hint">Activa ingredientes (switch) y define cantidades por unidad.</div>
       </div>
-
-      <div style="display:flex; gap:10px; flex-wrap:wrap; justify-content:flex-end;">
-        <button class="btn danger" data-act="delete_dessert">Eliminar</button>
-        <button class="btn primary" data-act="save_recipe">Guardar receta</button>
-      </div>
+      <button class="btn primary" data-act="save_recipe">Guardar receta</button>
     </div>
 
     <div class="pDessertPanelControls" style="margin-top:10px;">
@@ -2091,33 +2067,68 @@ function renderDessertPanelShell_(dessertId){
 }
 
 function bindInlineRecipeEditor_(panel, dessertId){
-  // Editor inline (panel del postre)
-  // Cantidades y switches se manejan por delegación en #dessertList (ver bind()).
   if(!panel || panel.__bound) return;
   panel.__bound = true;
 
-  // Guardar / Eliminar
-  panel.addEventListener("click", (e)=>{
-    const btnSave = e.target.closest?.('[data-act="save_recipe"]');
-    if(btnSave){
-      e.preventDefault();
-      saveRecipe_().catch(err=> setRecipesMeta_(String(err?.message||err)));
-      return;
-    }
-    const btnDel = e.target.closest?.('[data-act="delete_dessert"]');
-    if(btnDel){
-      e.preventDefault();
-      openDessertConfirm_(dessertId);
-      return;
-    }
+  // Guardar
+  panel.addEventListener('click', (e)=>{
+    const btn = e.target.closest('[data-act="save_recipe"]');
+    if(!btn) return;
+    saveRecipe_().catch(err=> setRecipesMeta_(String(err.message||err)));
   });
 
   // Buscar ingrediente
-  panel.addEventListener("input", (e)=>{
-    const inp = e.target.closest?.('[data-act="ing_search"]');
+  panel.addEventListener('input', (e)=>{
+    const inp = e.target.closest('[data-act="ing_search"]');
     if(!inp) return;
-    state.ui.ingredient_q = String(inp.value||"");
+    state.ui.ingredient_q = String(inp.value||'');
     renderRecipeEditor_();
+  });
+
+  // Cantidad
+  panel.addEventListener('input', (e)=>{
+    const row = e.target.closest('.pRecipeRow');
+    if(!row) return;
+    const k = String(row.getAttribute('data-k')||'');
+    if(!nk) return;
+    const did = String(state.ui.activeDessert||'');
+    if(!did) return;
+    const draft = getDraftMap_(did);
+    draft[k] = draft[k] || { use:false, qty:'', unit:getUnitFor(k) };
+    const act = e.target.getAttribute('data-act') || '';
+    if(act==='r_qty') draft[nk].qty = String(e.target.value||'').replace(',', '.');
+  });
+
+  // Switch
+  panel.addEventListener('change', (e)=>{
+    const row = e.target.closest('.pRecipeRow');
+    if(!row) return;
+    const k = String(row.getAttribute('data-k')||'');
+    if(!nk) return;
+    const did = String(state.ui.activeDessert||'');
+    if(!did) return;
+    const draft = getDraftMap_(did);
+    draft[k] = draft[k] || { use:false, qty:'', unit:getUnitFor(k) };
+    const act = e.target.getAttribute('data-act') || '';
+    if(act==='r_toggle'){
+      draft[nk].use = !!e.target.checked;
+    draft[nk].rawKey = kRaw;
+      row.classList.toggle('isOn', draft[k].use);
+      row.classList.toggle('isOff', !draft[k].use);
+      const sw = row.querySelector('.switchWrap');
+      if(sw){
+        sw.classList.toggle('isOn', draft[k].use);
+        sw.classList.toggle('isOff', !draft[k].use);
+        const meta = sw.querySelector('.meta');
+        if(meta) meta.textContent = draft[k].use ? 'Incluido' : 'No';
+      }
+      const qtyInp = row.querySelector('input.qty');
+      if(qtyInp) qtyInp.disabled = !draft[nk].use;
+      if(draft[k].use && (!draft[nk].qty || Number(draft[nk].qty) <= 0)){
+        if(qtyInp) qtyInp.value = '1';
+        draft[nk].qty = 1;
+      }
+    }
   });
 }
 
@@ -2140,18 +2151,7 @@ function renderDessertPanel_(dessertId){
 
 function renderRecipeEditor_(){
   const did = String(state.ui.activeDessert||"").trim();
-
-  // Preferimos el editor inline (panel abierto). Si no existe, fallback al editor clásico (#recipeEditor).
-  function getEditorEl_(){
-    if(did){
-      const panel = el("dessertPanel_" + did);
-      const inline = panel?.querySelector?.('[data-act="recipe_editor"]');
-      if(inline) return inline;
-    }
-    return el("recipeEditor");
-  }
-
-  const editor = getEditorEl_();
+  const editor = el("recipeEditor");
 
   if(!did){
     if(editor) editor.innerHTML = "";
@@ -2161,45 +2161,18 @@ function renderRecipeEditor_(){
   const draft = getDraftMap_(did);
   const q = String(state.ui.ingredient_q||"").trim().toLowerCase();
 
-  // Ingredientes: catálogo base (COSTOS_INGREDIENTES) + extras que ya estén guardados en la receta,
-  // incluso si no existen en COSTOS_INGREDIENTES (para no “perderlos” en la UI).
-  const baseKeys = Object.keys(state.costsByKey||{});
-  const extras = [];
-  for(const v of Object.values(draft||{})){
-    const rk = String(v?.rawKey||"").trim();
-    if(rk) extras.push(rk);
-  }
-
-  const seen = new Set();
-  const keys = [];
-  for(const k of baseKeys.concat(extras)){
-    const nk = normKey_(k);
-    if(!nk || seen.has(nk)) continue;
-    seen.add(nk);
-    keys.push(k);
-  }
-  keys.sort((a,b)=>a.localeCompare(b,"es"));
-
-  const filtered = keys.filter(k => !q || String(k).toLowerCase().includes(q));
+  const keys = Object.keys(state.costsByKey||{}).sort((a,b)=>a.localeCompare(b,"es"));
+  const filtered = keys.filter(k => !q || k.toLowerCase().includes(q));
 
   const rows = filtered.map(kRaw=>{
     const nk = normKey_(kRaw);
     const d = draft[nk] || { use:false, qty:"", unit:getUnitFor(kRaw), rawKey:kRaw };
-
-    // Mantener la clave “real” para guardar en Sheets
+    // si viene de hoja con otra variación, preferimos la clave visible actual
     if(!d.rawKey) d.rawKey = kRaw;
 
-    const unit = String(d.unit || getUnitFor(kRaw) || "g").trim().toLowerCase();
+    const unit = String(d.unit || getUnitFor(kRaw) || "g");
     const checked = !!d.use;
-
-    // Para mostrar decimales en es-CO: coma (input tipo text)
-    let qtyVal = "";
-    if(d.qty !== "" && d.qty != null){
-      qtyVal = String(d.qty).replace(".", ",");
-    }
-
-    const exists = !!state.costsByKey?.[kRaw];
-    const warn = exists ? "" : `<div class="meta" style="margin-top:4px; color:rgba(64,17,2,.62);">⚠️ No está en COSTOS_INGREDIENTES</div>`;
+    const qtyVal = (d.qty!=="" && d.qty!=null) ? String(d.qty).replace(".", ",") : "";
 
     return `
       <div class="pRecipeRow ${checked?"isOn":"isOff"}" data-nk="${escapeHtmlAttr(nk)}" data-kraw="${escapeHtmlAttr(kRaw)}">
@@ -2212,17 +2185,9 @@ function renderRecipeEditor_(){
         <div class="name">
           ${escapeHtml(kRaw)}
           <div class="meta">Unidad: <b>${escapeHtml(unit)}</b></div>
-          ${warn}
         </div>
 
-        <input class="input qty"
-          data-act="r_qty"
-          type="text"
-          inputmode="decimal"
-          pattern="[0-9]+([.,][0-9]+)?"
-          placeholder="Cantidad"
-          value="${escapeHtmlAttr(qtyVal)}"
-          ${checked?"":"disabled"} />
+        <input class="input qty" data-act="r_qty" type="number" step="any" min="0" placeholder="Cantidad" value="${escapeHtmlAttr(qtyVal)}" ${checked?"":"disabled"} />
       </div>`;
   }).join("");
 
@@ -2273,110 +2238,47 @@ function joinNames_(names){
   return arr.slice(0,-1).join(", ") + " y " + arr[arr.length-1];
 }
 
-/**
- * Clasificación automática por secciones según RECETAS (comparten / por postre).
- * - Usa state.recipesByDessert (desde hoja RECETAS)
- * - Asigna section_title para cada ingredient_key existente en COSTOS_INGREDIENTES
- */
 function computeAutoSections_(){
-  if(state.recipesSource !== "sheet" || !state.recipesByDessert) return [];
-
-  const dessertIds = Object.keys(state.recipesByDessert||{})
-    .filter(Boolean)
-    .sort((a,b)=>prettyDessertName(a).localeCompare(prettyDessertName(b), "es"));
-
+  const dessertIds = collectDessertIds_();
   const names = dessertIds.map(id=>prettyDessertName(id));
   const n = dessertIds.length;
-  if(!n) return [];
+  const fullMask = (1<<n) - 1;
 
-  // ingredient_key -> bitmask de postres que lo usan
   const mem = {};
-
   dessertIds.forEach((did, idx)=>{
     const rows = state.recipesByDessert?.[did] || [];
     for(const r of rows){
-      const kRaw = String(r.ingredient_key||"").trim();
-      if(!kRaw) continue;
-      const canon = canonicalKey(kRaw);
-      const k = (canon && state._costAlias?.[canon]) ? state._costAlias[canon] : kRaw;
+      const k = String(r.ingredient_key||"").trim();
+      if(!k) continue;
       mem[k] = (mem[k] || 0) | (1<<idx);
     }
   });
 
-  // incluir ingredientes existentes aunque no estén en recetas
-  for(const k of Object.keys(state.costsByKey||{})){
-    if(!(k in mem)) mem[k] = 0;
-  }
-
-  const fullMask = (n >= 31) ? null : ((1<<n) - 1);
-
-  const keys = Object.keys(mem).sort((a,b)=>String(a).localeCompare(String(b),"es"));
   const out = [];
+  for(const k of Object.keys(mem)){
+    const mask = mem[k];
+    const inIdx = [];
+    for(let i=0;i<n;i++){ if(mask & (1<<i)) inIdx.push(i); }
+    const inNames = inIdx.map(i=>names[i]);
 
-  for(const k of keys){
-    const mask = mem[k] || 0;
     let title = "";
-
-    if(n <= 1){
-      title = mask ? ("Ingredientes para " + (names[0] || "Postre")) : "Ingredientes sin receta";
-    } else if(mask === 0){
-      title = "Ingredientes sin receta";
-    } else if(fullMask !== null && mask === fullMask){
-      title = "Ingredientes que comparten todos los postres";
-    } else {
-      const inIdx = [];
-      for(let i=0;i<n;i++){ if(mask & (1<<i)) inIdx.push(i); }
-      const inNames = inIdx.map(i=>names[i]).filter(Boolean);
-      title = (inIdx.length > 1)
-        ? ("Ingredientes que comparten " + joinNames_(inNames))
-        : ("Ingredientes para " + (inNames[0] || "Postre"));
-    }
+    if(mask === fullMask) title = "Ingredientes que comparten todos los postres";
+    else if(inIdx.length > 1) title = "Ingredientes que comparten " + joinNames_(inNames);
+    else title = "Ingredientes para " + (inNames[0] || "Postre");
 
     out.push({ ingredient_key: k, section_title: title });
   }
-
   return out;
 }
 
-async function autoClassifyCostsSections_(opts={}){
-  const silent = Object.prototype.hasOwnProperty.call(opts,"silent") ? !!opts.silent : true;
-  if(!UNLOCKED_SECRET) return;
-  if(state.recipesSource !== "sheet" || !state.recipesByDessert) return;
-
-  // asegurar alias para resolver nombres con tildes / variantes
-  try{ buildCostAliasMap(); }catch(_e){}
-
-  const items = computeAutoSections_();
-  if(!items.length) return;
-
-  const hash = items
-    .map(it=>`${String(it.ingredient_key||"").trim()}|${String(it.section_title||"").trim()}`)
-    .sort()
-    .join("§");
-
-  if(state._autoSectionsHash === hash) return;
-  state._autoSectionsHash = hash;
-
-  // aplicar local (para que la UI se actualice al instante)
-  for(const it of items){
-    const k = String(it.ingredient_key||"").trim();
-    if(!k) continue;
-    if(state.costsByKey && state.costsByKey[k]){
-      state.costsByKey[k].section_title = String(it.section_title||"").trim();
-    }
-  }
-
-  try{ renderGroups(); }catch(_e){}
-  try{ renderCostsGroups(); }catch(_e){}
-
-  // persistir en base de datos (sin bloquear UI por defecto)
-  const p = api({ action:"costs_sections_set", costs_secret: UNLOCKED_SECRET, items, updated_by:"AUTO_SECTIONS" }, {timeoutMs: 45000})
-    .catch(()=>null);
-
-  if(!silent){
-    showLoading("Clasificando…","Guardando secciones en la base de datos.");
-    try{ await p; } finally { hideLoading(); }
-  }
+async function autoClassifyCostsSections_(){
+  showLoading("Clasificando…","Actualizando secciones en COSTOS_INGREDIENTES.");
+  try{
+    const items = computeAutoSections_();
+    await api({ action:"costs_sections_set", costs_secret: UNLOCKED_SECRET, recipes_pin: state.recipesPin, items }, {timeoutMs: 45000});
+    await loadAll();
+    setRecipesMeta_("Secciones actualizadas con éxito.");
+  } finally { hideLoading(); }
 }
 
 // =============== Events ===============
@@ -2504,8 +2406,10 @@ function bind(){
   el("btnClear")?.addEventListener("click", ()=>{
     if(el("secretInput")) el("secretInput").value = "";
     if(el("unlockMsg")) el("unlockMsg").textContent = "";
+    const chk = getRememberCheckbox_();
+    if(chk) chk.checked = false;
     try{ localStorage.removeItem(LS_SECRET_KEY); }catch(_e){}
-    if(el("rememberDevice")) el("rememberDevice").checked = false;
+    setRememberDeviceEnabled_(false);
     el("secretInput")?.focus();
   });
   el("secretInput")?.addEventListener("keydown", (e)=>{ if(e.key === "Enter") doUnlock(false); });
@@ -2697,27 +2601,34 @@ el("ingModalBack")?.addEventListener("click", (e)=>{ if(e.target && e.target.id=
   el("ingConfirmCancel")?.addEventListener("click", closeIngConfirm);
   el("ingConfirmBack")?.addEventListener("click", (e)=>{ if(e.target && e.target.id==="ingConfirmBack") closeIngConfirm(); });
 
-  // Confirm delete dessert modal
-  el("dessertConfirmCancel")?.addEventListener("click", closeDessertConfirm_);
-  el("dessertConfirmGo")?.addEventListener("click", ()=> deleteDessert_());
-  el("dessertConfirmBack")?.addEventListener("click", (e)=>{ if(e.target && e.target.id==="dessertConfirmBack") closeDessertConfirm_(); });
+  el("ingConfirmGo")?.addEventListener("click", async ()=>{
+    try{
+      if(ingDeleteCountdown > 0) return; // aún bloqueado
+      if(el("ingConfirmCountdown")) el("ingConfirmCountdown").textContent = "";
+      const key = String(ingDeletePendingKey || el("ingSelect")?.value || "").trim();
+      if(!key) throw new Error("Selecciona un ingrediente.");
+      await deleteIngredientByKey_(key);
+      closeIngConfirm();
+      refreshIngredientSelect_();
+      if(el("ingDelMsg")) el("ingDelMsg").textContent = "Ingrediente eliminado.";
+    }catch(e){
+      if(el("ingConfirmCountdown")) el("ingConfirmCountdown").textContent = String(e.message||e);
+    }
+  });
 
   // ESC para cancelar
   document.addEventListener("keydown", (e)=>{
     if(e.key !== "Escape") return;
-    const back1 = el("ingConfirmBack");
-    if(back1 && !back1.classList.contains("hidden")) closeIngConfirm();
-    const back2 = el("dessertConfirmBack");
-    if(back2 && !back2.classList.contains("hidden")) closeDessertConfirm_();
+    const back = el("ingConfirmBack");
+    if(back && !back.classList.contains("hidden")) closeIngConfirm();
   });
 
   // Recetas: crear postre / crear ingrediente
   el("btnDessertAdd")?.addEventListener("click", ()=> openDessertModal_());
   el("btnRecipesAddIngredient")?.addEventListener("click", ()=> openIngredientsModal());
-  el("dessertNameInput")?.addEventListener("input", (e)=>{
+  el("dessertNameInput")?.addEventListener("input", (e)=>{ 
     const name = String(e.target.value||"");
-    const id = slugifyDessertId_(name);
-    if(el("dessertIdInput")) el("dessertIdInput").value = id;
+    if(el("dessertIdInput")) el("dessertIdInput").value = slugifyDessertId_(name);
   });
   el("btnDessertCancel")?.addEventListener("click", closeDessertModal_);
   el("dessertModalBack")?.addEventListener("click", (e)=>{ if(e.target && e.target.id==="dessertModalBack") closeDessertModal_(); });
@@ -2729,18 +2640,6 @@ el("ingModalBack")?.addEventListener("click", (e)=>{ if(e.target && e.target.id=
       if(el("dessertCreateMsg")) el("dessertCreateMsg").textContent = String(e.message||e);
     }
   });
-
-  // Eliminar postre (modal con temporizador)
-  el("btnDessertDeleteCancel")?.addEventListener("click", closeDessertDeleteModal_);
-  el("dessertDeleteBack")?.addEventListener("click", (e)=>{ if(e.target && e.target.id==="dessertDeleteBack") closeDessertDeleteModal_(); });
-  el("btnDessertDeleteConfirm")?.addEventListener("click", ()=>{ if(_dessertDelLeft>0) return; confirmDessertDelete_(); });
-
-  document.addEventListener("keydown", (e)=>{
-    if(e.key !== "Escape") return;
-    const back = el("dessertDeleteBack");
-    if(back && !back.classList.contains("hidden")) closeDessertDeleteModal_();
-  });
-
 }
 
 // =============== Boot ===============
@@ -2748,13 +2647,20 @@ el("ingModalBack")?.addEventListener("click", (e)=>{ if(e.target && e.target.id=
   bind();
 
   const saved = String(localStorage.getItem(LS_SECRET_KEY) || "").trim();
-  if(saved){
+  const remembered = isRememberDeviceEnabled_();
+
+  const chk = getRememberCheckbox_();
+  if(chk) chk.checked = !!saved && remembered;
+
+  if(saved && remembered){
     if(el("secretInput")) el("secretInput").value = saved;
-    if(el("rememberDevice")) el("rememberDevice").checked = true;
-    // auto unlock
+    // ✅ auto unlock solo si el usuario activó "Recuérdame"
     doUnlock(true);
   } else {
-    if(el("rememberDevice")) el("rememberDevice").checked = false;
+    // si hay clave guardada pero NO está habilitado recordar, la limpiamos
+    if(saved && !remembered){
+      try{ localStorage.removeItem(LS_SECRET_KEY); }catch(_e){}
+    }
     openUnlock("");
   }
 })();
