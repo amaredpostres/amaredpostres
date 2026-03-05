@@ -282,6 +282,8 @@ function setView(view){
     show(vc);
     if(bb) bb.style.display = "none";
     if(tc){ tc.classList.add("isActive"); tc.setAttribute("aria-selected","true"); }
+    // Auto-clasificar secciones según RECETAS (silencioso)
+    autoClassifyCostsSections_({silent:true}).catch(()=>null);
     renderCostsGroups();
     renderUnitCosts();
     return;
@@ -1338,6 +1340,7 @@ async function loadAll(){
 
   // Recetas desde hoja RECETAS (para costo unitario)
   await loadRecipesFromSheet_();
+  try{ await autoClassifyCostsSections_({silent:true}); }catch(_e){}
 
   updateMetaLine();
   renderDesserts();
@@ -1351,6 +1354,11 @@ async function loadAll(){
 // =============== Unlock / logout ===============
 function openUnlock(msg){
   if(el("unlockMsg")) el("unlockMsg").textContent = msg || "";
+  // Sincronizar checkbox “Recuérdame” con lo guardado
+  try{
+    const saved = String(localStorage.getItem(LS_SECRET_KEY) || "").trim();
+    if(el("rememberDevice")) el("rememberDevice").checked = !!saved;
+  }catch(_e){}
   show(el("unlockBack"));
   hide(el("appRoot"));
   if(el("secretInput")) el("secretInput").focus();
@@ -1372,7 +1380,11 @@ async function doUnlock(isAuto=false){
   try{
     await validateSecret(secret);
     UNLOCKED_SECRET = secret;
-    localStorage.setItem(LS_SECRET_KEY, secret);
+    const remember = !!el("rememberDevice")?.checked;
+    try{
+      if(remember || isAuto) localStorage.setItem(LS_SECRET_KEY, secret);
+      else localStorage.removeItem(LS_SECRET_KEY);
+    }catch(_e){}
 
     closeUnlock();
     show(el("appRoot"));
@@ -1382,7 +1394,8 @@ async function doUnlock(isAuto=false){
     await loadAll();
   } catch(err){
     if(el("unlockMsg")) el("unlockMsg").textContent = (err && err.message) ? err.message : "No autorizado";
-    if(!isAuto) localStorage.removeItem(LS_SECRET_KEY);
+    try{ localStorage.removeItem(LS_SECRET_KEY); }catch(_e){}
+    if(el("rememberDevice")) el("rememberDevice").checked = false;
   } finally {
     hideLoading();
   }
@@ -1635,6 +1648,80 @@ function closeIngConfirm(){
   ingDeletePendingKey = "";
   hide(el("ingConfirmBack"));
 }
+
+// ===== Confirmación: eliminar postre =====
+let dessertDeleteTimer = null;
+let dessertDeleteCountdown = 0;
+let dessertDeletePendingId = "";
+
+function openDessertConfirm_(dessertId){
+  dessertDeletePendingId = String(dessertId||"").trim();
+  if(el("dessertConfirmMsg")) el("dessertConfirmMsg").textContent = "";
+  if(el("dessertConfirmName")) el("dessertConfirmName").textContent = `${prettyDessertName(dessertDeletePendingId)} (${dessertDeletePendingId})`;
+  dessertDeleteCountdown = 3;
+
+  const btn = el("dessertConfirmGo");
+  if(btn){
+    btn.disabled = true;
+    btn.textContent = `Eliminar (${dessertDeleteCountdown})`;
+  }
+  show(el("dessertConfirmBack"));
+
+  if(dessertDeleteTimer) clearInterval(dessertDeleteTimer);
+  dessertDeleteTimer = setInterval(()=>{
+    dessertDeleteCountdown -= 1;
+    const b = el("dessertConfirmGo");
+    if(!b) return;
+    if(dessertDeleteCountdown > 0){
+      b.disabled = true;
+      b.textContent = `Eliminar (${dessertDeleteCountdown})`;
+    }else{
+      b.disabled = false;
+      b.textContent = "Eliminar";
+      clearInterval(dessertDeleteTimer);
+      dessertDeleteTimer = null;
+    }
+  }, 1000);
+}
+
+function closeDessertConfirm_(){
+  if(dessertDeleteTimer) clearInterval(dessertDeleteTimer);
+  dessertDeleteTimer = null;
+  dessertDeleteCountdown = 0;
+  dessertDeletePendingId = "";
+  hide(el("dessertConfirmBack"));
+}
+
+async function deleteDessert_(){
+  const did = String(dessertDeletePendingId||"").trim();
+  if(!did) return;
+
+  if(!state.recipesPinUnlocked || !state.recipesPin){
+    // pedir pin si no está desbloqueado
+    closeDessertConfirm_();
+    openRecipesUnlock_("Ingresa el código de Recetas para eliminar postres.");
+    return;
+  }
+
+  showLoading("Eliminando postre…","Actualizando base de datos.");
+  try{
+    await api({ action:"dessert_delete", costs_secret: UNLOCKED_SECRET, recipes_pin: state.recipesPin, dessert_id: did }, {timeoutMs: 30000});
+    // refrescar data
+    state.ui.activeDessert = "";
+    state.ui.ingredient_q = "";
+    await loadDessertsFromSheet_();
+    await loadAll();
+    renderRecipesView_();
+    closeDessertConfirm_();
+  }catch(err){
+    if(el("dessertConfirmMsg")) el("dessertConfirmMsg").textContent = String(err?.message || err || "Error");
+  }finally{
+    hideLoading();
+  }
+}
+
+
+
 function normalizeUnitType_(u){
   const t = String(u||"").trim().toLowerCase();
   if(t==="g"||t==="gr"||t==="gramo"||t==="gramos") return "g";
@@ -2020,7 +2107,7 @@ function bindInlineRecipeEditor_(panel, dessertId){
     const btnDel = e.target.closest?.('[data-act="delete_dessert"]');
     if(btnDel){
       e.preventDefault();
-      openDessertDeleteModal_(dessertId);
+      openDessertConfirm_(dessertId);
       return;
     }
   });
@@ -2186,47 +2273,110 @@ function joinNames_(names){
   return arr.slice(0,-1).join(", ") + " y " + arr[arr.length-1];
 }
 
+/**
+ * Clasificación automática por secciones según RECETAS (comparten / por postre).
+ * - Usa state.recipesByDessert (desde hoja RECETAS)
+ * - Asigna section_title para cada ingredient_key existente en COSTOS_INGREDIENTES
+ */
 function computeAutoSections_(){
-  const dessertIds = collectDessertIds_();
+  if(state.recipesSource !== "sheet" || !state.recipesByDessert) return [];
+
+  const dessertIds = Object.keys(state.recipesByDessert||{})
+    .filter(Boolean)
+    .sort((a,b)=>prettyDessertName(a).localeCompare(prettyDessertName(b), "es"));
+
   const names = dessertIds.map(id=>prettyDessertName(id));
   const n = dessertIds.length;
-  const fullMask = (1<<n) - 1;
+  if(!n) return [];
 
+  // ingredient_key -> bitmask de postres que lo usan
   const mem = {};
+
   dessertIds.forEach((did, idx)=>{
     const rows = state.recipesByDessert?.[did] || [];
     for(const r of rows){
-      const k = String(r.ingredient_key||"").trim();
-      if(!k) continue;
+      const kRaw = String(r.ingredient_key||"").trim();
+      if(!kRaw) continue;
+      const canon = canonicalKey(kRaw);
+      const k = (canon && state._costAlias?.[canon]) ? state._costAlias[canon] : kRaw;
       mem[k] = (mem[k] || 0) | (1<<idx);
     }
   });
 
-  const out = [];
-  for(const k of Object.keys(mem)){
-    const mask = mem[k];
-    const inIdx = [];
-    for(let i=0;i<n;i++){ if(mask & (1<<i)) inIdx.push(i); }
-    const inNames = inIdx.map(i=>names[i]);
+  // incluir ingredientes existentes aunque no estén en recetas
+  for(const k of Object.keys(state.costsByKey||{})){
+    if(!(k in mem)) mem[k] = 0;
+  }
 
+  const fullMask = (n >= 31) ? null : ((1<<n) - 1);
+
+  const keys = Object.keys(mem).sort((a,b)=>String(a).localeCompare(String(b),"es"));
+  const out = [];
+
+  for(const k of keys){
+    const mask = mem[k] || 0;
     let title = "";
-    if(mask === fullMask) title = "Ingredientes que comparten todos los postres";
-    else if(inIdx.length > 1) title = "Ingredientes que comparten " + joinNames_(inNames);
-    else title = "Ingredientes para " + (inNames[0] || "Postre");
+
+    if(n <= 1){
+      title = mask ? ("Ingredientes para " + (names[0] || "Postre")) : "Ingredientes sin receta";
+    } else if(mask === 0){
+      title = "Ingredientes sin receta";
+    } else if(fullMask !== null && mask === fullMask){
+      title = "Ingredientes que comparten todos los postres";
+    } else {
+      const inIdx = [];
+      for(let i=0;i<n;i++){ if(mask & (1<<i)) inIdx.push(i); }
+      const inNames = inIdx.map(i=>names[i]).filter(Boolean);
+      title = (inIdx.length > 1)
+        ? ("Ingredientes que comparten " + joinNames_(inNames))
+        : ("Ingredientes para " + (inNames[0] || "Postre"));
+    }
 
     out.push({ ingredient_key: k, section_title: title });
   }
+
   return out;
 }
 
-async function autoClassifyCostsSections_(){
-  showLoading("Clasificando…","Actualizando secciones en COSTOS_INGREDIENTES.");
-  try{
-    const items = computeAutoSections_();
-    await api({ action:"costs_sections_set", costs_secret: UNLOCKED_SECRET, recipes_pin: state.recipesPin, items }, {timeoutMs: 45000});
-    await loadAll();
-    setRecipesMeta_("Secciones actualizadas con éxito.");
-  } finally { hideLoading(); }
+async function autoClassifyCostsSections_(opts={}){
+  const silent = Object.prototype.hasOwnProperty.call(opts,"silent") ? !!opts.silent : true;
+  if(!UNLOCKED_SECRET) return;
+  if(state.recipesSource !== "sheet" || !state.recipesByDessert) return;
+
+  // asegurar alias para resolver nombres con tildes / variantes
+  try{ buildCostAliasMap(); }catch(_e){}
+
+  const items = computeAutoSections_();
+  if(!items.length) return;
+
+  const hash = items
+    .map(it=>`${String(it.ingredient_key||"").trim()}|${String(it.section_title||"").trim()}`)
+    .sort()
+    .join("§");
+
+  if(state._autoSectionsHash === hash) return;
+  state._autoSectionsHash = hash;
+
+  // aplicar local (para que la UI se actualice al instante)
+  for(const it of items){
+    const k = String(it.ingredient_key||"").trim();
+    if(!k) continue;
+    if(state.costsByKey && state.costsByKey[k]){
+      state.costsByKey[k].section_title = String(it.section_title||"").trim();
+    }
+  }
+
+  try{ renderGroups(); }catch(_e){}
+  try{ renderCostsGroups(); }catch(_e){}
+
+  // persistir en base de datos (sin bloquear UI por defecto)
+  const p = api({ action:"costs_sections_set", costs_secret: UNLOCKED_SECRET, items, updated_by:"AUTO_SECTIONS" }, {timeoutMs: 45000})
+    .catch(()=>null);
+
+  if(!silent){
+    showLoading("Clasificando…","Guardando secciones en la base de datos.");
+    try{ await p; } finally { hideLoading(); }
+  }
 }
 
 // =============== Events ===============
@@ -2351,7 +2501,13 @@ function bind(){
 
   // Unlock
   el("btnDoUnlock")?.addEventListener("click", ()=>doUnlock(false));
-  el("btnClear")?.addEventListener("click", ()=>{ if(el("secretInput")) el("secretInput").value = ""; if(el("unlockMsg")) el("unlockMsg").textContent = ""; el("secretInput")?.focus(); });
+  el("btnClear")?.addEventListener("click", ()=>{
+    if(el("secretInput")) el("secretInput").value = "";
+    if(el("unlockMsg")) el("unlockMsg").textContent = "";
+    try{ localStorage.removeItem(LS_SECRET_KEY); }catch(_e){}
+    if(el("rememberDevice")) el("rememberDevice").checked = false;
+    el("secretInput")?.focus();
+  });
   el("secretInput")?.addEventListener("keydown", (e)=>{ if(e.key === "Enter") doUnlock(false); });
 
   // Recipes unlock
@@ -2541,11 +2697,18 @@ el("ingModalBack")?.addEventListener("click", (e)=>{ if(e.target && e.target.id=
   el("ingConfirmCancel")?.addEventListener("click", closeIngConfirm);
   el("ingConfirmBack")?.addEventListener("click", (e)=>{ if(e.target && e.target.id==="ingConfirmBack") closeIngConfirm(); });
 
+  // Confirm delete dessert modal
+  el("dessertConfirmCancel")?.addEventListener("click", closeDessertConfirm_);
+  el("dessertConfirmGo")?.addEventListener("click", ()=> deleteDessert_());
+  el("dessertConfirmBack")?.addEventListener("click", (e)=>{ if(e.target && e.target.id==="dessertConfirmBack") closeDessertConfirm_(); });
+
   // ESC para cancelar
   document.addEventListener("keydown", (e)=>{
     if(e.key !== "Escape") return;
-    const back = el("ingConfirmBack");
-    if(back && !back.classList.contains("hidden")) closeIngConfirm();
+    const back1 = el("ingConfirmBack");
+    if(back1 && !back1.classList.contains("hidden")) closeIngConfirm();
+    const back2 = el("dessertConfirmBack");
+    if(back2 && !back2.classList.contains("hidden")) closeDessertConfirm_();
   });
 
   // Recetas: crear postre / crear ingrediente
@@ -2587,9 +2750,11 @@ el("ingModalBack")?.addEventListener("click", (e)=>{ if(e.target && e.target.id=
   const saved = String(localStorage.getItem(LS_SECRET_KEY) || "").trim();
   if(saved){
     if(el("secretInput")) el("secretInput").value = saved;
+    if(el("rememberDevice")) el("rememberDevice").checked = true;
     // auto unlock
     doUnlock(true);
   } else {
+    if(el("rememberDevice")) el("rememberDevice").checked = false;
     openUnlock("");
   }
 })();
