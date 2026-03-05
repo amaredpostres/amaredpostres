@@ -1923,45 +1923,147 @@ function renderDessertList_(){
     .sort((a,b)=>a.name.localeCompare(b.name,"es"));
 
   box.innerHTML = rows.map(r=>{
-    const active = (state.ui.activeDessert === r.id);
+    const open = (String(state.ui.activeDessert||"") === r.id);
     const sub = r.cnt ? `${r.cnt} ingrediente(s) configurado(s)` : `sin receta aún`;
-    const chev = active ? "▾" : "▸";
-    return `<button class="pDessertBtn ${active?"isActive":""}" data-did="${escapeHtmlAttr(r.id)}">
-      <div style="min-width:0;">
-        <div style="font-weight:950;">${escapeHtml(r.name)}</div>
-        <div class="sub">${escapeHtml(sub)}</div>
-      </div>
-      <div style="display:flex; align-items:center; gap:10px;">
-        <div class="badge">${r.cnt || 0}</div>
-        <div class="chev" aria-hidden="true">${chev}</div>
-      </div>
-    </button>`;
+    const chev = open ? "▾" : "▸";
+    return `
+      <div class="pDessertCard ${open?"isOpen":""}" data-did="${escapeHtmlAttr(r.id)}">
+        <div class="pDessertHead" role="button" tabindex="0">
+          <div class="pDessertStripe"></div>
+          <div class="pDessertTitle">
+            <div class="name">${escapeHtml(r.name)}</div>
+            <div class="sub">${escapeHtml(sub)}</div>
+          </div>
+          <div class="pDessertMeta">
+            <div class="pDessertCount">${r.cnt || 0}</div>
+            <div class="pDessertChevron" aria-hidden="true">${chev}</div>
+          </div>
+        </div>
+
+        <div class="pDessertPanel ${open?"":"hidden"}" id="dessertPanel_${escapeHtmlAttr(r.id)}">
+          ${open ? renderDessertPanelShell_(r.id) : ""}
+        </div>
+      </div>`;
   }).join("") || `<div class="hint">Sin postres.</div>`;
+
+  const did = String(state.ui.activeDessert||"").trim();
+  if(did){
+    renderDessertPanel_(did);
+  }
+}
+
+
+function renderDessertPanelShell_(dessertId){
+  const name = prettyDessertName(dessertId);
+  return `
+    <div class="pDessertPanelTop">
+      <div>
+        <div class="cardTitle" style="margin:0;">Editar receta: ${escapeHtml(name)}</div>
+        <div class="hint">Activa ingredientes (switch) y define cantidades por unidad.</div>
+      </div>
+      <button class="btn primary" data-act="save_recipe">Guardar receta</button>
+    </div>
+
+    <div class="pDessertPanelControls" style="margin-top:10px;">
+      <input class="input" data-act="ing_search" placeholder="Buscar ingrediente…" />
+    </div>
+
+    <div class="pDessertPanelScroll">
+      <div class="pGroups" data-act="recipe_editor" style="margin-top:12px;"></div>
+    </div>
+  `;
+}
+
+function bindInlineRecipeEditor_(panel, dessertId){
+  if(!panel || panel.__bound) return;
+  panel.__bound = true;
+
+  // Guardar
+  panel.addEventListener('click', (e)=>{
+    const btn = e.target.closest('[data-act="save_recipe"]');
+    if(!btn) return;
+    saveRecipe_().catch(err=> setRecipesMeta_(String(err.message||err)));
+  });
+
+  // Buscar ingrediente
+  panel.addEventListener('input', (e)=>{
+    const inp = e.target.closest('[data-act="ing_search"]');
+    if(!inp) return;
+    state.ui.ingredient_q = String(inp.value||'');
+    renderRecipeEditor_();
+  });
+
+  // Cantidad
+  panel.addEventListener('input', (e)=>{
+    const row = e.target.closest('.pRecipeRow');
+    if(!row) return;
+    const k = String(row.getAttribute('data-k')||'');
+    if(!k) return;
+    const did = String(state.ui.activeDessert||'');
+    if(!did) return;
+    const draft = getDraftMap_(did);
+    draft[k] = draft[k] || { use:false, qty:'', unit:getUnitFor(k) };
+    const act = e.target.getAttribute('data-act') || '';
+    if(act==='r_qty') draft[k].qty = String(e.target.value||'').replace(',', '.');
+  });
+
+  // Switch
+  panel.addEventListener('change', (e)=>{
+    const row = e.target.closest('.pRecipeRow');
+    if(!row) return;
+    const k = String(row.getAttribute('data-k')||'');
+    if(!k) return;
+    const did = String(state.ui.activeDessert||'');
+    if(!did) return;
+    const draft = getDraftMap_(did);
+    draft[k] = draft[k] || { use:false, qty:'', unit:getUnitFor(k) };
+    const act = e.target.getAttribute('data-act') || '';
+    if(act==='r_toggle'){
+      draft[k].use = !!e.target.checked;
+      row.classList.toggle('isOn', draft[k].use);
+      row.classList.toggle('isOff', !draft[k].use);
+      const sw = row.querySelector('.switchWrap');
+      if(sw){
+        sw.classList.toggle('isOn', draft[k].use);
+        sw.classList.toggle('isOff', !draft[k].use);
+        const meta = sw.querySelector('.meta');
+        if(meta) meta.textContent = draft[k].use ? 'Incluido' : 'No';
+      }
+      const qtyInp = row.querySelector('input.qty');
+      if(qtyInp) qtyInp.disabled = !draft[k].use;
+      if(draft[k].use && (!draft[k].qty || Number(draft[k].qty) <= 0)){
+        if(qtyInp) qtyInp.value = '1';
+        draft[k].qty = 1;
+      }
+    }
+  });
+}
+
+function renderDessertPanel_(dessertId){
+  const panel = el('dessertPanel_' + dessertId);
+  if(!panel) return;
+
+  // mount shell if needed
+  if(!panel.querySelector('[data-act="recipe_editor"]')){
+    panel.innerHTML = renderDessertPanelShell_(dessertId);
+  }
+
+  // seed search input
+  const search = panel.querySelector('[data-act="ing_search"]');
+  if(search) search.value = String(state.ui.ingredient_q||'');
+
+  bindInlineRecipeEditor_(panel, dessertId);
+  renderRecipeEditor_();
 }
 
 function renderRecipeEditor_(){
   const did = String(state.ui.activeDessert||"").trim();
-  const locked = el("recipeRightLocked");
-  const inner = el("recipeRightInner");
-  const title = el("recipeEditorTitle");
-  const sub = el("recipeEditorSub");
-  const btnSave = el("btnRecipeSave");
+  if(!did) return;
 
-  if(!did){
-    if(locked) locked.style.display = "";
-    if(inner) inner.style.display = "none";
-    if(btnSave) btnSave.disabled = true;
-    return;
-  }
+  const panel = el('dessertPanel_' + did);
+  const editor = panel ? panel.querySelector('[data-act="recipe_editor"]') : null;
+  if(!editor) return;
 
-  if(locked) locked.style.display = "none";
-  if(inner) inner.style.display = "";
-
-  if(title) title.textContent = prettyDessertName(did);
-  if(sub) sub.textContent = "Activa ingredientes (switch) y define cantidades por unidad.";
-  if(btnSave) btnSave.disabled = false;
-
-  const editor = el("recipeEditor");
   const draft = getDraftMap_(did);
   const q = String(state.ui.ingredient_q||"").trim().toLowerCase();
 
@@ -1991,7 +2093,7 @@ function renderRecipeEditor_(){
       </div>`;
   }).join("");
 
-  if(editor) editor.innerHTML = rows || `<div class="hint">No hay ingredientes.</div>`;
+  editor.innerHTML = rows || `<div class="hint">No hay ingredientes.</div>`;
 }
 
 function setRecipesMeta_(txt){
@@ -2106,80 +2208,36 @@ function bind(){
   el("btnCostsRefresh")?.addEventListener("click", ()=>{ showLoading("Refrescando…","Leyendo datos actualizados."); loadAll().finally(hideLoading); });
   el("btnCatalogs")?.addEventListener("click", ()=> openCatalogModal());
   el("btnIngredients")?.addEventListener("click", ()=> openIngredientsModal());
-  el("inpCostSearch")?.addEventListener("input", (e)=>{ state.ui.cost_q = String(e.target.value||""); renderCostsGroups(); });
-
-  // Recetas view
+  el("inpCostSearch")?.addEventListener("input", (e)=>{ state.ui.cost_q = String(e.target.value||""); renderCostsGroups(); });  // Recetas view
   el("inpDessertSearch")?.addEventListener("input", (e)=>{ state.ui.dessert_q = String(e.target.value||""); renderDessertList_(); });
   el("dessertList")?.addEventListener("click", (e)=>{
-    const btn = e.target.closest(".pDessertBtn");
-    if(!btn) return;
-    const did = String(btn.getAttribute("data-did")||"");
+    const head = e.target.closest('.pDessertHead');
+    if(!head) return;
+    const card = head.closest('.pDessertCard');
+    if(!card) return;
+    const did = String(card.getAttribute('data-did')||'');
     if(!did) return;
 
-    // Acordeón: si clic en el mismo postre → cerrar
     if(String(state.ui.activeDessert||"") === did){
       state.ui.activeDessert = "";
       state.ui.ingredient_q = "";
-      if(el("inpIngredientSearch")) el("inpIngredientSearch").value = "";
       renderDessertList_();
-      renderRecipeEditor_();
       return;
     }
 
     state.ui.activeDessert = did;
+    state.ui.ingredient_q = "";
     renderDessertList_();
-    renderRecipeEditor_();
-    // UX: en móvil, lleva al editor
-    try{ if(window.innerWidth <= 860){ el("recipeRightWrap")?.scrollIntoView({behavior:"smooth", block:"start"}); } }catch(_e){}
-  });el("inpIngredientSearch")?.addEventListener("input", (e)=>{ state.ui.ingredient_q = String(e.target.value||""); renderRecipeEditor_(); });
-  el("recipeEditor")?.addEventListener("input", (e)=>{
-    const row = e.target.closest(".pRecipeRow");
-    if(!row) return;
-    const k = String(row.getAttribute("data-k")||"");
-    if(!k) return;
-    const did = String(state.ui.activeDessert||"");
-    if(!did) return;
-    const draft = getDraftMap_(did);
-    draft[k] = draft[k] || { use:false, qty:"", unit:getUnitFor(k) };
-    const act = e.target.getAttribute("data-act") || "";
-    if(act==="r_qty"){ draft[k].qty = String(e.target.value||"").replace(",","."); }
-  });
-  el("recipeEditor")?.addEventListener("change", (e)=>{
-    const row = e.target.closest(".pRecipeRow");
-    if(!row) return;
-    const k = String(row.getAttribute("data-k")||"");
-    if(!k) return;
-    const did = String(state.ui.activeDessert||"");
-    if(!did) return;
-    const draft = getDraftMap_(did);
-    draft[k] = draft[k] || { use:false, qty:"", unit:getUnitFor(k) };
-    const act = e.target.getAttribute("data-act") || "";
-    if(act==="r_toggle"){
-      draft[k].use = !!e.target.checked;
 
-      // UI: row style + meta text
-      row.classList.toggle("isOn", draft[k].use);
-      row.classList.toggle("isOff", !draft[k].use);
-      const sw = row.querySelector(".switchWrap");
-      if(sw){
-        sw.classList.toggle("isOn", draft[k].use);
-        sw.classList.toggle("isOff", !draft[k].use);
-        const meta = sw.querySelector(".meta");
-        if(meta) meta.textContent = draft[k].use ? "Incluido" : "No";
+    setTimeout(()=>{
+      const p = el('dessertPanel_' + did);
+      if(p && window.innerWidth <= 860){
+        p.scrollIntoView({behavior:'smooth', block:'start'});
       }
-
-      const qtyInp = row.querySelector("input.qty");
-      if(qtyInp) qtyInp.disabled = !draft[k].use;
-
-      if(draft[k].use && (!draft[k].qty || Number(draft[k].qty) <= 0)){
-        qtyInp.value = "1";
-        draft[k].qty = 1;
-      }
-    }
+    }, 50);
   });
-  el("btnRecipeSave")?.addEventListener("click", ()=> saveRecipe_().catch(e=> setRecipesMeta_(String(e.message||e)) ));
   el("btnRecipesRefresh")?.addEventListener("click", ()=>{ showLoading("Refrescando…","Leyendo datos."); loadAll().finally(hideLoading); });
-  
+
 
   // Unlock
   el("btnDoUnlock")?.addEventListener("click", ()=>doUnlock(false));
