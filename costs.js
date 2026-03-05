@@ -1925,12 +1925,16 @@ function renderDessertList_(){
   box.innerHTML = rows.map(r=>{
     const active = (state.ui.activeDessert === r.id);
     const sub = r.cnt ? `${r.cnt} ingrediente(s) configurado(s)` : `sin receta aún`;
+    const chev = active ? "▾" : "▸";
     return `<button class="pDessertBtn ${active?"isActive":""}" data-did="${escapeHtmlAttr(r.id)}">
       <div style="min-width:0;">
         <div style="font-weight:950;">${escapeHtml(r.name)}</div>
         <div class="sub">${escapeHtml(sub)}</div>
       </div>
-      <div class="badge">${r.cnt || 0}</div>
+      <div style="display:flex; align-items:center; gap:10px;">
+        <div class="badge">${r.cnt || 0}</div>
+        <div class="chev" aria-hidden="true">${chev}</div>
+      </div>
     </button>`;
   }).join("") || `<div class="hint">Sin postres.</div>`;
 }
@@ -1954,7 +1958,7 @@ function renderRecipeEditor_(){
   if(inner) inner.style.display = "";
 
   if(title) title.textContent = prettyDessertName(did);
-  if(sub) sub.textContent = "Ingredientes por unidad (se guardan en RECETAS).";
+  if(sub) sub.textContent = "Activa ingredientes (switch) y define cantidades por unidad.";
   if(btnSave) btnSave.disabled = false;
 
   const editor = el("recipeEditor");
@@ -1969,12 +1973,14 @@ function renderRecipeEditor_(){
     const unit = String(d.unit || getUnitFor(k) || "g");
     const checked = !!d.use;
     const qtyVal = (d.qty!=="" && d.qty!=null) ? String(d.qty).replace(".", ",") : "";
+
     return `
       <div class="pRecipeRow ${checked?"isOn":"isOff"}" data-k="${escapeHtmlAttr(k)}">
-        <label style="display:flex; align-items:center; gap:8px; min-width:84px;">
-          <input type="checkbox" data-act="r_toggle" ${checked?"checked":""} />
-          <span class="meta">Usar</span>
-        </label>
+        <div class="switchWrap ${checked?"isOn":"isOff"}">
+          <input class="switchInput" type="checkbox" data-act="r_toggle" ${checked?"checked":""} />
+          <span class="switch" aria-hidden="true"></span>
+          <span class="meta">${checked ? "Incluido" : "No"}</span>
+        </div>
 
         <div class="name">
           ${escapeHtml(k)}
@@ -2109,11 +2115,21 @@ function bind(){
     if(!btn) return;
     const did = String(btn.getAttribute("data-did")||"");
     if(!did) return;
+
+    // Acordeón: si clic en el mismo postre → cerrar
+    if(String(state.ui.activeDessert||"") === did){
+      state.ui.activeDessert = "";
+      state.ui.ingredient_q = "";
+      if(el("inpIngredientSearch")) el("inpIngredientSearch").value = "";
+      renderDessertList_();
+      renderRecipeEditor_();
+      return;
+    }
+
     state.ui.activeDessert = did;
     renderDessertList_();
     renderRecipeEditor_();
-  });
-  el("inpIngredientSearch")?.addEventListener("input", (e)=>{ state.ui.ingredient_q = String(e.target.value||""); renderRecipeEditor_(); });
+  });el("inpIngredientSearch")?.addEventListener("input", (e)=>{ state.ui.ingredient_q = String(e.target.value||""); renderRecipeEditor_(); });
   el("recipeEditor")?.addEventListener("input", (e)=>{
     const row = e.target.closest(".pRecipeRow");
     if(!row) return;
@@ -2138,9 +2154,25 @@ function bind(){
     const act = e.target.getAttribute("data-act") || "";
     if(act==="r_toggle"){
       draft[k].use = !!e.target.checked;
+
+      // UI: row style + meta text
+      row.classList.toggle("isOn", draft[k].use);
+      row.classList.toggle("isOff", !draft[k].use);
+      const sw = row.querySelector(".switchWrap");
+      if(sw){
+        sw.classList.toggle("isOn", draft[k].use);
+        sw.classList.toggle("isOff", !draft[k].use);
+        const meta = sw.querySelector(".meta");
+        if(meta) meta.textContent = draft[k].use ? "Incluido" : "No";
+      }
+
       const qtyInp = row.querySelector("input.qty");
       if(qtyInp) qtyInp.disabled = !draft[k].use;
-      if(draft[k].use && !draft[k].qty){ if(qtyInp) qtyInp.value="1"; draft[k].qty = 1; }
+
+      if(draft[k].use && (!draft[k].qty || Number(draft[k].qty) <= 0)){
+        qtyInp.value = "1";
+        draft[k].qty = 1;
+      }
     }
   });
   el("btnRecipeSave")?.addEventListener("click", ()=> saveRecipe_().catch(e=> setRecipesMeta_(String(e.message||e)) ));
