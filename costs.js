@@ -228,6 +228,17 @@ function parseNumFlex_(v){
   return isFinite(n) ? n : 0;
 }
 
+function normKey_(s){
+  let x = String(s||"").trim().toLowerCase();
+  if(!x) return "";
+  // quita acentos
+  try{ x = x.normalize("NFD").replace(/[\u0300-\u036f]/g, ""); }catch(_e){}
+  // normaliza espacios
+  x = x.replace(/\s+/g, " ").trim();
+  return x;
+}
+
+
 function escapeHtml(s){
   return String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#039;"}[c]));
 }
@@ -1848,9 +1859,10 @@ function getDraftMap_(dessertId){
     const seed = {};
     const rows = state.recipesByDessert?.[dessertId] || [];
     for(const r of rows){
-      const k = String(r.ingredient_key||"").trim();
-      if(!k) continue;
-      seed[k] = { use:true, qty: parseNumFlex_(r.qty_per_unit||0), unit: String(r.unit||"").trim() };
+      const kRaw = String(r.ingredient_key||"").trim();
+      const nk = normKey_(kRaw);
+      if(!nk) continue;
+      seed[nk] = { use:true, qty: parseNumFlex_(r.qty_per_unit||0), unit: String(r.unit||"").trim(), rawKey: kRaw };
     }
     state.ui.recipeDraftByDessert[dessertId] = seed;
   }
@@ -2009,13 +2021,13 @@ function bindInlineRecipeEditor_(panel, dessertId){
     const row = e.target.closest('.pRecipeRow');
     if(!row) return;
     const k = String(row.getAttribute('data-k')||'');
-    if(!k) return;
+    if(!nk) return;
     const did = String(state.ui.activeDessert||'');
     if(!did) return;
     const draft = getDraftMap_(did);
     draft[k] = draft[k] || { use:false, qty:'', unit:getUnitFor(k) };
     const act = e.target.getAttribute('data-act') || '';
-    if(act==='r_qty') draft[k].qty = String(e.target.value||'').replace(',', '.');
+    if(act==='r_qty') draft[nk].qty = String(e.target.value||'').replace(',', '.');
   });
 
   // Switch
@@ -2023,14 +2035,15 @@ function bindInlineRecipeEditor_(panel, dessertId){
     const row = e.target.closest('.pRecipeRow');
     if(!row) return;
     const k = String(row.getAttribute('data-k')||'');
-    if(!k) return;
+    if(!nk) return;
     const did = String(state.ui.activeDessert||'');
     if(!did) return;
     const draft = getDraftMap_(did);
     draft[k] = draft[k] || { use:false, qty:'', unit:getUnitFor(k) };
     const act = e.target.getAttribute('data-act') || '';
     if(act==='r_toggle'){
-      draft[k].use = !!e.target.checked;
+      draft[nk].use = !!e.target.checked;
+    draft[nk].rawKey = kRaw;
       row.classList.toggle('isOn', draft[k].use);
       row.classList.toggle('isOff', !draft[k].use);
       const sw = row.querySelector('.switchWrap');
@@ -2041,10 +2054,10 @@ function bindInlineRecipeEditor_(panel, dessertId){
         if(meta) meta.textContent = draft[k].use ? 'Incluido' : 'No';
       }
       const qtyInp = row.querySelector('input.qty');
-      if(qtyInp) qtyInp.disabled = !draft[k].use;
-      if(draft[k].use && (!draft[k].qty || Number(draft[k].qty) <= 0)){
+      if(qtyInp) qtyInp.disabled = !draft[nk].use;
+      if(draft[k].use && (!draft[nk].qty || Number(draft[nk].qty) <= 0)){
         if(qtyInp) qtyInp.value = '1';
-        draft[k].qty = 1;
+        draft[nk].qty = 1;
       }
     }
   });
@@ -2069,11 +2082,12 @@ function renderDessertPanel_(dessertId){
 
 function renderRecipeEditor_(){
   const did = String(state.ui.activeDessert||"").trim();
-  if(!did) return;
+  const editor = el("recipeEditor");
 
-  const panel = el('dessertPanel_' + did);
-  const editor = panel ? panel.querySelector('[data-act="recipe_editor"]') : null;
-  if(!editor) return;
+  if(!did){
+    if(editor) editor.innerHTML = "";
+    return;
+  }
 
   const draft = getDraftMap_(did);
   const q = String(state.ui.ingredient_q||"").trim().toLowerCase();
@@ -2081,14 +2095,18 @@ function renderRecipeEditor_(){
   const keys = Object.keys(state.costsByKey||{}).sort((a,b)=>a.localeCompare(b,"es"));
   const filtered = keys.filter(k => !q || k.toLowerCase().includes(q));
 
-  const rows = filtered.map(k=>{
-    const d = draft[k] || { use:false, qty:"", unit:getUnitFor(k) };
-    const unit = String(d.unit || getUnitFor(k) || "g");
+  const rows = filtered.map(kRaw=>{
+    const nk = normKey_(kRaw);
+    const d = draft[nk] || { use:false, qty:"", unit:getUnitFor(kRaw), rawKey:kRaw };
+    // si viene de hoja con otra variación, preferimos la clave visible actual
+    if(!d.rawKey) d.rawKey = kRaw;
+
+    const unit = String(d.unit || getUnitFor(kRaw) || "g");
     const checked = !!d.use;
     const qtyVal = (d.qty!=="" && d.qty!=null) ? String(d.qty).replace(".", ",") : "";
 
     return `
-      <div class="pRecipeRow ${checked?"isOn":"isOff"}" data-k="${escapeHtmlAttr(k)}">
+      <div class="pRecipeRow ${checked?"isOn":"isOff"}" data-nk="${escapeHtmlAttr(nk)}" data-kraw="${escapeHtmlAttr(kRaw)}">
         <label class="switchWrap ${checked?"isOn":"isOff"}">
           <input class="switchInput" type="checkbox" data-act="r_toggle" ${checked?"checked":""} />
           <span class="switch" aria-hidden="true"></span>
@@ -2096,7 +2114,7 @@ function renderRecipeEditor_(){
         </label>
 
         <div class="name">
-          ${escapeHtml(k)}
+          ${escapeHtml(kRaw)}
           <div class="meta">Unidad: <b>${escapeHtml(unit)}</b></div>
         </div>
 
@@ -2104,7 +2122,7 @@ function renderRecipeEditor_(){
       </div>`;
   }).join("");
 
-  editor.innerHTML = rows || `<div class="hint">No hay ingredientes.</div>`;
+  if(editor) editor.innerHTML = rows || `<div class="hint">No hay ingredientes.</div>`;
 }
 
 function setRecipesMeta_(txt){
@@ -2124,13 +2142,14 @@ async function saveRecipe_(){
   const draft = getDraftMap_(did);
 
   const items = [];
-  for(const [k,v] of Object.entries(draft)){
+  for(const [nk,v] of Object.entries(draft)){
     if(!v || !v.use) continue;
-    const qty = Number(String(v.qty||"").replace(",", "."));
+    const qty = parseNumFlex_(v.qty);
     if(!(qty>0)) continue;
-    const unit = String(v.unit || getUnitFor(k) || "").trim().toLowerCase();
-    if(!unit) continue;
-    items.push({ ingredient_key: k, qty_per_unit: qty, unit });
+    const unit = String(v.unit || "").trim().toLowerCase();
+    const kRaw = String(v.rawKey || "").trim();
+    if(!kRaw || !unit) continue;
+    items.push({ ingredient_key: kRaw, qty_per_unit: qty, unit });
   }
 
   showLoading("Guardando…","Actualizando RECETAS.");
@@ -2256,14 +2275,16 @@ function bind(){
 
     const row = e.target.closest(".pRecipeRow");
     if(!row) return;
-    const k = String(row.getAttribute("data-k")||"");
-    if(!k) return;
+    const nk = String(row.getAttribute("data-nk")||"");
+    const kRaw = String(row.getAttribute("data-kraw")||"");
+    if(!nk) return;
     const did = String(state.ui.activeDessert||"");
     if(!did) return;
 
     const draft = getDraftMap_(did);
-    draft[k] = draft[k] || { use:false, qty:"", unit:getUnitFor(k) };
-    draft[k].qty = String(e.target.value||"").replace(",", ".");
+    draft[nk] = draft[nk] || { use:false, qty:"", unit:getUnitFor(kRaw), rawKey:kRaw };
+    draft[nk].qty = String(e.target.value||"").replace(",", ".");
+    draft[nk].rawKey = kRaw;
   });
 
   el("dessertList")?.addEventListener("change", (e)=>{
@@ -2272,35 +2293,37 @@ function bind(){
 
     const row = e.target.closest(".pRecipeRow");
     if(!row) return;
-    const k = String(row.getAttribute("data-k")||"");
-    if(!k) return;
+    const nk = String(row.getAttribute("data-nk")||"");
+    const kRaw = String(row.getAttribute("data-kraw")||"");
+    if(!nk) return;
     const did = String(state.ui.activeDessert||"");
     if(!did) return;
 
     const draft = getDraftMap_(did);
-    draft[k] = draft[k] || { use:false, qty:"", unit:getUnitFor(k) };
-    draft[k].use = !!e.target.checked;
+    draft[nk] = draft[nk] || { use:false, qty:"", unit:getUnitFor(kRaw), rawKey:kRaw };
+    draft[nk].use = !!e.target.checked;
+    draft[nk].rawKey = kRaw;
 
     // UI
-    row.classList.toggle("isOn", draft[k].use);
-    row.classList.toggle("isOff", !draft[k].use);
+    row.classList.toggle("isOn", draft[nk].use);
+    row.classList.toggle("isOff", !draft[nk].use);
 
     const sw = row.querySelector(".switchWrap");
     if(sw){
-      sw.classList.toggle("isOn", draft[k].use);
-      sw.classList.toggle("isOff", !draft[k].use);
+      sw.classList.toggle("isOn", draft[nk].use);
+      sw.classList.toggle("isOff", !draft[nk].use);
       const meta = sw.querySelector(".meta");
-      if(meta) meta.textContent = draft[k].use ? "Incluido" : "No";
+      if(meta) meta.textContent = draft[nk].use ? "Incluido" : "No";
     }
 
     const qtyInp = row.querySelector("input.qty");
-    if(qtyInp) qtyInp.disabled = !draft[k].use;
+    if(qtyInp) qtyInp.disabled = !draft[nk].use;
 
     // default qty = 1
-    if(draft[k].use){
-      const cur = parseNumFlex_(draft[k].qty);
+    if(draft[nk].use){
+      const cur = parseNumFlex_(draft[nk].qty);
       if(!(cur > 0)){
-        draft[k].qty = 1;
+        draft[nk].qty = 1;
         if(qtyInp) qtyInp.value = "1";
       }
     }
