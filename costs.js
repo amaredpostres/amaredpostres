@@ -362,7 +362,7 @@ function buildRecipesIndex_(items){
     const ing = String(r?.ingredient_key || r?.ingredientKey || r?.key || "").trim();
     if(!ing) continue;
 
-    const qty = Number(r?.qty_per_unit ?? r?.qtyPerUnit ?? r?.qty ?? 0);
+    const qty = parseNumFlex_(r?.qty_per_unit ?? r?.qtyPerUnit ?? r?.qty ?? 0);
     if(!(qty > 0)) continue;
 
     const unit = normRecipeUnit_(r?.unit);
@@ -2089,11 +2089,11 @@ function renderRecipeEditor_(){
 
     return `
       <div class="pRecipeRow ${checked?"isOn":"isOff"}" data-k="${escapeHtmlAttr(k)}">
-        <div class="switchWrap ${checked?"isOn":"isOff"}">
+        <label class="switchWrap ${checked?"isOn":"isOff"}">
           <input class="switchInput" type="checkbox" data-act="r_toggle" ${checked?"checked":""} />
           <span class="switch" aria-hidden="true"></span>
           <span class="meta">${checked ? "Incluido" : "No"}</span>
-        </div>
+        </label>
 
         <div class="name">
           ${escapeHtml(k)}
