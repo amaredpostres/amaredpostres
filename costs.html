@@ -26,6 +26,91 @@
 #ingConfirmBack .modalBody{padding:14px;}
 #ingConfirmBack .confirmBtns{display:flex; gap:10px; justify-content:flex-end; flex-wrap:wrap;}
 #ingConfirmBack .confirmHint{margin-top:8px;}
+
+/* ===== Recetas UX v3 ===== */
+#viewRecipes .card{overflow:hidden;}
+.pRecipeGrid{gap:16px;}
+.pRecipeLeft{position:sticky; top:10px;}
+@media (max-width: 860px){ .pRecipeLeft{position:static;} }
+
+/* Postres list */
+.pList{display:flex; flex-direction:column; gap:10px;}
+.pDessertBtn{
+  border-radius:16px;
+  padding:12px 14px;
+  transition:transform .08s ease, box-shadow .12s ease, background .12s ease;
+  box-shadow: 0 8px 22px rgba(64,17,2,.06);
+}
+.pDessertBtn:hover{transform:translateY(-1px); box-shadow:0 10px 26px rgba(64,17,2,.09);}
+.pDessertBtn .badge{min-width:34px; text-align:center;}
+.pDessertBtn .chev{
+  width:28px; height:28px;
+  display:flex; align-items:center; justify-content:center;
+  border-radius:999px;
+  border:1px solid rgba(64,17,2,.12);
+  background:rgba(255,255,255,.9);
+  font-weight:950;
+}
+.pDessertBtn.isActive .chev{background:rgba(255,105,160,.12); border-color:rgba(255,105,160,.30);}
+
+/* Right panel */
+#recipeRightWrap{min-height:340px;}
+#recipeRightLocked{margin-top:6px;}
+#recipeRightInner .rowBetween{
+  position:sticky; top:0;
+  z-index:3;
+  padding:10px 0;
+  background:linear-gradient(180deg, rgba(255,248,242,.98), rgba(255,248,242,.75));
+  backdrop-filter: blur(6px);
+}
+#recipeEditor{
+  max-height: 62vh;
+  overflow:auto;
+  padding-right:6px;
+}
+@media (max-width: 860px){
+  #recipeEditor{max-height:none; overflow:visible; padding-right:0;}
+}
+
+/* Ingredient row */
+.pRecipeRow{
+  gap:12px;
+  border-radius:16px;
+}
+.pRecipeRow.isOn{background:rgba(255,255,255,.92);}
+.pRecipeRow.isOff{background:rgba(255,255,255,.60);}
+.pRecipeRow .qty{max-width:140px;}
+@media (max-width: 520px){
+  .pRecipeRow{flex-wrap:wrap; align-items:flex-start;}
+  .pRecipeRow .qty{width:100%; max-width:none;}
+}
+
+/* Switch (toggle) */
+.switch{
+  position:relative;
+  width:46px; height:28px;
+  border-radius:999px;
+  display:inline-block;
+  background:rgba(64,17,2,.12);
+  border:1px solid rgba(64,17,2,.14);
+  flex:0 0 auto;
+}
+.switch::after{
+  content:"";
+  position:absolute;
+  top:3px; left:3px;
+  width:22px; height:22px;
+  border-radius:999px;
+  background:white;
+  box-shadow:0 6px 14px rgba(0,0,0,.12);
+  transition:transform .18s ease, background .18s ease;
+}
+.switchInput{position:absolute; opacity:0; pointer-events:none;}
+.switchWrap{display:flex; align-items:center; gap:10px; min-width:120px;}
+.switchWrap .meta{font-size:12px; font-weight:900; opacity:.8;}
+.switchWrap.isOn .switch{background:rgba(255,105,160,.22); border-color:rgba(255,105,160,.38);}
+.switchWrap.isOn .switch::after{transform:translateX(18px);}
+
 </style>
 </head>
 <body class="costsPage">
