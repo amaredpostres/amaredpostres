@@ -4,14 +4,14 @@
 <head>
 <meta charset="utf-8"/>
 <meta content="width=device-width, initial-scale=1" name="viewport"/>
-<title>AMARED · Costos</title>
+<title>AMARED · Compras y Recetas</title>
 <!-- ✅ favicon (misma línea gráfica) -->
 <link href="assets/favicon.ico" rel="icon" type="image/x-icon"/>
 <link href="assets/favicon.ico" rel="shortcut icon" type="image/x-icon"/>
 <!-- ✅ estilos globales AMARED -->
 <link href="styles.css" rel="stylesheet"/>
-<!-- ✅ estilos SOLO de purchases (incluye pestaña Costos) -->
-<link href="costs.css?v=20260306-mobilefix" rel="stylesheet"/>
+<!-- ✅ estilos de Compras / Recetas -->
+<link href="costs.css" rel="stylesheet"/>
 <style>
 /* ===== Ingredientes modal responsive ===== */
 #ingModalBack .pCatGrid.ingGrid{grid-template-columns: 1fr 1fr;}
@@ -161,10 +161,9 @@
 <img alt="AMARED Postres" class="brandLogo" src="assets/Logo-Amared.svg"/>
 </div>
 <div class="pTopBtns">
-<button class="btn secondary" id="btnReload">Actualizar</button>
-<div aria-label="Compras y Costos" class="pTabs" role="tablist">
+<button class="btn secondary" id="btnReload">Recargar</button>
+<div aria-label="Compras y Recetas" class="pTabs" role="tablist">
 <button aria-selected="true" class="pTabBtn isActive" id="btnTabPurchases" role="tab">Compras</button>
-<button aria-selected="false" class="pTabBtn" id="btnTabCosts" role="tab">Costos</button>
 <button aria-selected="false" class="pTabBtn" id="btnTabRecipes" role="tab">Recetas</button>
 </div>
 <button class="btn" id="btnExit">Salir</button>
@@ -182,7 +181,7 @@
 <section class="card" style="margin-top:14px;">
 <h2 class="cardTitle">Costo unitario estimado</h2>
 <div class="pMiniTableWrap" style="margin-top:8px;">
-<table class="pMiniTable isWide">
+<table class="pMiniTable">
 <thead><tr><th>Postre</th><th class="num">$/u</th><th class="num">Precio 60%</th><th class="num">Lote</th></tr></thead>
 <tbody id="unitCostRows"></tbody>
 </table>
@@ -232,18 +231,10 @@
           </div>
 </section>
 <section class="card" style="margin-top:14px;">
-<div class="cardTitle" style="margin-bottom:8px;">Ingredientes</div>
-<div class="pGroups" id="groups"></div>
-</section>
-<div style="height:92px;"></div>
-</div>
-<!-- =================== VIEW: COSTOS =================== -->
-<div class="hidden" id="viewCosts" style="display:none;">
-<section class="card">
 <div class="pCostsHead">
 <div>
-<div class="pMetaTitle">Costos de ingredientes</div>
-<div class="hint" style="margin-top:6px;">Edita presentación, precio, tienda y marca. Se guarda en <b>COSTOS_INGREDIENTES</b>.</div>
+<div class="cardTitle" style="margin-bottom:8px;">Ingredientes</div>
+<div class="hint" style="margin-top:6px;">Actualiza compra, presentación, precio, marca y tienda sin salir de <b>Compras</b>.</div>
 </div>
 <div class="pTopBtns" style="justify-content:flex-end;">
 <button class="btn secondary" id="btnCatalogs">⚙️ Tiendas/Marcas</button>
@@ -251,18 +242,20 @@
 </div>
 </div>
 <div class="pControls" style="margin-top:12px;">
-<input class="input" id="inpCostSearch" placeholder="Buscar ingrediente en Costos…" type="text"/>
+<input class="input" id="inpCostSearch" placeholder="Buscar ingrediente, marca o tienda…" type="text"/>
 </div>
-<div class="pSmallMeta" id="costsMeta"></div>
+<div class="pSmallMeta" id="costsMeta" style="margin-top:10px;"></div>
+<div class="pGroups" id="groups" style="margin-top:12px;"></div>
 </section>
 <section class="card" style="margin-top:14px;">
-<div class="cardTitle" style="margin-bottom:8px;">Listado</div>
+<div class="cardTitle" style="margin-bottom:8px;">Listado administrativo</div>
+<div class="hint" style="margin-bottom:10px;">Vista completa para revisar presentación, costo por unidad, marca y tienda.</div>
 <div class="pGroups" id="costGroups"></div>
 </section>
-<div style="height:24px;"></div>
+<div style="height:92px;"></div>
+</div>
 <!-- =================== VIEW: RECETAS =================== -->
-
-</div><div class="hidden" id="viewRecipes" style="display:none;">
+<div class="hidden" id="viewRecipes" style="display:none;">
 <section class="card">
 <div class="pCostsHead">
 <div>
@@ -273,6 +266,7 @@
 <div class="pTopBtns recipesActions" style="justify-content:flex-end;">
 <button class="btn secondary recipeAction" id="btnDessertAdd">➕ Postre</button>
 <button class="btn secondary recipeAction" id="btnRecipesAddIngredient">🧩 Ingrediente</button>
+<button class="btn secondary" id="btnRecipesRefresh">Refrescar</button>
 </div>
 </div>
 <div class="pSmallMeta" id="recipesMeta" style="margin-top:10px;"></div>
@@ -330,8 +324,7 @@
 <button class="btn" id="btnClear">Limpiar</button>
 </div>
 <div class="pErr" id="unlockMsg"></div>
-<label class="pToggle" style="margin-top:10px; display:inline-flex;"><input id="chkRememberDevice" type="checkbox"/>Recuérdame en este dispositivo</label>
-<div class="hint" style="margin-top:10px;">Si lo activas, podrás entrar automáticamente en este dispositivo.</div>
+<div class="hint" style="margin-top:10px;">Este módulo siempre pide el código por seguridad.</div>
 </div>
 </div>
 </div>
@@ -435,8 +428,8 @@
         <div class="pCatBox" style="margin:0;">
           <div class="k" style="font-weight:950;">Nombre</div>
           <input id="dessertNameInput" class="input" placeholder="Ej: Arroz con leche" style="margin-top:8px;" />
-          <div class="hint" style="margin-top:10px;">El ID se genera automáticamente a partir del nombre.</div>
-          <input id="dessertIdInput" class="input" placeholder="Ej: arroz_con_leche" style="margin-top:8px;" / readonly>
+          <div class="hint" style="margin-top:10px;">El ID se genera automáticamente. (Puedes editarlo si deseas)</div>
+          <input id="dessertIdInput" class="input" placeholder="Ej: arroz_con_leche" style="margin-top:8px;" />
           <div id="dessertCreateMsg" class="pErr" style="margin-top:10px;"></div>
           <div class="confirmBtns" style="margin-top:12px; display:flex; gap:10px; justify-content:flex-end; flex-wrap:wrap;">
             <button id="btnDessertCancel" class="btn secondary">Cancelar</button>
@@ -598,7 +591,7 @@
 </div>
 </div>
 </div>
-<script src="kitchen-costs.js?v=20260306-mobilefix"></script>
-<script src="costs.js?v=20260306-mobilefix"></script>
+<script src="kitchen-costs.js?v=20260304-recipes-fixednest"></script>
+<script src="costs.js?v=20260306-unified-purchases"></script>
 </body>
 </html>
