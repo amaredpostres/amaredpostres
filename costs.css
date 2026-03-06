@@ -17,7 +17,7 @@
 .pSummaryGrid{ display:grid; grid-template-columns: 1fr 1fr; gap:14px; }
 @media (max-width:920px){ .pSummaryGrid{ grid-template-columns:1fr; } }
 
-.pMiniTableWrap{ border:1px solid var(--border); border-radius:16px; overflow:hidden; background: rgba(255,255,255,.70); }
+.pMiniTableWrap{ border:1px solid var(--border); border-radius:16px; overflow:auto; -webkit-overflow-scrolling:touch; background: rgba(255,255,255,.70); }
 .pMiniTable{ width:100%; border-collapse: collapse; }
 .pMiniTable th,.pMiniTable td{ padding:10px 12px; border-bottom:1px solid rgba(64,17,2,.08); font-weight:850; }
 .pMiniTable th{ font-size:12px; color: rgba(64,17,2,.65); text-transform:uppercase; letter-spacing:.08em; }
@@ -32,7 +32,7 @@
 /* Groups */
 .pGroups{ display:grid; gap:12px; }
 
-.pGroup{ border:1px solid var(--border); border-radius:18px; background: rgba(255,255,255,.60); overflow:hidden; }
+.pGroup{ border:1px solid var(--border); border-radius:18px; background: rgba(255,255,255,.60); overflow:auto; -webkit-overflow-scrolling:touch; }
 .pGroup summary{ list-style:none; cursor:pointer; padding:12px 14px; display:flex; align-items:center; justify-content:space-between; gap:10px; user-select:none; }
 .pGroup summary::-webkit-details-marker{ display:none; }
 .pGroupTitle{ font-weight:950; }
@@ -142,7 +142,7 @@
   border: 1px solid var(--border);
   background: rgba(255,255,255,.70);
   border-radius: 999px;
-  overflow:hidden;
+  overflow:auto; -webkit-overflow-scrolling:touch;
 }
 .pTabBtn{
   border:0;
@@ -220,9 +220,22 @@ select.input{
 }
 
 
-/* Danger button (eliminar) */
-.btn.danger{
-  background: linear-gradient(180deg, rgba(220,38,38,.92), rgba(220,38,38,.82));
-  color: #fff;
-  border-color: rgba(220,38,38,.35);
+/* ===== Responsive fixes (mobile) ===== */
+.pMiniTable.isWide{ min-width: 560px; }
+
+@media (max-width: 520px){
+  /* Topbar layout: no overflow */
+  .topbarInner{ flex-direction: column; align-items: stretch; gap: 10px; }
+  .pTopBtns{ width:100%; justify-content: center; }
+  .pTabs{ width:100%; }
+  .pTabBtn{ flex:1; text-align:center; padding: 10px 10px; font-size: 14px; }
+
+  /* Tables: readable + scroll */
+  .pMiniTableWrap{ overflow:auto; }
+  .pMiniTable th,.pMiniTable td{ padding: 8px 10px; }
+  .pMiniTable th{ font-size: 11px; }
+  .pMiniTable td{ font-size: 13px; }
+
+  /* Reduce container padding a bit */
+  .container{ padding: 12px; }
 }
