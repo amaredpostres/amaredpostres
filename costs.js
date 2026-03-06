@@ -259,7 +259,14 @@ function hideLoading(){ hide(el("loadingBack")); }
 
 // =============== Tabs ===============
 function setView(view){
+  const prev = state.view || "purchases";
   const v = (view === "costs") ? "costs" : (view === "recipes" ? "recipes" : "purchases");
+
+  // ✅ Recordar vista previa (para volver al cancelar el PIN de Recetas)
+  if(v === "recipes" && prev !== "recipes"){
+    state.prevViewBeforeRecipes = prev;
+  }
+
   state.view = v;
 
   const vp = el("viewPurchases");
@@ -1647,6 +1654,22 @@ function refreshIngredientSelect_(){
 
 
 
+
+function refreshIngredientSectionsSelect_(){
+  const secSel = el("ingNewSection");
+  if(!secSel) return;
+  const base = Array.isArray(window.AMARED_COSTS_SECTIONS) ? window.AMARED_COSTS_SECTIONS.map(s=>String(s.title||"").trim()).filter(Boolean) : [];
+  const extra = [];
+  for(const k of Object.keys(state.costsByKey||{})){
+    const t = String(state.costsByKey?.[k]?.section_title || state.costsByKey?.[k]?.section || "").trim();
+    if(t) extra.push(t);
+  }
+  const uniq = Array.from(new Set(["(Sin asignar)"].concat(base).concat(extra)));
+  secSel.innerHTML = uniq.map(t=>{
+    const val = (t==="(Sin asignar)") ? "" : t;
+    return `<option value="${escapeHtmlAttr(val)}">${escapeHtml(t)}</option>`;
+  }).join("");
+}
 function openIngConfirm(key){
   ingDeletePendingKey = String(key||"").trim();
   if(el("ingConfirmName")) el("ingConfirmName").textContent = ingDeletePendingKey || "—";
@@ -1725,7 +1748,7 @@ async function addIngredient(){
   await loadAll();
   // ✅ si el modal de ingredientes está abierto, actualiza el select al instante
   const back = el("ingModalBack");
-  if(back && !back.classList.contains("hidden")) refreshIngredientSelect_();
+  if(back && !back.classList.contains("hidden")) { refreshIngredientSelect_(); refreshIngredientSectionsSelect_(); }
   // ✅ si hay un postre activo en Recetas, re-render para incluir el nuevo ingrediente
   if(state.view==="recipes" && state.ui && state.ui.activeDessert) renderDessertPanel_(state.ui.activeDessert);
 
@@ -1746,7 +1769,7 @@ async function deleteIngredientByKey_(key){
   await api({ action:"ingredient_delete", costs_secret: UNLOCKED_SECRET, ingredient_key: k });
   await loadAll();
   const back = el("ingModalBack");
-  if(back && !back.classList.contains("hidden")) refreshIngredientSelect_();
+  if(back && !back.classList.contains("hidden")) { refreshIngredientSelect_(); refreshIngredientSectionsSelect_(); }
   if(state.view==="recipes" && state.ui && state.ui.activeDessert) renderDessertPanel_(state.ui.activeDessert);
 }
 
@@ -1755,6 +1778,7 @@ async function deleteIngredient(){
   state.ingBusy = true;
   const btn = el("btnDelIng"); if(btn) btn.disabled = true;
   showLoading("Eliminando ingrediente…","Actualizando base de datos.");
+      await new Promise(r=>setTimeout(r, 60));
 
   const key = String(el("ingSelect")?.value||"").trim();
   if(!key) throw new Error("Selecciona un ingrediente.");
@@ -2315,9 +2339,18 @@ async function autoClassifyCostsSections_(){
 function bind(){
   // Buttons
   el("btnExit")?.addEventListener("click", logout);
-  el("btnReload")?.addEventListener("click", ()=>{ showLoading("Recargando…", "Actualizando datos."); loadAll().finally(hideLoading); });
-
-  // Unit-cost breakdown (toggle)
+  el("btnReload")?.addEventListener("click", async ()=>{
+  showLoading("Actualizando…","Leyendo datos.");
+  try{
+    await loadAll();
+    // si estás en Recetas y ya validaste PIN, refresca también el listado de postres
+    if(state.view==="recipes" && state.recipesPinUnlocked){
+      try{ await loadDessertsFromSheet_(); }catch(_e){}
+      try{ renderRecipesView_(); }catch(_e){}
+    }
+  }finally{ hideLoading(); }
+});
+// Unit-cost breakdown (toggle)
   el("unitCostRows")?.addEventListener("click", (ev)=>{
     const tr = ev.target && ev.target.closest ? ev.target.closest("tr[data-dessert]") : null;
     if(!tr) return;
@@ -2447,11 +2480,10 @@ function bind(){
   // Recipes unlock
   el("btnDoRecipesUnlock")?.addEventListener("click", ()=>doRecipesUnlock_(false));
   el("btnRecipesClear")?.addEventListener("click", ()=>{ if(el("recipesPinInput")) el("recipesPinInput").value=""; if(el("recipesUnlockMsg")) el("recipesUnlockMsg").textContent=""; el("recipesPinInput")?.focus(); });
-  el("btnRecipesCancel")?.addEventListener("click", ()=>{ closeRecipesUnlock_(); setView("purchases"); });
+  el("btnRecipesCancel")?.addEventListener("click", ()=>{ closeRecipesUnlock_(); setView(state.prevViewBeforeRecipes || "purchases"); });
   el("recipesPinInput")?.addEventListener("keydown", (e)=>{ if(e.key==="Enter") doRecipesUnlock_(false); });
-  el("recipesUnlockBack")?.addEventListener("click", (e)=>{ if(e.target && e.target.id==="recipesUnlockBack") closeRecipesUnlock_(); });
-
-  // Controls
+  el("recipesUnlockBack")?.addEventListener("click", (e)=>{ /* ✅ No cerrar al hacer click fuera: solo cancelar */ });
+// Controls
   el("inpSearch")?.addEventListener("input", (e)=>{ state.ui.q = String(e.target.value||""); renderGroups(); refreshBottom(); updateMetaLine(); });
   el("chkOnlyMissing")?.addEventListener("change", (e)=>{ state.ui.onlyMissing = !!e.target.checked; renderGroups(); refreshBottom(); updateMetaLine(); });
   el("chkOnlySelected")?.addEventListener("change", (e)=>{ state.ui.onlySelected = !!e.target.checked; renderGroups(); refreshBottom(); updateMetaLine(); });
@@ -2642,6 +2674,7 @@ el("ingModalBack")?.addEventListener("click", (e)=>{ if(e.target && e.target.id=
 
       if(btnGo) btnGo.disabled = true;
       showLoading("Eliminando ingrediente…","Actualizando base de datos.");
+      await new Promise(r=>setTimeout(r, 60));
       await deleteIngredientByKey_(key);
 
       closeIngConfirm();
