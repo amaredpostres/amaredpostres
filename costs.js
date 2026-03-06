@@ -1374,17 +1374,24 @@ async function loadAll(){
 
   updateMetaLine();
 
-    const [invOut, needsOut, costsOut, catOut] = await Promise.all([
+    const [invOut, needsOut, costsOut, catOut, dessertsOut] = await Promise.all([
     api({ action:"inventory_get", costs_secret: UNLOCKED_SECRET }),
     api({ action:"costs_orders_for_purchases", costs_secret: UNLOCKED_SECRET, window_h: state.window_h }),
     api({ action:"costs_list", costs_secret: UNLOCKED_SECRET }),
     api({ action:"catalog_list", costs_secret: UNLOCKED_SECRET }),
+    api({ action:"desserts_public_list", costs_secret: UNLOCKED_SECRET }),
   ]);
 
   state.inventory = invOut.inventory || {};
   state.needs = needsOut.needs || {};
   state.meta = needsOut.meta || {};
   applyCatalogs(catOut);
+
+  // Postres activos desde POSTRES (para Compras/Costos)
+  try{
+    state.desserts = Array.isArray(dessertsOut?.items) ? dessertsOut.items : [];
+  }catch(_e){ state.desserts = state.desserts || []; }
+
 
   state.ordersByDessert = needsOut.orders_by_dessert || needsOut.ordersByDessert || {};
   state.late = needsOut.late || {};
@@ -2328,13 +2335,20 @@ async function createDessert_(){
 
   showLoading("Creando…","Guardando postre.");
   try{
-    await api({
+    const out = await api({
       action:"dessert_add",
       costs_secret: UNLOCKED_SECRET,
       recipes_pin: state.recipesPin,
       dessert_id: id,
       dessert_name: name
     }, {timeoutMs: 30000});
+
+    if(!out?.ok){
+      // Si estaba eliminado en servidor, intenta restaurar (depende de Webhook actualizado)
+      const msg = String(out?.error || out?.marker || "No se pudo crear el postre.");
+      throw new Error(msg);
+    }
+
 
     // si estaba marcado como eliminado, lo restauramos en UI
     unmarkDessertDeleted_(id);
