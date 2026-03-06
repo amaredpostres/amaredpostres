@@ -2092,6 +2092,39 @@ function closeDessertDeleteModal_(){
   hide(el("dessertDeleteBack"));
 }
 
+function dropDessertFromState_(dessertId){
+  const did = String(dessertId||"").trim();
+  if(!did) return;
+
+  // Remove from desserts arrays
+  try{
+    state.dessertsRaw = (state.dessertsRaw||[]).filter(d=>String(d.dessert_id||d.id||"").trim() !== did);
+  }catch(_e){}
+  try{
+    state.desserts = (state.desserts||[]).filter(d=>String(d.dessert_id||d.id||"").trim() !== did);
+  }catch(_e){}
+
+  // Remove recipes
+  try{
+    if(state.recipesByDessert && state.recipesByDessert[did]) delete state.recipesByDessert[did];
+  }catch(_e){}
+
+  // Remove drafts
+  try{
+    if(state.ui && state.ui.recipeDraftByDessert && state.ui.recipeDraftByDessert[did]) delete state.ui.recipeDraftByDessert[did];
+  }catch(_e){}
+
+  // Remove from orders (so it doesn't “revive” in UI)
+  try{
+    if(state.ordersByDessert && state.ordersByDessert[did]) delete state.ordersByDessert[did];
+  }catch(_e){}
+  try{
+    const late = state.late?.orders_by_dessert || state.late?.ordersByDessert;
+    if(late && late[did]) delete late[did];
+  }catch(_e){}
+}
+
+
 async function confirmDessertDelete_(){
   const did = String(DESSERT_DELETE_ID || "").trim();
   if(!did) return;
@@ -2114,6 +2147,7 @@ async function confirmDessertDelete_(){
     }
 
     closeDessertDeleteModal_();
+    dropDessertFromState_(did);
     // refrescar datos + UI
     try{ await loadDessertsFromSheet_(); }catch(_e){}
     try{ await loadRecipesFromSheet_(); }catch(_e){}
@@ -2178,7 +2212,7 @@ function renderDessertList_(){
     .map(id=>{
       const name = prettyDessertName(id);
       const cnt = (state.recipesByDessert?.[id]||[]).length;
-      const isActive = (activeMap[id] !== false);
+      const isActive = (activeMap[id] === true);
       return { id, name, cnt, isActive };
     })
     .filter(x=>x.isActive)
