@@ -369,3 +369,48 @@ select.input{
     flex: 1 1 calc(50% - 6px);
   }
 }
+
+
+/* ===== Compras unificado: administración debajo del listado ===== */
+.pAdminWrap{
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px dashed rgba(64,17,2,.16);
+}
+.pAdminDetails{
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  background: rgba(255,255,255,.62);
+  overflow: hidden;
+}
+.pAdminDetails summary{
+  list-style: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 14px;
+  user-select: none;
+}
+.pAdminDetails summary::-webkit-details-marker{ display:none; }
+.pAdminDetails[open] summary{
+  background: rgba(255,255,255,.78);
+  border-bottom: 1px solid rgba(64,17,2,.08);
+}
+.pAdminBody{
+  padding: 12px 0 0;
+}
+@media (max-width: 560px){
+  .pAdminWrap .pCostsHead{
+    display: grid;
+    gap: 12px;
+  }
+  .pAdminWrap .pTopBtns{
+    width: 100%;
+    grid-template-columns: 1fr 1fr;
+  }
+  .pAdminDetails summary{
+    align-items: flex-start;
+  }
+}
