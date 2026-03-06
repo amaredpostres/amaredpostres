@@ -1606,6 +1606,7 @@ async function doUnlock(isAuto=false){
 
 function logout(){
   UNLOCKED_SECRET = "";
+  try{ resetRecipesAuth_(); }catch(_e){}
   try{ localStorage.removeItem(LS_SECRET_KEY); }catch(_e){}
   setRememberDeviceEnabled_(false);
   state.buyPlan = {};
@@ -1995,7 +1996,7 @@ function resetRecipesAuth_(){
   state.recipesPinUnlocked = false;
   state.recipesPin = "";
 state.desserts = [];
-  try{ localStorage.removeItem("amared_recipes_pin"); }catch(_e){}
+  // (no se guarda el código entre recargas)
 }
 
 // =============== Recetas (admin) ===============
@@ -2074,10 +2075,14 @@ async function ensureRecipesUnlocked_(){
     return;
   }
 
-  // Siempre pedir código (privacidad adicional)
-  state.recipesPinUnlocked = false;
-  state.recipesPin = "";
-state.desserts = [];
+  // ✅ Si ya se validó el código en esta sesión, NO volver a pedirlo
+  if(state.recipesPinUnlocked && state.recipesPin){
+    try{
+      show(el("viewRecipes"));
+      renderRecipesView_();
+    }catch(_e){}
+    return;
+  }
 
   // Preparar UI mínima (evita pantalla vacía)
   try{
@@ -2089,6 +2094,7 @@ state.desserts = [];
     if(el("recipeEditorSub")) el("recipeEditorSub").textContent = "Ingresa el código de Recetas para continuar.";
   }catch(_e){}
 
+  // Ocultar vista hasta validar y mostrar modal
   hide(el("viewRecipes"));
   openRecipesUnlock_("");
 }
