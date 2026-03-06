@@ -2212,7 +2212,7 @@ function renderDessertList_(){
     .map(id=>{
       const name = prettyDessertName(id);
       const cnt = (state.recipesByDessert?.[id]||[]).length;
-      const isActive = (activeMap[id] === true);
+      const isActive = (activeMap[id] !== false); // default: mostrar si no hay estado en POSTRES
       return { id, name, cnt, isActive };
     })
     .filter(x=>x.isActive)
