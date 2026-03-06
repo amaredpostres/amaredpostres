@@ -1986,8 +1986,113 @@ function closeDessertModal_(){
 }
 
 // ✅ Compat: si existe modal/botón de eliminar postre en tu versión, evitamos ReferenceError
+let DESSERT_DELETE_ID = null;
+let DESSERT_DELETE_INT = null;
+let DESSERT_DELETE_LEFT = 0;
+
+function ensureDessertDeleteDom_(){
+  if(el("dessertDeleteBack")) return;
+  const wrap = document.createElement("div");
+  wrap.innerHTML = `
+    <div class="modalOverlay hidden" id="dessertDeleteBack">
+      <div class="modal" style="width:min(520px, 92vw);">
+        <div class="modalHeader">
+          <div>
+            <div class="modalTitle" style="font-weight:950;">⚠️ Confirmar eliminación</div>
+            <div class="modalSub" style="margin-top:4px;">Esto desactivará el postre y eliminará su receta en <b>RECETAS</b>.</div>
+          </div>
+        </div>
+        <div class="modalBody">
+          <div class="pCatBox" style="margin:0;">
+            <div class="k" style="font-weight:950;">Postre</div>
+            <div id="dessertConfirmName" style="margin-top:6px; font-weight:900;"></div>
+            <div class="hint confirmHint" style="margin-top:8px;">Espera 3 segundos para habilitar “Eliminar”.</div>
+            <div class="pSmallMeta" id="dessertConfirmCountdown" style="margin-top:10px; color:#7a2b00;"></div>
+            <div class="pSmallMeta" id="dessertConfirmErr" style="margin-top:8px; color:#7a2b00;"></div>
+            <div class="confirmBtns" style="margin-top:12px; display:flex; gap:10px; justify-content:flex-end; flex-wrap:wrap;">
+              <button class="btn secondary" id="dessertConfirmCancel">Cancelar</button>
+              <button class="btn" disabled id="dessertConfirmGo" style="background:rgba(242,91,143,.15); border-color:rgba(242,91,143,.35);">Eliminar</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>`;
+  document.body.appendChild(wrap.firstElementChild);
+}
+
+function openDessertDeleteModal_(dessertId){
+  ensureDessertDeleteDom_();
+  const did = String(dessertId || state.ui.activeDessert || "").trim();
+  if(!did) return;
+
+  DESSERT_DELETE_ID = did;
+  if(el("dessertConfirmName")) el("dessertConfirmName").textContent = prettyDessertName(did);
+  if(el("dessertConfirmErr")) el("dessertConfirmErr").textContent = "";
+
+  const back = el("dessertDeleteBack");
+  const btnGo = el("dessertConfirmGo");
+  const cd = el("dessertConfirmCountdown");
+  if(btnGo) btnGo.disabled = true;
+
+  DESSERT_DELETE_LEFT = 3;
+  if(cd) cd.textContent = `Puedes eliminar en ${DESSERT_DELETE_LEFT}s…`;
+
+  show(back);
+
+  if(DESSERT_DELETE_INT) clearInterval(DESSERT_DELETE_INT);
+  DESSERT_DELETE_INT = setInterval(()=>{
+    DESSERT_DELETE_LEFT = Math.max(0, (DESSERT_DELETE_LEFT||0) - 1);
+    if(cd) cd.textContent = DESSERT_DELETE_LEFT ? `Puedes eliminar en ${DESSERT_DELETE_LEFT}s…` : "Listo. Ya puedes eliminar.";
+    if(!DESSERT_DELETE_LEFT){
+      if(btnGo) btnGo.disabled = false;
+      clearInterval(DESSERT_DELETE_INT);
+      DESSERT_DELETE_INT = null;
+    }
+  }, 1000);
+}
+
 function closeDessertDeleteModal_(){
+  if(DESSERT_DELETE_INT) clearInterval(DESSERT_DELETE_INT);
+  DESSERT_DELETE_INT = null;
+  DESSERT_DELETE_LEFT = 0;
+  DESSERT_DELETE_ID = null;
   hide(el("dessertDeleteBack"));
+}
+
+async function confirmDessertDelete_(){
+  const did = String(DESSERT_DELETE_ID || "").trim();
+  if(!did) return;
+
+  const btnGo = el("dessertConfirmGo");
+  if(btnGo) btnGo.disabled = true;
+
+  showLoading("Eliminando…","Actualizando base de datos.");
+  try{
+    const out = await api({
+      action: "dessert_delete",
+      costs_secret: UNLOCKED_SECRET,
+      recipes_pin: state.recipesPin,
+      dessert_id: did,
+      updated_by: "RECIPES_UI"
+    }, {timeoutMs: 45000});
+
+    if(!out?.ok){
+      throw new Error(out?.error || "No se pudo eliminar el postre.");
+    }
+
+    closeDessertDeleteModal_();
+    // refrescar datos + UI
+    try{ await loadDessertsFromSheet_(); }catch(_e){}
+    try{ await loadRecipesFromSheet_(); }catch(_e){}
+    state.ui.activeDessert = "";
+    state.ui.ingredient_q = "";
+    renderRecipesView_();
+  }catch(e){
+    if(el("dessertConfirmErr")) el("dessertConfirmErr").textContent = String(e.message||e);
+  }finally{
+    hideLoading();
+    if(btnGo) btnGo.disabled = false;
+  }
 }
 
 async function createDessert_(){
@@ -2089,7 +2194,7 @@ function renderDessertPanelShell_(dessertId){
         <div class="cardTitle" style="margin:0;">Editar receta: ${escapeHtml(name)}</div>
         <div class="hint">Activa ingredientes (switch) y define cantidades por unidad.</div>
       </div>
-      <button class="btn primary" data-act="save_recipe">Guardar receta</button>
+      <div style="display:flex; gap:10px; flex-wrap:wrap; justify-content:flex-end;"><button class="btn secondary" data-act="delete_dessert" style="background:rgba(242,91,143,.12); border-color:rgba(242,91,143,.35);">Eliminar</button><button class="btn primary" data-act="save_recipe">Guardar receta</button></div>
     </div>
 
     <div class="pDessertPanelControls" style="margin-top:10px;">
@@ -2108,8 +2213,13 @@ function bindInlineRecipeEditor_(panel, dessertId){
 
   const getEditor = ()=> panel.querySelector('[data-act="recipe_editor"]');
 
-  // Guardar receta
+  // Guardar receta / eliminar postre
   panel.addEventListener('click', (e)=>{
+    const del = e.target.closest('[data-act="delete_dessert"]');
+    if(del){
+      openDessertDeleteModal_(dessertId);
+      return;
+    }
     const btn = e.target.closest('[data-act="save_recipe"]');
     if(!btn) return;
     saveRecipe_().catch(err=> setRecipesMeta_(String(err?.message||err)));
@@ -2707,7 +2817,14 @@ el("ingModalBack")?.addEventListener("click", (e)=>{ if(e.target && e.target.id=
     if(back && !back.classList.contains("hidden")) closeIngConfirm();
   });
 
-  // Recetas: crear postre / crear ingrediente
+    // Modal eliminar postre (confirmación 3s)
+  try{
+    ensureDessertDeleteDom_();
+    el("dessertConfirmCancel")?.addEventListener("click", closeDessertDeleteModal_);
+    el("dessertConfirmGo")?.addEventListener("click", ()=>{ confirmDessertDelete_().catch(()=>{}); });
+  }catch(_e){}
+
+// Recetas: crear postre / crear ingrediente
   el("btnDessertAdd")?.addEventListener("click", ()=> openDessertModal_());
   el("btnRecipesAddIngredient")?.addEventListener("click", ()=> openIngredientsModal());
   el("dessertNameInput")?.addEventListener("input", (e)=>{ 
