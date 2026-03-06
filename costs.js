@@ -1402,27 +1402,39 @@ function getRememberCheckbox_(){
 const KNOWN_BASE_DESSERT_IDS_ = new Set(["mousse_maracuya","cheesecake_cafe_panela","arroz_con_leche"]);
 
 function loadDeletedDesserts_(){
+  // Tombstones de postres eliminados para ocultarlos aunque existan en pedidos viejos.
+  // Formato v2: {"postre_id": 1710000000000, ...} (timestamp ms)
+  // Compat v1: ["postre_id", ...]
   try{
     const raw = localStorage.getItem(LS_DELETED_DESSERTS_KEY);
-    const arr = raw ? JSON.parse(raw) : [];
-    const set = new Set();
-    (Array.isArray(arr)?arr:[]).forEach(x=>{
-      const id = String(x||"").trim().toLowerCase();
-      if(id) set.add(id);
-    });
+    const parsed = raw ? JSON.parse(raw) : {};
+    const map = {};
+
+    if(Array.isArray(parsed)){
+      parsed.forEach(x=>{
+        const id = String(x||"").trim().toLowerCase();
+        if(id) map[id] = 0;
+      });
+    }else if(parsed && typeof parsed === "object"){
+      for(const k in parsed){
+        const id = String(k||"").trim().toLowerCase();
+        const ts = Number(parsed[k] || 0);
+        if(id) map[id] = isFinite(ts) ? ts : 0;
+      }
+    }
+
     state.ui = state.ui || {};
-    state.ui.deletedDesserts = set;
+    state.ui.deletedDessertsMap = map;
   }catch(_e){
     state.ui = state.ui || {};
-    state.ui.deletedDesserts = new Set();
+    state.ui.deletedDessertsMap = {};
   }
 }
 
 function saveDeletedDesserts_(){
   try{
-    const set = (state.ui && state.ui.deletedDesserts) ? state.ui.deletedDesserts : new Set();
-    const arr = Array.from(set).filter(Boolean);
-    localStorage.setItem(LS_DELETED_DESSERTS_KEY, JSON.stringify(arr));
+    const map = (state.ui && state.ui.deletedDessertsMap) ? state.ui.deletedDessertsMap : {};
+    localStorage.setItem(LS_DELETED_DESSERTS_KEY, JSON.stringify(map || {}));
   }catch(_e){}
 }
 
@@ -1430,8 +1442,9 @@ function markDessertDeleted_(id){
   const did = String(id||"").trim().toLowerCase();
   if(!did) return;
   state.ui = state.ui || {};
-  state.ui.deletedDesserts = state.ui.deletedDesserts || new Set();
-  state.ui.deletedDesserts.add(did);
+  state.ui.deletedDessertsMap = state.ui.deletedDessertsMap || {};
+  // timestamp ms para permitir "des-tombstone" si se restaura luego
+  state.ui.deletedDessertsMap[did] = Date.now();
   saveDeletedDesserts_();
 }
 
@@ -1439,17 +1452,16 @@ function unmarkDessertDeleted_(id){
   const did = String(id||"").trim().toLowerCase();
   if(!did) return;
   state.ui = state.ui || {};
-  const set = state.ui.deletedDesserts || new Set();
-  set.delete(did);
-  state.ui.deletedDesserts = set;
+  state.ui.deletedDessertsMap = state.ui.deletedDessertsMap || {};
+  delete state.ui.deletedDessertsMap[did];
   saveDeletedDesserts_();
 }
 
 function isDessertLocallyDeleted_(id){
   const did = String(id||"").trim().toLowerCase();
   if(!did) return false;
-  const set = (state.ui && state.ui.deletedDesserts) ? state.ui.deletedDesserts : null;
-  return !!set && set.has(did);
+  const map = (state.ui && state.ui.deletedDessertsMap) ? state.ui.deletedDessertsMap : null;
+  return !!map && Object.prototype.hasOwnProperty.call(map, did);
 }
 
 function openUnlock(msg){
@@ -2047,17 +2059,34 @@ async function loadDessertsFromSheet_(){
     // Sync: si está inactivo en POSTRES -> ocultarlo siempre en Recetas
     try{
       state.ui = state.ui || {};
-      const set = state.ui.deletedDesserts || new Set();
+      state.ui.deletedDessertsMap = state.ui.deletedDessertsMap || {};
+      const map = state.ui.deletedDessertsMap;
+
       for(const d of state.dessertsRaw){
         const id = String(d.dessert_id || d.id || "").trim();
         if(!id) continue;
+        const key = id.toLowerCase();
         const a = String(d.active ?? "1").trim().toLowerCase();
         const isActive = !(a === "0" || a === "false");
-        const key = id.toLowerCase();
-        if(isActive) set.delete(key);
-        else set.add(key);
+
+        if(!isActive){
+          if(!Object.prototype.hasOwnProperty.call(map, key)){
+            map[key] = Date.now();
+          }
+          continue;
+        }
+
+        // Si está activo, solo quitamos el tombstone si fue restaurado después del borrado.
+        if(Object.prototype.hasOwnProperty.call(map, key)){
+          const ts = Number(map[key] || 0);
+          const upd = Date.parse(String(d.updated_at || d.updatedAt || "").trim());
+          if(isFinite(upd) && isFinite(ts) && upd > ts){
+            delete map[key];
+          }
+        }
       }
-      state.ui.deletedDesserts = set;
+
+      state.ui.deletedDessertsMap = map;
       saveDeletedDesserts_();
     }catch(_e){}
 
