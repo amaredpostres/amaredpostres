@@ -276,7 +276,7 @@ function hideLoading(){
 // =============== Tabs ===============
 function setView(view){
   const prev = state.view || "purchases";
-  const v = (view === "costs") ? "costs" : (view === "recipes" ? "recipes" : "purchases");
+  const v = (view === "recipes") ? "recipes" : "purchases";
 
   // ✅ Recordar vista previa (para volver al cancelar el PIN de Recetas)
   if(v === "recipes" && prev !== "recipes"){
@@ -291,25 +291,13 @@ function setView(view){
   const bb = el("bottomBar");
 
   const tp = el("btnTabPurchases");
-  const tc = el("btnTabCosts");
   const tr = el("btnTabRecipes");
 
   if(tp){ tp.classList.remove("isActive"); tp.setAttribute("aria-selected","false"); }
-  if(tc){ tc.classList.remove("isActive"); tc.setAttribute("aria-selected","false"); }
   if(tr){ tr.classList.remove("isActive"); tr.setAttribute("aria-selected","false"); }
 
   show(vp); hide(vc); hide(vr);
   if(bb) bb.style.display = "";
-
-  if(v === "costs"){
-    hide(vp);
-    show(vc);
-    if(bb) bb.style.display = "none";
-    if(tc){ tc.classList.add("isActive"); tc.setAttribute("aria-selected","true"); }
-    renderCostsGroups();
-    renderUnitCosts();
-    return;
-  }
 
   if(v === "recipes"){
     hide(vp); hide(vc); show(vr);
@@ -322,6 +310,8 @@ function setView(view){
   show(vp); hide(vc); hide(vr);
   if(tp){ tp.classList.add("isActive"); tp.setAttribute("aria-selected","true"); }
   renderGroups();
+  renderCostsGroups();
+  renderUnitCosts();
   refreshBottom();
 }
 
@@ -1124,7 +1114,7 @@ function renderGroups(){
 }
 
 
-// =============== Costos view (listado) ===============
+// =============== Listado administrativo (integrado en Compras) ===============
 function costKeyPasses(k){
   const q = String(state.ui?.cost_q || "").trim().toLowerCase();
   if(!q) return true;
@@ -2938,14 +2928,12 @@ function bind(){
 
   // Tabs
   el("btnTabPurchases")?.addEventListener("click", ()=> setView("purchases"));
-  el("btnTabCosts")?.addEventListener("click", ()=> setView("costs"));
   el("btnTabRecipes")?.addEventListener("click", ()=> setView("recipes"));
 
-  // Costos view
-  el("btnCostsRefresh")?.addEventListener("click", ()=>{ showLoading("Refrescando…","Leyendo datos actualizados."); loadAll().finally(hideLoading); });
+  // Compras (admin integrado)
   el("btnCatalogs")?.addEventListener("click", ()=> openCatalogModal());
   el("btnIngredients")?.addEventListener("click", ()=> openIngredientsModal());
-  el("inpCostSearch")?.addEventListener("input", (e)=>{ state.ui.cost_q = String(e.target.value||""); renderCostsGroups(); });  // Recetas view
+  el("inpCostSearch")?.addEventListener("input", (e)=>{ state.ui.cost_q = String(e.target.value||""); renderCostsGroups(); });
   el("inpDessertSearch")?.addEventListener("input", (e)=>{ state.ui.dessert_q = String(e.target.value||""); renderDessertList_(); });
   el("dessertList")?.addEventListener("click", (e)=>{
     const head = e.target.closest('.pDessertHead');
@@ -3063,7 +3051,7 @@ function bind(){
   el("chkOnlyMissing")?.addEventListener("change", (e)=>{ state.ui.onlyMissing = !!e.target.checked; renderGroups(); refreshBottom(); updateMetaLine(); });
   el("chkOnlySelected")?.addEventListener("change", (e)=>{ state.ui.onlySelected = !!e.target.checked; renderGroups(); refreshBottom(); updateMetaLine(); });
 
-  // Cost list interactions
+  // Listado administrativo: interacciones
   el("costGroups")?.addEventListener("click", (e)=>{
     const btn = e.target.closest("button");
     if(!btn) return;
