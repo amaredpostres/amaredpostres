@@ -909,6 +909,46 @@ function dessertUnitCost(dessertId){
   return { sum: b.sum, missing: b.missing };
 }
 
+
+function getDessertIdsForUi_(){
+  const set = new Set();
+
+  // 1) POSTRES (activos) si existen
+  try{
+    const arr = (state.dessertsRaw || state.desserts || []);
+    for(const d of arr){
+      const id = String(d?.dessert_id || d?.id || '').trim();
+      if(id) set.add(id);
+    }
+  }catch(_e){}
+
+  // 2) RECETAS existentes
+  try{ Object.keys(state.recipesByDessert||{}).forEach(id=>{ if(id) set.add(id); }); }catch(_e){}
+
+  // 3) Pedidos (por si hay postres nuevos en pedidos)
+  try{ Object.keys(state.ordersByDessert||{}).forEach(id=>{ if(id) set.add(id); }); }catch(_e){}
+  try{
+    const late = state.late?.orders_by_dessert || state.late?.ordersByDessert || {};
+    Object.keys(late||{}).forEach(id=>{ if(id) set.add(id); });
+  }catch(_e){}
+
+  // 4) Base conocida (compat)
+  ['mousse_maracuya','cheesecake_cafe_panela','arroz_con_leche'].forEach(id=>set.add(id));
+
+  const out = [];
+  for(const id0 of set){
+    const id = String(id0||'').trim();
+    if(!id) continue;
+    if(isDessertInactive_(id)) continue;
+    if(isDessertLocallyDeleted_(id)) continue;
+    out.push(id);
+  }
+
+  out.sort((a,b)=> prettyDessertName(a).localeCompare(prettyDessertName(b),'es'));
+  return out;
+}
+
+
 function renderUnitCosts(){
   const tbody = el("unitCostRows");
   const meta = el("unitCostMeta");
@@ -917,25 +957,29 @@ function renderUnitCosts(){
   ensurePackagingEntries();
   buildCostAliasMap();
 
-  const by = state.ordersByDessert || {};
-  const baseIds = (state.desserts||[]).map(d=>String(d.dessert_id||d.id||"").trim()).filter(Boolean);
-  const fallback = ["mousse_maracuya","cheesecake_cafe_panela","arroz_con_leche"];
-  const base = baseIds.length ? baseIds : fallback;
-  const extra = Object.keys(by).filter(k => !base.includes(k) && Number(by[k]||0)>0 && !isDessertInactive_(k));
-  const all = base.concat(extra);
-
   state.ui.unitOpen = state.ui.unitOpen || {};
 
+  const by = state.ordersByDessert || {};
+  const all = getDessertIdsForUi_();
+
   const rows = [];
-  const miss = new Set();
+  const missCosts = new Set();
+  const noRecipe = [];
 
   for(const id of all){
     const qty = Number(by[id]||0)||0;
     const b = dessertUnitBreakdown_(id, qty);
-    b.missing.forEach(x=>miss.add(x));
-    const unit = b.missing.length ? null : b.sum;
+
+    // si no hay líneas, significa que no hay receta para ese postre
+    const hasRecipe = (b.lines && b.lines.length) || (b.source === 'embedded' && (AMARED_RECIPES_PER_UNIT[id]||[]).length);
+    if(!hasRecipe) noRecipe.push(prettyDessertName(id));
+
+    b.missing.forEach(x=>missCosts.add(x));
+
+    const unit = (!hasRecipe || b.missing.length) ? null : b.sum;
     const lote = (unit!==null) ? (unit*qty) : null;
-    rows.push({ id, qty, unit, lote, open: !!state.ui.unitOpen[id], breakdown: b });
+
+    rows.push({ id, qty, unit, lote, open: !!state.ui.unitOpen[id], breakdown: b, hasRecipe });
   }
 
   tbody.innerHTML = rows.map(r=>`
@@ -953,10 +997,21 @@ function renderUnitCosts(){
   `).join("");
 
   const src = (state.recipesSource === "sheet") ? "RECETAS" : "receta embebida";
-  meta.textContent = miss.size
-    ? (`(${src}) Faltan costos de: ` + Array.from(miss).slice(0,8).join(", ") + (miss.size>8?"…":""))
-    : (`OK (${src}) · Precio 60% = costo / 0.40`);
+
+  const parts = [];
+  if(missCosts.size){
+    parts.push(`(${src}) Faltan costos de: ` + Array.from(missCosts).slice(0,8).join(", ") + (missCosts.size>8?"…":""));
+  } else {
+    parts.push(`OK (${src}) · Precio 60% = costo / 0.40`);
+  }
+  if(noRecipe.length){
+    parts.push(`Sin receta: ` + noRecipe.slice(0,6).join(", ") + (noRecipe.length>6?"…":""));
+  }
+
+  if(meta) meta.textContent = parts.join(" · ");
 }
+
+
 
 
 function renderDesserts(){
@@ -965,11 +1020,9 @@ function renderDesserts(){
   if(!tbody) return;
 
   const by = state.ordersByDessert || {};
-  const ids0 = (state.desserts||[]).map(d=>String(d.dessert_id||d.id||"").trim()).filter(Boolean);
-  const ids = ids0.length ? ids0 : ["mousse_maracuya","cheesecake_cafe_panela","arroz_con_leche"];
-  const rows = ids.filter(id=>!isDessertInactive_(id)).map(id => ({ id, qty: Number(by[id]||0) || 0 }));
-  const extra = Object.keys(by).filter(k => !ids.includes(k) && Number(by[k]||0)>0 && !isDessertInactive_(k)).map(k => ({ id:k, qty:Number(by[k]||0) }));
-  const all = rows.concat(extra);
+  const ids = getDessertIdsForUi_();
+
+  const all = ids.map(id => ({ id, qty: Number(by[id]||0) || 0 }));
 
   tbody.innerHTML = all.map(r=>`
     <tr>
@@ -986,17 +1039,17 @@ function renderDesserts(){
   if(meta) meta.textContent = `${ordersText}${(w0&&w1)?(" · Ventana: "+w0+" → "+w1):""}`;
 }
 
+
+
 function renderLate(){
   const tbody = el("lateRows");
   const meta = el("lateMeta");
   if(!tbody) return;
 
   const by = state.late?.orders_by_dessert || state.late?.ordersByDessert || {};
-  const ids0 = (state.desserts||[]).map(d=>String(d.dessert_id||d.id||"").trim()).filter(Boolean);
-  const ids = ids0.length ? ids0 : ["mousse_maracuya","cheesecake_cafe_panela","arroz_con_leche"];
-  const rows = ids.filter(id=>!isDessertInactive_(id)).map(id => ({ id, qty: Number(by[id]||0) || 0 }));
-  const extra = Object.keys(by).filter(k => !ids.includes(k) && Number(by[k]||0)>0 && !isDessertInactive_(k)).map(k => ({ id:k, qty:Number(by[k]||0) }));
-  const all = rows.concat(extra);
+  const ids = getDessertIdsForUi_();
+
+  const all = ids.map(id => ({ id, qty: Number(by[id]||0) || 0 }));
 
   tbody.innerHTML = all.map(r=>`
     <tr>
@@ -1010,6 +1063,7 @@ function renderLate(){
   const w1 = String(state.meta?.late_window_end || "").trim();
   if(meta) meta.textContent = `Pedidos: ${used}${(w0&&w1)?(" · Ventana: "+w0+" → "+w1):""}`;
 }
+
 
 // =============== Render: ingredients ===============
 function rowPassesFilters(row){
