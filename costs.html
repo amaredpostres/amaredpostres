@@ -11,7 +11,7 @@
 <!-- ✅ estilos globales AMARED -->
 <link href="styles.css" rel="stylesheet"/>
 <!-- ✅ estilos SOLO de purchases (incluye pestaña Costos) -->
-<link href="costs.css" rel="stylesheet"/>
+<link href="costs.css?v=20260306-mobilefix" rel="stylesheet"/>
 <style>
 /* ===== Ingredientes modal responsive ===== */
 #ingModalBack .pCatGrid.ingGrid{grid-template-columns: 1fr 1fr;}
@@ -161,7 +161,7 @@
 <img alt="AMARED Postres" class="brandLogo" src="assets/Logo-Amared.svg"/>
 </div>
 <div class="pTopBtns">
-<button class="btn secondary" id="btnReload">Recargar</button>
+<button class="btn secondary" id="btnReload">Actualizar</button>
 <div aria-label="Compras y Costos" class="pTabs" role="tablist">
 <button aria-selected="true" class="pTabBtn isActive" id="btnTabPurchases" role="tab">Compras</button>
 <button aria-selected="false" class="pTabBtn" id="btnTabCosts" role="tab">Costos</button>
@@ -182,7 +182,7 @@
 <section class="card" style="margin-top:14px;">
 <h2 class="cardTitle">Costo unitario estimado</h2>
 <div class="pMiniTableWrap" style="margin-top:8px;">
-<table class="pMiniTable">
+<table class="pMiniTable isWide">
 <thead><tr><th>Postre</th><th class="num">$/u</th><th class="num">Precio 60%</th><th class="num">Lote</th></tr></thead>
 <tbody id="unitCostRows"></tbody>
 </table>
@@ -248,7 +248,6 @@
 <div class="pTopBtns" style="justify-content:flex-end;">
 <button class="btn secondary" id="btnCatalogs">⚙️ Tiendas/Marcas</button>
 <button class="btn secondary" id="btnIngredients">🧩 Ingredientes</button>
-<button class="btn secondary" id="btnCostsRefresh">Refrescar</button>
 </div>
 </div>
 <div class="pControls" style="margin-top:12px;">
@@ -274,7 +273,6 @@
 <div class="pTopBtns recipesActions" style="justify-content:flex-end;">
 <button class="btn secondary recipeAction" id="btnDessertAdd">➕ Postre</button>
 <button class="btn secondary recipeAction" id="btnRecipesAddIngredient">🧩 Ingrediente</button>
-<button class="btn secondary" id="btnRecipesRefresh">Refrescar</button>
 </div>
 </div>
 <div class="pSmallMeta" id="recipesMeta" style="margin-top:10px;"></div>
@@ -600,7 +598,7 @@
 </div>
 </div>
 </div>
-<script src="kitchen-costs.js?v=20260305-recipesfix2"></script>
-<script src="costs.js?v=20260305-recipesfix2"></script>
+<script src="kitchen-costs.js?v=20260306-mobilefix"></script>
+<script src="costs.js?v=20260306-mobilefix"></script>
 </body>
 </html>
