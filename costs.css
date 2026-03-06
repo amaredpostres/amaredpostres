@@ -239,3 +239,103 @@ select.input{
   /* Reduce container padding a bit */
   .container{ padding: 12px; }
 }
+
+/* ==============================
+   Mobile polish v2 (Mar 2026)
+   - Mejor layout en celular: topbar en grid, botones compactos
+   - Evita overflow horizontal y mejora lectura de tablas largas
+   ============================== */
+
+.costsPage{
+  overflow-x: hidden;
+}
+.costsPage .container{
+  overflow-x: hidden;
+}
+
+/* Mejor envoltura de texto en metas largas (ventanas ISO, etc.) */
+.costsPage .pMeta,
+.costsPage .pSmallMeta{
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+/* Tablas largas: permitir scroll horizontal sin romper el layout */
+.costsPage .pMiniTableWrap,
+.costsPage .pListTableWrap,
+.costsPage .tableWrap{
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+.costsPage .pMiniTable{
+  min-width: 520px; /* evita que columnas se aplasten en móvil */
+}
+
+/* Ajustes específicos para pantallas pequeñas */
+@media (max-width: 560px){
+  /* Header más compacto */
+  .costsPage .topbarInner{
+    padding: 10px 12px;
+    gap: 10px;
+    align-items: center;
+  }
+  .costsPage .brand{ min-height: 0; }
+  .costsPage .brandLogo{ height: 38px; }
+
+  /* Botones + tabs en grid para que no “sobresalgan” */
+  .costsPage .pTopBtns{
+    width: 100%;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    align-items: center;
+  }
+  .costsPage #btnReload{ grid-column: 1; }
+  .costsPage #btnExit{ grid-column: 2; }
+  .costsPage .pTabs{
+    grid-column: 1 / -1;
+    width: 100%;
+    margin: 0;
+  }
+  .costsPage .pTabBtn{
+    padding: 10px 10px;
+    font-size: 14px;
+  }
+
+  /* Cards un poco más compactas */
+  .costsPage .card{
+    border-radius: 18px;
+    padding: 14px;
+  }
+  .costsPage .cardTitle{
+    font-size: 15px;
+  }
+
+  /* Textos densos */
+  .costsPage .pMeta{ font-size: 13px; }
+  .costsPage .hint{ font-size: 13px; }
+
+  /* Tablas más legibles en móvil */
+  .costsPage .pMiniTable th,
+  .costsPage .pMiniTable td{
+    padding: 8px 10px;
+  }
+  .costsPage .pMiniTable th{
+    font-size: 11px;
+  }
+  .costsPage .pMiniTable td{
+    font-size: 13px;
+  }
+
+  /* Inputs y toggles */
+  .costsPage .pControls{
+    gap: 10px;
+  }
+  .costsPage .input{
+    border-radius: 16px;
+  }
+  .costsPage .pToggle{
+    width: 100%;
+    justify-content: center;
+  }
+}
