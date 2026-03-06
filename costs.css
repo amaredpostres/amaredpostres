@@ -350,3 +350,22 @@ select.input{
   overflow-wrap: anywhere;
   word-break: break-word;
 }
+
+/* ==============================
+   Compras unificado (Costos integrados)
+   ============================== */
+.costsPage .pAdminNote{
+  margin-top: 6px;
+}
+
+@media (max-width:560px){
+  .costsPage .pTopBtns{
+    width: 100%;
+  }
+  .costsPage .pCostsHead .pTopBtns{
+    justify-content: stretch !important;
+  }
+  .costsPage .pCostsHead .pTopBtns .btn{
+    flex: 1 1 calc(50% - 6px);
+  }
+}
