@@ -1164,6 +1164,127 @@ function renderCostItemCard(key){
   `;
 }
 
+
+// ==============================
+// ✅ Auto-secciones de Costos (desde POSTRES + RECETAS)
+// - Agrupa ingredientes por los postres que los usan (RECETAS).
+// - Si un ingrediente está en TODOS los postres activos => "Ingredientes que comparten todos los postres"
+// - Si está en 2+ postres => "Ingredientes que comparten A y B ..."
+// - Si está en 1 => "Ingredientes para A"
+// - Si no está en ninguna receta => "Ingredientes sin receta"
+// ==============================
+function normActiveFlag_(v){
+  const s = String(v ?? "1").trim().toLowerCase();
+  return !(s === "0" || s === "false" || s === "no");
+}
+function activeDesserts_(){
+  const list = Array.isArray(state.desserts) ? state.desserts : [];
+  return list
+    .map(d => ({
+      id: String(d.dessert_id || d.id || "").trim(),
+      name: String(d.dessert_name || d.name || d.label || "").trim(),
+      active: normActiveFlag_(d.active)
+    }))
+    .filter(d => d.id && d.active);
+}
+function dessertNameById_(){
+  const m = {};
+  for(const d of activeDesserts_()){
+    m[d.id] = d.name || d.id;
+  }
+  return m;
+}
+function joinNamesHuman_(names){
+  const arr = (names||[]).filter(Boolean);
+  if(arr.length <= 1) return arr[0] || "";
+  if(arr.length === 2) return `${arr[0]} y ${arr[1]}`;
+  return `${arr.slice(0,-1).join(", ")} y ${arr[arr.length-1]}`;
+}
+function groupCostsKeysAuto_(keys){
+  // fallback si no tenemos recetas o postres
+  const active = activeDesserts_();
+  const activeIds = active.map(d=>d.id);
+  const activeSet = new Set(activeIds);
+  const allCount = activeIds.length;
+
+  const recipes = state.recipesByDessert && typeof state.recipesByDessert === "object" ? state.recipesByDessert : null;
+  if(!recipes || !allCount){
+    return groupKeys(keys);
+  }
+
+  const nameById = dessertNameById_();
+
+  // ingredientCanon -> Set(dessert_id)
+  const ingToDess = {};
+  for(const did of Object.keys(recipes)){
+    if(!activeSet.has(did)) continue;
+    const rows = Array.isArray(recipes[did]) ? recipes[did] : [];
+    for(const it of rows){
+      const k = String(it?.ingredient_key || "").trim();
+      if(!k) continue;
+      const ck = canonicalKey(k);
+      if(!ck) continue;
+      if(!ingToDess[ck]) ingToDess[ck] = new Set();
+      ingToDess[ck].add(did);
+    }
+  }
+
+  // signature -> {title, keys, _meta}
+  const gmap = {};
+  function pushTo(title, key, meta){
+    const id = title;
+    if(!gmap[id]) gmap[id] = { title, keys: [], _meta: meta || {} };
+    gmap[id].keys.push(key);
+  }
+
+  for(const k0 of (keys||[])){
+    const k = String(k0||"").trim();
+    if(!k) continue;
+    const ck = canonicalKey(k);
+    const set = ingToDess[ck] ? Array.from(ingToDess[ck]) : [];
+    set.sort((a,b)=>String(nameById[a]||a).localeCompare(String(nameById[b]||b),"es"));
+
+    if(!set.length){
+      pushTo("Ingredientes sin receta", k, {prio: 30});
+      continue;
+    }
+
+    if(set.length === allCount){
+      pushTo("Ingredientes que comparten todos los postres", k, {prio: 0});
+      continue;
+    }
+
+    if(set.length === 1){
+      const nm = nameById[set[0]] || set[0];
+      pushTo(`Ingredientes para ${nm}`, k, {prio: 20});
+      continue;
+    }
+
+    const names = set.map(id => nameById[id] || id);
+    const title = `Ingredientes que comparten ${joinNamesHuman_(names)}`;
+    pushTo(title, k, {prio: 10, n:set.length});
+  }
+
+  // build ordered list
+  const out = Object.values(gmap);
+  for(const g of out){
+    g.keys = uniqSorted(g.keys);
+  }
+  out.sort((a,b)=>{
+    const pa = a._meta?.prio ?? 99;
+    const pb = b._meta?.prio ?? 99;
+    if(pa !== pb) return pa - pb;
+    // secondary: more shared first
+    const na = a._meta?.n ?? 0;
+    const nb = b._meta?.n ?? 0;
+    if(na !== nb) return nb - na;
+    return String(a.title||"").localeCompare(String(b.title||""),"es");
+  });
+  // clean meta
+  out.forEach(g=>{ try{ delete g._meta; }catch(_e){} });
+  return out;
+}
+
 function renderCostsGroups(){
   const host = el("costGroups");
   if(!host) return;
@@ -1172,7 +1293,7 @@ function renderCostsGroups(){
   keysAll.sort((a,b)=>a.localeCompare(b,"es"));
 
   const keys = keysAll.filter(costKeyPasses);
-  const groups = groupKeys(keys);
+  const groups = groupCostsKeysAuto_(keys);
 
   setCostsMeta(`Ingredientes: ${keysAll.length} · Mostrando: ${keys.length} · Tiendas: ${state.stores.length} · Marcas: ${state.brands.length}`);
 
