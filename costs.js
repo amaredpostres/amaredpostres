@@ -1094,7 +1094,7 @@ function renderGroups(){
   if(!host) return;
 
   const allKeys = collectAllKeys();
-  const groups = groupKeys(allKeys);
+  const groups = groupCostsKeysAuto_(allKeys);
 
   host.innerHTML = groups.map((g, idx)=>{
     const keys = (g.keys||[]).filter(k => rowPassesFilters(computeRow(k)));
@@ -1929,12 +1929,8 @@ function openIngredientsModal(){
     }).join("");
   }
 
-  // llenar select con ingredientes actuales (desde COSTOS_INGREDIENTES)
-  const keys = Object.keys(state.costsByKey||{}).sort((a,b)=>a.localeCompare(b,"es"));
-  const sel = el("ingSelect");
-  if(sel){
-    sel.innerHTML = keys.map(k=>`<option value="${escapeHtmlAttr(k)}">${escapeHtml(k)}</option>`).join("");
-  }
+  // llenar select con ingredientes actuales (agrupado automático)
+  refreshIngredientSelect_();
   show(el("ingModalBack"));
 }
 function closeIngredientsModal(){ hide(el("ingModalBack")); }
@@ -1942,12 +1938,45 @@ function closeIngredientsModal(){ hide(el("ingModalBack")); }
 function refreshIngredientSelect_(){
   const sel = el("ingSelect");
   if(!sel) return;
-  const keys = Object.keys(state.costsByKey||{}).sort((a,b)=>a.localeCompare(b,"es"));
+
+  const keysAll = Object.keys(state.costsByKey||{}).sort((a,b)=>a.localeCompare(b,"es"));
   const current = String(sel.value||"").trim();
-  sel.innerHTML = keys.map(k=>`<option value="${escapeHtmlAttr(k)}">${escapeHtml(k)}</option>`).join("");
-  if(current && keys.includes(current)) sel.value = current;
-  else if(keys.length) sel.value = keys[0];
+
+  // Agrupar por secciones automáticas (según POSTRES + RECETAS).
+  // Si no hay datos suficientes, groupCostsKeysAuto_ cae a groupKeys().
+  const groups = groupCostsKeysAuto_(keysAll);
+
+  const used = new Set();
+  let html = "";
+
+  for(const g of (groups||[])){
+    const label = String(g?.title || "Sección").trim() || "Sección";
+    const raw = Array.isArray(g?.keys) ? g.keys : [];
+    const uniq = [];
+    for(const k0 of raw){
+      const k = String(k0||"").trim();
+      if(!k) continue;
+      if(used.has(k)) continue;
+      if(!keysAll.includes(k)) continue;
+      used.add(k);
+      uniq.push(k);
+    }
+    if(!uniq.length) continue;
+
+    html += `<optgroup label="${escapeHtmlAttr(label)}">` + uniq.map(k=>`<option value="${escapeHtmlAttr(k)}">${escapeHtml(k)}</option>`).join("") + `</optgroup>`;
+  }
+
+  const rest = keysAll.filter(k => !used.has(k));
+  if(rest.length){
+    html += `<optgroup label="(Sin sección)">` + rest.map(k=>`<option value="${escapeHtmlAttr(k)}">${escapeHtml(k)}</option>`).join("") + `</optgroup>`;
+  }
+
+  sel.innerHTML = html;
+
+  if(current && keysAll.includes(current)) sel.value = current;
+  else if(keysAll.length) sel.value = keysAll[0];
 }
+
 
 
 
