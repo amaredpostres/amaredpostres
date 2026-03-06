@@ -697,6 +697,23 @@ function prettyDessertName(id){
   return map[did] || did.replaceAll("_"," ");
 }
 
+function isDessertInactive_(id){
+  const key = String(id||"").trim().toLowerCase();
+  if(!key) return false;
+  const s = state.inactiveDessertsSet;
+  if(s && typeof s.has === "function") return s.has(key);
+  // fallback: revisar dessertsRaw
+  try{
+    const arr = (state.dessertsRaw || []);
+    const hit = arr.find(d=>String(d.dessert_id||d.id||"").trim().toLowerCase()===key);
+    if(hit){
+      const a = String(hit.active ?? "1").trim().toLowerCase();
+      return (a === "0" || a === "false");
+    }
+  }catch(_e){}
+  return false;
+}
+
 
 // =============== Render: summaries ===============
 
@@ -901,9 +918,11 @@ function renderUnitCosts(){
   buildCostAliasMap();
 
   const by = state.ordersByDessert || {};
-  const baseIds = ["mousse_maracuya","cheesecake_cafe_panela","arroz_con_leche"];
-  const extra = Object.keys(by).filter(k => !baseIds.includes(k) && Number(by[k]||0)>0);
-  const all = baseIds.concat(extra);
+  const baseIds = (state.desserts||[]).map(d=>String(d.dessert_id||d.id||"").trim()).filter(Boolean);
+  const fallback = ["mousse_maracuya","cheesecake_cafe_panela","arroz_con_leche"];
+  const base = baseIds.length ? baseIds : fallback;
+  const extra = Object.keys(by).filter(k => !base.includes(k) && Number(by[k]||0)>0 && !isDessertInactive_(k));
+  const all = base.concat(extra);
 
   state.ui.unitOpen = state.ui.unitOpen || {};
 
@@ -946,9 +965,10 @@ function renderDesserts(){
   if(!tbody) return;
 
   const by = state.ordersByDessert || {};
-  const ids = ["mousse_maracuya","cheesecake_cafe_panela","arroz_con_leche"];
-  const rows = ids.map(id => ({ id, qty: Number(by[id]||0) || 0 }));
-  const extra = Object.keys(by).filter(k => !ids.includes(k) && Number(by[k]||0)>0).map(k => ({ id:k, qty:Number(by[k]||0) }));
+  const ids0 = (state.desserts||[]).map(d=>String(d.dessert_id||d.id||"").trim()).filter(Boolean);
+  const ids = ids0.length ? ids0 : ["mousse_maracuya","cheesecake_cafe_panela","arroz_con_leche"];
+  const rows = ids.filter(id=>!isDessertInactive_(id)).map(id => ({ id, qty: Number(by[id]||0) || 0 }));
+  const extra = Object.keys(by).filter(k => !ids.includes(k) && Number(by[k]||0)>0 && !isDessertInactive_(k)).map(k => ({ id:k, qty:Number(by[k]||0) }));
   const all = rows.concat(extra);
 
   tbody.innerHTML = all.map(r=>`
@@ -972,9 +992,10 @@ function renderLate(){
   if(!tbody) return;
 
   const by = state.late?.orders_by_dessert || state.late?.ordersByDessert || {};
-  const ids = ["mousse_maracuya","cheesecake_cafe_panela","arroz_con_leche"];
-  const rows = ids.map(id => ({ id, qty: Number(by[id]||0) || 0 }));
-  const extra = Object.keys(by).filter(k => !ids.includes(k) && Number(by[k]||0)>0).map(k => ({ id:k, qty:Number(by[k]||0) }));
+  const ids0 = (state.desserts||[]).map(d=>String(d.dessert_id||d.id||"").trim()).filter(Boolean);
+  const ids = ids0.length ? ids0 : ["mousse_maracuya","cheesecake_cafe_panela","arroz_con_leche"];
+  const rows = ids.filter(id=>!isDessertInactive_(id)).map(id => ({ id, qty: Number(by[id]||0) || 0 }));
+  const extra = Object.keys(by).filter(k => !ids.includes(k) && Number(by[k]||0)>0 && !isDessertInactive_(k)).map(k => ({ id:k, qty:Number(by[k]||0) }));
   const all = rows.concat(extra);
 
   tbody.innerHTML = all.map(r=>`
@@ -2050,7 +2071,6 @@ function getDraftMap_(dessertId){
 
 async function loadDessertsFromSheet_(){
   if(!UNLOCKED_SECRET) return;
-  if(!state.recipesPin) return;
   try{
     const out = await api({ action:"desserts_list", costs_secret: UNLOCKED_SECRET, recipes_pin: state.recipesPin }, {timeoutMs: 20000});
     // Guardamos RAW (incluye activos/inactivos)
@@ -2095,6 +2115,21 @@ async function loadDessertsFromSheet_(){
       const a = String(d.active ?? "1").trim().toLowerCase();
       return !(a === "0" || a === "false");
     });
+
+    // Cache set de inactivos para filtrar "extras" (p.ej. postres viejos en pedidos)
+    try{
+      const s = new Set();
+      for(const d of (state.dessertsRaw||[])){
+        const id0 = String(d.dessert_id || d.id || "").trim().toLowerCase();
+        if(!id0) continue;
+        const a0 = String(d.active ?? "1").trim().toLowerCase();
+        const isActive0 = !(a0 === "0" || a0 === "false");
+        if(!isActive0) s.add(id0);
+      }
+      state.inactiveDessertsSet = s;
+    }catch(_e){
+      state.inactiveDessertsSet = state.inactiveDessertsSet || new Set();
+    }
   }catch(_e){
     state.dessertsRaw = state.dessertsRaw || state.desserts || [];
     state.desserts = (state.desserts||[]);
@@ -2259,17 +2294,23 @@ async function confirmDessertDelete_(){
       throw new Error(out?.error || "No se pudo eliminar el postre.");
     }
 
-    // marcar como eliminado para ocultarlo aunque aparezca en pedidos viejos
-    markDessertDeleted_(did);
+    // Verificar que el servidor dejó el postre INACTIVO en POSTRES (para que no reaparezca en otros dispositivos)
+    try{ await loadDessertsFromSheet_(); }catch(_e){}
+    const raw = (state.dessertsRaw||[]).find(d=>String(d.dessert_id||d.id||"").trim().toLowerCase()===String(did).trim().toLowerCase());
+    const a = String(raw?.active ?? "1").trim().toLowerCase();
+    const inactive = (!raw) ? true : (a === "0" || a === "false");
+    if(!inactive){ throw new Error("No se pudo desactivar en la base de datos. Revisa que Webhook/Worker estén desplegados."); }
 
     closeDessertDeleteModal_();
     dropDessertFromState_(did);
-    // refrescar datos + UI
-    try{ await loadDessertsFromSheet_(); }catch(_e){}
+    // refrescar recetas + UI
     try{ await loadRecipesFromSheet_(); }catch(_e){}
     state.ui.activeDessert = "";
     state.ui.ingredient_q = "";
     renderRecipesView_();
+
+    // refrescar compras/costos para que deje de aparecer en tablas
+    try{ await refreshAll(); }catch(_e){}
   }catch(e){
     if(el("dessertConfirmErr")) el("dessertConfirmErr").textContent = String(e.message||e);
   }finally{
@@ -2307,6 +2348,7 @@ async function createDessert_(){
 
     closeDessertModal_();
     renderRecipesView_();
+    try{ await refreshAll(); }catch(_e){}
   } finally {
     hideLoading();
   }
