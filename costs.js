@@ -2070,66 +2070,95 @@ function bindInlineRecipeEditor_(panel, dessertId){
   if(!panel || panel.__bound) return;
   panel.__bound = true;
 
-  // Guardar
+  const getEditor = ()=> panel.querySelector('[data-act="recipe_editor"]');
+
+  // Guardar receta
   panel.addEventListener('click', (e)=>{
     const btn = e.target.closest('[data-act="save_recipe"]');
     if(!btn) return;
-    saveRecipe_().catch(err=> setRecipesMeta_(String(err.message||err)));
+    saveRecipe_().catch(err=> setRecipesMeta_(String(err?.message||err)));
   });
 
-  // Buscar ingrediente
+  // Buscar ingrediente + editar cantidad
   panel.addEventListener('input', (e)=>{
-    const inp = e.target.closest('[data-act="ing_search"]');
-    if(!inp) return;
-    state.ui.ingredient_q = String(inp.value||'');
-    renderRecipeEditor_();
+    const search = e.target.closest('[data-act="ing_search"]');
+    if(search){
+      state.ui.ingredient_q = String(search.value||'');
+      renderRecipeEditor_(getEditor());
+      return;
+    }
+
+    const qtyInp = e.target.closest('[data-act="r_qty"]');
+    if(qtyInp){
+      const row = qtyInp.closest('.pRecipeRow');
+      if(!row) return;
+      const nk = String(row.getAttribute('data-nk')||'');
+      const kRaw = String(row.getAttribute('data-kraw')||'');
+      if(!nk || !kRaw) return;
+
+      const did = String(state.ui.activeDessert||'');
+      if(!did) return;
+
+      const draft = getDraftMap_(did);
+      draft[nk] = draft[nk] || { use:false, qty:'', unit:getUnitFor(kRaw), rawKey:kRaw };
+      draft[nk].rawKey = kRaw;
+      draft[nk].qty = String(qtyInp.value||'').replace(',', '.');
+      return;
+    }
   });
 
-  // Cantidad
-  panel.addEventListener('input', (e)=>{
-    const row = e.target.closest('.pRecipeRow');
-    if(!row) return;
-    const k = String(row.getAttribute('data-k')||'');
-    if(!nk) return;
-    const did = String(state.ui.activeDessert||'');
-    if(!did) return;
-    const draft = getDraftMap_(did);
-    draft[k] = draft[k] || { use:false, qty:'', unit:getUnitFor(k) };
-    const act = e.target.getAttribute('data-act') || '';
-    if(act==='r_qty') draft[nk].qty = String(e.target.value||'').replace(',', '.');
-  });
-
-  // Switch
+  // Toggle ingrediente
   panel.addEventListener('change', (e)=>{
-    const row = e.target.closest('.pRecipeRow');
+    const toggle = e.target.closest('[data-act="r_toggle"]');
+    if(!toggle) return;
+
+    const row = toggle.closest('.pRecipeRow');
     if(!row) return;
-    const k = String(row.getAttribute('data-k')||'');
-    if(!nk) return;
+
+    const nk = String(row.getAttribute('data-nk')||'');
+    const kRaw = String(row.getAttribute('data-kraw')||'');
+    if(!nk || !kRaw) return;
+
     const did = String(state.ui.activeDessert||'');
     if(!did) return;
+
     const draft = getDraftMap_(did);
-    draft[k] = draft[k] || { use:false, qty:'', unit:getUnitFor(k) };
-    const act = e.target.getAttribute('data-act') || '';
-    if(act==='r_toggle'){
-      draft[nk].use = !!e.target.checked;
+    draft[nk] = draft[nk] || { use:false, qty:'', unit:getUnitFor(kRaw), rawKey:kRaw };
     draft[nk].rawKey = kRaw;
-      row.classList.toggle('isOn', draft[k].use);
-      row.classList.toggle('isOff', !draft[k].use);
-      const sw = row.querySelector('.switchWrap');
-      if(sw){
-        sw.classList.toggle('isOn', draft[k].use);
-        sw.classList.toggle('isOff', !draft[k].use);
-        const meta = sw.querySelector('.meta');
-        if(meta) meta.textContent = draft[k].use ? 'Incluido' : 'No';
-      }
-      const qtyInp = row.querySelector('input.qty');
-      if(qtyInp) qtyInp.disabled = !draft[nk].use;
-      if(draft[k].use && (!draft[nk].qty || Number(draft[nk].qty) <= 0)){
-        if(qtyInp) qtyInp.value = '1';
+    draft[nk].use = !!toggle.checked;
+
+    row.classList.toggle('isOn', draft[nk].use);
+    row.classList.toggle('isOff', !draft[nk].use);
+
+    const sw = row.querySelector('.switchWrap');
+    if(sw){
+      sw.classList.toggle('isOn', draft[nk].use);
+      sw.classList.toggle('isOff', !draft[nk].use);
+      const meta = sw.querySelector('.meta');
+      if(meta) meta.textContent = draft[nk].use ? 'Incluido' : 'No';
+    }
+
+    const qty = row.querySelector('input.qty');
+    if(qty) qty.disabled = !draft[nk].use;
+
+    if(draft[nk].use){
+      const qn = parseNumFlex_(draft[nk].qty);
+      if(!(qn>0)){
         draft[nk].qty = 1;
+        if(qty) qty.value = '1';
       }
     }
   });
+}
+
+function getActiveRecipeEditorEl_(){
+  const did = String(state.ui.activeDessert||"").trim();
+  if(did){
+    const p = el('dessertPanel_' + did);
+    const box = (p && p.querySelector) ? p.querySelector('[data-act="recipe_editor"]') : null;
+    if(box) return box;
+  }
+  return null;
 }
 
 function renderDessertPanel_(dessertId){
@@ -2146,12 +2175,14 @@ function renderDessertPanel_(dessertId){
   if(search) search.value = String(state.ui.ingredient_q||'');
 
   bindInlineRecipeEditor_(panel, dessertId);
-  renderRecipeEditor_();
+
+  const ed = panel.querySelector('[data-act="recipe_editor"]');
+  renderRecipeEditor_(ed);
 }
 
-function renderRecipeEditor_(){
+function renderRecipeEditor_(editorEl){
   const did = String(state.ui.activeDessert||"").trim();
-  const editor = el("recipeEditor");
+  const editor = editorEl || getActiveRecipeEditorEl_() || el("recipeEditor");
 
   if(!did){
     if(editor) editor.innerHTML = "";
@@ -2167,7 +2198,6 @@ function renderRecipeEditor_(){
   const rows = filtered.map(kRaw=>{
     const nk = normKey_(kRaw);
     const d = draft[nk] || { use:false, qty:"", unit:getUnitFor(kRaw), rawKey:kRaw };
-    // si viene de hoja con otra variación, preferimos la clave visible actual
     if(!d.rawKey) d.rawKey = kRaw;
 
     const unit = String(d.unit || getUnitFor(kRaw) || "g");
@@ -2187,7 +2217,7 @@ function renderRecipeEditor_(){
           <div class="meta">Unidad: <b>${escapeHtml(unit)}</b></div>
         </div>
 
-        <input class="input qty" data-act="r_qty" type="number" step="any" min="0" placeholder="Cantidad" value="${escapeHtmlAttr(qtyVal)}" ${checked?"":"disabled"} />
+        <input class="input qty" data-act="r_qty" type="text" inputmode="decimal" placeholder="Cantidad" value="${escapeHtmlAttr(qtyVal)}" ${checked?"":"disabled"} />
       </div>`;
   }).join("");
 
@@ -2601,18 +2631,27 @@ el("ingModalBack")?.addEventListener("click", (e)=>{ if(e.target && e.target.id=
   el("ingConfirmCancel")?.addEventListener("click", closeIngConfirm);
   el("ingConfirmBack")?.addEventListener("click", (e)=>{ if(e.target && e.target.id==="ingConfirmBack") closeIngConfirm(); });
 
-  el("ingConfirmGo")?.addEventListener("click", async ()=>{
+    el("ingConfirmGo")?.addEventListener("click", async ()=>{
+    if(ingDeleteCountdown > 0) return; // aún bloqueado
+
+    const btnGo = el("ingConfirmGo");
     try{
-      if(ingDeleteCountdown > 0) return; // aún bloqueado
       if(el("ingConfirmCountdown")) el("ingConfirmCountdown").textContent = "";
       const key = String(ingDeletePendingKey || el("ingSelect")?.value || "").trim();
       if(!key) throw new Error("Selecciona un ingrediente.");
+
+      if(btnGo) btnGo.disabled = true;
+      showLoading("Eliminando ingrediente…","Actualizando base de datos.");
       await deleteIngredientByKey_(key);
+
       closeIngConfirm();
       refreshIngredientSelect_();
       if(el("ingDelMsg")) el("ingDelMsg").textContent = "Ingrediente eliminado.";
     }catch(e){
       if(el("ingConfirmCountdown")) el("ingConfirmCountdown").textContent = String(e.message||e);
+    }finally{
+      hideLoading();
+      if(btnGo) btnGo.disabled = false;
     }
   });
 
