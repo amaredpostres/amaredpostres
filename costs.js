@@ -12,6 +12,7 @@
 const API_URL = "https://amared-orders.amaredpostres.workers.dev/";
 const LS_SECRET_KEY = "AMARED_COSTS_SECRET";
 const LS_REMEMBER_KEY = "AMARED_COSTS_REMEMBER_V1";
+const LS_DELETED_DESSERTS_KEY = "AMARED_DELETED_DESSERTS_V1";
 
 let UNLOCKED_SECRET = "";
 let state = {
@@ -1396,6 +1397,61 @@ function getRememberCheckbox_(){
   return el("chkRememberDevice");
 }
 
+
+// ===== Deleted desserts (hide from Recetas) =====
+const KNOWN_BASE_DESSERT_IDS_ = new Set(["mousse_maracuya","cheesecake_cafe_panela","arroz_con_leche"]);
+
+function loadDeletedDesserts_(){
+  try{
+    const raw = localStorage.getItem(LS_DELETED_DESSERTS_KEY);
+    const arr = raw ? JSON.parse(raw) : [];
+    const set = new Set();
+    (Array.isArray(arr)?arr:[]).forEach(x=>{
+      const id = String(x||"").trim().toLowerCase();
+      if(id) set.add(id);
+    });
+    state.ui = state.ui || {};
+    state.ui.deletedDesserts = set;
+  }catch(_e){
+    state.ui = state.ui || {};
+    state.ui.deletedDesserts = new Set();
+  }
+}
+
+function saveDeletedDesserts_(){
+  try{
+    const set = (state.ui && state.ui.deletedDesserts) ? state.ui.deletedDesserts : new Set();
+    const arr = Array.from(set).filter(Boolean);
+    localStorage.setItem(LS_DELETED_DESSERTS_KEY, JSON.stringify(arr));
+  }catch(_e){}
+}
+
+function markDessertDeleted_(id){
+  const did = String(id||"").trim().toLowerCase();
+  if(!did) return;
+  state.ui = state.ui || {};
+  state.ui.deletedDesserts = state.ui.deletedDesserts || new Set();
+  state.ui.deletedDesserts.add(did);
+  saveDeletedDesserts_();
+}
+
+function unmarkDessertDeleted_(id){
+  const did = String(id||"").trim().toLowerCase();
+  if(!did) return;
+  state.ui = state.ui || {};
+  const set = state.ui.deletedDesserts || new Set();
+  set.delete(did);
+  state.ui.deletedDesserts = set;
+  saveDeletedDesserts_();
+}
+
+function isDessertLocallyDeleted_(id){
+  const did = String(id||"").trim().toLowerCase();
+  if(!did) return false;
+  const set = (state.ui && state.ui.deletedDesserts) ? state.ui.deletedDesserts : null;
+  return !!set && set.has(did);
+}
+
 function openUnlock(msg){
   if(el("unlockMsg")) el("unlockMsg").textContent = msg || "";
   show(el("unlockBack"));
@@ -1985,8 +2041,26 @@ async function loadDessertsFromSheet_(){
   if(!state.recipesPin) return;
   try{
     const out = await api({ action:"desserts_list", costs_secret: UNLOCKED_SECRET, recipes_pin: state.recipesPin }, {timeoutMs: 20000});
-    // Guardamos RAW (incluye activos/inactivos) para poder ocultar inactivos incluso si aparecen en pedidos/recetas
+    // Guardamos RAW (incluye activos/inactivos)
     state.dessertsRaw = Array.isArray(out.items) ? out.items : [];
+
+    // Sync: si está inactivo en POSTRES -> ocultarlo siempre en Recetas
+    try{
+      state.ui = state.ui || {};
+      const set = state.ui.deletedDesserts || new Set();
+      for(const d of state.dessertsRaw){
+        const id = String(d.dessert_id || d.id || "").trim();
+        if(!id) continue;
+        const a = String(d.active ?? "1").trim().toLowerCase();
+        const isActive = !(a === "0" || a === "false");
+        const key = id.toLowerCase();
+        if(isActive) set.delete(key);
+        else set.add(key);
+      }
+      state.ui.deletedDesserts = set;
+      saveDeletedDesserts_();
+    }catch(_e){}
+
     // Lista para UI: SOLO activos
     state.desserts = (state.dessertsRaw||[]).filter(d=>{
       const a = String(d.active ?? "1").trim().toLowerCase();
@@ -2114,13 +2188,23 @@ function dropDessertFromState_(dessertId){
     if(state.ui && state.ui.recipeDraftByDessert && state.ui.recipeDraftByDessert[did]) delete state.ui.recipeDraftByDessert[did];
   }catch(_e){}
 
-  // Remove from orders (so it doesn't “revive” in UI)
+  // Remove from orders (so it doesn't “revive” in UI) — case-insensitive
   try{
-    if(state.ordersByDessert && state.ordersByDessert[did]) delete state.ordersByDessert[did];
+    const target = did.toLowerCase();
+    if(state.ordersByDessert){
+      for(const k of Object.keys(state.ordersByDessert||{})){
+        if(String(k||"").toLowerCase() === target) delete state.ordersByDessert[k];
+      }
+    }
   }catch(_e){}
   try{
+    const target = did.toLowerCase();
     const late = state.late?.orders_by_dessert || state.late?.ordersByDessert;
-    if(late && late[did]) delete late[did];
+    if(late){
+      for(const k of Object.keys(late||{})){
+        if(String(k||"").toLowerCase() === target) delete late[k];
+      }
+    }
   }catch(_e){}
 }
 
@@ -2145,6 +2229,9 @@ async function confirmDessertDelete_(){
     if(!out?.ok){
       throw new Error(out?.error || "No se pudo eliminar el postre.");
     }
+
+    // marcar como eliminado para ocultarlo aunque aparezca en pedidos viejos
+    markDessertDeleted_(did);
 
     closeDessertDeleteModal_();
     dropDessertFromState_(did);
@@ -2179,6 +2266,9 @@ async function createDessert_(){
       dessert_name: name
     }, {timeoutMs: 30000});
 
+    // si estaba marcado como eliminado, lo restauramos en UI
+    unmarkDessertDeleted_(id);
+
     await loadDessertsFromSheet_();
     // seleccionar el nuevo postre
     state.ui.activeDessert = id;
@@ -2198,21 +2288,21 @@ function renderDessertList_(){
   const q = String(state.ui.dessert_q||"").trim().toLowerCase();
   const ids = collectDessertIds_();
 
-  // estado (active) desde hoja POSTRES
+  // estado (active) desde hoja POSTRES (case-insensitive) + tombstones locales
   const activeMap = {};
   ((state.dessertsRaw||state.desserts)||[]).forEach(d=>{
     const id = String(d.dessert_id || d.id || "").trim();
     if(!id) return;
     const a = String(d.active ?? "1").trim().toLowerCase();
-    activeMap[id] = !(a === "0" || a === "false");
+    activeMap[id.toLowerCase()] = !(a === "0" || a === "false");
   });
-
 
   const rows = ids
     .map(id=>{
       const name = prettyDessertName(id);
       const cnt = (state.recipesByDessert?.[id]||[]).length;
-      const isActive = (activeMap[id] !== false); // default: mostrar si no hay estado en POSTRES
+      const key = String(id||"").trim().toLowerCase();
+      const isActive = (activeMap[key] !== false) && !isDessertLocallyDeleted_(key); // ocultar si está inactivo o eliminado
       return { id, name, cnt, isActive };
     })
     .filter(x=>x.isActive)
@@ -2914,6 +3004,7 @@ el("ingModalBack")?.addEventListener("click", (e)=>{ if(e.target && e.target.id=
 // =============== Boot ===============
 (function init(){
   bind();
+  loadDeletedDesserts_();
 
   const saved = String(localStorage.getItem(LS_SECRET_KEY) || "").trim();
   const remembered = isRememberDeviceEnabled_();
