@@ -253,9 +253,24 @@ function escapeHtmlAttr(s){
 function showLoading(title, sub){
   if(el("loadingTitle")) el("loadingTitle").textContent = title || "Cargando…";
   if(el("loadingSub")) el("loadingSub").textContent = sub || "Un momento.";
-  show(el("loadingBack"));
+
+  const lb = el("loadingBack");
+  if(lb){
+    // ✅ Siempre al frente de TODO (incluye modales de confirmación)
+    lb.style.zIndex = "99999";
+    lb.style.position = "fixed";
+    lb.style.inset = "0";
+  }
+  show(lb);
 }
-function hideLoading(){ hide(el("loadingBack")); }
+function hideLoading(){
+  const lb = el("loadingBack");
+  if(lb){
+    // Limpieza opcional
+    // lb.style.zIndex = "";
+  }
+  hide(lb);
+}
 
 // =============== Tabs ===============
 function setView(view){
