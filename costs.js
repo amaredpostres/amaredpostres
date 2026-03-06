@@ -678,14 +678,24 @@ function computeRow(key){
 }
 
 function prettyDessertName(id){
-  const s = String(id||"");
+  const did = String(id||"").trim();
+  if(!did) return "";
+  // Prefer nombre desde hoja POSTRES (si existe)
+  try{
+    const arr = (state.dessertsRaw || state.desserts || []);
+    const hit = arr.find(d=>String(d.dessert_id || d.id || "").trim() === did);
+    const name = String(hit?.dessert_name || hit?.dessertName || hit?.name || "").trim();
+    if(name) return name;
+  }catch(_e){}
+  // Fallback: mapa conocido + formateo
   const map = {
     mousse_maracuya: "Mousse de maracuyá",
     cheesecake_cafe_panela: "Cheesecake de café con panela",
     arroz_con_leche: "Arroz con leche",
   };
-  return map[s] || s.replaceAll("_"," ");
+  return map[did] || did.replaceAll("_"," ");
 }
+
 
 // =============== Render: summaries ===============
 
@@ -1937,7 +1947,7 @@ function collectDessertIds_(){
   const set = new Set();
 
   // 1) Desde POSTRES (sheet)
-  (state.desserts||[]).forEach(d=>{
+  ((state.dessertsRaw||state.desserts)||[]).forEach(d=>{
     const id = String(d.dessert_id || d.id || "").trim();
     if(id) set.add(id);
   });
@@ -1975,11 +1985,19 @@ async function loadDessertsFromSheet_(){
   if(!state.recipesPin) return;
   try{
     const out = await api({ action:"desserts_list", costs_secret: UNLOCKED_SECRET, recipes_pin: state.recipesPin }, {timeoutMs: 20000});
-    state.desserts = Array.isArray(out.items) ? out.items : [];
+    // Guardamos RAW (incluye activos/inactivos) para poder ocultar inactivos incluso si aparecen en pedidos/recetas
+    state.dessertsRaw = Array.isArray(out.items) ? out.items : [];
+    // Lista para UI: SOLO activos
+    state.desserts = (state.dessertsRaw||[]).filter(d=>{
+      const a = String(d.active ?? "1").trim().toLowerCase();
+      return !(a === "0" || a === "false");
+    });
   }catch(_e){
-    state.desserts = state.desserts || [];
+    state.dessertsRaw = state.dessertsRaw || state.desserts || [];
+    state.desserts = (state.desserts||[]);
   }
 }
+
 
 function slugifyDessertId_(name){
   let s = String(name||"").trim().toLowerCase();
@@ -2148,7 +2166,7 @@ function renderDessertList_(){
 
   // estado (active) desde hoja POSTRES
   const activeMap = {};
-  (state.desserts||[]).forEach(d=>{
+  ((state.dessertsRaw||state.desserts)||[]).forEach(d=>{
     const id = String(d.dessert_id || d.id || "").trim();
     if(!id) return;
     const a = String(d.active ?? "1").trim().toLowerCase();
@@ -2163,6 +2181,7 @@ function renderDessertList_(){
       const isActive = (activeMap[id] !== false);
       return { id, name, cnt, isActive };
     })
+    .filter(x=>x.isActive)
     .filter(x=> !q || x.name.toLowerCase().includes(q) || x.id.toLowerCase().includes(q))
     .sort((a,b)=>{
       if(a.isActive !== b.isActive) return a.isActive ? -1 : 1;
