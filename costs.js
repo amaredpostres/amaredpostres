@@ -1935,9 +1935,6 @@ function collectDessertIds_(){
   const late = state.late?.orders_by_dessert || state.late?.ordersByDessert || {};
   Object.keys(late||{}).forEach(id=>set.add(id));
 
-  // Arroz aún no activo
-  set.delete("arroz_con_leche");
-
   return Array.from(set).filter(Boolean);
 }
 
@@ -2029,21 +2026,36 @@ function renderDessertList_(){
   const q = String(state.ui.dessert_q||"").trim().toLowerCase();
   const ids = collectDessertIds_();
 
+  // estado (active) desde hoja POSTRES
+  const activeMap = {};
+  (state.desserts||[]).forEach(d=>{
+    const id = String(d.dessert_id || d.id || "").trim();
+    if(!id) return;
+    const a = String(d.active ?? "1").trim().toLowerCase();
+    activeMap[id] = !(a === "0" || a === "false");
+  });
+
+
   const rows = ids
     .map(id=>{
       const name = prettyDessertName(id);
       const cnt = (state.recipesByDessert?.[id]||[]).length;
-      return { id, name, cnt };
+      const isActive = (activeMap[id] !== false);
+      return { id, name, cnt, isActive };
     })
     .filter(x=> !q || x.name.toLowerCase().includes(q) || x.id.toLowerCase().includes(q))
-    .sort((a,b)=>a.name.localeCompare(b.name,"es"));
+    .sort((a,b)=>{
+      if(a.isActive !== b.isActive) return a.isActive ? -1 : 1;
+      return a.name.localeCompare(b.name,"es");
+    });
 
   box.innerHTML = rows.map(r=>{
     const open = (String(state.ui.activeDessert||"") === r.id);
-    const sub = r.cnt ? `${r.cnt} ingrediente(s) configurado(s)` : `sin receta aún`;
+    const subBase = r.cnt ? `${r.cnt} ingrediente(s) configurado(s)` : `sin receta aún`;
+    const sub = r.isActive ? subBase : (`INACTIVO · ` + subBase);
     const chev = open ? "▾" : "▸";
     return `
-      <div class="pDessertCard ${open?"isOpen":""}" data-did="${escapeHtmlAttr(r.id)}">
+      <div class="pDessertCard ${open?"isOpen":""} ${r.isActive?"":"isInactive"}" data-did="${escapeHtmlAttr(r.id)}">
         <div class="pDessertHead" role="button" tabindex="0">
           <div class="pDessertStripe"></div>
           <div class="pDessertTitle">
