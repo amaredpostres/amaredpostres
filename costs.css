@@ -339,3 +339,14 @@ select.input{
     justify-content: center;
   }
 }
+
+/* ==============================
+   Fix layout postres confirmados / pedidos tarde
+   - Evita que textos largos (ventana ISO) desborden la columna
+   ============================== */
+.pSummaryGrid > div{ min-width: 0; }
+#dessertsMeta, #lateMeta{
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
