@@ -32,6 +32,7 @@ let state = {
     q: "",
     onlyMissing: true,
     onlySelected: false,
+    cost_q: "",
   }
 };
 
@@ -1115,15 +1116,9 @@ function renderGroups(){
 
 // =============== Listado administrativo (integrado en Compras) ===============
 function costKeyPasses(k){
-  const q = String(state.ui?.q || "").trim().toLowerCase();
-  const spec = state.costsByKey?.[k] || {};
+  const q = String(state.ui?.cost_q || "").trim().toLowerCase();
   if(!q) return true;
-  const hay = [
-    String(k||""),
-    String(spec?.brand || ""),
-    String(spec?.store || "")
-  ].join(" ").toLowerCase();
-  return hay.includes(q);
+  return String(k||"").toLowerCase().includes(q);
 }
 
 function renderCostItemCard(key){
@@ -2938,6 +2933,7 @@ function bind(){
   // Compras (admin integrado)
   el("btnCatalogs")?.addEventListener("click", ()=> openCatalogModal());
   el("btnIngredients")?.addEventListener("click", ()=> openIngredientsModal());
+  el("inpCostSearch")?.addEventListener("input", (e)=>{ state.ui.cost_q = String(e.target.value||""); renderCostsGroups(); });
   el("inpDessertSearch")?.addEventListener("input", (e)=>{ state.ui.dessert_q = String(e.target.value||""); renderDessertList_(); });
   el("dessertList")?.addEventListener("click", (e)=>{
     const head = e.target.closest('.pDessertHead');
@@ -3027,11 +3023,7 @@ function bind(){
       }
     }
   });
-
-  el("btnRecipesRefresh")?.addEventListener("click", ()=>{ showLoading("Refrescando…","Leyendo datos."); loadAll().finally(hideLoading); });
-
-
-  // Unlock
+// Unlock
   el("btnDoUnlock")?.addEventListener("click", ()=>doUnlock(false));
   el("btnClear")?.addEventListener("click", ()=>{
     if(el("secretInput")) el("secretInput").value = "";
@@ -3051,13 +3043,7 @@ function bind(){
   el("recipesPinInput")?.addEventListener("keydown", (e)=>{ if(e.key==="Enter") doRecipesUnlock_(false); });
   el("recipesUnlockBack")?.addEventListener("click", (e)=>{ /* ✅ No cerrar al hacer click fuera: solo cancelar */ });
 // Controls
-  el("inpSearch")?.addEventListener("input", (e)=>{
-    state.ui.q = String(e.target.value||"");
-    renderGroups();
-    renderCostsGroups();
-    refreshBottom();
-    updateMetaLine();
-  });
+  el("inpSearch")?.addEventListener("input", (e)=>{ state.ui.q = String(e.target.value||""); renderGroups(); refreshBottom(); updateMetaLine(); });
   el("chkOnlyMissing")?.addEventListener("change", (e)=>{ state.ui.onlyMissing = !!e.target.checked; renderGroups(); refreshBottom(); updateMetaLine(); });
   el("chkOnlySelected")?.addEventListener("change", (e)=>{ state.ui.onlySelected = !!e.target.checked; renderGroups(); refreshBottom(); updateMetaLine(); });
 
