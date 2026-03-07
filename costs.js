@@ -1119,13 +1119,15 @@ function renderGroups(){
     if(!keys.length) return "";
 
     const meta = groupMetaText(keys);
-    const openAttr = "";
+    const gid = normKey_(g.title || ("group_" + idx));
+    state.ui.openGroups = state.ui.openGroups || {};
+    const openAttr = state.ui.openGroups[gid] ? "open" : "";
     const accent = groupAccent_(idx);
 
     const itemsHtml = keys.map(k => renderItemCard(computeRow(k))).join("");
 
     return `
-      <details class="pGroup" ${openAttr} style="--gacc:${accent}; border-left:6px solid var(--gacc);">
+      <details class="pGroup" data-gid="${escapeHtml(gid)}" ${openAttr} style="--gacc:${accent}; border-left:6px solid var(--gacc);">
         <summary style="padding-left:10px;">
           <div>
             <div class="pGroupTitle">${escapeHtml(g.title || "Sección")}</div>
@@ -1325,7 +1327,7 @@ function renderCostsGroups(){
     const itemsHtml = gkeys.map(k => renderCostItemCard(k)).join("");
 
     return `
-      <details class="pGroup" ${openAttr} style="--gacc:${accent}; border-left:6px solid var(--gacc);">
+      <details class="pGroup" data-gid="${escapeHtml(gid)}" ${openAttr} style="--gacc:${accent}; border-left:6px solid var(--gacc);">
         <summary style="padding-left:10px;">
           <div>
             <div class="pGroupTitle">${escapeHtml(g.title || "Sección")}</div>
@@ -3106,6 +3108,15 @@ function bind(){
     if(act === "edit") openCostModal(key);
   });
 
+  // Mantener acordeones abiertos al interactuar (guardar estado open)
+  el("groups")?.addEventListener("toggle", (e)=>{
+    const det = (e.target && e.target.tagName === "DETAILS") ? e.target : null;
+    if(!det || !det.classList.contains("pGroup")) return;
+    const gid = String(det.getAttribute("data-gid")||"").trim();
+    if(!gid) return;
+    state.ui.openGroups = state.ui.openGroups || {};
+    state.ui.openGroups[gid] = !!det.open;
+  }, true);
   // Group interactions (event delegation)
   el("groups")?.addEventListener("click", (e)=>{
     const btn = e.target.closest("button");
@@ -3123,7 +3134,7 @@ function bind(){
       const r = computeRow(key);
       const p = getPlan(key);
       p.selected = true;
-      const needBuy = Math.max(0, r.need - r.invBase);
+      const needBuy = Math.max(0, r.missing ?? (r.need - r.invBase));
       if(r.base.pack_qty>0){
         p.packs = needBuy>0 ? Math.ceil(needBuy / r.base.pack_qty) : 0;
         p.qty_manual = 0;
