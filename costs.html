@@ -11,7 +11,7 @@
 <!-- ✅ estilos globales AMARED -->
 <link href="styles.css" rel="stylesheet"/>
 <!-- ✅ estilos de Compras / Recetas -->
-<link href="costs.css?v=20260306-mnav" rel="stylesheet"/>
+<link href="costs.css?v=20260307-mnav-login" rel="stylesheet"/>
 <style>
 /* ===== Ingredientes modal responsive ===== */
 #ingModalBack .pCatGrid.ingGrid{grid-template-columns: 1fr 1fr;}
@@ -300,7 +300,7 @@
 </div>
 
 <!-- Mobile bottom nav (solo móvil) -->
-<div class="mobileNav" id="mobileNav" aria-label="Navegación inferior">
+<div class="mobileNav hidden" id="mobileNav" aria-label="Navegación inferior">
   <button class="mNavBtn" id="mNavReload" type="button" aria-label="Recargar">↻</button>
 
   <button class="mNavCenter" id="mNavMenu" type="button" aria-haspopup="dialog" aria-expanded="false">
@@ -335,9 +335,12 @@
 </div>
 <div class="modalBody" style="padding:14px;">
 <div class="pLoginRow">
-<input autocomplete="current-password" class="input" id="secretInput" placeholder="COSTS_SECRET" type="password"/>
-<button class="btn primary" id="btnDoUnlock">Entrar</button>
-<button class="btn" id="btnClear">Limpiar</button>
+  <input autocomplete="current-password" class="input" id="secretInput" placeholder="COSTS_SECRET" type="password"/>
+  <div class="pLoginActions">
+    <button class="btn" id="btnClear">Limpiar</button>
+    <button class="btn primary" id="btnDoUnlock">Entrar</button>
+  </div>
+  <div class="pErr" id="unlockMsg"></div>
 </div>
 <div class="pRememberRow" style="margin-top:10px;">
 <label class="pRemember" style="display:flex; align-items:center; gap:10px; font-weight:900; color: rgba(64,17,2,.78);">
@@ -345,9 +348,8 @@
     Recuérdame en este dispositivo
   </label>
 </div>
-</div>
-<div class="pErr" id="unlockMsg"></div>
 <div class="hint" style="margin-top:10px;">Este módulo siempre pide el código por seguridad.</div>
+</div>
 </div>
 </div>
 
@@ -612,7 +614,7 @@
 </div>
 </div>
 </div>
-<script src="kitchen-costs.js?v=20260306-mnav"></script>
-<script src="costs.js?v=20260306-mnav"></script>
+<script src="kitchen-costs.js?v=20260307-mnav-login"></script>
+<script src="costs.js?v=20260307-mnav-login"></script>
 </body>
 </html>
