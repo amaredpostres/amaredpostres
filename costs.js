@@ -3023,7 +3023,11 @@ function bind(){
       }
     }
   });
-// Unlock
+
+  el("btnRecipesRefresh")?.addEventListener("click", ()=>{ showLoading("Refrescando…","Leyendo datos."); loadAll().finally(hideLoading); });
+
+
+  // Unlock
   el("btnDoUnlock")?.addEventListener("click", ()=>doUnlock(false));
   el("btnClear")?.addEventListener("click", ()=>{
     if(el("secretInput")) el("secretInput").value = "";
