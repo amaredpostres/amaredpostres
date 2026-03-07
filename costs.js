@@ -1689,6 +1689,10 @@ function openUnlock(msg){
   if(el("unlockMsg")) el("unlockMsg").textContent = msg || "";
   show(el("unlockBack"));
   hide(el("appRoot"));
+  // ✅ En login no mostramos el menú inferior móvil
+  hide(el("mobileNav"));
+  hide(el("mNavSheetBack"));
+  try{ const b = el("mNavMenu"); if(b){ b.setAttribute("aria-expanded","false"); } }catch(_e){}
   // ✅ checkbox "Recuérdame"
   const chk = getRememberCheckbox_();
   if(chk){
@@ -1727,6 +1731,8 @@ async function doUnlock(isAuto=false){
 
     closeUnlock();
     show(el("appRoot"));
+    // ✅ Mostrar menú inferior móvil tras desbloquear
+    show(el("mobileNav"));
 
     setView("purchases");
 
@@ -1753,6 +1759,8 @@ function logout(){
   if(el("secretInput")) el("secretInput").value = "";
   const chk = getRememberCheckbox_();
   if(chk) chk.checked = false;
+  hide(el("mobileNav"));
+  hide(el("mNavSheetBack"));
   openUnlock("Sesión cerrada.");
 }
 
