@@ -553,3 +553,124 @@ select.input{
     font-size: 13px;
   }
 }
+
+/* ==============================
+   Mobile bottom nav (v17) — vuelve el menú inferior (Recargar | Sección | Salir)
+   - Solo visible en móvil y SOLO después de login (JS controla .hidden)
+   ============================== */
+
+@media (max-width: 560px){
+  /* Ocultar botones superiores en móvil (mantener logo) */
+  .costsPage .pTopBtns{ display:none !important; }
+
+  /* Centrar header mejor en móvil */
+  .costsPage .topbarInner{
+    justify-content: center !important;
+  }
+
+  /* Dar espacio para el menú inferior */
+  .costsPage .container{
+    padding-bottom: calc(92px + env(safe-area-inset-bottom, 0px));
+  }
+
+  .mobileNav{
+    position: fixed;
+    left: 12px;
+    right: 12px;
+    bottom: calc(12px + env(safe-area-inset-bottom, 0px));
+    z-index: 12000;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 10px;
+    border-radius: 999px;
+    border: 1px solid var(--border);
+    background: rgba(254,246,239,.82);
+    backdrop-filter: blur(10px);
+    box-shadow: 0 18px 44px rgba(64,17,2,.14);
+  }
+  .mobileNav.hidden{ display:none !important; }
+
+  .mNavBtn{
+    width: 46px;
+    height: 46px;
+    border-radius: 999px;
+    border: 1px solid rgba(64,17,2,.12);
+    background: rgba(255,255,255,.86);
+    box-shadow: 0 10px 22px rgba(64,17,2,.08);
+    font-weight: 950;
+    cursor: pointer;
+  }
+  .mNavBtn:active{ transform: translateY(1px); }
+
+  .mNavCenter{
+    flex: 1;
+    height: 46px;
+    border-radius: 999px;
+    border: 1px solid rgba(64,17,2,.12);
+    background: rgba(255,255,255,.78);
+    box-shadow: 0 10px 22px rgba(64,17,2,.06);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    font-weight: 950;
+    cursor: pointer;
+  }
+  .mNavLabel{
+    font-weight: 950;
+  }
+  .mNavChev{
+    font-size: 14px;
+    transform: translateY(-1px);
+    opacity: .8;
+  }
+
+  /* Sheet */
+  .mobileSheetBack{
+    position: fixed;
+    inset: 0;
+    z-index: 13000;
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+    padding: 14px;
+    background: rgba(0,0,0,.28);
+  }
+  .mobileSheetBack.hidden{ display:none !important; }
+
+  .mobileSheet{
+    width: min(520px, 96vw);
+    border-radius: 22px;
+    border: 1px solid rgba(64,17,2,.12);
+    background: rgba(255,255,255,.96);
+    box-shadow: 0 24px 70px rgba(0,0,0,.26);
+    padding: 12px;
+    overflow: hidden;
+  }
+  .mobileSheetHandle{
+    width: 52px;
+    height: 5px;
+    border-radius: 99px;
+    background: rgba(64,17,2,.18);
+    margin: 4px auto 10px;
+  }
+  .mobileSheetTitle{
+    font-weight: 950;
+    text-align: center;
+    margin-bottom: 10px;
+  }
+  .mobileSheetBtns{
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+  }
+  .mobileSheetBtn{ width: 100%; }
+  .mobileSheetClose{ width: 100%; margin-top: 10px; }
+}
+
+@media (min-width: 561px){
+  /* Nunca mostrar menú inferior en escritorio */
+  .mobileNav, .mobileSheetBack{ display:none !important; }
+}
