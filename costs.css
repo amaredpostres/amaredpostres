@@ -76,6 +76,8 @@
   user-select:none;
 }
 .pSwitch .switch{
+  overflow:hidden;
+
   position: relative;
   width: 54px;
   height: 32px;
@@ -504,3 +506,50 @@ select.input{
   .pMiniTableWrap{ overflow-x:auto; }
 }
 
+
+
+/* Switch hard reset (evita pseudo global que genera “doble punto”) */
+.pSwitch .switch::before,
+.pSwitch .switch::after{ content:none !important; display:none !important; }
+
+
+/* Buy meta chips (v16) — legible y responsive */
+.pBuyMeta{
+  margin-top: 8px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 10px;
+  color: rgba(64,17,2,.72);
+  font-weight: 850;
+}
+.pBuyMeta .mi{
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(64,17,2,.10);
+  background: rgba(255,255,255,.65);
+  font-size: 12.5px;
+  line-height: 1.15;
+}
+.pBuyMeta .mi b{ font-weight: 950; }
+.pBuyMeta .miSub{ opacity:.72; font-weight: 850; }
+.pBuyMeta .mi-left{
+  background: rgba(242,91,143,.10);
+  border-color: rgba(242,91,143,.28);
+}
+@media (max-width: 560px){
+  .pBuyMeta{
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+  .pBuyMeta .mi{
+    width: 100%;
+    justify-content: space-between;
+    border-radius: 16px;
+    padding: 8px 10px;
+    font-size: 13px;
+  }
+}
