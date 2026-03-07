@@ -370,14 +370,69 @@ select.input{
   }
 }
 
-/* ===== Mini tables fit (no horizontal scroll on desktop) ===== */
-.pMiniTableWrap{ overflow-x:hidden; overflow-y:hidden; }
-.pMiniTable{ table-layout: fixed; width:100%; }
-.pMiniTable th:first-child, .pMiniTable td:first-child{
-  width: calc(100% - 84px);
+/* ===== Tables layout (v8) =====
+   - Costo unitario (isWide): permite scroll horizontal y mantiene columnas legibles
+   - Postres confirmados / Pedidos tarde (wrappers .isCompact): sin scroll y columnas bien alineadas
+*/
+.pMiniTableWrap{
+  overflow: auto;
+  -webkit-overflow-scrolling: touch;
+}
+.pMiniTable{
+  width:100%;
+  border-collapse: collapse;
+}
+
+/* Wide table: Costo unitario estimado */
+.pMiniTable.isWide{
+  table-layout: fixed;
+  min-width: 760px; /* fuerza scroll en pantallas pequeñas */
+}
+.pMiniTable.isWide th:nth-child(1),
+.pMiniTable.isWide td:nth-child(1){
+  width: 52%;
+  overflow-wrap: anywhere;
   word-break: break-word;
 }
-.pMiniTable th.num, .pMiniTable td.num{ width:84px; white-space:nowrap; }
+.pMiniTable.isWide th:nth-child(2),
+.pMiniTable.isWide td:nth-child(2){ width: 16%; }
+.pMiniTable.isWide th:nth-child(3),
+.pMiniTable.isWide td:nth-child(3){ width: 20%; }
+.pMiniTable.isWide th:nth-child(4),
+.pMiniTable.isWide td:nth-child(4){ width: 12%; }
+.pMiniTable.isWide th.num,
+.pMiniTable.isWide td.num{
+  text-align:right;
+  white-space: nowrap;
+}
+
+/* Compact tables: Postres confirmados / Pedidos después de las 3pm */
+.pMiniTableWrap.isCompact{
+  overflow: hidden; /* sin scroll en escritorio */
+}
+.pMiniTableWrap.isCompact .pMiniTable{
+  table-layout: fixed;
+  width: 100%;
+  min-width: 0;
+}
+.pMiniTableWrap.isCompact .pMiniTable th:first-child,
+.pMiniTableWrap.isCompact .pMiniTable td:first-child{
+  width: calc(100% - 90px);
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+.pMiniTableWrap.isCompact .pMiniTable th.num,
+.pMiniTableWrap.isCompact .pMiniTable td.num{
+  width: 90px;
+  text-align: right;
+  white-space: nowrap;
+}
+
+@media (max-width: 560px){
+  /* En móvil: compact sigue sin scroll (wrap), wide sí mantiene scroll por min-width */
+  .pMiniTable.isWide{ min-width: 720px; }
+}
+
 
 /* ===== Admin collapsible ===== */
 .pAdminDetails{
@@ -413,18 +468,3 @@ select.input{
   .pMiniTableWrap{ overflow-x:auto; }
 }
 
-/* ===== Compact tables for "Postres confirmados" + "Pedidos después de las 3:00 p.m." (no scroll + columnas más cerca) ===== */
-.pMiniTableWrap.isCompact{ overflow:hidden; }
-.pMiniTable.isCompact{
-  width: 100%;
-  table-layout: fixed;
-}
-.pMiniTable.isCompact th.num,
-.pMiniTable.isCompact td.num{
-  width: 88px;
-}
-.pMiniTable.isCompact th:first-child,
-.pMiniTable.isCompact td:first-child{
-  overflow-wrap: anywhere;
-  word-break: break-word;
-}
