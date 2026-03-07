@@ -4,13 +4,13 @@
 <head>
 <meta charset="utf-8"/>
 <meta content="width=device-width, initial-scale=1" name="viewport"/>
-<title>AMARED · Costos</title>
+<title>AMARED · Compras y Recetas</title>
 <!-- ✅ favicon (misma línea gráfica) -->
 <link href="assets/favicon.ico" rel="icon" type="image/x-icon"/>
 <link href="assets/favicon.ico" rel="shortcut icon" type="image/x-icon"/>
 <!-- ✅ estilos globales AMARED -->
 <link href="styles.css" rel="stylesheet"/>
-<!-- ✅ estilos SOLO de purchases (incluye pestaña Costos) -->
+<!-- ✅ estilos de Compras / Recetas -->
 <link href="costs.css" rel="stylesheet"/>
 <style>
 /* ===== Ingredientes modal responsive ===== */
@@ -162,9 +162,8 @@
 </div>
 <div class="pTopBtns">
 <button class="btn secondary" id="btnReload">Recargar</button>
-<div aria-label="Compras y Costos" class="pTabs" role="tablist">
+<div aria-label="Compras y Recetas" class="pTabs" role="tablist">
 <button aria-selected="true" class="pTabBtn isActive" id="btnTabPurchases" role="tab">Compras</button>
-<button aria-selected="false" class="pTabBtn" id="btnTabCosts" role="tab">Costos</button>
 <button aria-selected="false" class="pTabBtn" id="btnTabRecipes" role="tab">Recetas</button>
 </div>
 <button class="btn" id="btnExit">Salir</button>
@@ -232,38 +231,31 @@
           </div>
 </section>
 <section class="card" style="margin-top:14px;">
-<div class="cardTitle" style="margin-bottom:8px;">Ingredientes</div>
-<div class="pGroups" id="groups"></div>
-</section>
-<div style="height:92px;"></div>
-</div>
-<!-- =================== VIEW: COSTOS =================== -->
-<div class="hidden" id="viewCosts" style="display:none;">
-<section class="card">
 <div class="pCostsHead">
 <div>
-<div class="pMetaTitle">Costos de ingredientes</div>
-<div class="hint" style="margin-top:6px;">Edita presentación, precio, tienda y marca. Se guarda en <b>COSTOS_INGREDIENTES</b>.</div>
+<div class="cardTitle" style="margin-bottom:8px;">Ingredientes</div>
+<div class="hint" style="margin-top:6px;">Actualiza compra, presentación, precio, marca y tienda sin salir de <b>Compras</b>.</div>
 </div>
 <div class="pTopBtns" style="justify-content:flex-end;">
 <button class="btn secondary" id="btnCatalogs">⚙️ Tiendas/Marcas</button>
 <button class="btn secondary" id="btnIngredients">🧩 Ingredientes</button>
-<button class="btn secondary" id="btnCostsRefresh">Refrescar</button>
 </div>
 </div>
 <div class="pControls" style="margin-top:12px;">
-<input class="input" id="inpCostSearch" placeholder="Buscar ingrediente en Costos…" type="text"/>
+<input class="input" id="inpCostSearch" placeholder="Buscar ingrediente, marca o tienda…" type="text"/>
 </div>
-<div class="pSmallMeta" id="costsMeta"></div>
+<div class="pSmallMeta" id="costsMeta" style="margin-top:10px;"></div>
+<div class="pGroups" id="groups" style="margin-top:12px;"></div>
 </section>
 <section class="card" style="margin-top:14px;">
-<div class="cardTitle" style="margin-bottom:8px;">Listado</div>
+<div class="cardTitle" style="margin-bottom:8px;">Listado administrativo</div>
+<div class="hint" style="margin-bottom:10px;">Vista completa para revisar presentación, costo por unidad, marca y tienda.</div>
 <div class="pGroups" id="costGroups"></div>
 </section>
-<div style="height:24px;"></div>
+<div style="height:92px;"></div>
+</div>
 <!-- =================== VIEW: RECETAS =================== -->
-
-</div><div class="hidden" id="viewRecipes" style="display:none;">
+<div class="hidden" id="viewRecipes" style="display:none;">
 <section class="card">
 <div class="pCostsHead">
 <div>
@@ -320,7 +312,7 @@
 <div class="modal">
 <div class="modalHeader">
 <div>
-<div class="modalTitle" style="font-weight:950;">🔒 Desbloquear Compras/Costos</div>
+<div class="modalTitle" style="font-weight:950;">🔒 Desbloquear Compras</div>
 <div class="modalSub" style="margin-top:4px;">Ingresa tu <b>COSTS_SECRET</b>. Se valida en el servidor.</div>
 </div>
 </div>
@@ -330,12 +322,8 @@
 <button class="btn primary" id="btnDoUnlock">Entrar</button>
 <button class="btn" id="btnClear">Limpiar</button>
 </div>
-<label class="pRemember" style="display:flex; align-items:center; gap:10px; margin-top:10px; font-weight:900; color: rgba(64,17,2,.78);">
-  <input type="checkbox" id="rememberDevice"/>
-  Recuérdame en este dispositivo
-</label>
 <div class="pErr" id="unlockMsg"></div>
-<div class="hint" style="margin-top:10px;">Si activas “Recuérdame”, no se pedirá el código en este dispositivo.</div>
+<div class="hint" style="margin-top:10px;">Este módulo siempre pide el código por seguridad.</div>
 </div>
 </div>
 </div>
@@ -356,7 +344,7 @@
 <button class="btn secondary" id="btnRecipesCancel">Cancelar</button>
 </div>
 <div class="pErr" id="recipesUnlockMsg"></div>
-<div class="hint" style="margin-top:10px;">Si activas “Recuérdame”, no se pedirá el código en este dispositivo.</div>
+<div class="hint" style="margin-top:10px;">Este módulo siempre pide el código por seguridad.</div>
 </div>
 </div>
 </div>
@@ -439,65 +427,12 @@
         <div class="pCatBox" style="margin:0;">
           <div class="k" style="font-weight:950;">Nombre</div>
           <input id="dessertNameInput" class="input" placeholder="Ej: Arroz con leche" style="margin-top:8px;" />
-          <div class="hint" style="margin-top:10px;">El ID se genera automáticamente a partir del nombre (no editable).</div>
-          <input id="dessertIdInput" class="input" placeholder="Ej: arroz_con_leche" style="margin-top:8px;" readonly/>
+          <div class="hint" style="margin-top:10px;">El ID se genera automáticamente. (Puedes editarlo si deseas)</div>
+          <input id="dessertIdInput" class="input" placeholder="Ej: arroz_con_leche" style="margin-top:8px;" />
           <div id="dessertCreateMsg" class="pErr" style="margin-top:10px;"></div>
           <div class="confirmBtns" style="margin-top:12px; display:flex; gap:10px; justify-content:flex-end; flex-wrap:wrap;">
             <button id="btnDessertCancel" class="btn secondary">Cancelar</button>
             <button id="btnDessertCreate" class="btn primary">Crear</button>
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
-
-
-
-  <!-- MODAL: confirmar eliminación de postre -->
-  <div class="modalOverlay hidden" id="dessertDeleteBack">
-    <div class="modal" style="width:min(560px, 92vw);">
-      <div class="modalHeader">
-        <div>
-          <div class="modalTitle" style="font-weight:950;">⚠️ Eliminar postre</div>
-          <div class="modalSub" style="margin-top:4px;">Esta acción eliminará el postre de <b>POSTRES</b> y borrará su receta en <b>RECETAS</b>.</div>
-        </div>
-      </div>
-      <div class="modalBody" style="padding:14px;">
-        <div class="pCatBox" style="margin:0;">
-          <div class="k" style="font-weight:950;">Postre</div>
-          <div id="dessertDeleteName" style="margin-top:6px; font-weight:900;"></div>
-          <div class="hint" style="margin-top:6px;">ID: <b id="dessertDeleteId"></b></div>
-          <div class="pSmallMeta" id="dessertDeleteCountdown" style="margin-top:10px; color:#7a2b00;"></div>
-          <div id="dessertDeleteMsg" class="pErr" style="margin-top:10px;"></div>
-          <div class="confirmBtns" style="margin-top:12px; display:flex; gap:10px; justify-content:flex-end; flex-wrap:wrap;">
-            <button class="btn secondary" id="btnDessertDeleteCancel">Cancelar</button>
-            <button class="btn danger" disabled id="btnDessertDeleteConfirm">Eliminar</button>
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
-
-
-  <!-- MODAL: confirmar eliminación de postre -->
-  <div id="dessertConfirmBack" class="modalOverlay hidden">
-    <div class="modal" style="width:min(520px, 92vw);">
-      <div class="modalHeader">
-        <div>
-          <div class="modalTitle" style="font-weight:950;">⚠️ Confirmar eliminación</div>
-          <div class="modalSub" style="margin-top:4px;">Esta acción eliminará el postre y su receta asociada.</div>
-        </div>
-      </div>
-      <div class="modalBody">
-        <div class="pCatBox" style="margin:0;">
-          <div class="k" style="font-weight:950;">Postre</div>
-          <div id="dessertConfirmName" style="margin-top:6px; font-weight:900;"></div>
-          <div class="hint confirmHint" id="dessertConfirmWarn">Espera 3 segundos para habilitar “Eliminar”.</div>
-          <div class="pSmallMeta" id="dessertConfirmCountdown" style="margin-top:10px; color:#7a2b00;"></div>
-          <div class="pErr" id="dessertConfirmMsg" style="margin-top:8px;"></div>
-          <div class="confirmBtns" style="margin-top:12px;">
-            <button class="btn secondary" id="dessertConfirmCancel">Cancelar</button>
-            <button class="btn" disabled id="dessertConfirmGo">Eliminar</button>
           </div>
         </div>
       </div>
@@ -656,6 +591,6 @@
 </div>
 </div>
 <script src="kitchen-costs.js?v=20260304-recipes-fixednest"></script>
-<script src="costs.js?v=20260304-recipes-inline-normkey"></script>
+<script src="costs.js?v=20260306-unified-purchases"></script>
 </body>
 </html>
