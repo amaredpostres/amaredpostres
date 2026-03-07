@@ -78,7 +78,7 @@
   height: 30px;
   display:inline-block;
 }
-.switch input{ display:none; }
+.switch input{ opacity:0; width:0; height:0; }
 .slider{
   position:absolute; inset:0;
   border-radius:999px;
@@ -89,8 +89,8 @@
 .slider:before{
   content:"";
   position:absolute;
-  width: 24px; height: 24px;
-  left: 3px; top: 2.5px;
+  width: 26px; height: 26px;
+  left: 2px; top: 2px;
   border-radius:999px;
   background: white;
   box-shadow: 0 10px 20px rgba(0,0,0,.18);
@@ -578,3 +578,11 @@ select.input{
 }
 
 #unlockMsg{ text-align:center; }
+
+
+.switch{ -webkit-tap-highlight-color: transparent; }
+.switch .slider{ box-sizing: border-box; }
+
+
+.pGroup summary{ position: relative; z-index: 1; }
+.pGroupBody{ position: relative; z-index: 2; }
