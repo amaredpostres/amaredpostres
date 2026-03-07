@@ -2972,7 +2972,6 @@ function captureOpenGroupsFromDOM_(){
   captureFrom("costGroups");
 }
 
-}
 
 
 function bind(){
