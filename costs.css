@@ -267,6 +267,9 @@ select.input{
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
 }
+.costsPage .pMiniTable{
+  min-width: 520px; /* evita que columnas se aplasten en móvil */
+}
 
 /* Ajustes específicos para pantallas pequeñas */
 @media (max-width: 560px){
@@ -364,100 +367,5 @@ select.input{
   }
   .costsPage .pCostsHead .pTopBtns .btn{
     flex: 1 1 calc(50% - 6px);
-  }
-}
-
-
-/* ===== Compras unificado: administración debajo del listado ===== */
-.pAdminWrap{
-  margin-top: 16px;
-  padding-top: 14px;
-  border-top: 1px dashed rgba(64,17,2,.16);
-}
-.pAdminDetails{
-  border: 1px solid var(--border);
-  border-radius: 18px;
-  background: rgba(255,255,255,.62);
-  overflow: hidden;
-}
-.pAdminDetails summary{
-  list-style: none;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 12px 14px;
-  user-select: none;
-}
-.pAdminDetails summary::-webkit-details-marker{ display:none; }
-.pAdminDetails[open] summary{
-  background: rgba(255,255,255,.78);
-  border-bottom: 1px solid rgba(64,17,2,.08);
-}
-.pAdminBody{
-  padding: 12px 0 0;
-}
-@media (max-width: 560px){
-  .pAdminWrap .pCostsHead{
-    display: grid;
-    gap: 12px;
-  }
-  .pAdminWrap .pTopBtns{
-    width: 100%;
-    grid-template-columns: 1fr 1fr;
-  }
-  .pAdminDetails summary{
-    align-items: flex-start;
-  }
-}
-
-
-
-/* ==============================
-   Layout v3 compras/admin + tablas resumen
-   ============================== */
-.pControlsInCard{
-  align-items: stretch;
-}
-.pAdminCard .pCostsHead{
-  display:flex;
-  justify-content:space-between;
-  align-items:flex-start;
-  gap:12px;
-  flex-wrap:wrap;
-}
-.pMiniTable.isWide{
-  min-width: 560px;
-}
-.pMiniTableWrap--summary{
-  overflow-x: hidden;
-}
-.pMiniTable--summary{
-  min-width: 0;
-  table-layout: fixed;
-}
-.pMiniTable--summary th:first-child,
-.pMiniTable--summary td:first-child{
-  width: calc(100% - 78px);
-}
-.pMiniTable--summary th.num,
-.pMiniTable--summary td.num{
-  width: 78px;
-}
-.pMiniTable--summary td{
-  white-space: normal;
-  overflow-wrap: anywhere;
-  word-break: break-word;
-}
-.pMiniTable--summary td.num{
-  white-space: nowrap;
-}
-@media (max-width: 760px){
-  .pMiniTableWrap--summary{
-    overflow-x: auto;
-  }
-  .pMiniTable--summary{
-    min-width: 320px;
   }
 }
