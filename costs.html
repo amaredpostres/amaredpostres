@@ -181,7 +181,7 @@
 <section class="card" style="margin-top:14px;">
 <h2 class="cardTitle">Costo unitario estimado</h2>
 <div class="pMiniTableWrap" style="margin-top:8px;">
-<table class="pMiniTable">
+<table class="pMiniTable isWide">
 <thead><tr><th>Postre</th><th class="num">$/u</th><th class="num">Precio 60%</th><th class="num">Lote</th></tr></thead>
 <tbody id="unitCostRows"></tbody>
 </table>
@@ -193,8 +193,8 @@
 <div>
 <div class="cardTitle" style="margin-bottom:8px;">Postres confirmados</div>
 <div class="hint" style="margin-bottom:10px;">Estos postres se usan para calcular ingredientes (ventana: ayer 3:00 p.m. → hoy 3:00 p.m.).</div>
-<div class="pMiniTableWrap">
-<table class="pMiniTable">
+<div class="pMiniTableWrap pMiniTableWrap--summary">
+<table class="pMiniTable pMiniTable--summary">
 <thead><tr><th>Postre</th><th class="num">Cant.</th></tr></thead>
 <tbody id="dessertRows"></tbody>
 </table>
@@ -204,8 +204,8 @@
 <div>
 <div class="cardTitle" style="margin-bottom:8px;">Pedidos después de las 3:00 p.m.</div>
 <div class="hint" style="margin-bottom:10px;">Para decidir si compras hoy o dejas para mañana.</div>
-<div class="pMiniTableWrap">
-<table class="pMiniTable">
+<div class="pMiniTableWrap pMiniTableWrap--summary">
+<table class="pMiniTable pMiniTable--summary">
 <thead><tr><th>Postre</th><th class="num">Cant.</th></tr></thead>
 <tbody id="lateRows"></tbody>
 </table>
@@ -215,7 +215,11 @@
 </div>
 </section>
 <section class="card" style="margin-top:14px;">
-<div class="pControls">
+<div>
+<div class="cardTitle" style="margin-bottom:8px;">Ingredientes</div>
+<div class="hint" style="margin-top:6px;">Actualiza compra, presentación, precio, marca y tienda sin salir de <b>Compras</b>.</div>
+</div>
+<div class="pControls pControlsInCard" style="margin-top:12px;">
 <input class="input" id="inpSearch" placeholder="Buscar ingrediente…" type="text"/>
 <label class="pToggle">
 <input checked="" id="chkOnlyMissing" type="checkbox"/>
@@ -229,40 +233,33 @@
 <div class="hint" style="margin-top:10px;">
             Marca <b>Comprar</b> y escribe <b>empaques</b> (según la última presentación guardada). Si no hay empaque, escribe cantidad directa en g/ml.
           </div>
-</section>
-<section class="card" style="margin-top:14px;">
-<div>
-<div class="cardTitle" style="margin-bottom:8px;">Ingredientes</div>
-<div class="hint" style="margin-top:6px;">Actualiza compra, presentación, precio, marca y tienda sin salir de <b>Compras</b>.</div>
-</div>
 <div class="pGroups" id="groups" style="margin-top:12px;"></div>
-
-<div class="pAdminWrap">
-  <div class="pCostsHead" style="margin-top:16px;">
-    <div>
-      <div class="cardTitle" style="margin-bottom:8px;">Administración de ingredientes</div>
-      <div class="hint" style="margin-top:6px;">Gestiona ingredientes, marcas y tiendas desde aquí, sin duplicar la barra de búsqueda.</div>
-    </div>
-    <div class="pTopBtns" style="justify-content:flex-end;">
-      <button class="btn secondary" id="btnCatalogs">⚙️ Tiendas/Marcas</button>
-      <button class="btn secondary" id="btnIngredients">🧩 Ingredientes</button>
-    </div>
+</section>
+<section class="card pAdminCard" style="margin-top:14px;">
+<div class="pCostsHead">
+  <div>
+    <div class="cardTitle" style="margin-bottom:8px;">Administración de ingredientes</div>
+    <div class="hint" style="margin-top:6px;">Gestiona ingredientes, marcas y tiendas desde aquí en un bloque aparte.</div>
   </div>
-  <div class="pSmallMeta" id="costsMeta" style="margin-top:10px;"></div>
-
-  <details class="pAdminDetails" id="adminCostsDetails" style="margin-top:12px;">
-    <summary>
-      <div>
-        <div class="pGroupTitle">Listado administrativo</div>
-        <div class="pGroupMeta">Vista completa para revisar presentación, costo por unidad, marca y tienda.</div>
-      </div>
-      <div class="pGroupMeta">Toca para abrir</div>
-    </summary>
-    <div class="pAdminBody">
-      <div class="pGroups" id="costGroups"></div>
-    </div>
-  </details>
+  <div class="pTopBtns" style="justify-content:flex-end;">
+    <button class="btn secondary" id="btnCatalogs">⚙️ Tiendas/Marcas</button>
+    <button class="btn secondary" id="btnIngredients">🧩 Ingredientes</button>
+  </div>
 </div>
+<div class="pSmallMeta" id="costsMeta" style="margin-top:10px;"></div>
+
+<details class="pAdminDetails" id="adminCostsDetails" style="margin-top:12px;">
+  <summary>
+    <div>
+      <div class="pGroupTitle">Listado administrativo</div>
+      <div class="pGroupMeta">Vista completa para revisar presentación, costo por unidad, marca y tienda.</div>
+    </div>
+    <div class="pGroupMeta">Toca para abrir</div>
+  </summary>
+  <div class="pAdminBody">
+    <div class="pGroups" id="costGroups"></div>
+  </div>
+</details>
 </section>
 <div style="height:92px;"></div>
 </div>
