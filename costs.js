@@ -687,14 +687,21 @@ function computeRow(key){
   const invN = normalizeInvToBase(key);
   const invBase = Number(invN.qty || 0);
   const planned = computePlannedQty(key);
+
+  // ✅ Falta base (sin considerar plan): así no desaparece al usar Auto
+  const missing0 = Math.max(0, need - invBase);
+
+  // Info útil (sí considera plan)
   const invShown = invBase + planned;
-  const missing = Math.max(0, need - invShown);
+  const missingAfterPlan = Math.max(0, need - invShown);
+
   const unit = getUnitFor(key);
   const cpu = getCostPerUnit(key);
   const spec = state.costsByKey?.[key] || null;
   const base = baseFromSpec(spec);
-  return { key, need, invBase, planned, invShown, missing, unit, cpu, base };
+  return { key, need, invBase, planned, invShown, missing0, missingAfterPlan, unit, cpu, base };
 }
+
 
 function prettyDessertName(id){
   const did = String(id||"").trim();
@@ -1091,7 +1098,7 @@ function rowPassesFilters(row){
   const plan = getPlan(row.key);
 
   if(q && !row.key.toLowerCase().includes(q)) return false;
-  if(onlyMissing && !(row.missing > 0)) return false;
+  if(onlyMissing && !(row.missing0 > 0)) return false;
   if(onlySelected && !plan.selected) return false;
   return true;
 }
@@ -1101,7 +1108,7 @@ function groupMetaText(keys){
   let needCount = 0;
   for(const k of keys){
     const r = computeRow(k);
-    if(r.missing > 0) missingCount++;
+    if(r.missing0 > 0) missingCount++;
     if(r.need > 0) needCount++;
   }
   return `${needCount} con receta · ${missingCount} con faltante`;
@@ -1365,7 +1372,7 @@ function renderItemCard(row){
 
   const needCls = row.need>0 ? "" : "";
   const invCls = row.invBase>=row.need && row.need>0 ? "ok" : "";
-  const missCls = row.missing>0 ? "warn" : (row.need>0?"ok":"");
+  const missCls = row.missing0>0 ? "warn" : (row.need>0?"ok":"");
 
   // Input mode
   const hasPack = row.base.pack_qty > 0;
@@ -1399,7 +1406,7 @@ function renderItemCard(row){
         </div>
         <div class="pNum ${missCls}">
           <div class="lbl">Falta</div>
-          <div class="val">${fmtNum(row.missing)}</div>
+          <div class="val">${fmtNum(row.missing0)}</div>
         </div>
       </div>
 
@@ -1426,7 +1433,8 @@ function renderItemCard(row){
               if(!plan.selected) return "";
               const bought = plannedQty;
               if(!(bought>0)) return "";
-              const sobra = Math.max(0, (row.invBase + bought) - row.need);
+              const needBuy0 = Math.max(0, (row.need - row.invBase));
+              const sobra = Math.max(0, bought - needBuy0);
               const unit = escapeHtml(row.unit);
               if(row.base.pack_qty>0 && plan.packs>0){
                 const packsTxt = `${fmtNum(plan.packs)} empaque(s)`;
@@ -3175,7 +3183,7 @@ function bind(){
 
       // Guardar info para mostrar "comprado" y "sobra"
       const bought = (r0.base.pack_qty>0 && p.packs>0) ? (p.packs * r0.base.pack_qty) : (p.qty_manual||0);
-      const sobra = Math.max(0, (r0.invBase + bought) - r0.need);
+      const sobra = Math.max(0, bought - needBuy);
       p.autoInfo = { bought, sobra, ts: Date.now() };
 
       renderGroups();
