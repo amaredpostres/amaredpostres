@@ -1426,26 +1426,37 @@ function renderItemCard(row){
         </div>
 
         <div class="pBuyMeta">
-          ${packHint ? (escapeHtml(packHint) + " · ") : ""}
-          Planeado: <b>${fmtNum(plannedQty)}</b> ${escapeHtml(row.unit)}
           ${(() => {
+            const out = [];
             try{
-              if(!plan.selected) return "";
-              const bought = plannedQty;
-              if(!(bought>0)) return "";
-              const needBuy0 = Math.max(0, (row.need - row.invBase));
-              const sobra = Math.max(0, bought - needBuy0);
-              const unit = escapeHtml(row.unit);
-              if(row.base.pack_qty>0 && plan.packs>0){
-                const packsTxt = `${fmtNum(plan.packs)} empaque(s)`;
-                const sobraTxt = (sobra>0) ? ` · Sobra: <b>${fmtNum(sobra)}</b> ${unit}` : "";
-                return ` · Comprado: <b>${fmtNum(bought)}</b> ${unit} (${packsTxt})${sobraTxt}`;
+              if(packHint) out.push(`<span class="mi mi-pack">${escapeHtml(packHint)}</span>`);
+              out.push(`<span class="mi mi-plan">Planeado: <b>${fmtNum(plannedQty)}</b> ${escapeHtml(row.unit)}</span>`);
+
+              if(plan.selected){
+                const bought = plannedQty;
+                if(bought > 0){
+                  const needBuy0 = Math.max(0, (row.need - row.invBase));
+                  const sobra = Math.max(0, bought - needBuy0);
+                  const unit = escapeHtml(row.unit);
+
+                  if(row.base.pack_qty>0 && plan.packs>0){
+                    const packsTxt = `${fmtNum(plan.packs)} empaque(s)`;
+                    out.push(`<span class="mi mi-buy">Comprado: <b>${fmtNum(bought)}</b> ${unit} <span class="miSub">(${packsTxt})</span></span>`);
+                  }else{
+                    out.push(`<span class="mi mi-buy">Comprado: <b>${fmtNum(bought)}</b> ${unit}</span>`);
+                  }
+
+                  if(sobra > 0){
+                    out.push(`<span class="mi mi-left">Sobra: <b>${fmtNum(sobra)}</b> ${unit}</span>`);
+                  }
+                }
               }
-              const sobraTxt2 = (sobra>0) ? ` · Sobra: <b>${fmtNum(sobra)}</b> ${unit}` : "";
-              return ` · Comprado: <b>${fmtNum(bought)}</b> ${unit}${sobraTxt2}`;
-            }catch(_e){ return ""; }
-          })()} ${row.cpu!==null ? (` · Costo/u: <b>${moneyCOP2(row.cpu)}</b>`):""}
-          ${est!==null ? (` · Est: <b>${moneyCOP(est)}</b>`):""}
+
+              if(row.cpu!==null) out.push(`<span class="mi mi-cpu">Costo/u: <b>${moneyCOP2(row.cpu)}</b></span>`);
+              if(est!==null) out.push(`<span class="mi mi-est">Est: <b>${moneyCOP(est)}</b></span>`);
+            }catch(_e){}
+            return out.join("");
+          })()}
         </div>
       </div>
     </div>
