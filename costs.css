@@ -369,3 +369,46 @@ select.input{
     flex: 1 1 calc(50% - 6px);
   }
 }
+
+/* ===== Mini tables fit (no horizontal scroll on desktop) ===== */
+.pMiniTableWrap{ overflow-x:hidden; overflow-y:hidden; }
+.pMiniTable{ table-layout: fixed; width:100%; }
+.pMiniTable th:first-child, .pMiniTable td:first-child{
+  width: calc(100% - 84px);
+  word-break: break-word;
+}
+.pMiniTable th.num, .pMiniTable td.num{ width:84px; white-space:nowrap; }
+
+/* ===== Admin collapsible ===== */
+.pAdminDetails{
+  margin-top: 12px;
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  background: rgba(255,255,255,.60);
+  overflow: hidden;
+}
+.pAdminDetails > summary{
+  list-style: none;
+  cursor: pointer;
+  padding: 12px 14px;
+  font-weight: 950;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:10px;
+  user-select:none;
+}
+.pAdminDetails > summary::-webkit-details-marker{ display:none; }
+.pAdminDetails > summary:after{
+  content: "▾";
+  font-weight: 950;
+  opacity: .75;
+}
+.pAdminDetails[open] > summary:after{ content: "▴"; }
+.pAdminDetails > .hint{ padding: 0 14px; }
+.pAdminDetails #costGroups{ padding: 12px 14px 14px; }
+
+
+@media (max-width: 520px){
+  .pMiniTableWrap{ overflow-x:auto; }
+}
