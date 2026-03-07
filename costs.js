@@ -162,6 +162,32 @@ const el = (id) => document.getElementById(id);
 const show = (node) => { if(node){ node.classList.remove("hidden"); node.hidden = false; node.style.display = ""; } };
 const hide = (node) => { if(node){ node.classList.add("hidden"); node.hidden = true; node.style.display = "none"; } };
 
+// =============== Mobile nav ===============
+function updateMobileNavLabel_(){
+  const lbl = el("mNavLabel");
+  if(!lbl) return;
+  lbl.textContent = (state.view === "recipes") ? "Recetas" : "Compras";
+  const menu = el("mNavMenu");
+  if(menu) menu.setAttribute("aria-expanded","false");
+}
+function openMobileNavSheet_(){
+  const back = el("mNavSheetBack");
+  if(!back) return;
+  back.classList.remove("hidden");
+  back.setAttribute("aria-hidden","false");
+  const menu = el("mNavMenu");
+  if(menu) menu.setAttribute("aria-expanded","true");
+}
+function closeMobileNavSheet_(){
+  const back = el("mNavSheetBack");
+  if(!back) return;
+  back.classList.add("hidden");
+  back.setAttribute("aria-hidden","true");
+  const menu = el("mNavMenu");
+  if(menu) menu.setAttribute("aria-expanded","false");
+}
+
+
 function setGlobalMsg(msg, isErr=false){
   const g = el("globalMsg");
   if(!g) return;
@@ -284,6 +310,8 @@ function setView(view){
   }
 
   state.view = v;
+
+  try{ updateMobileNavLabel_(); }catch(_e){}
 
   const vp = el("viewPurchases");
   const vc = el("viewCosts");
@@ -2930,6 +2958,15 @@ function bind(){
   el("btnTabPurchases")?.addEventListener("click", ()=> setView("purchases"));
   el("btnTabRecipes")?.addEventListener("click", ()=> setView("recipes"));
 
+  // Mobile nav (solo móvil)
+  el("mNavReload")?.addEventListener("click", ()=> el("btnReload")?.click());
+  el("mNavExit")?.addEventListener("click", ()=> el("btnExit")?.click());
+  el("mNavMenu")?.addEventListener("click", ()=> openMobileNavSheet_());
+  el("mNavSheetClose")?.addEventListener("click", ()=> closeMobileNavSheet_());
+  el("mNavGoPurchases")?.addEventListener("click", ()=>{ closeMobileNavSheet_(); setView("purchases"); });
+  el("mNavGoRecipes")?.addEventListener("click", ()=>{ closeMobileNavSheet_(); setView("recipes"); });
+  el("mNavSheetBack")?.addEventListener("click", (e)=>{ if(e.target && e.target.id==="mNavSheetBack") closeMobileNavSheet_(); });
+
   // Compras (admin integrado)
   el("btnCatalogs")?.addEventListener("click", ()=> openCatalogModal());
   el("btnIngredients")?.addEventListener("click", ()=> openIngredientsModal());
@@ -3306,3 +3343,7 @@ el("ingModalBack")?.addEventListener("click", (e)=>{ if(e.target && e.target.id=
     openUnlock("");
   }
 })();
+
+
+// Keep mobile nav label in sync on resize
+try{ window.addEventListener("resize", ()=>{ try{ updateMobileNavLabel_(); }catch(_e){} }); }catch(_e){}
