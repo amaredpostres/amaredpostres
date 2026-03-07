@@ -468,3 +468,104 @@ select.input{
   .pMiniTableWrap{ overflow-x:auto; }
 }
 
+/* ===== Mobile bottom nav (v9) ===== */
+.mobileNav{ display:none; }
+.mobileSheetBack{ display:none; }
+
+@media (max-width: 720px){
+  /* Hide top buttons on mobile (keeps logo at top) */
+  .costsPage .pTopBtns{ display:none !important; }
+  .costsPage .topbarInner{ justify-content:center !important; }
+
+  /* Reserve space for bottom bars */
+  .costsPage .container{ padding-bottom: 160px; }
+
+  /* Bottom purchase bar sits above nav */
+  .costsPage .pBottomBar{ bottom: 72px; }
+
+  /* Mobile nav */
+  .mobileNav{
+    position: fixed;
+    left: 0; right: 0; bottom: 0;
+    z-index: 40;
+    display:flex;
+    align-items:center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 10px 12px;
+    background: rgba(254,246,239,.92);
+    backdrop-filter: blur(10px);
+    border-top: 1px solid var(--border);
+  }
+
+  .mNavBtn{
+    width: 52px;
+    height: 46px;
+    border-radius: 16px;
+    border: 1px solid var(--border);
+    background: rgba(255,255,255,.80);
+    box-shadow: 0 10px 26px rgba(64,17,2,.08);
+    font-size: 18px;
+    font-weight: 950;
+    cursor: pointer;
+  }
+  .mNavBtn:active{ transform: translateY(1px); }
+
+  .mNavCenter{
+    flex: 1;
+    height: 46px;
+    border-radius: 18px;
+    border: 1px solid var(--border);
+    background: rgba(255,255,255,.85);
+    box-shadow: 0 10px 26px rgba(64,17,2,.08);
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    gap: 10px;
+    font-weight: 950;
+    cursor: pointer;
+  }
+  .mNavLabel{ font-size: 15px; }
+  .mNavChev{ opacity:.7; font-size: 14px; transform: translateY(-1px); }
+
+  /* Sheet */
+  .mobileSheetBack{
+    position: fixed;
+    inset: 0;
+    z-index: 45;
+    display:flex;
+    align-items:flex-end;
+    justify-content:center;
+    padding: 12px;
+    background: rgba(0,0,0,.25);
+  }
+  .mobileSheetBack.hidden{ display:none; }
+  .mobileSheet{
+    width: min(560px, 100%);
+    border-radius: 22px 22px 18px 18px;
+    border: 1px solid rgba(64,17,2,.12);
+    background: rgba(255,255,255,.94);
+    box-shadow: 0 18px 40px rgba(0,0,0,.20);
+    padding: 12px;
+  }
+  .mobileSheetHandle{
+    width: 54px;
+    height: 5px;
+    border-radius: 999px;
+    background: rgba(64,17,2,.18);
+    margin: 2px auto 10px;
+  }
+  .mobileSheetTitle{
+    font-weight: 950;
+    text-align:center;
+    margin-bottom: 10px;
+  }
+  .mobileSheetBtns{
+    display:grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    margin-bottom: 10px;
+  }
+  .mobileSheetBtn{ width:100%; }
+  .mobileSheetClose{ width:100%; }
+}
