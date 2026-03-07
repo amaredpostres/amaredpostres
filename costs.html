@@ -11,7 +11,7 @@
 <!-- ✅ estilos globales AMARED -->
 <link href="styles.css" rel="stylesheet"/>
 <!-- ✅ estilos de Compras / Recetas -->
-<link href="costs.css?v=20260306-compacttables" rel="stylesheet"/>
+<link href="costs.css?v=20260306-mnav" rel="stylesheet"/>
 <style>
 /* ===== Ingredientes modal responsive ===== */
 #ingModalBack .pCatGrid.ingGrid{grid-template-columns: 1fr 1fr;}
@@ -298,6 +298,32 @@
 <button class="btn primary pBottomBtn" disabled="" id="btnRegister">Registrar compras</button>
 </div>
 </div>
+
+<!-- Mobile bottom nav (solo móvil) -->
+<div class="mobileNav" id="mobileNav" aria-label="Navegación inferior">
+  <button class="mNavBtn" id="mNavReload" type="button" aria-label="Recargar">↻</button>
+
+  <button class="mNavCenter" id="mNavMenu" type="button" aria-haspopup="dialog" aria-expanded="false">
+    <span class="mNavLabel" id="mNavLabel">Compras</span>
+    <span class="mNavChev" aria-hidden="true">▴</span>
+  </button>
+
+  <button class="mNavBtn" id="mNavExit" type="button" aria-label="Salir">⎋</button>
+</div>
+
+<!-- Mobile selector sheet (Compras/Recetas) -->
+<div class="mobileSheetBack hidden" id="mNavSheetBack" aria-hidden="true">
+  <div class="mobileSheet" role="dialog" aria-label="Cambiar sección">
+    <div class="mobileSheetHandle" aria-hidden="true"></div>
+    <div class="mobileSheetTitle">Sección</div>
+    <div class="mobileSheetBtns">
+      <button class="btn secondary mobileSheetBtn" id="mNavGoPurchases" type="button">Compras</button>
+      <button class="btn secondary mobileSheetBtn" id="mNavGoRecipes" type="button">Recetas</button>
+    </div>
+    <button class="btn secondary mobileSheetClose" id="mNavSheetClose" type="button">Cerrar</button>
+  </div>
+</div>
+
 <!-- LOGIN (pantalla completa) -->
 <div class="modalOverlay" id="unlockBack">
 <div class="modal">
@@ -586,7 +612,7 @@
 </div>
 </div>
 </div>
-<script src="kitchen-costs.js?v=20260304-recipes-fixednest"></script>
-<script src="costs.js?v=20260306-compacttables"></script>
+<script src="kitchen-costs.js?v=20260306-mnav"></script>
+<script src="costs.js?v=20260306-mnav"></script>
 </body>
 </html>
