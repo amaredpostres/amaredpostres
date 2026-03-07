@@ -11,7 +11,7 @@
 <!-- ✅ estilos globales AMARED -->
 <link href="styles.css" rel="stylesheet"/>
 <!-- ✅ estilos de Compras / Recetas -->
-<link href="costs.css" rel="stylesheet"/>
+<link href="costs.css?v=20260306-compacttables" rel="stylesheet"/>
 <style>
 /* ===== Ingredientes modal responsive ===== */
 #ingModalBack .pCatGrid.ingGrid{grid-template-columns: 1fr 1fr;}
@@ -181,7 +181,7 @@
 <section class="card" style="margin-top:14px;">
 <h2 class="cardTitle">Costo unitario estimado</h2>
 <div class="pMiniTableWrap" style="margin-top:8px;">
-<table class="pMiniTable">
+<table class="pMiniTable isCompact">
 <thead><tr><th>Postre</th><th class="num">$/u</th><th class="num">Precio 60%</th><th class="num">Lote</th></tr></thead>
 <tbody id="unitCostRows"></tbody>
 </table>
@@ -193,8 +193,8 @@
 <div>
 <div class="cardTitle" style="margin-bottom:8px;">Postres confirmados</div>
 <div class="hint" style="margin-bottom:10px;">Estos postres se usan para calcular ingredientes (ventana: ayer 3:00 p.m. → hoy 3:00 p.m.).</div>
-<div class="pMiniTableWrap">
-<table class="pMiniTable">
+<div class="pMiniTableWrap isCompact">
+<table class="pMiniTable isCompact">
 <thead><tr><th>Postre</th><th class="num">Cant.</th></tr></thead>
 <tbody id="dessertRows"></tbody>
 </table>
@@ -204,7 +204,7 @@
 <div>
 <div class="cardTitle" style="margin-bottom:8px;">Pedidos después de las 3:00 p.m.</div>
 <div class="hint" style="margin-bottom:10px;">Para decidir si compras hoy o dejas para mañana.</div>
-<div class="pMiniTableWrap">
+<div class="pMiniTableWrap isCompact">
 <table class="pMiniTable">
 <thead><tr><th>Postre</th><th class="num">Cant.</th></tr></thead>
 <tbody id="lateRows"></tbody>
@@ -587,6 +587,6 @@
 </div>
 </div>
 <script src="kitchen-costs.js?v=20260304-recipes-fixednest"></script>
-<script src="costs.js?v=20260306-unified-purchases"></script>
+<script src="costs.js?v=20260306-compacttables"></script>
 </body>
 </html>
