@@ -221,7 +221,7 @@ select.input{
 
 
 /* ===== Responsive fixes (mobile) ===== */
-.pMiniTable.isWide{ min-width: 560px; }
+.pMiniTable.isWide{ min-width: 760px; }
 
 @media (max-width: 520px){
   /* Topbar layout: no overflow */
@@ -414,18 +414,14 @@ select.input{
 }
 
 /* ===== Compact tables for "Postres confirmados" + "Pedidos después de las 3:00 p.m." (no scroll + columnas más cerca) ===== */
-.pMiniTableWrap.isCompact{
-  overflow: hidden;          /* evita barra de scroll */
-  display: flex;
-  justify-content: flex-start;
-}
+.pMiniTableWrap.isCompact{ overflow:hidden; }
 .pMiniTable.isCompact{
-  width: min(520px, 100%);   /* no ocupa todo el ancho -> acerca "Postre" y "Cant." */
-  table-layout: fixed;       /* permite wrap controlado */
+  width: 100%;
+  table-layout: fixed;
 }
 .pMiniTable.isCompact th.num,
 .pMiniTable.isCompact td.num{
-  width: 72px;               /* columna Cant. consistente */
+  width: 88px;
 }
 .pMiniTable.isCompact th:first-child,
 .pMiniTable.isCompact td:first-child{
