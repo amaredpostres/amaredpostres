@@ -68,7 +68,7 @@
 
 .pBuyRow{ margin-top:10px; display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; }
 
-/* Switch */
+/* Switch (v13) — estilo tipo iOS, color AMARED */
 .pSwitch{
   display:flex;
   align-items:center;
@@ -77,12 +77,12 @@
 }
 .pSwitch .switch{
   position: relative;
-  width: 50px;
-  height: 28px;
+  width: 56px;
+  height: 34px;
   display:inline-block;
   flex: 0 0 auto;
   cursor: pointer;
-  line-height: 0; /* evita desalineación */
+  line-height: 0;
 }
 .pSwitch .switch input{
   opacity:0;
@@ -93,15 +93,14 @@
   position:absolute;
   inset:0;
   border-radius:999px;
-  background: rgba(64,17,2,.16);
-  border: 1px solid rgba(64,17,2,.14);
-  transition: background .18s ease, border-color .18s ease;
+  background: rgba(0,0,0,.16); /* off */
+  transition: background .18s ease;
 }
 .pSwitch .slider:before{
   content:"";
   position:absolute;
-  width: 22px;
-  height: 22px;
+  width: 28px;
+  height: 28px;
   left: 3px;
   top: 3px;
   border-radius:999px;
@@ -110,14 +109,7 @@
   transition: transform .18s ease;
 }
 .pSwitch .switch input:checked + .slider{
-  background: rgba(242,91,143,.55);
-  border-color: rgba(242,91,143,.38);
-}
-.pSwitch .switch input:checked + .slider:before{
-  transform: translateX(22px);
-}
-.pSwitch .switch:active .slider:before{
-  transform: translateX(0) scale(.98);
+  background: rgba(242,91,143,.70); /* AMARED pink */
 }
 .pSwitch .switch input:checked + .slider:before{
   transform: translateX(22px);
