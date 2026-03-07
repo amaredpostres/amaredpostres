@@ -132,7 +132,14 @@
 @media (max-width:520px){ .pBottomBtn{ min-width: 160px; } }
 
 /* Login */
-.pLoginRow{ display:flex; gap:10px; flex-wrap:wrap; align-items:center; }
+.pLoginRow{ display:grid; gap:10px; }
+.pLoginActions{ display:grid; grid-template-columns: 1fr 1fr; gap:10px; }
+.pLoginActions .btn{ width:100%; }
+@media (min-width: 720px){
+  .pLoginActions{ grid-template-columns: auto auto; justify-content:end; }
+  .pLoginActions .btn{ width:auto; min-width: 120px; }
+}
+
 .pLoginRow .input{ flex:1; min-width:220px; }
 .pErr{ margin-top:10px; color: rgba(180, 20, 20, .95); font-weight:950; }
 
@@ -569,3 +576,5 @@ select.input{
   .mobileSheetBtn{ width:100%; }
   .mobileSheetClose{ width:100%; }
 }
+
+#unlockMsg{ text-align:center; }
