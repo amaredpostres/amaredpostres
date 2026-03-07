@@ -1116,7 +1116,7 @@ function renderGroups(){
 
 // =============== Listado administrativo (integrado en Compras) ===============
 function costKeyPasses(k){
-  const q = String(state.ui?.cost_q || "").trim().toLowerCase();
+  const q = String((state.ui?.cost_q || state.ui?.q || "")).trim().toLowerCase();
   if(!q) return true;
   return String(k||"").toLowerCase().includes(q);
 }
@@ -2933,8 +2933,7 @@ function bind(){
   // Compras (admin integrado)
   el("btnCatalogs")?.addEventListener("click", ()=> openCatalogModal());
   el("btnIngredients")?.addEventListener("click", ()=> openIngredientsModal());
-  el("inpCostSearch")?.addEventListener("input", (e)=>{ state.ui.cost_q = String(e.target.value||""); renderCostsGroups(); });
-  el("inpDessertSearch")?.addEventListener("input", (e)=>{ state.ui.dessert_q = String(e.target.value||""); renderDessertList_(); });
+el("inpDessertSearch")?.addEventListener("input", (e)=>{ state.ui.dessert_q = String(e.target.value||""); renderDessertList_(); });
   el("dessertList")?.addEventListener("click", (e)=>{
     const head = e.target.closest('.pDessertHead');
     if(!head) return;
@@ -3043,7 +3042,7 @@ function bind(){
   el("recipesPinInput")?.addEventListener("keydown", (e)=>{ if(e.key==="Enter") doRecipesUnlock_(false); });
   el("recipesUnlockBack")?.addEventListener("click", (e)=>{ /* ✅ No cerrar al hacer click fuera: solo cancelar */ });
 // Controls
-  el("inpSearch")?.addEventListener("input", (e)=>{ state.ui.q = String(e.target.value||""); renderGroups(); refreshBottom(); updateMetaLine(); });
+  el("inpSearch")?.addEventListener("input", (e)=>{ state.ui.q = String(e.target.value||""); state.ui.cost_q = state.ui.q; renderGroups(); renderCostsGroups(); refreshBottom(); updateMetaLine(); });
   el("chkOnlyMissing")?.addEventListener("change", (e)=>{ state.ui.onlyMissing = !!e.target.checked; renderGroups(); refreshBottom(); updateMetaLine(); });
   el("chkOnlySelected")?.addEventListener("change", (e)=>{ state.ui.onlySelected = !!e.target.checked; renderGroups(); refreshBottom(); updateMetaLine(); });
 
