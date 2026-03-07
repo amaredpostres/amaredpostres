@@ -1119,13 +1119,15 @@ function renderGroups(){
     if(!keys.length) return "";
 
     const meta = groupMetaText(keys);
-    const openAttr = "";
+    const gid = `groups:${normKey_(g.title || "Sección")}`;
+    const og = state.ui.openGroups || {};
+    const openAttr = (og[gid] || (!Object.keys(og).length && idx===0)) ? "open" : "";
     const accent = groupAccent_(idx);
 
     const itemsHtml = keys.map(k => renderItemCard(computeRow(k))).join("");
 
     return `
-      <details class="pGroup" ${openAttr} style="--gacc:${accent}; border-left:6px solid var(--gacc);">
+      <details class="pGroup" data-gid="${escapeHtmlAttr(gid)}" ${openAttr} style="--gacc:${accent}; border-left:6px solid var(--gacc);">
         <summary style="padding-left:10px;">
           <div>
             <div class="pGroupTitle">${escapeHtml(g.title || "Sección")}</div>
@@ -1320,12 +1322,14 @@ function renderCostsGroups(){
     if(!gkeys.length) return "";
 
     const meta = `${gkeys.length} ingrediente(s)`;
-    const openAttr = "";
+    const gid = `costGroups:${normKey_(g.title || "Sección")}`;
+    const og = state.ui.openGroups || {};
+    const openAttr = (og[gid] || false) ? "open" : "";
     const accent = groupAccent_(idx);
     const itemsHtml = gkeys.map(k => renderCostItemCard(k)).join("");
 
     return `
-      <details class="pGroup" ${openAttr} style="--gacc:${accent}; border-left:6px solid var(--gacc);">
+      <details class="pGroup" data-gid="${escapeHtmlAttr(gid)}" ${openAttr} style="--gacc:${accent}; border-left:6px solid var(--gacc);">
         <summary style="padding-left:10px;">
           <div>
             <div class="pGroupTitle">${escapeHtml(g.title || "Sección")}</div>
@@ -1419,17 +1423,20 @@ function renderItemCard(row){
           Planeado: <b>${fmtNum(plannedQty)}</b> ${escapeHtml(row.unit)}
           ${(() => {
             try{
-              const ai = plan.autoInfo;
-              if(!ai || !plan.selected || !(plannedQty>0)) return "";
-              const sobra = Math.max(0, (row.invBase + plannedQty) - row.need);
-              const compra = plannedQty;
-              if(row.base.pack_qty>0){
-                return ` · Comprado: <b>${fmtNum(compra)}</b> ${escapeHtml(row.unit)} · Sobra: <b>${fmtNum(sobra)}</b> ${escapeHtml(row.unit)}`;
+              if(!plan.selected) return "";
+              const bought = plannedQty;
+              if(!(bought>0)) return "";
+              const sobra = Math.max(0, (row.invBase + bought) - row.need);
+              const unit = escapeHtml(row.unit);
+              if(row.base.pack_qty>0 && plan.packs>0){
+                const packsTxt = `${fmtNum(plan.packs)} empaque(s)`;
+                const sobraTxt = (sobra>0) ? ` · Sobra: <b>${fmtNum(sobra)}</b> ${unit}` : "";
+                return ` · Comprado: <b>${fmtNum(bought)}</b> ${unit} (${packsTxt})${sobraTxt}`;
               }
-              return ` · Comprado: <b>${fmtNum(compra)}</b> ${escapeHtml(row.unit)}`;
+              const sobraTxt2 = (sobra>0) ? ` · Sobra: <b>${fmtNum(sobra)}</b> ${unit}` : "";
+              return ` · Comprado: <b>${fmtNum(bought)}</b> ${unit}${sobraTxt2}`;
             }catch(_e){ return ""; }
-          })()} 
-          ${row.cpu!==null ? (` · Costo/u: <b>${moneyCOP2(row.cpu)}</b>`):""}
+          })()} ${row.cpu!==null ? (` · Costo/u: <b>${moneyCOP2(row.cpu)}</b>`):""}
           ${est!==null ? (` · Est: <b>${moneyCOP(est)}</b>`):""}
         </div>
       </div>
@@ -2950,15 +2957,21 @@ async function autoClassifyCostsSections_(){
 
 // =============== Events ===============
 function captureOpenGroupsFromDOM_(){
-  const root = el("groups");
-  if(!root) return;
-  const dets = Array.from(root.querySelectorAll('details.pGroup[data-gid]'));
   state.ui.openGroups = state.ui.openGroups || {};
-  for(const d of dets){
-    const gid = String(d.getAttribute("data-gid")||"").trim();
-    if(!gid) continue;
-    state.ui.openGroups[gid] = !!d.open;
-  }
+  const captureFrom = (cid)=>{
+    const root = el(cid);
+    if(!root) return;
+    const dets = Array.from(root.querySelectorAll('details.pGroup[data-gid]'));
+    for(const d of dets){
+      const gid = String(d.getAttribute("data-gid")||"").trim();
+      if(!gid) continue;
+      state.ui.openGroups[gid] = !!d.open;
+    }
+  };
+  captureFrom("groups");
+  captureFrom("costGroups");
+}
+
 }
 
 
