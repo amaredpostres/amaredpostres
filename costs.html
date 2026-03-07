@@ -214,8 +214,15 @@
 </div>
 </div>
 </section>
+
 <section class="card" style="margin-top:14px;">
-<div class="pControls">
+<div class="pCostsHead">
+<div>
+<div class="cardTitle" style="margin-bottom:8px;">Ingredientes</div>
+<div class="hint" style="margin-top:6px;">Actualiza compra, presentación, precio, marca y tienda sin salir de <b>Compras</b>.</div>
+</div>
+
+</div><div class="pControls">
 <input class="input" id="inpSearch" placeholder="Buscar ingrediente…" type="text"/>
 <label class="pToggle">
 <input checked="" id="chkOnlyMissing" type="checkbox"/>
@@ -225,33 +232,17 @@
 <input id="chkOnlySelected" type="checkbox"/>
 <span>Solo marcados</span>
 </label>
-</div>
-<div class="hint" style="margin-top:10px;">
+</div><div class="hint" style="margin-top:10px;">
             Marca <b>Comprar</b> y escribe <b>empaques</b> (según la última presentación guardada). Si no hay empaque, escribe cantidad directa en g/ml.
           </div>
-</section>
-<section class="card" style="margin-top:14px;">
-<div class="pCostsHead">
-<div>
-<div class="cardTitle" style="margin-bottom:8px;">Ingredientes</div>
-<div class="hint" style="margin-top:6px;">Actualiza compra, presentación, precio, marca y tienda sin salir de <b>Compras</b>.</div>
-</div>
-<div class="pTopBtns" style="justify-content:flex-end;">
-<button class="btn secondary" id="btnCatalogs">⚙️ Tiendas/Marcas</button>
-<button class="btn secondary" id="btnIngredients">🧩 Ingredientes</button>
-</div>
-</div>
-<div class="pControls" style="margin-top:12px;">
-<input class="input" id="inpCostSearch" placeholder="Buscar ingrediente, marca o tienda…" type="text"/>
-</div>
+
 <div class="pSmallMeta" id="costsMeta" style="margin-top:10px;"></div>
 <div class="pGroups" id="groups" style="margin-top:12px;"></div>
-</section>
-<section class="card" style="margin-top:14px;">
-<div class="cardTitle" style="margin-bottom:8px;">Listado administrativo</div>
-<div class="hint" style="margin-bottom:10px;">Vista completa para revisar presentación, costo por unidad, marca y tienda.</div>
-<div class="pGroups" id="costGroups"></div>
-</section>
+</section><section class="card" style="margin-top:14px;"><div class="pCostsHead"><div><div class="cardTitle" style="margin-bottom:8px;">Administración de ingredientes</div><div class="hint" style="margin-top:6px;">Crea/elimina ingredientes y gestiona tiendas/marcas. Úsalo cuando toque mantenimiento.</div></div><div class="pTopBtns" style="justify-content:flex-end;">
+<button class="btn secondary" id="btnCatalogs">⚙️ Tiendas/Marcas</button>
+<button class="btn secondary" id="btnIngredients">🧩 Ingredientes</button>
+</div></div><details class="pAdminDetails" id="adminListDetails"><summary>Listado administrativo</summary><div class="hint" style="margin:10px 0 10px;">Vista completa para revisar presentación, costo por unidad, marca y tienda.</div><div class="pGroups" id="costGroups"></div></details></section>
+
 <div style="height:92px;"></div>
 </div>
 <!-- =================== VIEW: RECETAS =================== -->
@@ -278,7 +269,7 @@
 <div class="pList" id="dessertList" style="margin-top:10px;"></div>
 </div>
 <div class="pRecipeRight" id="recipeRightWrap">
-<div id="recipeRightLocked" class="hint" style="padding:14px; border:1px dashed rgba(64,17,2,.18); border-radius:14px; background:rgba(255,255,255,.6);">Selecciona un postre para editar su receta.</div>
+<div class="hint" id="recipeRightLocked" style="padding:14px; border:1px dashed rgba(64,17,2,.18); border-radius:14px; background:rgba(255,255,255,.6);">Selecciona un postre para editar su receta.</div>
 <div id="recipeRightInner" style="display:none;">
 <div class="rowBetween" style="gap:10px; align-items:center;">
 <div>
@@ -293,7 +284,7 @@
 <div class="pGroups" id="recipeEditor" style="margin-top:12px;"></div>
 </div>
 </div>
-</section>
+</div></section>
 <div style="height:24px;"></div>
 </div>
 </main>
@@ -323,8 +314,8 @@
 <button class="btn" id="btnClear">Limpiar</button>
 </div>
 <div class="pRememberRow" style="margin-top:10px;">
-  <label class="pRemember" style="display:flex; align-items:center; gap:10px; font-weight:900; color: rgba(64,17,2,.78);">
-    <input id="chkRememberDevice" type="checkbox" style="transform: translateY(1px);" />
+<label class="pRemember" style="display:flex; align-items:center; gap:10px; font-weight:900; color: rgba(64,17,2,.78);">
+<input id="chkRememberDevice" style="transform: translateY(1px);" type="checkbox"/>
     Recuérdame en este dispositivo
   </label>
 </div>
@@ -333,7 +324,7 @@
 <div class="hint" style="margin-top:10px;">Este módulo siempre pide el código por seguridad.</div>
 </div>
 </div>
-</div>
+
 <!-- LOGIN: RECETAS (código adicional) -->
 <div class="modalOverlay hidden" id="recipesUnlockBack">
 <div class="modal">
@@ -420,32 +411,30 @@
 </div>
 </div>
 </div>
-
-  <!-- MODAL: crear postre -->
-  <div id="dessertModalBack" class="modalOverlay hidden">
-    <div class="modal" style="width:min(560px, 92vw);">
-      <div class="modalHeader">
-        <div>
-          <div class="modalTitle" style="font-weight:950;">➕ Crear postre</div>
-          <div class="modalSub" style="margin-top:4px;">Crea un postre nuevo para usarlo en RECETAS.</div>
-        </div>
-      </div>
-      <div class="modalBody" style="padding:14px;">
-        <div class="pCatBox" style="margin:0;">
-          <div class="k" style="font-weight:950;">Nombre</div>
-          <input id="dessertNameInput" class="input" placeholder="Ej: Arroz con leche" style="margin-top:8px;" />
-          <div class="hint" style="margin-top:10px;">El ID se genera automáticamente. (Puedes editarlo si deseas)</div>
-          <input id="dessertIdInput" class="input" placeholder="Ej: arroz_con_leche" style="margin-top:8px;" />
-          <div id="dessertCreateMsg" class="pErr" style="margin-top:10px;"></div>
-          <div class="confirmBtns" style="margin-top:12px; display:flex; gap:10px; justify-content:flex-end; flex-wrap:wrap;">
-            <button id="btnDessertCancel" class="btn secondary">Cancelar</button>
-            <button id="btnDessertCreate" class="btn primary">Crear</button>
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
-
+<!-- MODAL: crear postre -->
+<div class="modalOverlay hidden" id="dessertModalBack">
+<div class="modal" style="width:min(560px, 92vw);">
+<div class="modalHeader">
+<div>
+<div class="modalTitle" style="font-weight:950;">➕ Crear postre</div>
+<div class="modalSub" style="margin-top:4px;">Crea un postre nuevo para usarlo en RECETAS.</div>
+</div>
+</div>
+<div class="modalBody" style="padding:14px;">
+<div class="pCatBox" style="margin:0;">
+<div class="k" style="font-weight:950;">Nombre</div>
+<input class="input" id="dessertNameInput" placeholder="Ej: Arroz con leche" style="margin-top:8px;"/>
+<div class="hint" style="margin-top:10px;">El ID se genera automáticamente. (Puedes editarlo si deseas)</div>
+<input class="input" id="dessertIdInput" placeholder="Ej: arroz_con_leche" style="margin-top:8px;"/>
+<div class="pErr" id="dessertCreateMsg" style="margin-top:10px;"></div>
+<div class="confirmBtns" style="margin-top:12px; display:flex; gap:10px; justify-content:flex-end; flex-wrap:wrap;">
+<button class="btn secondary" id="btnDessertCancel">Cancelar</button>
+<button class="btn primary" id="btnDessertCreate">Crear</button>
+</div>
+</div>
+</div>
+</div>
+</div>
 <!-- MODAL: administrar ingredientes -->
 <div class="modalOverlay hidden" id="ingModalBack">
 <div class="modal" style="width:min(980px, 96vw);">
