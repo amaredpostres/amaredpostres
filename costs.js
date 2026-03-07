@@ -661,7 +661,7 @@ function getPlan(key){
   if(!state.buyPlan) state.buyPlan = {};
   const cur = state.buyPlan[key];
   if(cur && typeof cur === "object") return cur;
-  const p = { selected:false, packs:0, qty_manual:0 };
+  const p = { selected:false, packs:0, qty_manual:0, autoInfo:null };
   state.buyPlan[key] = p;
   return p;
 }
@@ -1119,15 +1119,13 @@ function renderGroups(){
     if(!keys.length) return "";
 
     const meta = groupMetaText(keys);
-    const gid = normKey_(g.title || ("group_" + idx));
-    state.ui.openGroups = state.ui.openGroups || {};
-    const openAttr = state.ui.openGroups[gid] ? "open" : "";
+    const openAttr = "";
     const accent = groupAccent_(idx);
 
     const itemsHtml = keys.map(k => renderItemCard(computeRow(k))).join("");
 
     return `
-      <details class="pGroup" data-gid="${escapeHtml(gid)}" ${openAttr} style="--gacc:${accent}; border-left:6px solid var(--gacc);">
+      <details class="pGroup" ${openAttr} style="--gacc:${accent}; border-left:6px solid var(--gacc);">
         <summary style="padding-left:10px;">
           <div>
             <div class="pGroupTitle">${escapeHtml(g.title || "Sección")}</div>
@@ -1327,7 +1325,7 @@ function renderCostsGroups(){
     const itemsHtml = gkeys.map(k => renderCostItemCard(k)).join("");
 
     return `
-      <details class="pGroup" data-gid="${escapeHtml(gid)}" ${openAttr} style="--gacc:${accent}; border-left:6px solid var(--gacc);">
+      <details class="pGroup" ${openAttr} style="--gacc:${accent}; border-left:6px solid var(--gacc);">
         <summary style="padding-left:10px;">
           <div>
             <div class="pGroupTitle">${escapeHtml(g.title || "Sección")}</div>
@@ -1407,7 +1405,7 @@ function renderItemCard(row){
             <input type="checkbox" data-act="toggle" ${plan.selected?"checked":""} />
             <span class="slider"></span>
           </label>
-          <div style="font-weight:950;">Comprar</div>
+          <div class="lblBuy">Comprar</div>
         </div>
 
         <div class="pBuyInputs">
@@ -1419,6 +1417,18 @@ function renderItemCard(row){
         <div class="pBuyMeta">
           ${packHint ? (escapeHtml(packHint) + " · ") : ""}
           Planeado: <b>${fmtNum(plannedQty)}</b> ${escapeHtml(row.unit)}
+          ${(() => {
+            try{
+              const ai = plan.autoInfo;
+              if(!ai || !plan.selected || !(plannedQty>0)) return "";
+              const sobra = Math.max(0, (row.invBase + plannedQty) - row.need);
+              const compra = plannedQty;
+              if(row.base.pack_qty>0){
+                return ` · Comprado: <b>${fmtNum(compra)}</b> ${escapeHtml(row.unit)} · Sobra: <b>${fmtNum(sobra)}</b> ${escapeHtml(row.unit)}`;
+              }
+              return ` · Comprado: <b>${fmtNum(compra)}</b> ${escapeHtml(row.unit)}`;
+            }catch(_e){ return ""; }
+          })()} 
           ${row.cpu!==null ? (` · Costo/u: <b>${moneyCOP2(row.cpu)}</b>`):""}
           ${est!==null ? (` · Est: <b>${moneyCOP(est)}</b>`):""}
         </div>
@@ -2939,6 +2949,19 @@ async function autoClassifyCostsSections_(){
 }
 
 // =============== Events ===============
+function captureOpenGroupsFromDOM_(){
+  const root = el("groups");
+  if(!root) return;
+  const dets = Array.from(root.querySelectorAll('details.pGroup[data-gid]'));
+  state.ui.openGroups = state.ui.openGroups || {};
+  for(const d of dets){
+    const gid = String(d.getAttribute("data-gid")||"").trim();
+    if(!gid) continue;
+    state.ui.openGroups[gid] = !!d.open;
+  }
+}
+
+
 function bind(){
   // Buttons
   el("btnExit")?.addEventListener("click", logout);
@@ -3108,15 +3131,6 @@ function bind(){
     if(act === "edit") openCostModal(key);
   });
 
-  // Mantener acordeones abiertos al interactuar (guardar estado open)
-  el("groups")?.addEventListener("toggle", (e)=>{
-    const det = (e.target && e.target.tagName === "DETAILS") ? e.target : null;
-    if(!det || !det.classList.contains("pGroup")) return;
-    const gid = String(det.getAttribute("data-gid")||"").trim();
-    if(!gid) return;
-    state.ui.openGroups = state.ui.openGroups || {};
-    state.ui.openGroups[gid] = !!det.open;
-  }, true);
   // Group interactions (event delegation)
   el("groups")?.addEventListener("click", (e)=>{
     const btn = e.target.closest("button");
@@ -3131,17 +3145,27 @@ function bind(){
       return;
     }
     if(act === "auto"){
-      const r = computeRow(key);
+      // Mantener acordeones abiertos
+      captureOpenGroupsFromDOM_();
+
+      const r0 = computeRow(key); // estado antes de aplicar auto
       const p = getPlan(key);
       p.selected = true;
-      const needBuy = Math.max(0, r.missing ?? (r.need - r.invBase));
-      if(r.base.pack_qty>0){
-        p.packs = needBuy>0 ? Math.ceil(needBuy / r.base.pack_qty) : 0;
+
+      const needBuy = Math.max(0, (r0.need - r0.invBase));
+      if(r0.base.pack_qty>0){
+        p.packs = needBuy>0 ? Math.ceil(needBuy / r0.base.pack_qty) : 0;
         p.qty_manual = 0;
       } else {
         p.qty_manual = needBuy>0 ? needBuy : 0;
         p.packs = 0;
       }
+
+      // Guardar info para mostrar "comprado" y "sobra"
+      const bought = (r0.base.pack_qty>0 && p.packs>0) ? (p.packs * r0.base.pack_qty) : (p.qty_manual||0);
+      const sobra = Math.max(0, (r0.invBase + bought) - r0.need);
+      p.autoInfo = { bought, sobra, ts: Date.now() };
+
       renderGroups();
       refreshBottom();
       updateMetaLine();
@@ -3158,8 +3182,10 @@ function bind(){
     const plan = getPlan(key);
 
     if(act === "toggle"){
+      captureOpenGroupsFromDOM_();
       plan.selected = !!e.target.checked;
-      if(!plan.selected){ plan.packs = 0; plan.qty_manual = 0; }
+      if(!plan.selected){ plan.packs = 0; plan.qty_manual = 0; plan.autoInfo = null; }
+      if(plan.selected){ plan.autoInfo = null; }
       renderGroups();
       refreshBottom();
       updateMetaLine();
@@ -3167,8 +3193,10 @@ function bind(){
     }
 
     if(act === "packs"){
+      captureOpenGroupsFromDOM_();
       plan.packs = Number(e.target.value||0);
       plan.selected = true;
+      plan.autoInfo = null;
       renderGroups();
       refreshBottom();
       updateMetaLine();
@@ -3176,8 +3204,10 @@ function bind(){
     }
 
     if(act === "manual"){
+      captureOpenGroupsFromDOM_();
       plan.qty_manual = Number(e.target.value||0);
       plan.selected = true;
+      plan.autoInfo = null;
       renderGroups();
       refreshBottom();
       updateMetaLine();
