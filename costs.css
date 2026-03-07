@@ -267,9 +267,6 @@ select.input{
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
 }
-.costsPage .pMiniTable{
-  min-width: 520px; /* evita que columnas se aplasten en móvil */
-}
 
 /* Ajustes específicos para pantallas pequeñas */
 @media (max-width: 560px){
@@ -412,5 +409,55 @@ select.input{
   }
   .pAdminDetails summary{
     align-items: flex-start;
+  }
+}
+
+
+
+/* ==============================
+   Layout v3 compras/admin + tablas resumen
+   ============================== */
+.pControlsInCard{
+  align-items: stretch;
+}
+.pAdminCard .pCostsHead{
+  display:flex;
+  justify-content:space-between;
+  align-items:flex-start;
+  gap:12px;
+  flex-wrap:wrap;
+}
+.pMiniTable.isWide{
+  min-width: 560px;
+}
+.pMiniTableWrap--summary{
+  overflow-x: hidden;
+}
+.pMiniTable--summary{
+  min-width: 0;
+  table-layout: fixed;
+}
+.pMiniTable--summary th:first-child,
+.pMiniTable--summary td:first-child{
+  width: calc(100% - 78px);
+}
+.pMiniTable--summary th.num,
+.pMiniTable--summary td.num{
+  width: 78px;
+}
+.pMiniTable--summary td{
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+.pMiniTable--summary td.num{
+  white-space: nowrap;
+}
+@media (max-width: 760px){
+  .pMiniTableWrap--summary{
+    overflow-x: auto;
+  }
+  .pMiniTable--summary{
+    min-width: 320px;
   }
 }
