@@ -4,13 +4,13 @@
 <head>
 <meta charset="utf-8"/>
 <meta content="width=device-width, initial-scale=1" name="viewport"/>
-<title>AMARED · Costos</title>
+<title>AMARED · Compras y Recetas</title>
 <!-- ✅ favicon (misma línea gráfica) -->
 <link href="assets/favicon.ico" rel="icon" type="image/x-icon"/>
 <link href="assets/favicon.ico" rel="shortcut icon" type="image/x-icon"/>
 <!-- ✅ estilos globales AMARED -->
 <link href="styles.css" rel="stylesheet"/>
-<!-- ✅ estilos SOLO de purchases (incluye pestaña Costos) -->
+<!-- ✅ estilos de Compras / Recetas -->
 <link href="costs.css" rel="stylesheet"/>
 <style>
 /* ===== Ingredientes modal responsive ===== */
@@ -162,9 +162,8 @@
 </div>
 <div class="pTopBtns">
 <button class="btn secondary" id="btnReload">Recargar</button>
-<div aria-label="Compras y Costos" class="pTabs" role="tablist">
+<div aria-label="Compras y Recetas" class="pTabs" role="tablist">
 <button aria-selected="true" class="pTabBtn isActive" id="btnTabPurchases" role="tab">Compras</button>
-<button aria-selected="false" class="pTabBtn" id="btnTabCosts" role="tab">Costos</button>
 <button aria-selected="false" class="pTabBtn" id="btnTabRecipes" role="tab">Recetas</button>
 </div>
 <button class="btn" id="btnExit">Salir</button>
@@ -232,38 +231,31 @@
           </div>
 </section>
 <section class="card" style="margin-top:14px;">
-<div class="cardTitle" style="margin-bottom:8px;">Ingredientes</div>
-<div class="pGroups" id="groups"></div>
-</section>
-<div style="height:92px;"></div>
-</div>
-<!-- =================== VIEW: COSTOS =================== -->
-<div class="hidden" id="viewCosts" style="display:none;">
-<section class="card">
 <div class="pCostsHead">
 <div>
-<div class="pMetaTitle">Costos de ingredientes</div>
-<div class="hint" style="margin-top:6px;">Edita presentación, precio, tienda y marca. Se guarda en <b>COSTOS_INGREDIENTES</b>.</div>
+<div class="cardTitle" style="margin-bottom:8px;">Ingredientes</div>
+<div class="hint" style="margin-top:6px;">Actualiza compra, presentación, precio, marca y tienda sin salir de <b>Compras</b>.</div>
 </div>
 <div class="pTopBtns" style="justify-content:flex-end;">
 <button class="btn secondary" id="btnCatalogs">⚙️ Tiendas/Marcas</button>
 <button class="btn secondary" id="btnIngredients">🧩 Ingredientes</button>
-<button class="btn secondary" id="btnCostsRefresh">Refrescar</button>
 </div>
 </div>
 <div class="pControls" style="margin-top:12px;">
-<input class="input" id="inpCostSearch" placeholder="Buscar ingrediente en Costos…" type="text"/>
+<input class="input" id="inpCostSearch" placeholder="Buscar ingrediente, marca o tienda…" type="text"/>
 </div>
-<div class="pSmallMeta" id="costsMeta"></div>
+<div class="pSmallMeta" id="costsMeta" style="margin-top:10px;"></div>
+<div class="pGroups" id="groups" style="margin-top:12px;"></div>
 </section>
 <section class="card" style="margin-top:14px;">
-<div class="cardTitle" style="margin-bottom:8px;">Listado</div>
+<div class="cardTitle" style="margin-bottom:8px;">Listado administrativo</div>
+<div class="hint" style="margin-bottom:10px;">Vista completa para revisar presentación, costo por unidad, marca y tienda.</div>
 <div class="pGroups" id="costGroups"></div>
 </section>
-<div style="height:24px;"></div>
+<div style="height:92px;"></div>
+</div>
 <!-- =================== VIEW: RECETAS =================== -->
-
-</div><div class="hidden" id="viewRecipes" style="display:none;">
+<div class="hidden" id="viewRecipes" style="display:none;">
 <section class="card">
 <div class="pCostsHead">
 <div>
@@ -274,7 +266,6 @@
 <div class="pTopBtns recipesActions" style="justify-content:flex-end;">
 <button class="btn secondary recipeAction" id="btnDessertAdd">➕ Postre</button>
 <button class="btn secondary recipeAction" id="btnRecipesAddIngredient">🧩 Ingrediente</button>
-
 </div>
 </div>
 <div class="pSmallMeta" id="recipesMeta" style="margin-top:10px;"></div>
@@ -600,6 +591,6 @@
 </div>
 </div>
 <script src="kitchen-costs.js?v=20260304-recipes-fixednest"></script>
-<script src="costs.js?v=20260304-recipes-inline-normkey"></script>
+<script src="costs.js?v=20260306-unified-purchases"></script>
 </body>
 </html>
