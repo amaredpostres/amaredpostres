@@ -234,23 +234,29 @@
 <div class="pCostsHead">
 <div>
 <div class="cardTitle" style="margin-bottom:8px;">Ingredientes</div>
-<div class="hint" style="margin-top:6px;">Actualiza compra, presentación, precio, marca y tienda sin salir de <b>Compras</b>.</div>
+<div class="hint" style="margin-top:6px;">Usa la búsqueda principal para filtrar ingredientes y luego actualiza compra, presentación, precio, marca y tienda sin salir de <b>Compras</b>.</div>
 </div>
 <div class="pTopBtns" style="justify-content:flex-end;">
 <button class="btn secondary" id="btnCatalogs">⚙️ Tiendas/Marcas</button>
 <button class="btn secondary" id="btnIngredients">🧩 Ingredientes</button>
 </div>
 </div>
-<div class="pControls" style="margin-top:12px;">
-<input class="input" id="inpCostSearch" placeholder="Buscar ingrediente, marca o tienda…" type="text"/>
-</div>
 <div class="pSmallMeta" id="costsMeta" style="margin-top:10px;"></div>
 <div class="pGroups" id="groups" style="margin-top:12px;"></div>
 </section>
 <section class="card" style="margin-top:14px;">
-<div class="cardTitle" style="margin-bottom:8px;">Listado administrativo</div>
-<div class="hint" style="margin-bottom:10px;">Vista completa para revisar presentación, costo por unidad, marca y tienda.</div>
+<details class="pAdminDetails" id="adminCostsDetails">
+<summary class="pAdminSummary">
+<div>
+<div class="cardTitle" style="margin-bottom:6px;">Listado administrativo</div>
+<div class="hint">Toca para ver la revisión completa de presentación, costo por unidad, marca y tienda.</div>
+</div>
+<div class="pAdminChevron" aria-hidden="true">▾</div>
+</summary>
+<div class="pAdminBody">
 <div class="pGroups" id="costGroups"></div>
+</div>
+</details>
 </section>
 <div style="height:92px;"></div>
 </div>
