@@ -926,16 +926,25 @@ select.input{
 
 @media (max-width: 560px){
   .costsPage .mobileNav{
-    gap: 8px;
-    padding: 8px;
+    gap: 9px;
+    padding: 9px;
   }
 
   .costsPage .mNavBtn{
-    flex: 0 0 46px;
+    width: 52px;
+    height: 52px;
+    flex: 0 0 52px;
+    font-size: 15px;
   }
 
   .costsPage .mNavTabs{
-    min-height: 48px;
+    min-height: 52px;
+  }
+
+  .costsPage .mNavTab{
+    min-height: 50px;
+    font-size: 14.5px;
+    padding: 0 13px;
   }
 }
 
