@@ -167,8 +167,6 @@ function updateMobileNavLabel_(){
   const lbl = el("mNavLabel");
   if(!lbl) return;
   lbl.textContent = (state.view === "recipes") ? "Recetas" : "Compras";
-  const menu = el("mNavMenu");
-  if(menu) menu.setAttribute("aria-expanded","false");
 }
 function openMobileNavSheet_(){
   const back = el("mNavSheetBack");
@@ -176,7 +174,11 @@ function openMobileNavSheet_(){
   back.classList.remove("hidden");
   back.setAttribute("aria-hidden","false");
   const menu = el("mNavMenu");
-  if(menu) menu.setAttribute("aria-expanded","true");
+  if(menu){
+    menu.setAttribute("aria-expanded","true");
+    menu.classList.add("isOpen");
+  }
+  try{ document.body.classList.add("mSheetOpen"); }catch(_e){}
 }
 function closeMobileNavSheet_(){
   const back = el("mNavSheetBack");
@@ -184,7 +186,17 @@ function closeMobileNavSheet_(){
   back.classList.add("hidden");
   back.setAttribute("aria-hidden","true");
   const menu = el("mNavMenu");
-  if(menu) menu.setAttribute("aria-expanded","false");
+  if(menu){
+    menu.setAttribute("aria-expanded","false");
+    menu.classList.remove("isOpen");
+  }
+  try{ document.body.classList.remove("mSheetOpen"); }catch(_e){}
+}
+function toggleMobileNavSheet_(){
+  const back = el("mNavSheetBack");
+  if(!back) return;
+  if(back.classList.contains("hidden")) openMobileNavSheet_();
+  else closeMobileNavSheet_();
 }
 
 
@@ -311,6 +323,7 @@ function setView(view){
 
   state.view = v;
 
+  try{ closeMobileNavSheet_(); }catch(_e){}
   try{ updateMobileNavLabel_(); }catch(_e){}
 
   const vp = el("viewPurchases");
@@ -1128,7 +1141,7 @@ function renderGroups(){
     const meta = groupMetaText(keys);
     const gid = `groups:${normKey_(g.title || "Sección")}`;
     const og = state.ui.openGroups || {};
-    const openAttr = (og[gid] || (!Object.keys(og).length && idx===0)) ? "open" : "";
+    const openAttr = (og[gid] || false) ? "open" : "";
     const accent = groupAccent_(idx);
 
     const itemsHtml = keys.map(k => renderItemCard(computeRow(k))).join("");
@@ -3025,7 +3038,7 @@ function bind(){
   // Mobile nav (solo móvil)
   el("mNavReload")?.addEventListener("click", ()=> el("btnReload")?.click());
   el("mNavExit")?.addEventListener("click", ()=> el("btnExit")?.click());
-  el("mNavMenu")?.addEventListener("click", ()=> openMobileNavSheet_());
+  el("mNavMenu")?.addEventListener("click", ()=> toggleMobileNavSheet_());
   el("mNavSheetClose")?.addEventListener("click", ()=> closeMobileNavSheet_());
   el("mNavGoPurchases")?.addEventListener("click", ()=>{ closeMobileNavSheet_(); setView("purchases"); });
   el("mNavGoRecipes")?.addEventListener("click", ()=>{ closeMobileNavSheet_(); setView("recipes"); });
