@@ -1146,10 +1146,12 @@ function renderDesserts(){
 
   const used = Number(state.meta?.orders_used || 0);
   const lim  = Number(state.meta?.orders_limit || 0);
+  const scopeLabel = String(state.meta?.scope_label || "").trim();
   const w0   = String(state.meta?.window_start || "").trim();
   const w1   = String(state.meta?.window_end || "").trim();
   const ordersText = lim ? `Pedidos: ${used}/${lim}` : `Pedidos: ${used}`;
-  if(meta) meta.textContent = `${ordersText}${(w0&&w1)?(" · Ventana: "+w0+" → "+w1):""}`;
+  const scopeText = scopeLabel ? ` · ${scopeLabel}` : ((w0&&w1)?(" · Ventana: "+w0+" → "+w1):"");
+  if(meta) meta.textContent = `${ordersText}${scopeText}`;
 }
 
 
@@ -1172,8 +1174,8 @@ function renderLate(){
   `).join("");
 
   const used = Number(state.late?.orders_used || 0);
-  const w0 = String(state.meta?.late_window_start || "").trim();
-  const w1 = String(state.meta?.late_window_end || "").trim();
+  const w0 = String(state.late?.window_start || state.meta?.late_window_start || "").trim();
+  const w1 = String(state.late?.window_end || state.meta?.late_window_end || "").trim();
   if(meta) meta.textContent = `Pedidos: ${used}${(w0&&w1)?(" · Ventana: "+w0+" → "+w1):""}`;
 }
 
@@ -1678,13 +1680,15 @@ function setMeta(msg){
 function updateMetaLine(){
   const used = Number(state.meta?.orders_used || 0);
   const lim  = Number(state.meta?.orders_limit || 0);
+  const scopeLabel = String(state.meta?.scope_label || "").trim();
   const w0   = String(state.meta?.window_start || "").trim();
   const w1   = String(state.meta?.window_end || "").trim();
-  const winText = (w0&&w1) ? `${w0} → ${w1}` : `${Number(state.meta?.window_hours || state.window_h)}h`;
+  const scopeText = scopeLabel || ((w0&&w1) ? `${w0} → ${w1}` : `${Number(state.meta?.window_hours || state.window_h)}h`);
+  const scopePrefix = scopeLabel ? "Alcance" : "Ventana";
   const ordersText = lim ? `Pedidos: ${used}/${lim}` : `Pedidos: ${used}`;
 
   const selected = selectedKeys().length;
-  setMeta(`Ventana: ${winText} · ${ordersText} · Marcados: ${selected}`);
+  setMeta(`${scopePrefix}: ${scopeText} · ${ordersText} · Marcados: ${selected}`);
 }
 
 // =============== Data load ===============
@@ -1857,14 +1861,22 @@ async function doUnlock(isAuto=false){
 
     closeUnlock();
     show(el("appRoot"));
-    // ✅ Mostrar menú inferior solo en móvil tras desbloquear
-    syncMobileNavForViewport_();
-
     state.ui.openGroups = {};
     setView("purchases");
+    try{ syncMobileNavForViewport_(); }catch(_e){}
 
-    await loadAll();
-    forceCloseDetailsOnLoad_();
+    // ✅ Ocultamos el overlay de validación tan pronto la clave es válida
+    // para que el selector móvil responda de inmediato mientras terminan de cargar los datos.
+    hideLoading();
+    setMeta("Cargando datos…");
+
+    try{
+      await loadAll();
+      forceCloseDetailsOnLoad_();
+      try{ syncMobileNavForViewport_(); }catch(_e){}
+    }catch(err){
+      setMeta(`❌ Error cargando datos: ${(err && err.message) ? err.message : "Error"}`);
+    }
   } catch(err){
     if(el("unlockMsg")) el("unlockMsg").textContent = (err && err.message) ? err.message : "No autorizado";
     // Si falla el auto-ingreso, limpiamos el recuerdo para obligar login manual
