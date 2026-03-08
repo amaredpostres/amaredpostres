@@ -222,6 +222,37 @@ function closeMobileNavSheet_(){
 }
 
 
+function bindFastTap_(id, handler){
+  const node = el(id);
+  if(!node || node.dataset.fastTapBound === "1") return;
+  node.dataset.fastTapBound = "1";
+
+  let handledAt = 0;
+  const fire = (ev)=>{
+    const now = Date.now();
+    if(now - handledAt < 320) return;
+    handledAt = now;
+    try{ ev.preventDefault(); }catch(_e){}
+    try{ ev.stopPropagation(); }catch(_e){}
+    handler(ev);
+  };
+
+  node.addEventListener("pointerup", (ev)=>{
+    if(ev.button != null && ev.button !== 0) return;
+    fire(ev);
+  }, { passive:false });
+
+  node.addEventListener("click", (ev)=>{
+    const now = Date.now();
+    if(now - handledAt < 320){
+      try{ ev.preventDefault(); }catch(_e){}
+      return;
+    }
+    fire(ev);
+  }, { passive:false });
+}
+
+
 function setGlobalMsg(msg, isErr=false){
   const g = el("globalMsg");
   if(!g) return;
@@ -1162,7 +1193,7 @@ function renderGroups(){
     const meta = groupMetaText(keys);
     const gid = `groups:${normKey_(g.title || "Sección")}`;
     const og = state.ui.openGroups || {};
-    const openAttr = (og[gid] || (!Object.keys(og).length && idx===0)) ? "open" : "";
+    const openAttr = (og[gid] || false) ? "open" : "";
     const accent = groupAccent_(idx);
 
     const itemsHtml = keys.map(k => renderItemCard(computeRow(k))).join("");
@@ -1806,9 +1837,11 @@ async function doUnlock(isAuto=false){
     // ✅ Mostrar menú inferior móvil tras desbloquear
     show(el("mobileNav"));
 
+    state.ui.openGroups = {};
     setView("purchases");
 
     await loadAll();
+    forceCloseDetailsOnLoad_();
   } catch(err){
     if(el("unlockMsg")) el("unlockMsg").textContent = (err && err.message) ? err.message : "No autorizado";
     // Si falla el auto-ingreso, limpiamos el recuerdo para obligar login manual
@@ -1827,6 +1860,7 @@ function logout(){
   try{ localStorage.removeItem(LS_SECRET_KEY); }catch(_e){}
   setRememberDeviceEnabled_(false);
   state.buyPlan = {};
+  state.ui.openGroups = {};
   // reset UI
   if(el("secretInput")) el("secretInput").value = "";
   const chk = getRememberCheckbox_();
@@ -3025,6 +3059,20 @@ function captureOpenGroupsFromDOM_(){
   captureFrom("costGroups");
 }
 
+function forceCloseDetailsOnLoad_(){
+  try{
+    state.ui.openGroups = {};
+    const admin = el("adminListDetails");
+    if(admin) admin.open = false;
+    const roots = ["groups","costGroups"];
+    for(const id of roots){
+      const root = el(id);
+      if(!root) continue;
+      const dets = root.querySelectorAll('details.pGroup[data-gid]');
+      dets.forEach(d => { d.open = false; });
+    }
+  }catch(_e){}
+}
 
 
 function bind(){
@@ -3057,17 +3105,17 @@ function bind(){
   el("btnTabRecipes")?.addEventListener("click", ()=> setView("recipes"));
 
   // Mobile nav (solo móvil)
-  el("mNavReload")?.addEventListener("click", ()=> el("btnReload")?.click());
-  el("mNavExit")?.addEventListener("click", ()=> el("btnExit")?.click());
-  el("mNavMenu")?.addEventListener("click", ()=>{
+  bindFastTap_("mNavReload", ()=> el("btnReload")?.click());
+  bindFastTap_("mNavExit", ()=> el("btnExit")?.click());
+  bindFastTap_("mNavMenu", ()=>{
     const back = el("mNavSheetBack");
     const isOpen = !!(back && !back.classList.contains("hidden") && back.getAttribute("aria-hidden") !== "true");
     if(isOpen) closeMobileNavSheet_();
     else openMobileNavSheet_();
   });
-  el("mNavSheetClose")?.addEventListener("click", ()=> closeMobileNavSheet_());
-  el("mNavGoPurchases")?.addEventListener("click", ()=>{ closeMobileNavSheet_(); setView("purchases"); });
-  el("mNavGoRecipes")?.addEventListener("click", ()=>{ closeMobileNavSheet_(); setView("recipes"); });
+  bindFastTap_("mNavSheetClose", ()=> closeMobileNavSheet_());
+  bindFastTap_("mNavGoPurchases", ()=>{ closeMobileNavSheet_(); setView("purchases"); });
+  bindFastTap_("mNavGoRecipes", ()=>{ closeMobileNavSheet_(); setView("recipes"); });
   el("mNavSheetBack")?.addEventListener("click", (e)=>{ if(e.target && e.target.id==="mNavSheetBack") closeMobileNavSheet_(); });
 
   // Compras (admin integrado)
@@ -3442,6 +3490,7 @@ el("ingModalBack")?.addEventListener("click", (e)=>{ if(e.target && e.target.id=
 // =============== Boot ===============
 (function init(){
   bind();
+  forceCloseDetailsOnLoad_();
   loadDeletedDesserts_();
 
   const saved = String(localStorage.getItem(LS_SECRET_KEY) || "").trim();
