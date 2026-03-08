@@ -862,14 +862,19 @@ select.input{
 
 
 /* ==============================
-   Mobile nav viewport guard v21
-   - Refuerza que el selector Compras/Recetas solo exista visualmente en móvil
+   Mobile nav visibility guard v22
+   - Visible en móvil
+   - Oculto en escritorio
    ============================== */
+@media (max-width: 560px){
+  .costsPage #mobileNav{ display:flex; }
+}
+
 @media (min-width: 561px){
   .costsPage #mobileNav,
   .costsPage #mNavSheetBack{
-    display: none !important;
-    visibility: hidden !important;
-    pointer-events: none !important;
+    display:none !important;
+    visibility:hidden !important;
+    pointer-events:none !important;
   }
 }
