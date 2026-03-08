@@ -191,22 +191,8 @@ function syncFrontLayer_(){
   }catch(_e){}
 }
 
-const show = (node) => {
-  if(node){
-    node.classList.remove("hidden");
-    node.hidden = false;
-    node.style.display = "";
-  }
-  syncFrontLayer_();
-};
-const hide = (node) => {
-  if(node){
-    node.classList.add("hidden");
-    node.hidden = true;
-    node.style.display = "none";
-  }
-  syncFrontLayer_();
-};
+const show = (node) => { if(node){ node.classList.remove("hidden"); node.hidden = false; node.style.display = ""; } syncFrontLayer_(); };
+const hide = (node) => { if(node){ node.classList.add("hidden"); node.hidden = true; node.style.display = "none"; } syncFrontLayer_(); };
 
 // =============== Mobile nav ===============
 function updateMobileNavLabel_(){
@@ -3073,7 +3059,12 @@ function bind(){
   // Mobile nav (solo móvil)
   el("mNavReload")?.addEventListener("click", ()=> el("btnReload")?.click());
   el("mNavExit")?.addEventListener("click", ()=> el("btnExit")?.click());
-  el("mNavMenu")?.addEventListener("click", ()=>{ const back = el("mNavSheetBack"); if(back && !back.classList.contains("hidden")) closeMobileNavSheet_(); else openMobileNavSheet_(); });
+  el("mNavMenu")?.addEventListener("click", ()=>{
+    const back = el("mNavSheetBack");
+    const isOpen = !!(back && !back.classList.contains("hidden") && back.getAttribute("aria-hidden") !== "true");
+    if(isOpen) closeMobileNavSheet_();
+    else openMobileNavSheet_();
+  });
   el("mNavSheetClose")?.addEventListener("click", ()=> closeMobileNavSheet_());
   el("mNavGoPurchases")?.addEventListener("click", ()=>{ closeMobileNavSheet_(); setView("purchases"); });
   el("mNavGoRecipes")?.addEventListener("click", ()=>{ closeMobileNavSheet_(); setView("recipes"); });
