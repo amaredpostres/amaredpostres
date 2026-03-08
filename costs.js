@@ -169,8 +169,7 @@ const FRONT_OVERLAY_IDS = [
   "catModalBack",
   "confirmBack",
   "loadingBack",
-  "dessertDeleteBack",
-  "mNavSheetBack"
+  "dessertDeleteBack"
 ];
 
 function isFrontOverlayOpen_(){
@@ -195,34 +194,24 @@ const show = (node) => { if(node){ node.classList.remove("hidden"); node.hidden 
 const hide = (node) => { if(node){ node.classList.add("hidden"); node.hidden = true; node.style.display = "none"; } syncFrontLayer_(); };
 
 // =============== Mobile nav ===============
-let MOBILE_NAV_IGNORE_BACKDROP_UNTIL = 0;
-
 function updateMobileNavLabel_(){
-  const lbl = el("mNavLabel");
-  if(!lbl) return;
-  lbl.textContent = (state.view === "recipes") ? "Recetas" : "Compras";
-  const menu = el("mNavMenu");
-  if(menu) menu.setAttribute("aria-expanded","false");
+  const btnPurch = el("mNavGoPurchases");
+  const btnRec = el("mNavGoRecipes");
+  const isRecipes = (state.view === "recipes");
+
+  if(btnPurch){
+    btnPurch.classList.toggle("isActive", !isRecipes);
+    btnPurch.setAttribute("aria-selected", isRecipes ? "false" : "true");
+    btnPurch.setAttribute("tabindex", isRecipes ? "-1" : "0");
+  }
+  if(btnRec){
+    btnRec.classList.toggle("isActive", isRecipes);
+    btnRec.setAttribute("aria-selected", isRecipes ? "true" : "false");
+    btnRec.setAttribute("tabindex", isRecipes ? "0" : "-1");
+  }
 }
-function openMobileNavSheet_(){
-  const back = el("mNavSheetBack");
-  if(!back) return;
-  back.classList.remove("hidden");
-  back.setAttribute("aria-hidden","false");
-  const menu = el("mNavMenu");
-  if(menu) menu.setAttribute("aria-expanded","true");
-  MOBILE_NAV_IGNORE_BACKDROP_UNTIL = Date.now() + 420;
-  syncFrontLayer_();
-}
-function closeMobileNavSheet_(){
-  const back = el("mNavSheetBack");
-  if(!back) return;
-  back.classList.add("hidden");
-  back.setAttribute("aria-hidden","true");
-  const menu = el("mNavMenu");
-  if(menu) menu.setAttribute("aria-expanded","false");
-  syncFrontLayer_();
-}
+function openMobileNavSheet_(){ updateMobileNavLabel_(); }
+function closeMobileNavSheet_(){}
 
 function syncMobileNavForViewport_(){
   const nav = el("mobileNav");
@@ -241,9 +230,7 @@ function syncMobileNavForViewport_(){
   }
 
   hide(nav);
-  closeMobileNavSheet_();
 }
-
 
 function bindFastTap_(id, handler){
   const node = el(id);
@@ -3142,23 +3129,19 @@ function bind(){
   // Mobile nav (solo móvil)
   bindFastTap_("mNavReload", ()=> el("btnReload")?.click());
   bindFastTap_("mNavExit", ()=> el("btnExit")?.click());
-  bindFastTap_("mNavMenu", ()=>{
-    const back = el("mNavSheetBack");
-    const isOpen = !!(back && !back.classList.contains("hidden") && back.getAttribute("aria-hidden") !== "true");
-    if(isOpen) closeMobileNavSheet_();
-    else openMobileNavSheet_();
-  });
-  bindFastTap_("mNavSheetClose", ()=> closeMobileNavSheet_());
-  bindFastTap_("mNavGoPurchases", ()=>{ closeMobileNavSheet_(); setView("purchases"); });
-  bindFastTap_("mNavGoRecipes", ()=>{ closeMobileNavSheet_(); setView("recipes"); });
-  el("mNavSheetBack")?.addEventListener("click", (e)=>{
-    if(!(e.target && e.target.id==="mNavSheetBack")) return;
-    if(Date.now() < MOBILE_NAV_IGNORE_BACKDROP_UNTIL){
-      try{ e.preventDefault(); }catch(_e){}
-      try{ e.stopPropagation(); }catch(_e){}
+  bindFastTap_("mNavGoPurchases", ()=>{
+    if(state.view === "purchases"){
+      updateMobileNavLabel_();
       return;
     }
-    closeMobileNavSheet_();
+    setView("purchases");
+  });
+  bindFastTap_("mNavGoRecipes", ()=>{
+    if(state.view === "recipes"){
+      updateMobileNavLabel_();
+      return;
+    }
+    setView("recipes");
   });
 
   // Compras (admin integrado)
