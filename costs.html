@@ -303,25 +303,12 @@
 <div class="mobileNav hidden" id="mobileNav" aria-label="Navegación inferior">
   <button class="mNavBtn" id="mNavReload" type="button" aria-label="Recargar">↻</button>
 
-  <button class="mNavCenter" id="mNavMenu" type="button" aria-haspopup="dialog" aria-expanded="false">
-    <span class="mNavLabel" id="mNavLabel">Compras</span>
-    <span class="mNavChev" aria-hidden="true">▴</span>
-  </button>
+  <div class="mNavTabs" role="tablist" aria-label="Cambiar sección">
+    <button class="mNavTab isActive" id="mNavGoPurchases" type="button" role="tab" aria-selected="true">Compras</button>
+    <button class="mNavTab" id="mNavGoRecipes" type="button" role="tab" aria-selected="false">Recetas</button>
+  </div>
 
   <button class="mNavBtn" id="mNavExit" type="button" aria-label="Salir">⎋</button>
-</div>
-
-<!-- Mobile selector sheet (Compras/Recetas) -->
-<div class="mobileSheetBack hidden" id="mNavSheetBack" aria-hidden="true">
-  <div class="mobileSheet" role="dialog" aria-label="Cambiar sección">
-    <div class="mobileSheetHandle" aria-hidden="true"></div>
-    <div class="mobileSheetTitle">Sección</div>
-    <div class="mobileSheetBtns">
-      <button class="btn secondary mobileSheetBtn" id="mNavGoPurchases" type="button">Compras</button>
-      <button class="btn secondary mobileSheetBtn" id="mNavGoRecipes" type="button">Recetas</button>
-    </div>
-    <button class="btn secondary mobileSheetClose" id="mNavSheetClose" type="button">Cerrar</button>
-  </div>
 </div>
 
 <!-- LOGIN (pantalla completa) -->
