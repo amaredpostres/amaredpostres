@@ -730,3 +730,132 @@ select.input{
     overflow: auto;
   }
 }
+
+
+/* ==============================
+   UX móvil v19
+   - Acordeones comienzan cerrados desde JS
+   - Mejor respuesta táctil en menú móvil
+   - Mejor organización del acceso a Recetas en celular
+   - Mantiene intacto el CSS anterior
+   ============================== */
+
+.pLoginActions{
+  display:flex;
+  gap:10px;
+  flex-wrap:wrap;
+  align-items:center;
+}
+.pLoginActions .btn{
+  flex:1 1 0;
+  min-width:140px;
+}
+
+@media (max-width: 560px){
+  /* Mejor respuesta táctil */
+  .costsPage .mNavBtn,
+  .costsPage .mNavCenter,
+  .costsPage .mobileSheetBtn,
+  .costsPage .mobileSheetClose,
+  .costsPage #btnDoRecipesUnlock,
+  .costsPage #btnRecipesClear,
+  .costsPage #btnRecipesCancel{
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+    user-select: none;
+  }
+
+  .costsPage .mNavBtn,
+  .costsPage .mNavCenter{
+    min-height: 48px;
+  }
+
+  .costsPage .mobileSheet{
+    padding-bottom: calc(12px + env(safe-area-inset-bottom, 0px));
+  }
+
+  /* Login principal más estable en móvil */
+  .costsPage .pLoginRow{
+    align-items:stretch;
+  }
+  .costsPage .pLoginRow .input{
+    min-width: 0;
+  }
+  .costsPage .pLoginActions{
+    width:100%;
+    display:grid;
+    grid-template-columns: 1fr 1fr;
+    gap:10px;
+  }
+  .costsPage .pLoginActions .btn{
+    width:100%;
+    min-width:0;
+  }
+
+  /* Acceso a Recetas: mejor distribución en celular */
+  .costsPage #recipesUnlockBack{
+    padding: 12px;
+  }
+
+  .costsPage #recipesUnlockBack .modal{
+    width: min(560px, 96vw);
+    max-height: calc(100vh - 24px);
+    border-radius: 22px;
+  }
+
+  .costsPage #recipesUnlockBack .modalHeader{
+    align-items:flex-start;
+  }
+
+  .costsPage #recipesUnlockBack .modalBody{
+    gap: 12px;
+  }
+
+  .costsPage #recipesUnlockBack .pLoginRow{
+    display:grid;
+    grid-template-columns: 1fr 1fr;
+    gap:10px;
+    align-items:stretch;
+  }
+
+  .costsPage #recipesUnlockBack #recipesPinInput{
+    grid-column: 1 / -1;
+    min-width:0;
+    width:100%;
+    min-height:48px;
+    font-size:16px;
+  }
+
+  .costsPage #recipesUnlockBack #btnDoRecipesUnlock{
+    grid-column: 1 / -1;
+    width:100%;
+    min-height:48px;
+  }
+
+  .costsPage #recipesUnlockBack #btnRecipesClear,
+  .costsPage #recipesUnlockBack #btnRecipesCancel{
+    width:100%;
+    min-height:46px;
+  }
+
+  .costsPage #recipesUnlockBack #recipesUnlockMsg{
+    grid-column: 1 / -1;
+    margin-top:0;
+  }
+}
+
+@media (max-width: 380px){
+  .costsPage .pLoginActions{
+    grid-template-columns: 1fr;
+  }
+
+  .costsPage #recipesUnlockBack .pLoginRow{
+    grid-template-columns: 1fr;
+  }
+
+  .costsPage #recipesUnlockBack #btnDoRecipesUnlock,
+  .costsPage #recipesUnlockBack #btnRecipesClear,
+  .costsPage #recipesUnlockBack #btnRecipesCancel{
+    grid-column: auto;
+  }
+}
