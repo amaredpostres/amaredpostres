@@ -311,255 +311,6 @@ select.input{
 
 /* Ajustes específicos para pantallas pequeñas */
 @media (max-width: 560px){
-  /* Header más compacto */
-  .costsPage .topbarInner{
-    padding: 10px 12px;
-    gap: 10px;
-    align-items: center;
-  }
-  .costsPage .brand{ min-height: 0; }
-  .costsPage .brandLogo{ height: 38px; }
-
-  /* Botones + tabs en grid para que no “sobresalgan” */
-  .costsPage .pTopBtns{
-    width: 100%;
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 10px;
-    align-items: center;
-  }
-  .costsPage #btnReload{ grid-column: 1; }
-  .costsPage #btnExit{ grid-column: 2; }
-  .costsPage .pTabs{
-    grid-column: 1 / -1;
-    width: 100%;
-    margin: 0;
-  }
-  .costsPage .pTabBtn{
-    padding: 10px 10px;
-    font-size: 14px;
-  }
-
-  /* Cards un poco más compactas */
-  .costsPage .card{
-    border-radius: 18px;
-    padding: 14px;
-  }
-  .costsPage .cardTitle{
-    font-size: 15px;
-  }
-
-  /* Textos densos */
-  .costsPage .pMeta{ font-size: 13px; }
-  .costsPage .hint{ font-size: 13px; }
-
-  /* Tablas más legibles en móvil */
-  .costsPage .pMiniTable th,
-  .costsPage .pMiniTable td{
-    padding: 8px 10px;
-  }
-  .costsPage .pMiniTable th{
-    font-size: 11px;
-  }
-  .costsPage .pMiniTable td{
-    font-size: 13px;
-  }
-
-  /* Inputs y toggles */
-  .costsPage .pControls{
-    gap: 10px;
-  }
-  .costsPage .input{
-    border-radius: 16px;
-  }
-  .costsPage .pToggle{
-    width: 100%;
-    justify-content: center;
-  }
-}
-
-/* ==============================
-   Fix layout postres confirmados / pedidos tarde
-   - Evita que textos largos (ventana ISO) desborden la columna
-   ============================== */
-.pSummaryGrid > div{ min-width: 0; }
-#dessertsMeta, #lateMeta{
-  max-width: 100%;
-  overflow-wrap: anywhere;
-  word-break: break-word;
-}
-
-/* ==============================
-   Compras unificado (Costos integrados)
-   ============================== */
-.costsPage .pAdminNote{
-  margin-top: 6px;
-}
-
-@media (max-width:560px){
-  .costsPage .pTopBtns{
-    width: 100%;
-  }
-  .costsPage .pCostsHead .pTopBtns{
-    justify-content: stretch !important;
-  }
-  .costsPage .pCostsHead .pTopBtns .btn{
-    flex: 1 1 calc(50% - 6px);
-  }
-}
-
-/* ===== Tables layout (v8) =====
-   - Costo unitario (isWide): permite scroll horizontal y mantiene columnas legibles
-   - Postres confirmados / Pedidos tarde (wrappers .isCompact): sin scroll y columnas bien alineadas
-*/
-.pMiniTableWrap{
-  overflow: auto;
-  -webkit-overflow-scrolling: touch;
-}
-.pMiniTable{
-  width:100%;
-  border-collapse: collapse;
-}
-
-/* Wide table: Costo unitario estimado */
-.pMiniTable.isWide{
-  table-layout: fixed;
-  min-width: 760px; /* fuerza scroll en pantallas pequeñas */
-}
-.pMiniTable.isWide th:nth-child(1),
-.pMiniTable.isWide td:nth-child(1){
-  width: 52%;
-  overflow-wrap: anywhere;
-  word-break: break-word;
-}
-.pMiniTable.isWide th:nth-child(2),
-.pMiniTable.isWide td:nth-child(2){ width: 16%; }
-.pMiniTable.isWide th:nth-child(3),
-.pMiniTable.isWide td:nth-child(3){ width: 20%; }
-.pMiniTable.isWide th:nth-child(4),
-.pMiniTable.isWide td:nth-child(4){ width: 12%; }
-.pMiniTable.isWide th.num,
-.pMiniTable.isWide td.num{
-  text-align:right;
-  white-space: nowrap;
-}
-
-/* Compact tables: Postres confirmados / Pedidos después de las 3pm */
-.pMiniTableWrap.isCompact{
-  overflow: hidden; /* sin scroll en escritorio */
-}
-.pMiniTableWrap.isCompact .pMiniTable{
-  table-layout: fixed;
-  width: 100%;
-  min-width: 0;
-}
-.pMiniTableWrap.isCompact .pMiniTable th:first-child,
-.pMiniTableWrap.isCompact .pMiniTable td:first-child{
-  width: calc(100% - 90px);
-  overflow-wrap: anywhere;
-  word-break: break-word;
-}
-.pMiniTableWrap.isCompact .pMiniTable th.num,
-.pMiniTableWrap.isCompact .pMiniTable td.num{
-  width: 90px;
-  text-align: right;
-  white-space: nowrap;
-}
-
-@media (max-width: 560px){
-  /* En móvil: compact sigue sin scroll (wrap), wide sí mantiene scroll por min-width */
-  .pMiniTable.isWide{ min-width: 720px; }
-}
-
-
-/* ===== Admin collapsible ===== */
-.pAdminDetails{
-  margin-top: 12px;
-  border: 1px solid var(--border);
-  border-radius: 18px;
-  background: rgba(255,255,255,.60);
-  overflow: hidden;
-}
-.pAdminDetails > summary{
-  list-style: none;
-  cursor: pointer;
-  padding: 12px 14px;
-  font-weight: 950;
-  display:flex;
-  align-items:center;
-  justify-content:space-between;
-  gap:10px;
-  user-select:none;
-}
-.pAdminDetails > summary::-webkit-details-marker{ display:none; }
-.pAdminDetails > summary:after{
-  content: "▾";
-  font-weight: 950;
-  opacity: .75;
-}
-.pAdminDetails[open] > summary:after{ content: "▴"; }
-.pAdminDetails > .hint{ padding: 0 14px; }
-.pAdminDetails #costGroups{ padding: 12px 14px 14px; }
-
-
-@media (max-width: 520px){
-  .pMiniTableWrap{ overflow-x:auto; }
-}
-
-
-
-/* Switch hard reset (evita pseudo global que genera “doble punto”) */
-.pSwitch .switch::before,
-.pSwitch .switch::after{ content:none !important; display:none !important; }
-
-
-/* Buy meta chips (v16) — legible y responsive */
-.pBuyMeta{
-  margin-top: 8px;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px 10px;
-  color: rgba(64,17,2,.72);
-  font-weight: 850;
-}
-.pBuyMeta .mi{
-  display: inline-flex;
-  align-items: baseline;
-  gap: 6px;
-  padding: 6px 10px;
-  border-radius: 999px;
-  border: 1px solid rgba(64,17,2,.10);
-  background: rgba(255,255,255,.65);
-  font-size: 12.5px;
-  line-height: 1.15;
-}
-.pBuyMeta .mi b{ font-weight: 950; }
-.pBuyMeta .miSub{ opacity:.72; font-weight: 850; }
-.pBuyMeta .mi-left{
-  background: rgba(242,91,143,.10);
-  border-color: rgba(242,91,143,.28);
-}
-@media (max-width: 560px){
-  .pBuyMeta{
-    display: grid;
-    grid-template-columns: 1fr;
-    gap: 8px;
-  }
-  .pBuyMeta .mi{
-    width: 100%;
-    justify-content: space-between;
-    border-radius: 16px;
-    padding: 8px 10px;
-    font-size: 13px;
-  }
-}
-
-/* ==============================
-   Mobile bottom nav (v17) — vuelve el menú inferior (Recargar | Sección | Salir)
-   - Solo visible en móvil y SOLO después de login (JS controla .hidden)
-   ============================== */
-
-@media (max-width: 560px){
   /* Ocultar botones superiores en móvil (mantener logo) */
   .costsPage .topbarInner .pTopBtns{ display:none !important; }
 
@@ -570,14 +321,13 @@ select.input{
 
   /* Dar espacio para el menú inferior */
   .costsPage .container{
-    padding-bottom: calc(168px + env(safe-area-inset-bottom, 0px)); /* nav + total bar */
-  
+    padding-bottom: calc(176px + env(safe-area-inset-bottom, 0px)); /* nav + total bar */
+  }
 
   /* Total estimado por encima del menú inferior */
   .pBottomBar{
     bottom: calc(88px + env(safe-area-inset-bottom, 0px));
   }
-}
 
   .mobileNav{
     position: fixed;
@@ -637,7 +387,7 @@ select.input{
   .mobileSheetBack{
     position: fixed;
     inset: 0;
-    z-index: 13000;
+    z-index: 50010;
     display: flex;
     align-items: flex-end;
     justify-content: center;
@@ -675,232 +425,28 @@ select.input{
   .mobileSheetBtn{ width: 100%; }
   .mobileSheetClose{ width: 100%; margin-top: 10px; }
 }
-
 @media (min-width: 561px){
   /* Nunca mostrar menú inferior en escritorio */
   .mobileNav, .mobileSheetBack{ display:none !important; }
 }
 
 
-/* === AMARED mobile/auth fixes v18 === */
-
-/* Autenticación: mejor distribución general */
-#unlockBack,
-#recipesUnlockBack{
-  z-index: 14000;
-}
-#unlockBack .modal,
-#recipesUnlockBack .modal{
-  width: min(560px, 96vw);
-  border-radius: 24px;
-}
-#unlockBack .modalHeader,
-#recipesUnlockBack .modalHeader{
-  padding: 14px 16px;
-}
-#unlockBack .modalBody,
-#recipesUnlockBack .modalBody{
-  display: grid;
-  gap: 12px;
+/* ==============================
+   Front overlay priority (Costos)
+   ============================== */
+.costsPage .modalOverlay{
+  z-index: 50020 !important;
 }
 
-.pLoginRow{
-  display: grid;
-  grid-template-columns: minmax(0,1fr);
-  gap: 10px;
-  align-items: stretch;
-}
-.pLoginRow .input{
-  min-width: 0;
-  width: 100%;
-}
-.pLoginActions{
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 10px;
-}
-.pLoginActions .btn{
-  width: 100%;
-}
-.pErr{
-  margin-top: 0;
-}
-.pRememberRow{
-  margin-top: 2px !important;
-}
-.pRemember{
-  width: 100%;
-  padding: 12px 14px;
-  border: 1px solid var(--border);
-  border-radius: 16px;
-  background: rgba(255,255,255,.72);
-}
-#recipesUnlockBack .pLoginRow{
-  grid-template-columns: minmax(0,1fr) repeat(3, minmax(110px, auto));
-  align-items: end;
-}
-#recipesUnlockBack .pLoginRow .input{
-  grid-column: 1 / 2;
-}
-#recipesUnlockMsg,
-#unlockMsg{
-  min-height: 20px;
+.costsPage.hasFrontOverlay .pBottomBar,
+.costsPage.hasFrontOverlay .mobileNav{
+  opacity: 0 !important;
+  pointer-events: none !important;
+  transform: translateY(22px);
+  transition: opacity .18s ease, transform .18s ease;
 }
 
-@media (max-width: 760px){
-  #recipesUnlockBack .pLoginRow{
-    grid-template-columns: 1fr;
-  }
-  #recipesUnlockBack .pLoginRow .btn,
-  #unlockBack .pLoginActions .btn{
-    width: 100%;
-  }
-}
-
-/* Navegación móvil + barra de total: correcciones robustas */
-@media (max-width: 560px){
-  .costsPage .topbarInner .pTopBtns{ display:none !important; }
-  .costsPage .topbarInner{ justify-content:center !important; }
-
-  .costsPage .container{
-    padding-bottom: calc(252px + env(safe-area-inset-bottom, 0px)) !important;
-  }
-
-  .pBottomBar{
-    left: 12px;
-    right: 12px;
-    bottom: calc(82px + env(safe-area-inset-bottom, 0px));
-    z-index: 11990;
-    border: 1px solid var(--border);
-    border-radius: 22px;
-    box-shadow: 0 18px 44px rgba(64,17,2,.14);
-    padding: 12px;
-    flex-direction: column;
-    align-items: stretch;
-    gap: 10px;
-  }
-  .pBottomLeft{ gap: 4px; }
-  .pBottomValue{ font-size: 22px; }
-  .pBottomBtn{
-    width: 100%;
-    min-width: 0;
-  }
-
-  .mobileNav{
-    position: fixed;
-    left: 12px;
-    right: 12px;
-    bottom: calc(12px + env(safe-area-inset-bottom, 0px));
-    z-index: 12000;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 10px;
-    padding: 10px;
-    border-radius: 999px;
-    border: 1px solid var(--border);
-    background: rgba(254,246,239,.92);
-    backdrop-filter: blur(12px);
-    box-shadow: 0 18px 44px rgba(64,17,2,.14);
-  }
-  .mobileNav.hidden{ display:none !important; }
-
-  .mNavBtn{
-    width: 46px;
-    height: 46px;
-    border-radius: 999px;
-    border: 1px solid rgba(64,17,2,.12);
-    background: rgba(255,255,255,.92);
-    box-shadow: 0 10px 22px rgba(64,17,2,.08);
-    font-weight: 950;
-    cursor: pointer;
-  }
-  .mNavCenter{
-    flex: 1;
-    min-width: 0;
-    height: 46px;
-    border-radius: 999px;
-    border: 1px solid rgba(64,17,2,.12);
-    background: rgba(255,255,255,.88);
-    box-shadow: 0 10px 22px rgba(64,17,2,.06);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 8px;
-    font-weight: 950;
-    cursor: pointer;
-  }
-  .mNavCenter.isOpen .mNavChev{ transform: rotate(180deg); }
-  .mNavLabel{
-    font-weight: 950;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-  .mNavChev{
-    font-size: 14px;
-    opacity: .8;
-    transition: transform .18s ease;
-  }
-
-  .mobileSheetBack{
-    position: fixed;
-    inset: 0;
-    z-index: 13000;
-    display: flex;
-    align-items: flex-end;
-    justify-content: center;
-    padding: 14px 14px calc(78px + env(safe-area-inset-bottom, 0px));
-    background: rgba(0,0,0,.28);
-  }
-  .mobileSheetBack.hidden{ display:none !important; }
-  .mobileSheet{
-    width: min(520px, 96vw);
-    border-radius: 22px;
-    border: 1px solid rgba(64,17,2,.12);
-    background: rgba(255,255,255,.98);
-    box-shadow: 0 24px 70px rgba(0,0,0,.26);
-    padding: 12px;
-    overflow: hidden;
-  }
-  .mobileSheetBtns{
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 10px;
-  }
-  .mobileSheetBtn,
-  .mobileSheetClose{ width: 100%; }
-
-  #unlockBack .modal,
-  #recipesUnlockBack .modal{
-    width: min(96vw, 560px);
-    max-height: calc(100vh - 20px);
-  }
-  #unlockBack .modalHeader,
-  #recipesUnlockBack .modalHeader{
-    align-items: flex-start;
-  }
-  #unlockBack .modalSub,
-  #recipesUnlockBack .modalSub{
-    line-height: 1.35;
-  }
-  #unlockBack .modalBody,
-  #recipesUnlockBack .modalBody{
-    gap: 10px;
-  }
-}
-
-@media (min-width: 561px){
-  .mobileNav,
-  .mobileSheetBack{ display:none !important; }
-
-  .pBottomBar{
-    left: 0;
-    right: 0;
-    bottom: 0;
-    border-radius: 0;
-    border-left: 0;
-    border-right: 0;
-    box-shadow: none;
-  }
+.costsPage .pBottomBar,
+.costsPage .mobileNav{
+  transition: opacity .18s ease, transform .18s ease;
 }
