@@ -195,6 +195,8 @@ const show = (node) => { if(node){ node.classList.remove("hidden"); node.hidden 
 const hide = (node) => { if(node){ node.classList.add("hidden"); node.hidden = true; node.style.display = "none"; } syncFrontLayer_(); };
 
 // =============== Mobile nav ===============
+let MOBILE_NAV_IGNORE_BACKDROP_UNTIL = 0;
+
 function updateMobileNavLabel_(){
   const lbl = el("mNavLabel");
   if(!lbl) return;
@@ -209,6 +211,7 @@ function openMobileNavSheet_(){
   back.setAttribute("aria-hidden","false");
   const menu = el("mNavMenu");
   if(menu) menu.setAttribute("aria-expanded","true");
+  MOBILE_NAV_IGNORE_BACKDROP_UNTIL = Date.now() + 420;
   syncFrontLayer_();
 }
 function closeMobileNavSheet_(){
@@ -3116,7 +3119,15 @@ function bind(){
   bindFastTap_("mNavSheetClose", ()=> closeMobileNavSheet_());
   bindFastTap_("mNavGoPurchases", ()=>{ closeMobileNavSheet_(); setView("purchases"); });
   bindFastTap_("mNavGoRecipes", ()=>{ closeMobileNavSheet_(); setView("recipes"); });
-  el("mNavSheetBack")?.addEventListener("click", (e)=>{ if(e.target && e.target.id==="mNavSheetBack") closeMobileNavSheet_(); });
+  el("mNavSheetBack")?.addEventListener("click", (e)=>{
+    if(!(e.target && e.target.id==="mNavSheetBack")) return;
+    if(Date.now() < MOBILE_NAV_IGNORE_BACKDROP_UNTIL){
+      try{ e.preventDefault(); }catch(_e){}
+      try{ e.stopPropagation(); }catch(_e){}
+      return;
+    }
+    closeMobileNavSheet_();
+  });
 
   // Compras (admin integrado)
   el("btnCatalogs")?.addEventListener("click", ()=> openCatalogModal());
