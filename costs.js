@@ -196,31 +196,6 @@ const hide = (node) => { if(node){ node.classList.add("hidden"); node.hidden = t
 
 // =============== Mobile nav ===============
 let MOBILE_NAV_IGNORE_BACKDROP_UNTIL = 0;
-const MOBILE_NAV_MAX_WIDTH = 560;
-
-function isMobileNavViewport_(){
-  try{
-    if(window.matchMedia) return window.matchMedia(`(max-width:${MOBILE_NAV_MAX_WIDTH}px)`).matches;
-  }catch(_e){}
-  try{ return window.innerWidth <= MOBILE_NAV_MAX_WIDTH; }catch(_e){}
-  return false;
-}
-
-function syncMobileNavVisibility_(){
-  const nav = el("mobileNav");
-  const app = el("appRoot");
-  const unlock = el("unlockBack");
-  const shouldShow = !!nav && !!app && isMobileNavViewport_() && isNodeOpen_(app) && !isNodeOpen_(unlock);
-
-  if(!shouldShow){
-    closeMobileNavSheet_();
-    hide(nav);
-    return;
-  }
-
-  show(nav);
-  try{ updateMobileNavLabel_(); }catch(_e){}
-}
 
 function updateMobileNavLabel_(){
   const lbl = el("mNavLabel");
@@ -230,7 +205,6 @@ function updateMobileNavLabel_(){
   if(menu) menu.setAttribute("aria-expanded","false");
 }
 function openMobileNavSheet_(){
-  if(!isMobileNavViewport_()) return;
   const back = el("mNavSheetBack");
   if(!back) return;
   back.classList.remove("hidden");
@@ -248,6 +222,26 @@ function closeMobileNavSheet_(){
   const menu = el("mNavMenu");
   if(menu) menu.setAttribute("aria-expanded","false");
   syncFrontLayer_();
+}
+
+function syncMobileNavForViewport_(){
+  const nav = el("mobileNav");
+  const app = el("appRoot");
+  const unlock = el("unlockBack");
+  if(!nav) return;
+
+  const appVisible = !!app && !app.classList.contains("hidden") && app.hidden !== true && (app.style.display !== "none");
+  const unlockVisible = !!unlock && !unlock.classList.contains("hidden") && unlock.hidden !== true && (unlock.style.display !== "none");
+  const isMobile = (()=>{ try{ return window.innerWidth <= 560; }catch(_e){ return false; } })();
+
+  if(isMobile && appVisible && !unlockVisible){
+    show(nav);
+    try{ updateMobileNavLabel_(); }catch(_e){}
+    return;
+  }
+
+  hide(nav);
+  closeMobileNavSheet_();
 }
 
 
@@ -425,7 +419,6 @@ function setView(view){
     hide(vp); hide(vc); show(vr);
     if(bb) bb.style.display = "none";
     if(tr){ tr.classList.add("isActive"); tr.setAttribute("aria-selected","true"); }
-    try{ syncMobileNavVisibility_(); }catch(_e){}
     ensureRecipesUnlocked_();
     return;
   }
@@ -436,7 +429,6 @@ function setView(view){
   renderCostsGroups();
   renderUnitCosts();
   refreshBottom();
-  try{ syncMobileNavVisibility_(); }catch(_e){}
 }
 
 function setCostsMeta(msg){
@@ -1865,8 +1857,8 @@ async function doUnlock(isAuto=false){
 
     closeUnlock();
     show(el("appRoot"));
-    // ✅ Mostrar menú inferior solo si realmente está en viewport móvil
-    syncMobileNavVisibility_();
+    // ✅ Mostrar menú inferior solo en móvil tras desbloquear
+    syncMobileNavForViewport_();
 
     state.ui.openGroups = {};
     setView("purchases");
@@ -3139,10 +3131,6 @@ function bind(){
   bindFastTap_("mNavReload", ()=> el("btnReload")?.click());
   bindFastTap_("mNavExit", ()=> el("btnExit")?.click());
   bindFastTap_("mNavMenu", ()=>{
-    if(!isMobileNavViewport_()){
-      syncMobileNavVisibility_();
-      return;
-    }
     const back = el("mNavSheetBack");
     const isOpen = !!(back && !back.classList.contains("hidden") && back.getAttribute("aria-hidden") !== "true");
     if(isOpen) closeMobileNavSheet_();
@@ -3553,15 +3541,10 @@ el("ingModalBack")?.addEventListener("click", (e)=>{ if(e.target && e.target.id=
     }
     openUnlock("");
   }
+
+  try{ syncMobileNavForViewport_(); }catch(_e){}
 })();
 
 
-// Keep mobile nav state in sync with viewport changes
-try{
-  const onMobileViewportChange_ = ()=>{
-    try{ syncMobileNavVisibility_(); }catch(_e){}
-    try{ updateMobileNavLabel_(); }catch(_e){}
-  };
-  window.addEventListener("resize", onMobileViewportChange_);
-  window.addEventListener("orientationchange", onMobileViewportChange_);
-}catch(_e){}
+// Keep mobile nav in sync on resize
+try{ window.addEventListener("resize", ()=>{ try{ syncMobileNavForViewport_(); }catch(_e){} }); }catch(_e){}
