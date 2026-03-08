@@ -680,3 +680,227 @@ select.input{
   /* Nunca mostrar menú inferior en escritorio */
   .mobileNav, .mobileSheetBack{ display:none !important; }
 }
+
+
+/* === AMARED mobile/auth fixes v18 === */
+
+/* Autenticación: mejor distribución general */
+#unlockBack,
+#recipesUnlockBack{
+  z-index: 14000;
+}
+#unlockBack .modal,
+#recipesUnlockBack .modal{
+  width: min(560px, 96vw);
+  border-radius: 24px;
+}
+#unlockBack .modalHeader,
+#recipesUnlockBack .modalHeader{
+  padding: 14px 16px;
+}
+#unlockBack .modalBody,
+#recipesUnlockBack .modalBody{
+  display: grid;
+  gap: 12px;
+}
+
+.pLoginRow{
+  display: grid;
+  grid-template-columns: minmax(0,1fr);
+  gap: 10px;
+  align-items: stretch;
+}
+.pLoginRow .input{
+  min-width: 0;
+  width: 100%;
+}
+.pLoginActions{
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+.pLoginActions .btn{
+  width: 100%;
+}
+.pErr{
+  margin-top: 0;
+}
+.pRememberRow{
+  margin-top: 2px !important;
+}
+.pRemember{
+  width: 100%;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: rgba(255,255,255,.72);
+}
+#recipesUnlockBack .pLoginRow{
+  grid-template-columns: minmax(0,1fr) repeat(3, minmax(110px, auto));
+  align-items: end;
+}
+#recipesUnlockBack .pLoginRow .input{
+  grid-column: 1 / 2;
+}
+#recipesUnlockMsg,
+#unlockMsg{
+  min-height: 20px;
+}
+
+@media (max-width: 760px){
+  #recipesUnlockBack .pLoginRow{
+    grid-template-columns: 1fr;
+  }
+  #recipesUnlockBack .pLoginRow .btn,
+  #unlockBack .pLoginActions .btn{
+    width: 100%;
+  }
+}
+
+/* Navegación móvil + barra de total: correcciones robustas */
+@media (max-width: 560px){
+  .costsPage .topbarInner .pTopBtns{ display:none !important; }
+  .costsPage .topbarInner{ justify-content:center !important; }
+
+  .costsPage .container{
+    padding-bottom: calc(252px + env(safe-area-inset-bottom, 0px)) !important;
+  }
+
+  .pBottomBar{
+    left: 12px;
+    right: 12px;
+    bottom: calc(82px + env(safe-area-inset-bottom, 0px));
+    z-index: 11990;
+    border: 1px solid var(--border);
+    border-radius: 22px;
+    box-shadow: 0 18px 44px rgba(64,17,2,.14);
+    padding: 12px;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+  }
+  .pBottomLeft{ gap: 4px; }
+  .pBottomValue{ font-size: 22px; }
+  .pBottomBtn{
+    width: 100%;
+    min-width: 0;
+  }
+
+  .mobileNav{
+    position: fixed;
+    left: 12px;
+    right: 12px;
+    bottom: calc(12px + env(safe-area-inset-bottom, 0px));
+    z-index: 12000;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 10px;
+    border-radius: 999px;
+    border: 1px solid var(--border);
+    background: rgba(254,246,239,.92);
+    backdrop-filter: blur(12px);
+    box-shadow: 0 18px 44px rgba(64,17,2,.14);
+  }
+  .mobileNav.hidden{ display:none !important; }
+
+  .mNavBtn{
+    width: 46px;
+    height: 46px;
+    border-radius: 999px;
+    border: 1px solid rgba(64,17,2,.12);
+    background: rgba(255,255,255,.92);
+    box-shadow: 0 10px 22px rgba(64,17,2,.08);
+    font-weight: 950;
+    cursor: pointer;
+  }
+  .mNavCenter{
+    flex: 1;
+    min-width: 0;
+    height: 46px;
+    border-radius: 999px;
+    border: 1px solid rgba(64,17,2,.12);
+    background: rgba(255,255,255,.88);
+    box-shadow: 0 10px 22px rgba(64,17,2,.06);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    font-weight: 950;
+    cursor: pointer;
+  }
+  .mNavCenter.isOpen .mNavChev{ transform: rotate(180deg); }
+  .mNavLabel{
+    font-weight: 950;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .mNavChev{
+    font-size: 14px;
+    opacity: .8;
+    transition: transform .18s ease;
+  }
+
+  .mobileSheetBack{
+    position: fixed;
+    inset: 0;
+    z-index: 13000;
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+    padding: 14px 14px calc(78px + env(safe-area-inset-bottom, 0px));
+    background: rgba(0,0,0,.28);
+  }
+  .mobileSheetBack.hidden{ display:none !important; }
+  .mobileSheet{
+    width: min(520px, 96vw);
+    border-radius: 22px;
+    border: 1px solid rgba(64,17,2,.12);
+    background: rgba(255,255,255,.98);
+    box-shadow: 0 24px 70px rgba(0,0,0,.26);
+    padding: 12px;
+    overflow: hidden;
+  }
+  .mobileSheetBtns{
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+  }
+  .mobileSheetBtn,
+  .mobileSheetClose{ width: 100%; }
+
+  #unlockBack .modal,
+  #recipesUnlockBack .modal{
+    width: min(96vw, 560px);
+    max-height: calc(100vh - 20px);
+  }
+  #unlockBack .modalHeader,
+  #recipesUnlockBack .modalHeader{
+    align-items: flex-start;
+  }
+  #unlockBack .modalSub,
+  #recipesUnlockBack .modalSub{
+    line-height: 1.35;
+  }
+  #unlockBack .modalBody,
+  #recipesUnlockBack .modalBody{
+    gap: 10px;
+  }
+}
+
+@media (min-width: 561px){
+  .mobileNav,
+  .mobileSheetBack{ display:none !important; }
+
+  .pBottomBar{
+    left: 0;
+    right: 0;
+    bottom: 0;
+    border-radius: 0;
+    border-left: 0;
+    border-right: 0;
+    box-shadow: none;
+  }
+}
