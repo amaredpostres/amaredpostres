@@ -1513,9 +1513,10 @@ function msToMMSS(ms){
   function remainingProductsCount(){
     const todayAll = state.paidOrders.filter(o=>String(o.__prod_day||"")===String(state.todayKey||""));
     const normStatus = (v)=>String(v||"").trim().toLowerCase();
-    // Contar por producto SOLO los pedidos que aún no están LISTO en BD
+    // ✅ Contar por producto los pedidos que aún no están LISTO en BD
+    //    y además respetar el progreso local ya finalizado por operador.
     const pending = todayAll.filter(o=>{ const ks=normStatus(o.kitchen_status); return ks!=="listo"; });
-    const byProd = aggregateByProduct(pending);
+    const byProd = aggregateByProductRemaining(pending);
     const needed = PRODUCTS.map(p=>p.id).filter(pid=>(byProd.get(pid)||0)>0);
     return needed.length;
   }
@@ -1736,47 +1737,25 @@ async function finalizePostreFromOverlay(){
 
     const ok=await confirmWithDelay({
       title:"Finalizar postre",
-      message:"Se marcará este postre como completado. Los pedidos que aún tengan otro postre pendiente seguirán en proceso.",
+      message:"Se marcará este postre como completado solo en la producción local. La base de datos cambiará a 'Listo' únicamente al finalizar el lote completo.",
       seconds:2,
       okText:"Finalizar"
     });
     if(!ok) return;
 
-    // 1) Marcar localmente este producto como listo por pedido
+    // 1) Marcar localmente este producto como finalizado por pedido
     const day=String(state.todayKey||"");
     for(const oid of orderIds){
       setOrderProductDone(day, oid, pid, true);
     }
+
+    // 2) Marcar avance local por producto para que el siguiente postre
+    //    muestre correctamente si ya es el último del lote.
+    addDoneQty(day, pid, Number(state.recipe?.units||0));
     clearTimer(day, pid);
 
-    // 2) Pasar a LISTO en BD solo los pedidos que ya tengan TODOS sus productos listos
-    const byId=new Map((state.paidOrders||[]).map(o=>[String(o.order_id||""), o]));
-    const toListo=[];
-    for(const oid of orderIds){
-      const o=byId.get(String(oid));
-      if(!o) continue;
-      const req=getRequiredProductIdsForOrder_(o);
-      if(!req.length) continue;
-      const allDone=req.every(pp=>isOrderProductDone(String(o.__prod_day||day), String(oid), String(pp)));
-      if(allDone) toListo.push(String(oid));
-    }
-
-    if(toListo.length){
-      showLoading("Finalizando…","Marcando pedidos como LISTO…");
-      try{
-        const nowIso=new Date().toISOString();
-        await kitchenBulkUpdate(toListo,{
-          kitchen_status:"Listo",
-          kitchen_done_at: nowIso,
-          kitchen_done_by: state.session.operatorLabel||"COCINA",
-        });
-      }catch(e){
-        alert(e?.message||String(e));
-      }finally{
-        hideLoading();
-      }
-    }
-
+    // 3) NO tocar la base de datos aquí.
+    //    El cambio a LISTO se hace solamente en "Finalizar lote".
     closeRecipe();
     await refresh();
   }
@@ -1785,20 +1764,32 @@ async function finalizePostreFromOverlay(){
     return state.paidOrders.filter(o=>o.__prod_day===state.todayKey).map(o=>String(o.order_id));
   }
 
+  function getTodayActiveOrderIds(){
+    const normStatus = (v)=>String(v||"").trim().toLowerCase();
+    return state.paidOrders
+      .filter(o=>String(o.__prod_day||"")===String(state.todayKey||""))
+      .filter(o=>normStatus(o.kitchen_status)!=="listo")
+      .map(o=>String(o.order_id));
+  }
+
   async function finalizeLoteFromOverlay(){
-    const ids=(state.recipe?.orderIds && state.recipe.orderIds.length)? state.recipe.orderIds : getTodayOrderIds();
+    const ids = getTodayActiveOrderIds();
     if(ids.length===0) return;
 
-    const ok=await confirmWithDelay({title:"Finalizar lote", message:"Esto cambiará a 'Listo' en la base de datos.", seconds:2, okText:"Finalizar lote"});
+    const ok=await confirmWithDelay({title:"Finalizar lote", message:"Esto cambiará a 'Listo' en la base de datos para los pedidos pendientes del lote actual.", seconds:2, okText:"Finalizar lote"});
     if(!ok) return;
 
     showLoading("Finalizando lote…","Actualizando base de datos…");
     try{
-      await kitchenBulkUpdate(ids,{kitchen_status:"Listo"});
+      const nowIso=new Date().toISOString();
+      await kitchenBulkUpdate(ids,{
+        kitchen_status:"Listo",
+        kitchen_done_at: nowIso,
+        kitchen_done_by: state.session.operatorLabel||"COCINA",
+      });
       // Limpieza local: temporizadores + progreso por pedido/producto (cerramos el día).
       for(const p of PRODUCTS) clearTimer(state.todayKey, p.id);
       clearOrderDoneDay(state.todayKey);
-      // (Opcional) también limpiar doneQty
       try{ const dm=getDoneMap(); delete dm[state.todayKey]; setDoneMap(dm); }catch(_e){}
       closeRecipe();
       await refresh();
