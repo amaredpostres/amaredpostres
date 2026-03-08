@@ -561,7 +561,7 @@ select.input{
 
 @media (max-width: 560px){
   /* Ocultar botones superiores en móvil (mantener logo) */
-  .costsPage .pTopBtns{ display:none !important; }
+  .costsPage .topbarInner .pTopBtns{ display:none !important; }
 
   /* Centrar header mejor en móvil */
   .costsPage .topbarInner{
@@ -570,8 +570,14 @@ select.input{
 
   /* Dar espacio para el menú inferior */
   .costsPage .container{
-    padding-bottom: calc(92px + env(safe-area-inset-bottom, 0px));
+    padding-bottom: calc(168px + env(safe-area-inset-bottom, 0px)); /* nav + total bar */
+  
+
+  /* Total estimado por encima del menú inferior */
+  .pBottomBar{
+    bottom: calc(88px + env(safe-area-inset-bottom, 0px));
   }
+}
 
   .mobileNav{
     position: fixed;
