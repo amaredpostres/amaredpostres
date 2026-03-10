@@ -466,11 +466,13 @@ tabProdToday?.addEventListener("click", ()=>setProdTab("today"));
     loading.style.zIndex="999999";
     loading.style.display="flex";
     loading.setAttribute("aria-hidden","false");
+    syncActionBarsVisibility();
   }
   function hideLoading(){
     if(!loading) return;
     loading.style.display="none";
     loading.setAttribute("aria-hidden","true");
+    syncActionBarsVisibility();
   }
 
   // ========= API =========
@@ -723,15 +725,27 @@ function startDayRolloverWatch_(){
   function isMobileViewport(){
     try{ return window.matchMedia("(max-width: 860px)").matches; }catch(_e){ return window.innerWidth <= 860; }
   }
+  function isNodeVisible(node){
+    return !!(node && node.style && node.style.display !== "none" && node.getAttribute("aria-hidden") !== "true");
+  }
+  function hasBlockingOverlay(){
+    return isNodeVisible(costsModal)
+      || isNodeVisible(historyModal)
+      || isNodeVisible($("amRecipeOverlayV6"))
+      || isNodeVisible($("amConfirmOverlay"))
+      || isNodeVisible(loading);
+  }
   function syncActionBarsVisibility(){
     const headerBtns = btnRefresh?.parentElement;
     const appVisible = !!(app && app.style.display !== "none");
     const mobile = isMobileViewport();
+    const overlayOpen = hasBlockingOverlay();
+    document.body.classList.toggle("amOverlayOpen", overlayOpen);
     if(headerBtns){
       headerBtns.classList.toggle("isHidden", !appVisible || mobile);
     }
     if(mobileActionBar){
-      mobileActionBar.classList.toggle("isHidden", !appVisible || !mobile);
+      mobileActionBar.classList.toggle("isHidden", !appVisible || !mobile || overlayOpen);
     }
   }
   function showLogin(){
@@ -1015,6 +1029,7 @@ function startDayRolloverWatch_(){
         gap:10px;
         flex-wrap:wrap;
         padding: 0;
+        margin-left:auto;
         border-radius: 0;
         background: transparent;
         border: 0;
@@ -1023,14 +1038,22 @@ function startDayRolloverWatch_(){
       }
       .header-actions.isHidden{ display:none !important; }
       .header-actions .btn{
-        min-height: 42px;
-        border-radius: 14px;
-        padding: 10px 13px;
+        min-height: 44px;
+        border-radius: 16px;
+        padding: 10px 15px;
         display:inline-flex;
         align-items:center;
         justify-content:center;
-        gap:7px;
-        box-shadow:none;
+        gap:8px;
+        border: 1px solid rgba(64,17,2,.10);
+        background: linear-gradient(180deg, rgba(255,255,255,.98), rgba(247,239,232,.98));
+        box-shadow: 0 10px 22px rgba(64,17,2,.06);
+        transition: transform .12s ease, box-shadow .16s ease, border-color .16s ease;
+      }
+      .header-actions .btn:hover{
+        transform: translateY(-1px);
+        box-shadow: 0 14px 28px rgba(64,17,2,.08);
+        border-color: rgba(246,186,96,.36);
       }
       .header-actions .btn .ico{
         display:inline !important;
@@ -1045,7 +1068,7 @@ function startDayRolloverWatch_(){
         left: 12px;
         right: 12px;
         bottom: calc(env(safe-area-inset-bottom, 0px) + 10px) !important;
-        z-index: 9999;
+        z-index: 88;
         display: grid;
         grid-template-columns: 58px minmax(0,1fr) 58px;
         gap: 10px;
@@ -1058,6 +1081,11 @@ function startDayRolloverWatch_(){
         backdrop-filter: blur(12px);
       }
       .amMobileBar.isHidden{ display:none !important; }
+      body.amOverlayOpen .amMobileBar{
+        opacity: 0;
+        pointer-events: none;
+        transform: translateY(18px);
+      }
       .amMobileAction{
         min-height: 56px;
         min-width: 56px;
@@ -1119,6 +1147,101 @@ function startDayRolloverWatch_(){
         box-shadow: inset 0 1px 0 rgba(255,255,255,.85);
       }
       .amMobileSeg:active{ transform: translateY(1px); }
+
+      #costsModal .modalBox{
+        position: relative;
+        padding-top: 22px;
+      }
+      #costsModal .rowBetween{
+        align-items:flex-start;
+        padding-right: 54px;
+      }
+      #btnCloseCosts{
+        position:absolute;
+        top:14px;
+        right:14px;
+        width:44px;
+        min-width:44px;
+        height:44px;
+        padding:0;
+        border-radius:14px;
+        display:inline-flex;
+        align-items:center;
+        justify-content:center;
+        font-size:24px;
+        line-height:1;
+      }
+      .amConfirmActions{
+        display:flex;
+        justify-content:flex-end;
+        gap:10px;
+        margin-top:14px;
+        flex-wrap:wrap;
+      }
+
+      @media (max-width: 860px){
+        body{
+          padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 92px);
+        }
+        .topbarInner{
+          justify-content:center !important;
+          padding-top:14px;
+          padding-bottom:10px;
+        }
+        .brandRow{
+          margin:0 auto;
+          justify-content:center;
+          text-align:center;
+          gap:12px;
+        }
+        .brandRow > div{
+          display:flex;
+          flex-direction:column;
+          align-items:center;
+        }
+        .brandLogo2{
+          width:56px;
+          height:56px;
+        }
+        .ttl{
+          display:none;
+        }
+        .sub{
+          display:flex;
+          flex-direction:column;
+          align-items:center;
+          gap:1px;
+          opacity:1;
+        }
+        .subMain{
+          font-size:22px;
+          line-height:1;
+          font-weight:950;
+          color:var(--choco);
+        }
+        .subMinor{
+          font-size:11px;
+          line-height:1.1;
+          font-weight:800;
+          color:rgba(64,17,2,.58);
+        }
+      }
+
+      @media (min-width: 861px){
+        .sub{
+          display:flex;
+          align-items:baseline;
+          gap:6px;
+        }
+        .subMain{
+          font-weight:900;
+          color:var(--choco);
+        }
+        .subMinor{
+          font-weight:800;
+          color:rgba(64,17,2,.58);
+        }
+      }
 
       /* Tabs Producción */
       .prodTabs{ display:flex; gap:10px; flex-wrap:wrap; margin: 10px 0 12px; }
@@ -1534,7 +1657,7 @@ function renderProfilesSelect(list, selectedId){
           <div style="font-weight:950; font-size:18px;" id="amConfTitle">Confirmar</div>
           <div class="muted small" id="amConfMsg" style="margin-top:8px;"></div>
           <div class="pill" id="amConfCountdown" style="margin-top:12px; display:inline-flex;">2</div>
-          <div class="rowBetween" style="margin-top:14px;">
+          <div class="amConfirmActions">
             <button id="amConfCancel" class="btn secondary" type="button">Cancelar</button>
             <button id="amConfOk" class="btn primary" type="button" disabled>Confirmar</button>
           </div>
@@ -1549,11 +1672,12 @@ function renderProfilesSelect(list, selectedId){
     const bCancel=$("amConfCancel"); const bOk=$("amConfOk");
     t.textContent=title||"Confirmar"; m.textContent=message||""; bOk.textContent=okText||"Confirmar";
     ov.style.display="flex"; ov.setAttribute("aria-hidden","false");
+    syncActionBarsVisibility();
     let remaining=Math.max(0,Number(seconds||0));
     cd.textContent=String(remaining); bOk.disabled=true;
     let interval=null; let resolve;
     const p=new Promise(res=>resolve=res);
-    const close=(val)=>{ if(interval) clearInterval(interval); ov.style.display="none"; ov.setAttribute("aria-hidden","true"); bCancel.onclick=null; bOk.onclick=null; resolve(val); };
+    const close=(val)=>{ if(interval) clearInterval(interval); ov.style.display="none"; ov.setAttribute("aria-hidden","true"); bCancel.onclick=null; bOk.onclick=null; syncActionBarsVisibility(); resolve(val); };
     bCancel.onclick=()=>close(false);
     bOk.onclick=()=>close(true);
     interval=setInterval(()=>{
@@ -1689,12 +1813,14 @@ function renderProfilesSelect(list, selectedId){
     injectRecipeOverlay();
     const ov=$("amRecipeOverlayV6");
     ov.style.display="flex"; ov.setAttribute("aria-hidden","false");
+    syncActionBarsVisibility();
     state.recipe={open:true, productId:pid, orderIds:orderIds||[], units:Number(units||0), stepIdx:0, timerStarted:false};
     renderRecipeStep();
   }
   function closeRecipe(){
     const ov=$("amRecipeOverlayV6");
     if(ov){ ov.style.display="none"; ov.setAttribute("aria-hidden","true"); }
+    syncActionBarsVisibility();
     state.recipe={open:false, productId:null, orderIds:[], units:0, stepIdx:0, timerStarted:false};
   }
   function stepMove(delta){
@@ -2451,12 +2577,14 @@ async function finalizePostreFromOverlay(){
       try{ costsModal.scrollTop=0; }catch(_e){}
       try{ costsEditor.scrollTop=0; costsEditor.style.overflow="auto"; }catch(_e){}
     costsModal.setAttribute("aria-hidden","false");
+    syncActionBarsVisibility();
     renderCostsReadOnly();
   }
   function closeCostsModal(){
     if(!costsModal) return;
     costsModal.style.display="none";
     costsModal.setAttribute("aria-hidden","true");
+    syncActionBarsVisibility();
   }
   function renderCostsReadOnly(){
     if(!costsEditor) return;
@@ -2694,6 +2822,7 @@ async function finalizePostreFromOverlay(){
     if(!historyModal) return;
     historyModal.style.display="flex";
     historyModal.setAttribute("aria-hidden","false");
+    syncActionBarsVisibility();
     renderHistory();
   }
 
@@ -2701,6 +2830,7 @@ async function finalizePostreFromOverlay(){
     if(!historyModal) return;
     historyModal.style.display="none";
     historyModal.setAttribute("aria-hidden","true");
+    syncActionBarsVisibility();
   }
 
   function renderHistory(){
@@ -2841,7 +2971,7 @@ async function finalizePostreFromOverlay(){
           </button>
         </div>
         <button id="mBtnLogout" class="amMobileAction amDanger" type="button" aria-label="Salir">
-          <span class="ico">◉</span><span class="txt">Salir</span>
+          <span class="ico">🚪</span><span class="txt">Salir</span>
         </button>`;
       document.body.appendChild(bar);
     }
@@ -2942,6 +3072,30 @@ async function finalizePostreFromOverlay(){
     loadProfilesOnStart();
   }
 
+  function enhanceKitchenHeader(){
+    const buildTag = document.getElementById("buildTag");
+    if(buildTag) buildTag.remove();
+    const sub = document.querySelector(".brandRow .sub");
+    if(sub && !sub.dataset.enhanced){
+      sub.innerHTML = `<span class="subMain">Cocina</span><span class="subMinor">Producción diaria</span>`;
+      sub.dataset.enhanced = "1";
+    }
+  }
+
+  function normalizeDesktopActionOrder(){
+    const headerBtns = btnRefresh?.parentElement;
+    if(!headerBtns) return;
+    headerBtns.classList.add("header-actions");
+    [btnRefresh, btnCosts, btnHistory, btnLogout].filter(Boolean).forEach(node=>headerBtns.appendChild(node));
+  }
+
+  function upgradeCostsModalChrome(){
+    if(!btnCloseCosts) return;
+    btnCloseCosts.textContent = "✕";
+    btnCloseCosts.setAttribute("aria-label", "Cerrar");
+    btnCloseCosts.setAttribute("title", "Cerrar");
+  }
+
   // ========= Init =========
   async function init(){
     injectStylesV6();
@@ -2973,6 +3127,9 @@ async function finalizePostreFromOverlay(){
     // marca contenedor header-actions si existe
     const headerBtns = btnRefresh?.parentElement;
     if(headerBtns) headerBtns.classList.add("header-actions");
+    enhanceKitchenHeader();
+    upgradeCostsModalChrome();
+    normalizeDesktopActionOrder();
 
     showLogin();
     renderProfilesSelect([], "");
