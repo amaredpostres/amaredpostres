@@ -720,6 +720,20 @@ function startDayRolloverWatch_(){
   }
 
   // ========= AUTH/UI =========
+  function isMobileViewport(){
+    try{ return window.matchMedia("(max-width: 860px)").matches; }catch(_e){ return window.innerWidth <= 860; }
+  }
+  function syncActionBarsVisibility(){
+    const headerBtns = btnRefresh?.parentElement;
+    const appVisible = !!(app && app.style.display !== "none");
+    const mobile = isMobileViewport();
+    if(headerBtns){
+      headerBtns.classList.toggle("isHidden", !appVisible || mobile);
+    }
+    if(mobileActionBar){
+      mobileActionBar.classList.toggle("isHidden", !appVisible || !mobile);
+    }
+  }
   function showLogin(){
     if(loginBox) loginBox.style.display="block";
     if(app) app.style.display="none";
@@ -728,8 +742,7 @@ function startDayRolloverWatch_(){
     if(btnShopping) btnShopping.style.display="none";
     if(btnCosts) btnCosts.style.display="none";
     if(btnHistory) btnHistory.style.display="none";
-    const headerBtns = btnRefresh?.parentElement;
-    if(headerBtns) headerBtns.classList.add("isHidden");
+    syncActionBarsVisibility();
   }
   function showApp(){
     if(loginBox) loginBox.style.display="none";
@@ -739,8 +752,7 @@ function startDayRolloverWatch_(){
     if(btnShopping) btnShopping.style.display="none";
     if(btnCosts) btnCosts.style.display="inline-flex";
     if(btnHistory) btnHistory.style.display="inline-flex";
-    const headerBtns = btnRefresh?.parentElement;
-    if(headerBtns) headerBtns.classList.remove("isHidden");
+    syncActionBarsVisibility();
   }
   function saveSession(){ sessionStorage.setItem(SS_KEY, JSON.stringify(state.session)); }
   function loadSession(){
@@ -1000,33 +1012,71 @@ function startDayRolloverWatch_(){
       .header-actions{
         display:flex;
         align-items:center;
-        gap:10px;
+        gap:8px;
         flex-wrap:wrap;
-        padding: 8px;
-        border-radius: 22px;
-        background: rgba(255,255,255,.70);
-        border: 1px solid rgba(64,17,2,.10);
-        box-shadow: 0 10px 24px rgba(64,17,2,.06);
+        padding: 6px;
+        border-radius: 18px;
+        background: rgba(255,255,255,.82);
+        border: 1px solid rgba(64,17,2,.08);
+        box-shadow: 0 8px 18px rgba(64,17,2,.05);
         backdrop-filter: blur(8px);
       }
       .header-actions.isHidden{ display:none !important; }
       .header-actions .btn{
-        min-height: 46px;
-        border-radius: 16px;
-        padding: 10px 14px;
+        min-height: 42px;
+        border-radius: 14px;
+        padding: 10px 13px;
         display:inline-flex;
         align-items:center;
         justify-content:center;
-        gap:8px;
+        gap:7px;
         box-shadow:none;
       }
       .header-actions .btn .ico{
         display:inline !important;
-        font-size:16px;
+        font-size:15px;
       }
       .header-actions .btn .txt{
         display:inline !important;
       }
+
+      .amMobileBar{
+        position: fixed;
+        left: 12px;
+        right: 12px;
+        bottom: calc(env(safe-area-inset-bottom, 0px) + 10px);
+        z-index: 90;
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0,1fr));
+        gap: 8px;
+        padding: 8px;
+        border-radius: 20px;
+        background: rgba(255,253,252,.96);
+        border: 1px solid rgba(64,17,2,.08);
+        box-shadow: 0 16px 30px rgba(64,17,2,.10);
+        backdrop-filter: blur(12px);
+      }
+      .amMobileBar.isHidden{ display:none !important; }
+      .amMobileAction{
+        min-height: 58px;
+        border: 1px solid rgba(64,17,2,.08);
+        border-radius: 16px;
+        background: rgba(255,255,255,.96);
+        color: var(--choco);
+        display:flex;
+        flex-direction:column;
+        align-items:center;
+        justify-content:center;
+        gap:4px;
+        padding: 6px 4px;
+        font: inherit;
+        font-weight: 900;
+        cursor: pointer;
+        box-shadow: 0 4px 10px rgba(64,17,2,.04);
+      }
+      .amMobileAction .ico{ font-size:18px; line-height:1; }
+      .amMobileAction .txt{ font-size:10.5px; line-height:1.05; }
+      .amMobileAction.amDanger{ background: rgba(255,248,244,.98); }
 
       /* Tabs Producción */
       .prodTabs{ display:flex; gap:10px; flex-wrap:wrap; margin: 10px 0 12px; }
@@ -1040,17 +1090,18 @@ function startDayRolloverWatch_(){
         box-shadow: 0 6px 16px rgba(64,17,2,.04);
       }
       .tabBtn.active{
-        background: rgba(246,186,96,.42);
-        border-color: rgba(246,186,96,.85);
+        background: rgba(246,186,96,.20);
+        border-color: rgba(246,186,96,.55);
+        box-shadow: none;
       }
 
       /* Cards de producto */
       .amCard{
-        background: rgba(255,255,255,.90);
-        border: 1px solid rgba(64,17,2,.10);
-        border-radius: 22px;
+        background: rgba(255,255,255,.92);
+        border: 1px solid rgba(64,17,2,.08);
+        border-radius: 20px;
         padding: 16px;
-        box-shadow: 0 14px 34px rgba(64,17,2,.07);
+        box-shadow: 0 10px 20px rgba(64,17,2,.05);
         margin-bottom: 12px;
       }
       .amHead{
@@ -1176,19 +1227,22 @@ function startDayRolloverWatch_(){
           padding: 14px;
         }
         #app{
-          padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 110px);
+          padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 94px);
         }
         .layout{
           gap: 14px;
         }
         .card{
-          border-radius: 24px;
+          border-radius: 22px;
           padding: 16px;
         }
         .amStickyTimer{
           right: 12px;
           top: 76px;
           width: 208px;
+        }
+        .header-actions{
+          display:none !important;
         }
       }
 
@@ -1201,18 +1255,18 @@ function startDayRolloverWatch_(){
           width: 100%;
         }
         .brandLogo2{
-          width: 48px;
-          height: 48px;
+          width: 46px;
+          height: 46px;
         }
         .ttl{
           font-size: 18px;
         }
         .sub{
-          font-size: 12px;
+          font-size: 11.5px;
         }
         #loginBox{
           margin-top: 10px !important;
-          border-radius: 24px;
+          border-radius: 22px;
         }
         .prodTabs{
           gap: 8px;
@@ -1225,7 +1279,7 @@ function startDayRolloverWatch_(){
         }
         .amCard{
           padding: 14px;
-          border-radius: 20px;
+          border-radius: 18px;
         }
         .amHead{
           align-items:flex-start;
@@ -1234,50 +1288,16 @@ function startDayRolloverWatch_(){
           font-size: 17px;
         }
         .amQty{
-          font-size: 26px;
+          font-size: 24px;
         }
         .amPill{
-          padding: 8px 12px;
-          font-size: 13px;
+          padding: 8px 11px;
+          font-size: 12.5px;
         }
-        .header-actions{
-          position: fixed;
-          left: 14px;
-          right: 14px;
-          bottom: calc(env(safe-area-inset-bottom, 0px) + 12px);
-          z-index: 70;
-          display: grid;
-          grid-template-columns: repeat(4, minmax(0,1fr));
-          gap: 10px;
-          padding: 10px;
-          border-radius: 26px;
-          background: rgba(255,253,252,.96);
-          box-shadow: 0 18px 40px rgba(64,17,2,.12);
-          backdrop-filter: blur(14px);
-        }
-        .header-actions .btn{
-          min-height: 62px;
-          padding: 8px 6px;
-          border-radius: 18px;
-          flex-direction: column;
-          gap: 4px;
-          font-size: 11px;
-          line-height: 1.08;
-        }
-        .header-actions .btn .ico{
-          display:block !important;
-          font-size: 18px;
-        }
-        .header-actions .btn .txt{
-          display:block !important;
-          font-size: 10px;
-          font-weight: 900;
-          text-align: center;
-          max-width: 100%;
-          white-space: nowrap;
-          overflow: hidden;
-          text-overflow: ellipsis;
-        }
+      }
+
+      @media (min-width: 861px){
+        .amMobileBar{ display:none !important; }
       }
     `;
     document.head.appendChild(st);
@@ -2518,6 +2538,11 @@ async function finalizePostreFromOverlay(){
   
   // ========= Historial (pedidos elaborados) =========
   let btnHistory = null;
+  let mobileActionBar = null;
+  let mBtnHistory = null;
+  let mBtnCosts = null;
+  let mBtnRefresh = null;
+  let mBtnLogout = null;
   let historyModal = null;
   let histListEl = null;
   let histStatusEl = null;
@@ -2840,6 +2865,7 @@ async function finalizePostreFromOverlay(){
     ensureHistoryButton();
     // Compras se gestiona desde Purchases, se elimina el botón en Cocina.
     ensureCostsButton();
+    ensureMobileActionBar();
 
     // Trae costos al cargar la vista (para que el botón Costos muestre datos actualizados)
     fetchCostsPublic().catch(()=>{});
@@ -2913,6 +2939,10 @@ async function finalizePostreFromOverlay(){
     if(btnLogout) btnLogout.onclick=onLogout;
     if(btnCosts) btnCosts.onclick=openCostsModal;
     if(btnCloseCosts) btnCloseCosts.onclick=closeCostsModal;
+    wireMobileActionBar();
+    syncActionBarsVisibility();
+    window.addEventListener("resize", syncActionBarsVisibility, { passive:true });
+    window.addEventListener("orientationchange", syncActionBarsVisibility, { passive:true });
   }
 
   init().catch(err=>{
