@@ -1012,14 +1012,14 @@ function startDayRolloverWatch_(){
       .header-actions{
         display:flex;
         align-items:center;
-        gap:8px;
+        gap:10px;
         flex-wrap:wrap;
-        padding: 6px;
-        border-radius: 18px;
-        background: rgba(255,255,255,.82);
-        border: 1px solid rgba(64,17,2,.08);
-        box-shadow: 0 8px 18px rgba(64,17,2,.05);
-        backdrop-filter: blur(8px);
+        padding: 0;
+        border-radius: 0;
+        background: transparent;
+        border: 0;
+        box-shadow: none;
+        backdrop-filter: none;
       }
       .header-actions.isHidden{ display:none !important; }
       .header-actions .btn{
@@ -1048,35 +1048,36 @@ function startDayRolloverWatch_(){
         z-index: 90;
         display: grid;
         grid-template-columns: repeat(4, minmax(0,1fr));
-        gap: 8px;
-        padding: 8px;
-        border-radius: 20px;
+        gap: 10px;
+        padding: 10px;
+        border-radius: 24px;
         background: rgba(255,253,252,.96);
         border: 1px solid rgba(64,17,2,.08);
-        box-shadow: 0 16px 30px rgba(64,17,2,.10);
+        box-shadow: 0 18px 34px rgba(64,17,2,.10);
         backdrop-filter: blur(12px);
       }
       .amMobileBar.isHidden{ display:none !important; }
       .amMobileAction{
         min-height: 58px;
         border: 1px solid rgba(64,17,2,.08);
-        border-radius: 16px;
-        background: rgba(255,255,255,.96);
+        border-radius: 18px;
+        background: rgba(246,186,96,.90);
         color: var(--choco);
         display:flex;
         flex-direction:column;
         align-items:center;
         justify-content:center;
         gap:4px;
-        padding: 6px 4px;
+        padding: 8px 6px;
         font: inherit;
         font-weight: 900;
         cursor: pointer;
-        box-shadow: 0 4px 10px rgba(64,17,2,.04);
+        box-shadow: none;
       }
       .amMobileAction .ico{ font-size:18px; line-height:1; }
-      .amMobileAction .txt{ font-size:10.5px; line-height:1.05; }
-      .amMobileAction.amDanger{ background: rgba(255,248,244,.98); }
+      .amMobileAction .txt{ font-size:11px; line-height:1.05; }
+      .amMobileAction.amDanger{ background: rgba(246,186,96,.90); }
+      .amMobileAction:active{ transform: translateY(1px); }
 
       /* Tabs Producción */
       .prodTabs{ display:flex; gap:10px; flex-wrap:wrap; margin: 10px 0 12px; }
@@ -2775,6 +2776,48 @@ async function finalizePostreFromOverlay(){
     histListEl.innerHTML = `
       <div class="histDays">${htmlDays}</div>
     `;
+  }
+
+
+  function ensureMobileActionBar(){
+    if(mobileActionBar && document.body.contains(mobileActionBar)) return mobileActionBar;
+
+    let bar = document.getElementById("amKitchenMobileBar");
+    if(!bar){
+      bar = document.createElement("div");
+      bar.id = "amKitchenMobileBar";
+      bar.className = "amMobileBar isHidden";
+      bar.innerHTML = `
+        <button id="mBtnLogout" class="amMobileAction amDanger" type="button">
+          <span class="ico">🚪</span><span class="txt">Salir</span>
+        </button>
+        <button id="mBtnHistory" class="amMobileAction" type="button">
+          <span class="ico">🕘</span><span class="txt">Historial</span>
+        </button>
+        <button id="mBtnCosts" class="amMobileAction" type="button">
+          <span class="ico">💰</span><span class="txt">Costos</span>
+        </button>
+        <button id="mBtnRefresh" class="amMobileAction" type="button">
+          <span class="ico">🔄</span><span class="txt">Actualizar</span>
+        </button>`;
+      document.body.appendChild(bar);
+    }
+
+    mobileActionBar = bar;
+    mBtnLogout = bar.querySelector("#mBtnLogout");
+    mBtnHistory = bar.querySelector("#mBtnHistory");
+    mBtnCosts = bar.querySelector("#mBtnCosts");
+    mBtnRefresh = bar.querySelector("#mBtnRefresh");
+    return bar;
+  }
+
+  function wireMobileActionBar(){
+    ensureMobileActionBar();
+    if(mBtnLogout) mBtnLogout.onclick = (e)=>{ e.preventDefault(); onLogout(); };
+    if(mBtnHistory) mBtnHistory.onclick = (e)=>{ e.preventDefault(); openHistoryModal(); };
+    if(mBtnCosts) mBtnCosts.onclick = (e)=>{ e.preventDefault(); openCostsModal(); };
+    if(mBtnRefresh) mBtnRefresh.onclick = (e)=>{ e.preventDefault(); refresh().catch(err=>alert(err?.message||String(err))); };
+    syncActionBarsVisibility();
   }
 
 
