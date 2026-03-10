@@ -629,7 +629,7 @@ btnSendWhatsApp?.addEventListener("click", async () => {
       storeResumeAlert(SUCCESS_MSG, true, pending.messageFallback);
 
       hideLoading();
-      setTimeout(() => openWhatsAppUrl(waUrl), 250); // mobile => location.href
+      openWhatsAppMobile(pending.messageNormal); // iPhone/mobile: intenta abrir la app directo y hace fallback a wa.me
       return;
     }
 
