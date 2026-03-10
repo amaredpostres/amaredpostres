@@ -1041,16 +1041,17 @@ function startDayRolloverWatch_(){
       }
 
       .amMobileBar{
-        position: fixed;
+        position: fixed !important;
         left: 12px;
         right: 12px;
-        bottom: calc(env(safe-area-inset-bottom, 0px) + 10px);
-        z-index: 90;
+        bottom: calc(env(safe-area-inset-bottom, 0px) + 10px) !important;
+        z-index: 9999;
         display: grid;
-        grid-template-columns: repeat(4, minmax(0,1fr));
+        grid-template-columns: 58px minmax(0,1fr) 58px;
         gap: 10px;
-        padding: 10px;
-        border-radius: 24px;
+        align-items: center;
+        padding: 8px;
+        border-radius: 26px;
         background: rgba(255,253,252,.96);
         border: 1px solid rgba(64,17,2,.08);
         box-shadow: 0 18px 34px rgba(64,17,2,.10);
@@ -1058,26 +1059,66 @@ function startDayRolloverWatch_(){
       }
       .amMobileBar.isHidden{ display:none !important; }
       .amMobileAction{
-        min-height: 58px;
+        min-height: 56px;
+        min-width: 56px;
         border: 1px solid rgba(64,17,2,.08);
-        border-radius: 18px;
-        background: rgba(246,186,96,.90);
+        border-radius: 999px;
+        background: rgba(255,255,255,.96);
         color: var(--choco);
         display:flex;
-        flex-direction:column;
         align-items:center;
         justify-content:center;
-        gap:4px;
-        padding: 8px 6px;
+        gap:0;
+        padding: 0;
         font: inherit;
         font-weight: 900;
         cursor: pointer;
-        box-shadow: none;
+        box-shadow: inset 0 1px 0 rgba(255,255,255,.65);
       }
-      .amMobileAction .ico{ font-size:18px; line-height:1; }
-      .amMobileAction .txt{ font-size:11px; line-height:1.05; }
-      .amMobileAction.amDanger{ background: rgba(246,186,96,.90); }
+      .amMobileAction .ico{ font-size:20px; line-height:1; }
+      .amMobileAction .txt{ display:none; }
+      .amMobileAction.amDanger{ background: rgba(255,255,255,.96); }
       .amMobileAction:active{ transform: translateY(1px); }
+      .amMobileCenter{
+        min-width: 0;
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 6px;
+        padding: 6px;
+        border-radius: 999px;
+        background: rgba(255,255,255,.96);
+        border: 1px solid rgba(64,17,2,.08);
+        box-shadow: inset 0 1px 0 rgba(255,255,255,.65);
+      }
+      .amMobileSeg{
+        min-width: 0;
+        min-height: 50px;
+        border: 0;
+        border-radius: 999px;
+        background: transparent;
+        color: rgba(64,17,2,.78);
+        display:flex;
+        align-items:center;
+        justify-content:center;
+        padding: 0 14px;
+        font: inherit;
+        font-weight: 900;
+        cursor: pointer;
+        transition: background .15s ease, color .15s ease, transform .08s ease;
+      }
+      .amMobileSeg .ico{ display:none; }
+      .amMobileSeg .txt{
+        display:block;
+        font-size: 16px;
+        line-height: 1;
+        white-space: nowrap;
+      }
+      .amMobileSeg.isPrimary{
+        background: linear-gradient(180deg, rgba(248,221,228,.92), rgba(247,234,222,.96));
+        color: var(--choco);
+        box-shadow: inset 0 1px 0 rgba(255,255,255,.85);
+      }
+      .amMobileSeg:active{ transform: translateY(1px); }
 
       /* Tabs Producción */
       .prodTabs{ display:flex; gap:10px; flex-wrap:wrap; margin: 10px 0 12px; }
@@ -2788,17 +2829,19 @@ async function finalizePostreFromOverlay(){
       bar.id = "amKitchenMobileBar";
       bar.className = "amMobileBar isHidden";
       bar.innerHTML = `
-        <button id="mBtnLogout" class="amMobileAction amDanger" type="button">
-          <span class="ico">🚪</span><span class="txt">Salir</span>
+        <button id="mBtnRefresh" class="amMobileAction" type="button" aria-label="Actualizar">
+          <span class="ico">↻</span><span class="txt">Actualizar</span>
         </button>
-        <button id="mBtnHistory" class="amMobileAction" type="button">
-          <span class="ico">🕘</span><span class="txt">Historial</span>
-        </button>
-        <button id="mBtnCosts" class="amMobileAction" type="button">
-          <span class="ico">💰</span><span class="txt">Costos</span>
-        </button>
-        <button id="mBtnRefresh" class="amMobileAction" type="button">
-          <span class="ico">🔄</span><span class="txt">Actualizar</span>
+        <div class="amMobileCenter" aria-label="Acciones principales">
+          <button id="mBtnHistory" class="amMobileSeg isPrimary" type="button">
+            <span class="ico">🕘</span><span class="txt">Historial</span>
+          </button>
+          <button id="mBtnCosts" class="amMobileSeg" type="button">
+            <span class="ico">💰</span><span class="txt">Costos</span>
+          </button>
+        </div>
+        <button id="mBtnLogout" class="amMobileAction amDanger" type="button" aria-label="Salir">
+          <span class="ico">◉</span><span class="txt">Salir</span>
         </button>`;
       document.body.appendChild(bar);
     }
