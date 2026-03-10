@@ -728,6 +728,8 @@ function startDayRolloverWatch_(){
     if(btnShopping) btnShopping.style.display="none";
     if(btnCosts) btnCosts.style.display="none";
     if(btnHistory) btnHistory.style.display="none";
+    const headerBtns = btnRefresh?.parentElement;
+    if(headerBtns) headerBtns.classList.add("isHidden");
   }
   function showApp(){
     if(loginBox) loginBox.style.display="none";
@@ -737,6 +739,8 @@ function startDayRolloverWatch_(){
     if(btnShopping) btnShopping.style.display="none";
     if(btnCosts) btnCosts.style.display="inline-flex";
     if(btnHistory) btnHistory.style.display="inline-flex";
+    const headerBtns = btnRefresh?.parentElement;
+    if(headerBtns) headerBtns.classList.remove("isHidden");
   }
   function saveSession(){ sessionStorage.setItem(SS_KEY, JSON.stringify(state.session)); }
   function loadSession(){
@@ -944,44 +948,135 @@ function startDayRolloverWatch_(){
     const st=document.createElement("style");
     st.id="amStylesV6";
     st.textContent=`
-      /* Tabs Producción */
-      .prodTabs{ display:flex; gap:10px; flex-wrap:wrap; margin-bottom:10px; }
-      .tabBtn{ padding:10px 14px; border-radius:14px; border:1px solid rgba(64,17,2,.12); background: rgba(255,255,255,.75); font-weight:900; cursor:pointer; }
-      .tabBtn.active{ background: rgba(246,186,96,.40); border-color: rgba(246,186,96,.85); }
+      body{
+        background:
+          radial-gradient(900px 420px at 20% 5%, rgba(242,91,143,.10), transparent 60%),
+          radial-gradient(900px 420px at 80% 8%, rgba(246,186,96,.12), transparent 60%),
+          var(--cream);
+      }
       .hidden{ display:none !important; }
+      .topbar{
+        position: sticky;
+        top: 0;
+        z-index: 45;
+      }
+      .topbarInner{
+        max-width: 1180px;
+        gap: 16px;
+      }
+      .brandRow{
+        gap: 12px;
+        min-width: 0;
+      }
+      .brandLogo2{
+        width: 50px;
+        height: 50px;
+      }
+      .ttl{
+        font-size: clamp(20px, 2vw, 22px);
+        letter-spacing: .02em;
+      }
+      .sub{
+        font-size: 13px;
+        line-height: 1.25;
+      }
+      #loginBox{
+        max-width: 760px !important;
+        border-radius: 28px;
+        box-shadow: 0 20px 48px rgba(64,17,2,.10);
+      }
+      .layout{
+        align-items: start;
+        gap: 16px;
+      }
+      .card{
+        border-radius: 26px;
+      }
+      .cardTitle{
+        margin-bottom: 6px;
+      }
 
-      /* Cards como "cuadraditos" */
+      /* Menú de acciones */
+      .header-actions{
+        display:flex;
+        align-items:center;
+        gap:10px;
+        flex-wrap:wrap;
+        padding: 8px;
+        border-radius: 22px;
+        background: rgba(255,255,255,.70);
+        border: 1px solid rgba(64,17,2,.10);
+        box-shadow: 0 10px 24px rgba(64,17,2,.06);
+        backdrop-filter: blur(8px);
+      }
+      .header-actions.isHidden{ display:none !important; }
+      .header-actions .btn{
+        min-height: 46px;
+        border-radius: 16px;
+        padding: 10px 14px;
+        display:inline-flex;
+        align-items:center;
+        justify-content:center;
+        gap:8px;
+        box-shadow:none;
+      }
+      .header-actions .btn .ico{
+        display:inline !important;
+        font-size:16px;
+      }
+      .header-actions .btn .txt{
+        display:inline !important;
+      }
+
+      /* Tabs Producción */
+      .prodTabs{ display:flex; gap:10px; flex-wrap:wrap; margin: 10px 0 12px; }
+      .tabBtn{
+        padding:10px 16px;
+        border-radius:16px;
+        border:1px solid rgba(64,17,2,.12);
+        background: rgba(255,255,255,.78);
+        font-weight:900;
+        cursor:pointer;
+        box-shadow: 0 6px 16px rgba(64,17,2,.04);
+      }
+      .tabBtn.active{
+        background: rgba(246,186,96,.42);
+        border-color: rgba(246,186,96,.85);
+      }
+
+      /* Cards de producto */
       .amCard{
-        background: rgba(255,255,255,.88);
-        border: 1px solid rgba(64,17,2,.12);
-        border-radius: 18px;
-        padding: 14px;
-        box-shadow: var(--shadow);
+        background: rgba(255,255,255,.90);
+        border: 1px solid rgba(64,17,2,.10);
+        border-radius: 22px;
+        padding: 16px;
+        box-shadow: 0 14px 34px rgba(64,17,2,.07);
         margin-bottom: 12px;
       }
       .amHead{
         display:flex;
         justify-content:space-between;
         align-items:center;
-        gap:12px;
+        gap:14px;
         cursor:pointer;
         user-select:none;
       }
       .amName{
         font-weight: 950;
-        font-size: 20px;
-        line-height: 1.15;
+        font-size: clamp(20px, 2vw, 24px);
+        line-height: 1.1;
       }
       .amQty{
         font-weight: 950;
-        font-size: 34px;
+        font-size: clamp(34px, 3vw, 42px);
         line-height: 1;
+        color: var(--choco);
       }
       .amPill{
         display:inline-flex;
         align-items:center;
         gap:8px;
-        padding: 8px 12px;
+        padding: 9px 14px;
         border-radius: 999px;
         background: rgba(64,17,2,.06);
         border: 1px solid rgba(64,17,2,.10);
@@ -989,11 +1084,10 @@ function startDayRolloverWatch_(){
       }
       .amBody{
         display:none;
-        margin-top: 12px;
+        margin-top: 14px;
       }
       .amCard.open .amBody{ display:block; }
 
-      /* Ingredientes: layout más atractivo */
       .amIngRow{
         display:flex;
         justify-content:space-between;
@@ -1014,31 +1108,28 @@ function startDayRolloverWatch_(){
         color: rgba(64,17,2,.78);
         font-weight:800;
       }
-
-
-      /* Botón grande de acción */
-      .amActionRow{ display:flex; justify-content:flex-end; margin-top: 12px; }
+      .amActionRow{ display:flex; justify-content:flex-end; margin-top: 14px; }
       .amActionRow .btn{ width: 100%; justify-content:center; }
 
-      /* Timer widget bonito */
+      /* Timer widget */
       .amStickyTimer{
         position:fixed;
-        right: 16px;
-        top: 78px;
+        right: 18px;
+        top: 88px;
         z-index: 99997;
         display:none;
-        width: 220px;
+        width: 232px;
       }
       .amStickyTimer .box{
-        background: rgba(255,255,255,.92);
+        background: rgba(255,255,255,.94);
         border: 1px solid rgba(64,17,2,.14);
-        border-radius: 18px;
-        box-shadow: var(--shadow);
-        padding: 12px;
+        border-radius: 20px;
+        box-shadow: 0 16px 36px rgba(64,17,2,.10);
+        padding: 14px;
         backdrop-filter: blur(8px);
       }
       .amStickyTimer .tTitle{ font-weight:950; font-size:13px; }
-      .amStickyTimer .tTime{ font-weight:950; font-size:22px; margin-top:4px; }
+      .amStickyTimer .tTime{ font-weight:950; font-size:24px; margin-top:4px; }
       .amStickyTimer .bar{
         height: 8px; border-radius: 999px; overflow:hidden;
         background: rgba(64,17,2,.08);
@@ -1051,35 +1142,144 @@ function startDayRolloverWatch_(){
         border-radius: 999px;
       }
 
-      /* Móvil: botones de header icon-only */
-      @media (max-width: 520px){
-        .header-actions .btn{
-          padding: 10px 10px;
-          border-radius: 999px;
-          min-width: 44px;
-        }
-        .header-actions .btn span.txt{ display:none !important; }
-        .header-actions .btn span.ico{ display:inline !important; font-size: 18px; }
-      }
-    
       /* Historial modal */
-      .histList{display:flex; flex-direction:column; gap:10px; margin-top:10px;}
-      .histDay{background: rgba(255,255,255,.82); border:1px solid rgba(64,17,2,.12); border-radius:16px; padding:12px;}
-      .histDay summary{cursor:pointer; font-weight:950; list-style:none; display:flex; align-items:center; justify-content:space-between; gap:10px;}
-      .histDay summary::-webkit-details-marker{display:none;}
+      .histList{display:flex; flex-direction:column; gap:10px; margin-top:10px; }
+      .histDay{background: rgba(255,255,255,.82); border:1px solid rgba(64,17,2,.12); border-radius:16px; padding:12px; }
+      .histDay summary{cursor:pointer; font-weight:950; list-style:none; display:flex; align-items:center; justify-content:space-between; gap:10px; }
+      .histDay summary::-webkit-details-marker{display:none; }
 
       /* ===== Costos modal scroll ===== */
       #costsModal{ align-items:flex-start; overflow:auto; -webkit-overflow-scrolling:touch; }
       #costsModal .modalBox{ max-height: calc(100vh - 32px); overflow:hidden; display:flex; flex-direction:column; }
       #costsModal #costsEditor{ flex:1; min-height:0; overflow:auto; -webkit-overflow-scrolling:touch; padding-right:6px; }
       #costsModal #costsGateErr{ flex:0 0 auto; }
-      
-      .histRows{margin-top:10px; display:flex; flex-direction:column; gap:8px;}
-      .histRow{display:flex; align-items:center; justify-content:space-between; gap:10px; padding:10px 12px; border-radius:14px; background: rgba(255,255,255,.75); border:1px solid rgba(64,17,2,.08);}
-      .histRow .n{font-weight:950;}
-      .histRow .q{font-weight:950; font-size:22px; line-height:1;}
-      .histMeta{margin-top:8px; font-size:12px; opacity:.7;}
-`;
+
+      .histRows{margin-top:10px; display:flex; flex-direction:column; gap:8px; }
+      .histRow{display:flex; align-items:center; justify-content:space-between; gap:10px; padding:10px 12px; border-radius:14px; background: rgba(255,255,255,.75); border:1px solid rgba(64,17,2,.08); }
+      .histRow .n{font-weight:950; }
+      .histRow .q{font-weight:950; font-size:22px; line-height:1; }
+      .histMeta{margin-top:8px; font-size:12px; opacity:.7; }
+
+      @media (min-width: 861px){
+        .container{ padding-top: 16px; }
+        .header-actions{
+          justify-content:flex-end;
+          min-width: fit-content;
+        }
+      }
+
+      @media (max-width: 860px){
+        .topbarInner{
+          padding: 14px 16px;
+        }
+        .container{
+          padding: 14px;
+        }
+        #app{
+          padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 110px);
+        }
+        .layout{
+          gap: 14px;
+        }
+        .card{
+          border-radius: 24px;
+          padding: 16px;
+        }
+        .amStickyTimer{
+          right: 12px;
+          top: 76px;
+          width: 208px;
+        }
+      }
+
+      @media (max-width: 640px){
+        .topbarInner{
+          justify-content:flex-start !important;
+          align-items:flex-start;
+        }
+        .brandRow{
+          width: 100%;
+        }
+        .brandLogo2{
+          width: 48px;
+          height: 48px;
+        }
+        .ttl{
+          font-size: 18px;
+        }
+        .sub{
+          font-size: 12px;
+        }
+        #loginBox{
+          margin-top: 10px !important;
+          border-radius: 24px;
+        }
+        .prodTabs{
+          gap: 8px;
+        }
+        .tabBtn{
+          flex: 1 1 auto;
+          justify-content:center;
+          text-align:center;
+          padding: 10px 12px;
+        }
+        .amCard{
+          padding: 14px;
+          border-radius: 20px;
+        }
+        .amHead{
+          align-items:flex-start;
+        }
+        .amName{
+          font-size: 17px;
+        }
+        .amQty{
+          font-size: 26px;
+        }
+        .amPill{
+          padding: 8px 12px;
+          font-size: 13px;
+        }
+        .header-actions{
+          position: fixed;
+          left: 14px;
+          right: 14px;
+          bottom: calc(env(safe-area-inset-bottom, 0px) + 12px);
+          z-index: 70;
+          display: grid;
+          grid-template-columns: repeat(4, minmax(0,1fr));
+          gap: 10px;
+          padding: 10px;
+          border-radius: 26px;
+          background: rgba(255,253,252,.96);
+          box-shadow: 0 18px 40px rgba(64,17,2,.12);
+          backdrop-filter: blur(14px);
+        }
+        .header-actions .btn{
+          min-height: 62px;
+          padding: 8px 6px;
+          border-radius: 18px;
+          flex-direction: column;
+          gap: 4px;
+          font-size: 11px;
+          line-height: 1.08;
+        }
+        .header-actions .btn .ico{
+          display:block !important;
+          font-size: 18px;
+        }
+        .header-actions .btn .txt{
+          display:block !important;
+          font-size: 10px;
+          font-weight: 900;
+          text-align: center;
+          max-width: 100%;
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+        }
+      }
+    `;
     document.head.appendChild(st);
   }
 
@@ -1513,10 +1713,9 @@ function msToMMSS(ms){
   function remainingProductsCount(){
     const todayAll = state.paidOrders.filter(o=>String(o.__prod_day||"")===String(state.todayKey||""));
     const normStatus = (v)=>String(v||"").trim().toLowerCase();
-    // ✅ Contar por producto los pedidos que aún no están LISTO en BD
-    //    y además respetar el progreso local ya finalizado por operador.
+    // Contar por producto SOLO los pedidos que aún no están LISTO en BD
     const pending = todayAll.filter(o=>{ const ks=normStatus(o.kitchen_status); return ks!=="listo"; });
-    const byProd = aggregateByProductRemaining(pending);
+    const byProd = aggregateByProduct(pending);
     const needed = PRODUCTS.map(p=>p.id).filter(pid=>(byProd.get(pid)||0)>0);
     return needed.length;
   }
@@ -1737,25 +1936,47 @@ async function finalizePostreFromOverlay(){
 
     const ok=await confirmWithDelay({
       title:"Finalizar postre",
-      message:"Se marcará este postre como completado solo en la producción local. La base de datos cambiará a 'Listo' únicamente al finalizar el lote completo.",
+      message:"Se marcará este postre como completado. Los pedidos que aún tengan otro postre pendiente seguirán en proceso.",
       seconds:2,
       okText:"Finalizar"
     });
     if(!ok) return;
 
-    // 1) Marcar localmente este producto como finalizado por pedido
+    // 1) Marcar localmente este producto como listo por pedido
     const day=String(state.todayKey||"");
     for(const oid of orderIds){
       setOrderProductDone(day, oid, pid, true);
     }
-
-    // 2) Marcar avance local por producto para que el siguiente postre
-    //    muestre correctamente si ya es el último del lote.
-    addDoneQty(day, pid, Number(state.recipe?.units||0));
     clearTimer(day, pid);
 
-    // 3) NO tocar la base de datos aquí.
-    //    El cambio a LISTO se hace solamente en "Finalizar lote".
+    // 2) Pasar a LISTO en BD solo los pedidos que ya tengan TODOS sus productos listos
+    const byId=new Map((state.paidOrders||[]).map(o=>[String(o.order_id||""), o]));
+    const toListo=[];
+    for(const oid of orderIds){
+      const o=byId.get(String(oid));
+      if(!o) continue;
+      const req=getRequiredProductIdsForOrder_(o);
+      if(!req.length) continue;
+      const allDone=req.every(pp=>isOrderProductDone(String(o.__prod_day||day), String(oid), String(pp)));
+      if(allDone) toListo.push(String(oid));
+    }
+
+    if(toListo.length){
+      showLoading("Finalizando…","Marcando pedidos como LISTO…");
+      try{
+        const nowIso=new Date().toISOString();
+        await kitchenBulkUpdate(toListo,{
+          kitchen_status:"Listo",
+          kitchen_done_at: nowIso,
+          kitchen_done_by: state.session.operatorLabel||"COCINA",
+        });
+      }catch(e){
+        alert(e?.message||String(e));
+      }finally{
+        hideLoading();
+      }
+    }
+
     closeRecipe();
     await refresh();
   }
@@ -1764,32 +1985,20 @@ async function finalizePostreFromOverlay(){
     return state.paidOrders.filter(o=>o.__prod_day===state.todayKey).map(o=>String(o.order_id));
   }
 
-  function getTodayActiveOrderIds(){
-    const normStatus = (v)=>String(v||"").trim().toLowerCase();
-    return state.paidOrders
-      .filter(o=>String(o.__prod_day||"")===String(state.todayKey||""))
-      .filter(o=>normStatus(o.kitchen_status)!=="listo")
-      .map(o=>String(o.order_id));
-  }
-
   async function finalizeLoteFromOverlay(){
-    const ids = getTodayActiveOrderIds();
+    const ids=(state.recipe?.orderIds && state.recipe.orderIds.length)? state.recipe.orderIds : getTodayOrderIds();
     if(ids.length===0) return;
 
-    const ok=await confirmWithDelay({title:"Finalizar lote", message:"Esto cambiará a 'Listo' en la base de datos para los pedidos pendientes del lote actual.", seconds:2, okText:"Finalizar lote"});
+    const ok=await confirmWithDelay({title:"Finalizar lote", message:"Esto cambiará a 'Listo' en la base de datos.", seconds:2, okText:"Finalizar lote"});
     if(!ok) return;
 
     showLoading("Finalizando lote…","Actualizando base de datos…");
     try{
-      const nowIso=new Date().toISOString();
-      await kitchenBulkUpdate(ids,{
-        kitchen_status:"Listo",
-        kitchen_done_at: nowIso,
-        kitchen_done_by: state.session.operatorLabel||"COCINA",
-      });
+      await kitchenBulkUpdate(ids,{kitchen_status:"Listo"});
       // Limpieza local: temporizadores + progreso por pedido/producto (cerramos el día).
       for(const p of PRODUCTS) clearTimer(state.todayKey, p.id);
       clearOrderDoneDay(state.todayKey);
+      // (Opcional) también limpiar doneQty
       try{ const dm=getDoneMap(); delete dm[state.todayKey]; setDoneMap(dm); }catch(_e){}
       closeRecipe();
       await refresh();
