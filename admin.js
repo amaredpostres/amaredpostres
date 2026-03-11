@@ -1,5 +1,7 @@
 // =================== CONFIG ===================
 const API_URL = "https://amared-orders.amaredpostres.workers.dev/";
+const SS_ADMIN_KEY = "AMARED_ADMIN";
+const LS_ADMIN_KEY = "AMARED_ADMIN_REMEMBER_V1";
 
 // Catálogo (mismo de tu web pública)
 const PRODUCT_CATALOG = [
@@ -35,6 +37,8 @@ const panelView = document.getElementById("panelView");
 
 const loginOperator = document.getElementById("loginOperator");
 const loginPin = document.getElementById("loginPin");
+const btnTogglePin = document.getElementById("btnTogglePin");
+const chkRemember = document.getElementById("chkRemember");
 const btnLogin = document.getElementById("btnLogin");
 const loginError = document.getElementById("loginError");
 
@@ -216,6 +220,47 @@ async function loadPaymentProfiles() {
   }
 }
 
+function saveAdminSession(remember = false) {
+  try { sessionStorage.setItem(SS_ADMIN_KEY, JSON.stringify(SESSION)); } catch {}
+  try {
+    if (remember) localStorage.setItem(LS_ADMIN_KEY, JSON.stringify(SESSION));
+    else localStorage.removeItem(LS_ADMIN_KEY);
+  } catch {}
+}
+
+function loadAdminSavedSession() {
+  try {
+    const rawLocal = localStorage.getItem(LS_ADMIN_KEY);
+    const sLocal = rawLocal ? JSON.parse(rawLocal) : null;
+    if (sLocal?.pin) return { data: sLocal, remembered: true };
+  } catch {}
+  try {
+    const rawSession = sessionStorage.getItem(SS_ADMIN_KEY);
+    const sSession = rawSession ? JSON.parse(rawSession) : null;
+    if (sSession?.pin) return { data: sSession, remembered: false };
+  } catch {}
+  return null;
+}
+
+function clearAdminSavedSession() {
+  try { sessionStorage.removeItem(SS_ADMIN_KEY); } catch {}
+  try { localStorage.removeItem(LS_ADMIN_KEY); } catch {}
+}
+
+function syncPinToggleState() {
+  if (!loginPin || !btnTogglePin) return;
+  const show = loginPin.type === "text";
+  btnTogglePin.textContent = show ? "🙈" : "👁";
+  btnTogglePin.setAttribute("aria-label", show ? "Ocultar PIN" : "Mostrar PIN");
+}
+
+btnTogglePin?.addEventListener("click", () => {
+  if (!loginPin) return;
+  loginPin.type = loginPin.type === "password" ? "text" : "password";
+  syncPinToggleState();
+});
+
+syncPinToggleState();
 
 // =================== NAV (login/panel) ===================
 function showPanel() {
@@ -330,13 +375,13 @@ btnLogin?.addEventListener("click", async () => {
   try {
     showLoading("Verificando acceso...");
     SESSION = { operator: prof.label, operatorId: prof.id, pin };
-    sessionStorage.setItem("AMARED_ADMIN", JSON.stringify(SESSION));
+    saveAdminSession(!!chkRemember?.checked);
 
     showPanel();
     await loadPendientes(false); // valida login (PIN)
   } catch (e) {
     SESSION = { operator: null, operatorId: null, pin: null };
-    sessionStorage.removeItem("AMARED_ADMIN");
+    clearAdminSavedSession();
     showLogin();
     loginError.textContent = `Error: ${String(e.message || e)}`;
   } finally {
@@ -346,7 +391,7 @@ btnLogin?.addEventListener("click", async () => {
 
 btnLogout?.addEventListener("click", () => {
   SESSION = { operator: null, operatorId: null, pin: null };
-  sessionStorage.removeItem("AMARED_ADMIN");
+  clearAdminSavedSession();
   closeDrawer();
   showLogin();
 });
@@ -1044,10 +1089,11 @@ btnCancelConfirm?.addEventListener("click", async () => {
   // Cargar perfiles de pagos apenas abre
   await loadPaymentProfiles();
 
-  const saved = sessionStorage.getItem("AMARED_ADMIN");
-  if (saved) {
+  const savedBundle = loadAdminSavedSession();
+  if (savedBundle?.data) {
     try {
-      const s = JSON.parse(saved);
+      const s = savedBundle.data;
+      if (chkRemember) chkRemember.checked = !!savedBundle.remembered;
       if (s?.pin) {
         // Preselecciona perfil si existe
         if (s.operatorId && loginOperator) loginOperator.value = String(s.operatorId);
@@ -1059,7 +1105,7 @@ btnCancelConfirm?.addEventListener("click", async () => {
           showPanel();
           loadPendientes(false).catch(() => {
             SESSION = { operator: null, operatorId: null, pin: null };
-            sessionStorage.removeItem("AMARED_ADMIN");
+            clearAdminSavedSession();
             showLogin();
           });
         }
