@@ -68,6 +68,7 @@ let CONFIRM_INT = null;
 let CONFIRM_LEFT = 0;
 let CONFIRM_MODE = "wa"; // "wa" | "manual"
 
+
 let deliveryMobileBar = null;
 let dMBtnRefresh = null;
 let dMBtnHistory = null;
@@ -121,7 +122,6 @@ function wireDeliveryMobileBar(){
   if(dMBtnLogout) dMBtnLogout.onclick = (e)=>{ e.preventDefault(); logout(); };
   syncDeliveryActionBars();
 }
-
 
 function showLoading(t="Cargando…", m="Por favor espera."){
   // ✅ Siempre encima de confirm/modales
@@ -276,12 +276,16 @@ async function doLogin(){
 function showPanel(){
   if(loginView) loginView.style.display = "none";
   if(panelView) panelView.style.display = "block";
-  syncDeliveryActionBars();
+  if(btnRefreshTop) btnRefreshTop.style.display = "inline-flex";
+  if(btnHistory) btnHistory.style.display = "inline-flex";
+  if(btnLogoutTop) btnLogoutTop.style.display = "inline-flex";
 }
 function showLogin(){
   if(panelView) panelView.style.display = "none";
   if(loginView) loginView.style.display = "block";
-  syncDeliveryActionBars();
+  if(btnRefreshTop) btnRefreshTop.style.display = "none";
+  if(btnHistory) btnHistory.style.display = "none";
+  if(btnLogoutTop) btnLogoutTop.style.display = "none";
 }
 
 function logout(){
@@ -450,6 +454,7 @@ function openHistory(){
   histStatus.textContent = "";
   histBack.style.display = "flex";
   histBack.setAttribute("aria-hidden","false");
+  syncDeliveryActionBars();
   loadHistory();
 }
 function closeHistory(){
@@ -839,8 +844,6 @@ btnLogout?.addEventListener("click", logout);
 btnHistory?.addEventListener("click", openHistory);
 btnRefreshTop?.addEventListener("click", loadOrders);
 btnLogoutTop?.addEventListener("click", logout);
-wireDeliveryMobileBar();
-window.addEventListener("resize", syncDeliveryActionBars);
 
 listEl?.addEventListener("click", (ev)=>{
   const btnSend = ev.target?.closest?.(".btnSend");
@@ -917,6 +920,9 @@ btnHistReload?.addEventListener("click", loadHistory);
 histBack?.addEventListener("click", (ev)=>{ if(ev.target === histBack) closeHistory(); });
 
 // ---- Init ----
+wireDeliveryMobileBar();
+window.addEventListener("resize", syncDeliveryActionBars);
+
 (function init(){
   try{
     const raw = sessionStorage.getItem(SS_KEY);
