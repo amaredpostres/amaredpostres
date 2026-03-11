@@ -13,6 +13,77 @@ let SEND_ORDER = null;
 let SEND_CONTEXT = "pending"; // "pending" | "history"
 
 
+let deliveryMobileBar = null;
+let deliveryBarObserverStarted = false;
+
+function isMobileViewport(){
+  try{ return window.matchMedia('(max-width: 720px)').matches; }catch(_e){ return window.innerWidth <= 720; }
+}
+function isVisibleEl(el){
+  if(!el) return false;
+  const cs = window.getComputedStyle ? getComputedStyle(el) : null;
+  if(cs && (cs.display === 'none' || cs.visibility === 'hidden' || Number(cs.opacity) === 0)) return false;
+  if(el.getAttribute && el.getAttribute('aria-hidden') === 'true') return false;
+  return true;
+}
+function hasDeliveryOverlayOpen(){
+  return [histBack, sendBack, confirmBack, loading].some(isVisibleEl);
+}
+function ensureDeliveryMobileBar(){
+  if(deliveryMobileBar && document.body.contains(deliveryMobileBar)) return deliveryMobileBar;
+  let bar = document.getElementById('amDeliveryMobileBar');
+  if(!bar){
+    bar = document.createElement('div');
+    bar.id = 'amDeliveryMobileBar';
+    bar.className = 'amDeliveryMobileBar isHidden';
+    bar.innerHTML = `
+      <button id="dMBtnRefresh" class="amDeliveryMobileAction isWarm" type="button" aria-label="Recargar">
+        <span class="ico">↻</span><span class="txt">Recargar</span>
+      </button>
+      <div class="amDeliveryMobileCenter" role="group" aria-label="Acciones de envíos">
+        <button id="dMBtnHistory" class="amDeliveryMobileSeg isAccent" type="button">
+          <span class="txt">Historial</span>
+        </button>
+      </div>
+      <button id="dMBtnLogout" class="amDeliveryMobileAction isNeutral" type="button" aria-label="Salir">
+        <span class="ico">🚪</span><span class="txt">Salir</span>
+      </button>`;
+    document.body.appendChild(bar);
+  }
+  deliveryMobileBar = bar;
+  return bar;
+}
+function syncDeliveryActionBars(){
+  const mobile = isMobileViewport();
+  const appVisible = isVisibleEl(panelView);
+  const overlay = hasDeliveryOverlayOpen();
+  if(btnRefreshTop) btnRefreshTop.style.display = (appVisible && !mobile) ? 'inline-flex' : 'none';
+  if(btnHistory) btnHistory.style.display = (appVisible && !mobile) ? 'inline-flex' : 'none';
+  if(btnLogoutTop) btnLogoutTop.style.display = (appVisible && !mobile) ? 'inline-flex' : 'none';
+  const bar = ensureDeliveryMobileBar();
+  if(bar) bar.classList.toggle('isHidden', !appVisible || !mobile || overlay);
+  document.body.classList.toggle('deliveryOverlayOpen', !!overlay);
+}
+function wireDeliveryMobileBar(){
+  ensureDeliveryMobileBar();
+  const bRefresh = document.getElementById('dMBtnRefresh');
+  const bHistory = document.getElementById('dMBtnHistory');
+  const bLogout = document.getElementById('dMBtnLogout');
+  if(bRefresh && !bRefresh.dataset.wired){ bRefresh.dataset.wired='1'; bRefresh.addEventListener('click', ()=> btnRefreshTop?.click()); }
+  if(bHistory && !bHistory.dataset.wired){ bHistory.dataset.wired='1'; bHistory.addEventListener('click', ()=> btnHistory?.click()); }
+  if(bLogout && !bLogout.dataset.wired){ bLogout.dataset.wired='1'; bLogout.addEventListener('click', ()=> btnLogoutTop?.click()); }
+  syncDeliveryActionBars();
+}
+function watchDeliveryBarState(){
+  if(deliveryBarObserverStarted || !document.body) return;
+  const obs = new MutationObserver(()=> syncDeliveryActionBars());
+  obs.observe(document.body, { subtree:true, childList:true, attributes:true, attributeFilter:['style','class','aria-hidden'] });
+  window.addEventListener('resize', syncDeliveryActionBars, { passive:true });
+  window.addEventListener('orientationchange', syncDeliveryActionBars, { passive:true });
+  deliveryBarObserverStarted = true;
+}
+
+
 const loginView = document.getElementById("loginView");
 const panelView = document.getElementById("panelView");
 
@@ -138,7 +209,6 @@ function hasCategory(profile, wanted){
   return aliases.some(a => cats.includes(a));
 }
 
-
 async function api(payload){
   const res = await fetch(API_URL, {
     method:"POST",
@@ -148,69 +218,6 @@ async function api(payload){
   const out = await res.json().catch(async()=>({ ok:false, error: await res.text().catch(()=> "") }));
   if(!out || out.ok === false) throw new Error(out?.error || out?.message || "Error");
   return out;
-}
-
-let deliveryMobileBar = null;
-let deliveryBarObserverStarted = false;
-
-function isMobileViewport(){
-  try{ return window.matchMedia('(max-width: 720px)').matches; }catch(_e){ return window.innerWidth <= 720; }
-}
-function isVisibleEl(el){
-  if(!el) return false;
-  const cs = window.getComputedStyle ? getComputedStyle(el) : null;
-  if(cs && (cs.display === 'none' || cs.visibility === 'hidden' || Number(cs.opacity) === 0)) return false;
-  if(el.getAttribute && el.getAttribute('aria-hidden') === 'true') return false;
-  return true;
-}
-function hasDeliveryOverlayOpen(){
-  return [histBack, sendBack, confirmBack, loading].some(isVisibleEl);
-}
-function ensureDeliveryMobileBar(){
-  if(deliveryMobileBar && document.body.contains(deliveryMobileBar)) return deliveryMobileBar;
-  let bar = document.getElementById('amDeliveryMobileBar');
-  if(!bar){
-    bar = document.createElement('div');
-    bar.id = 'amDeliveryMobileBar';
-    bar.className = 'amDeliveryMobileBar isHidden';
-    bar.innerHTML = `
-      <button id="dMBtnRefresh" class="amDeliveryMobileAction isWarm" type="button" aria-label="Recargar">↻</button>
-      <div class="amDeliveryMobileCenter" role="group" aria-label="Acciones de envíos">
-        <button id="dMBtnHistory" class="amDeliveryMobileSeg isAccent" type="button">Historial</button>
-      </div>
-      <button id="dMBtnLogout" class="amDeliveryMobileAction isNeutral" type="button" aria-label="Salir">⦿</button>`;
-    document.body.appendChild(bar);
-  }
-  deliveryMobileBar = bar;
-  return bar;
-}
-function syncDeliveryActionBars(){
-  const mobile = isMobileViewport();
-  const appVisible = isVisibleEl(panelView);
-  const overlay = hasDeliveryOverlayOpen();
-  if(btnRefreshTop) btnRefreshTop.style.display = (appVisible && !mobile) ? 'inline-flex' : 'none';
-  if(btnHistory) btnHistory.style.display = (appVisible && !mobile) ? 'inline-flex' : 'none';
-  if(btnLogoutTop) btnLogoutTop.style.display = (appVisible && !mobile) ? 'inline-flex' : 'none';
-  const bar = ensureDeliveryMobileBar();
-  if(bar) bar.classList.toggle('isHidden', !appVisible || !mobile || overlay);
-  document.body.classList.toggle('deliveryOverlayOpen', !!overlay);
-}
-function wireDeliveryMobileBar(){
-  ensureDeliveryMobileBar();
-  const bRefresh = document.getElementById('dMBtnRefresh');
-  const bHistory = document.getElementById('dMBtnHistory');
-  const bLogout = document.getElementById('dMBtnLogout');
-  if(bRefresh && !bRefresh.dataset.wired){ bRefresh.dataset.wired='1'; bRefresh.addEventListener('click', ()=> btnRefreshTop?.click()); }
-  if(bHistory && !bHistory.dataset.wired){ bHistory.dataset.wired='1'; bHistory.addEventListener('click', ()=> btnHistory?.click()); }
-  if(bLogout && !bLogout.dataset.wired){ bLogout.dataset.wired='1'; bLogout.addEventListener('click', ()=> btnLogoutTop?.click()); }
-  syncDeliveryActionBars();
-}
-function watchDeliveryBarState(){
-  if(deliveryBarObserverStarted || !document.body) return;
-  const obs = new MutationObserver(()=> syncDeliveryActionBars());
-  obs.observe(document.body, { subtree:true, childList:true, attributes:true, attributeFilter:['style','class','aria-hidden'] });
-  window.addEventListener('resize', syncDeliveryActionBars);
-  deliveryBarObserverStarted = true;
 }
 
 // ---- Profiles (public list) ----
@@ -283,17 +290,11 @@ async function doLogin(){
 function showPanel(){
   if(loginView) loginView.style.display = "none";
   if(panelView) panelView.style.display = "block";
-  if(btnRefreshTop) btnRefreshTop.style.display = "inline-flex";
-  if(btnHistory) btnHistory.style.display = "inline-flex";
-  if(btnLogoutTop) btnLogoutTop.style.display = "inline-flex";
   syncDeliveryActionBars();
 }
 function showLogin(){
   if(panelView) panelView.style.display = "none";
   if(loginView) loginView.style.display = "block";
-  if(btnRefreshTop) btnRefreshTop.style.display = "none";
-  if(btnHistory) btnHistory.style.display = "none";
-  if(btnLogoutTop) btnLogoutTop.style.display = "none";
   syncDeliveryActionBars();
 }
 
