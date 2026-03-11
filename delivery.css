@@ -282,3 +282,35 @@ body.deliveryOverlayOpen .amDeliveryMobileBar{
 @media (min-width: 721px){
   .amDeliveryMobileBar{ display:none !important; }
 }
+
+
+/* ===== v44: ajustes solicitados ===== */
+.amDeliveryMobileCenter{
+  padding:0;
+  background:transparent;
+  border:0;
+  box-shadow:none;
+}
+.amDeliveryMobileSeg{
+  min-height:56px;
+}
+.amDeliveryMobileSeg.isAccent{
+  border:0;
+}
+
+@media (max-width: 720px){
+  .deliveryPage .topbarInner{
+    justify-content:center !important;
+    align-items:center;
+    gap:10px;
+  }
+  .deliveryPage .topbar .brand{
+    width:100%;
+    justify-content:center !important;
+    margin:0 auto;
+  }
+  .deliveryPage .topbar .brand > div{
+    align-items:center !important;
+    text-align:center;
+  }
+}
