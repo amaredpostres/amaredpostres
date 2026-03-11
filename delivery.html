@@ -27,9 +27,9 @@
     <div class="topbarInner" style="justify-content:space-between;">
       <div class="brand" style="gap:12px; justify-content:flex-start;">
         <img class="brandLogo" src="assets/Logo-Isotipo-Amared.svg" alt="AMARED" style="height:44px;">
-        <div style="display:flex; flex-direction:column; gap:2px;">
-          <div style="font-weight:950; line-height:1.1;">Envíos</div>
-          <div style="font-size:12.5px; font-weight:800; color:rgba(64,17,2,.65);">Pedidos listos para entregar</div>
+        <div class="deliveryBrandMeta">
+          <div class="deliveryBrandTitle">Envíos</div>
+          <div class="deliveryBrandSubtitle">Pedidos listos para entregar</div>
         </div>
       </div>
 
@@ -43,26 +43,37 @@
 
   <main class="container">
     <!-- LOGIN -->
-    <section id="loginView" class="card deliveryCenter">
-      <h2 class="cardTitle">Acceso Envíos</h2>
-      <p class="cardSubtitle">Selecciona un perfil de <b>Envíos</b> o <b>Admin</b> e ingresa el PIN.</p>
+    <section id="loginView" class="card deliveryCenter deliveryLoginCard">
+      <div class="loginHero">
+        <h2 class="loginTitle">Acceso Envíos</h2>
+        <p class="loginLead">Selecciona un perfil aprobado e ingresa el PIN.</p>
+      </div>
 
-      <div class="grid2">
-        <div class="field">
-          <label>Perfil</label>
-          <select id="selOperator" class="input"></select>
-          <div class="muted small" style="margin-top:6px;">Solo aparecen perfiles activos con categoría <b>delivery</b> o <b>admin</b>.</div>
-        </div>
+      <div class="field">
+        <label>Perfil</label>
+        <select id="selOperator" class="input"></select>
+        <div class="muted small" style="margin-top:6px;">Solo aparecen perfiles activos con categoría <b>delivery</b> o <b>admin</b>.</div>
+      </div>
 
-        <div class="field">
-          <label>PIN</label>
-          <input id="inpPin" class="input" type="password" placeholder="PIN" autocomplete="current-password"/>
+      <div class="field" style="margin-top:10px;">
+        <label>PIN</label>
+        <div class="loginPinRow">
+          <input id="inpPin" class="input" type="password" placeholder="••••••" autocomplete="current-password"/>
+          <button id="btnTogglePin" class="pinToggleBtn" type="button" aria-label="Mostrar PIN">👁</button>
         </div>
       </div>
 
-      <div class="row" style="justify-content:flex-end; margin-top:12px;">
-        <a class="btn secondary btnLinkLike" href="profiles.html">Gestionar perfiles</a>
+      <div class="rememberWrap">
+        <label class="rememberLabel">
+          <input id="chkRemember" type="checkbox" />
+          <span>Recuérdame en este dispositivo</span>
+        </label>
+        <div class="rememberHint">Si lo activas, la próxima vez entrarás automáticamente desde este navegador.</div>
+      </div>
+
+      <div class="loginActionsRow">
         <button id="btnLogin" class="btn primary" type="button">Ingresar</button>
+        <a class="btn secondary btnLinkLike" href="profiles.html">Gestionar perfiles</a>
       </div>
 
       <div id="loginErr" class="status" style="color:#b00020; margin-top:10px;"></div>
