@@ -68,6 +68,61 @@ let CONFIRM_INT = null;
 let CONFIRM_LEFT = 0;
 let CONFIRM_MODE = "wa"; // "wa" | "manual"
 
+let deliveryMobileBar = null;
+let dMBtnRefresh = null;
+let dMBtnHistory = null;
+let dMBtnLogout = null;
+
+function isMobileViewport(){
+  try{ return window.matchMedia('(max-width: 860px)').matches; }catch(_e){}
+  return window.innerWidth <= 860;
+}
+function deliveryOverlayOpen(){
+  const open = (node)=> !!(node && node.style && node.style.display === 'flex');
+  return open(histBack) || open(sendBack) || open(confirmBack) || open(loading);
+}
+function syncDeliveryActionBars(){
+  const mobile = isMobileViewport();
+  const appVisible = !!(panelView && panelView.style.display !== 'none');
+  const overlay = deliveryOverlayOpen();
+  document.body.classList.toggle('deliveryOverlayOpen', overlay);
+  if(btnRefreshTop) btnRefreshTop.style.display = (appVisible && !mobile) ? 'inline-flex' : 'none';
+  if(btnHistory) btnHistory.style.display = (appVisible && !mobile) ? 'inline-flex' : 'none';
+  if(btnLogoutTop) btnLogoutTop.style.display = (appVisible && !mobile) ? 'inline-flex' : 'none';
+  if(deliveryMobileBar){
+    deliveryMobileBar.classList.toggle('isHidden', !appVisible || !mobile || overlay);
+  }
+}
+function ensureDeliveryMobileBar(){
+  if(deliveryMobileBar && document.body.contains(deliveryMobileBar)) return deliveryMobileBar;
+  let bar = document.getElementById('amDeliveryMobileBar');
+  if(!bar){
+    bar = document.createElement('div');
+    bar.id = 'amDeliveryMobileBar';
+    bar.className = 'amDeliveryMobileBar isHidden';
+    bar.innerHTML = `
+      <button id="dMBtnRefresh" class="amDeliveryMobileAction" type="button" aria-label="Recargar">Recargar</button>
+      <div class="amDeliveryMobileCenter" aria-label="Acciones principales">
+        <button id="dMBtnHistory" class="amDeliveryMobileSeg" type="button">Historial</button>
+      </div>
+      <button id="dMBtnLogout" class="amDeliveryMobileAction" type="button" aria-label="Salir">Salir</button>`;
+    document.body.appendChild(bar);
+  }
+  deliveryMobileBar = bar;
+  dMBtnRefresh = bar.querySelector('#dMBtnRefresh');
+  dMBtnHistory = bar.querySelector('#dMBtnHistory');
+  dMBtnLogout = bar.querySelector('#dMBtnLogout');
+  return bar;
+}
+function wireDeliveryMobileBar(){
+  ensureDeliveryMobileBar();
+  if(dMBtnRefresh) dMBtnRefresh.onclick = (e)=>{ e.preventDefault(); loadOrders(); };
+  if(dMBtnHistory) dMBtnHistory.onclick = (e)=>{ e.preventDefault(); openHistory(); };
+  if(dMBtnLogout) dMBtnLogout.onclick = (e)=>{ e.preventDefault(); logout(); };
+  syncDeliveryActionBars();
+}
+
+
 function showLoading(t="Cargando…", m="Por favor espera."){
   // ✅ Siempre encima de confirm/modales
   try{ if(loading) loading.style.zIndex = "20000"; }catch(_e){}
@@ -76,11 +131,13 @@ function showLoading(t="Cargando…", m="Por favor espera."){
   if(loadingMsg) loadingMsg.textContent = m;
   loading.style.display = "flex";
   loading.setAttribute("aria-hidden","false");
+  syncDeliveryActionBars();
 }
 function hideLoading(){
   if(!loading) return;
   loading.style.display = "none";
   loading.setAttribute("aria-hidden","true");
+  syncDeliveryActionBars();
 }
 function setStatus(msg){ if(statusEl) statusEl.textContent = msg || ""; }
 
@@ -219,16 +276,12 @@ async function doLogin(){
 function showPanel(){
   if(loginView) loginView.style.display = "none";
   if(panelView) panelView.style.display = "block";
-  if(btnRefreshTop) btnRefreshTop.style.display = "inline-flex";
-  if(btnHistory) btnHistory.style.display = "inline-flex";
-  if(btnLogoutTop) btnLogoutTop.style.display = "inline-flex";
+  syncDeliveryActionBars();
 }
 function showLogin(){
   if(panelView) panelView.style.display = "none";
   if(loginView) loginView.style.display = "block";
-  if(btnRefreshTop) btnRefreshTop.style.display = "none";
-  if(btnHistory) btnHistory.style.display = "none";
-  if(btnLogoutTop) btnLogoutTop.style.display = "none";
+  syncDeliveryActionBars();
 }
 
 function logout(){
@@ -403,6 +456,7 @@ function closeHistory(){
   if(!histBack) return;
   histBack.style.display = "none";
   histBack.setAttribute("aria-hidden","true");
+  syncDeliveryActionBars();
 }
 function renderHistory(orders){
   HIST = orders || [];
@@ -524,6 +578,7 @@ if(!canWa){
 
   sendBack.style.display = "flex";
   sendBack.setAttribute("aria-hidden","false");
+  syncDeliveryActionBars();
 }
 
 function closeSendModal(){
@@ -531,6 +586,7 @@ function closeSendModal(){
   if(!sendBack) return;
   sendBack.style.display = "none";
   sendBack.setAttribute("aria-hidden","true");
+  syncDeliveryActionBars();
 }
 
 function buildMessage(order, etaMinutes, templateId){
@@ -634,6 +690,7 @@ function openConfirm(orderId, mode){
   if(!confirmBack) return;
   confirmBack.style.display = "flex";
   confirmBack.setAttribute("aria-hidden","false");
+  syncDeliveryActionBars();
 
   confirmOrder.textContent = orderId || "—";
   CONFIRM_LEFT = 2;
@@ -660,6 +717,7 @@ function closeConfirm(){
   if(!confirmBack) return;
   confirmBack.style.display = "none";
   confirmBack.setAttribute("aria-hidden","true");
+  syncDeliveryActionBars();
 }
 
 async function markSentOnly(){
@@ -781,6 +839,8 @@ btnLogout?.addEventListener("click", logout);
 btnHistory?.addEventListener("click", openHistory);
 btnRefreshTop?.addEventListener("click", loadOrders);
 btnLogoutTop?.addEventListener("click", logout);
+wireDeliveryMobileBar();
+window.addEventListener("resize", syncDeliveryActionBars);
 
 listEl?.addEventListener("click", (ev)=>{
   const btnSend = ev.target?.closest?.(".btnSend");
