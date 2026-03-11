@@ -1038,13 +1038,13 @@ function startDayRolloverWatch_(){
       }
       .header-actions.isHidden{ display:none !important; }
       .header-actions .btn{
-        min-height: 46px;
-        border-radius: 18px;
-        padding: 10px 18px;
+        min-height: 44px;
+        border-radius: 16px;
+        padding: 10px 15px;
         display:inline-flex;
         align-items:center;
         justify-content:center;
-        gap:0;
+        gap:8px;
         border: 1px solid rgba(64,17,2,.10);
         background: linear-gradient(180deg, rgba(255,255,255,.98), rgba(247,239,232,.98));
         box-shadow: 0 10px 22px rgba(64,17,2,.06);
@@ -1055,23 +1055,12 @@ function startDayRolloverWatch_(){
         box-shadow: 0 14px 28px rgba(64,17,2,.08);
         border-color: rgba(246,186,96,.36);
       }
-      .header-actions .btn .ico{ display:none !important; }
-      .header-actions .btn .txt{ display:inline !important; }
-      #btnRefresh{
-        background: linear-gradient(180deg, rgba(246,196,110,.96), rgba(240,183,84,.96));
-        border-color: rgba(224,160,49,.55);
+      .header-actions .btn .ico{
+        display:inline !important;
+        font-size:15px;
       }
-      #btnCosts{
-        background: linear-gradient(180deg, rgba(255,247,234,.98), rgba(249,236,208,.98));
-        border-color: rgba(246,186,96,.34);
-      }
-      #btnHistory{
-        background: linear-gradient(180deg, rgba(251,240,244,.98), rgba(247,232,237,.98));
-        border-color: rgba(242,91,143,.18);
-      }
-      #btnLogout{
-        background: linear-gradient(180deg, rgba(252,252,252,.98), rgba(241,239,236,.98));
-        border-color: rgba(64,17,2,.10);
+      .header-actions .btn .txt{
+        display:inline !important;
       }
 
       .amMobileBar{
@@ -1081,14 +1070,15 @@ function startDayRolloverWatch_(){
         bottom: calc(env(safe-area-inset-bottom, 0px) + 10px) !important;
         z-index: 88;
         display: grid;
-        grid-template-columns: 100px minmax(0,1fr) 86px;
-        gap: 12px;
+        grid-template-columns: 58px minmax(0,1fr) 58px;
+        gap: 10px;
         align-items: center;
-        padding: 0;
-        background: transparent;
-        border: 0;
-        box-shadow: none;
-        backdrop-filter: none;
+        padding: 8px;
+        border-radius: 26px;
+        background: rgba(255,253,252,.96);
+        border: 1px solid rgba(64,17,2,.08);
+        box-shadow: 0 18px 34px rgba(64,17,2,.10);
+        backdrop-filter: blur(12px);
       }
       .amMobileBar.isHidden{ display:none !important; }
       body.amOverlayOpen .amMobileBar{
@@ -1097,10 +1087,44 @@ function startDayRolloverWatch_(){
         transform: translateY(18px);
       }
       .amMobileAction{
-        min-height: 48px;
+        min-height: 56px;
+        min-width: 56px;
         border: 1px solid rgba(64,17,2,.08);
-        border-radius: 18px;
+        border-radius: 999px;
+        background: rgba(255,255,255,.96);
         color: var(--choco);
+        display:flex;
+        align-items:center;
+        justify-content:center;
+        gap:0;
+        padding: 0;
+        font: inherit;
+        font-weight: 900;
+        cursor: pointer;
+        box-shadow: inset 0 1px 0 rgba(255,255,255,.65);
+      }
+      .amMobileAction .ico{ font-size:20px; line-height:1; }
+      .amMobileAction .txt{ display:none; }
+      .amMobileAction.amDanger{ background: rgba(255,255,255,.96); }
+      .amMobileAction:active{ transform: translateY(1px); }
+      .amMobileCenter{
+        min-width: 0;
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 6px;
+        padding: 6px;
+        border-radius: 999px;
+        background: rgba(255,255,255,.96);
+        border: 1px solid rgba(64,17,2,.08);
+        box-shadow: inset 0 1px 0 rgba(255,255,255,.65);
+      }
+      .amMobileSeg{
+        min-width: 0;
+        min-height: 50px;
+        border: 0;
+        border-radius: 999px;
+        background: transparent;
+        color: rgba(64,17,2,.78);
         display:flex;
         align-items:center;
         justify-content:center;
@@ -1108,65 +1132,17 @@ function startDayRolloverWatch_(){
         font: inherit;
         font-weight: 900;
         cursor: pointer;
-        box-shadow: 0 8px 20px rgba(64,17,2,.06), inset 0 1px 0 rgba(255,255,255,.65);
-        white-space: nowrap;
-      }
-      .amMobileAction .ico{ display:none; }
-      .amMobileAction .txt{ display:block; font-size: 15px; line-height:1; }
-      #mBtnRefresh{
-        background: linear-gradient(180deg, rgba(246,196,110,.96), rgba(240,183,84,.96));
-        border-color: rgba(224,160,49,.56);
-      }
-      .amMobileAction.amDanger,
-      #mBtnLogout{
-        background: linear-gradient(180deg, rgba(252,252,252,.98), rgba(241,239,236,.98));
-        border-color: rgba(64,17,2,.10);
-      }
-      .amMobileAction:active{ transform: translateY(1px); }
-      .amMobileCenter{
-        min-width: 0;
-        display: grid;
-        grid-template-columns: 1fr 1fr;
-        gap: 0;
-        padding: 0;
-        border-radius: 22px;
-        background: rgba(255,255,255,.96);
-        border: 1px solid rgba(64,17,2,.08);
-        box-shadow: 0 8px 20px rgba(64,17,2,.06), inset 0 1px 0 rgba(255,255,255,.65);
-        overflow: hidden;
-      }
-      .amMobileSeg{
-        min-width: 0;
-        min-height: 48px;
-        border: 0;
-        background: transparent;
-        color: rgba(64,17,2,.82);
-        display:flex;
-        align-items:center;
-        justify-content:center;
-        padding: 0 12px;
-        font: inherit;
-        font-weight: 900;
-        cursor: pointer;
         transition: background .15s ease, color .15s ease, transform .08s ease;
-      }
-      .amMobileSeg + .amMobileSeg{
-        border-left: 1px solid rgba(64,17,2,.08);
       }
       .amMobileSeg .ico{ display:none; }
       .amMobileSeg .txt{
         display:block;
-        font-size: 15px;
+        font-size: 16px;
         line-height: 1;
         white-space: nowrap;
       }
-      #mBtnHistory{
-        background: linear-gradient(180deg, rgba(251,231,237,.96), rgba(246,221,229,.96));
-      }
-      #mBtnCosts{
-        background: linear-gradient(180deg, rgba(255,247,234,.98), rgba(249,236,208,.98));
-      }
       .amMobileSeg.isPrimary{
+        background: linear-gradient(180deg, rgba(248,221,228,.92), rgba(247,234,222,.96));
         color: var(--choco);
         box-shadow: inset 0 1px 0 rgba(255,255,255,.85);
       }
@@ -2983,19 +2959,19 @@ async function finalizePostreFromOverlay(){
       bar.id = "amKitchenMobileBar";
       bar.className = "amMobileBar isHidden";
       bar.innerHTML = `
-        <button id="mBtnRefresh" class="amMobileAction" type="button" aria-label="Recargar">
-          <span class="txt">Recargar</span>
+        <button id="mBtnRefresh" class="amMobileAction" type="button" aria-label="Actualizar">
+          <span class="ico">↻</span><span class="txt">Actualizar</span>
         </button>
         <div class="amMobileCenter" aria-label="Acciones principales">
           <button id="mBtnHistory" class="amMobileSeg isPrimary" type="button">
-            <span class="txt">Historial</span>
+            <span class="ico">🕘</span><span class="txt">Historial</span>
           </button>
           <button id="mBtnCosts" class="amMobileSeg" type="button">
-            <span class="txt">Costos</span>
+            <span class="ico">💰</span><span class="txt">Costos</span>
           </button>
         </div>
         <button id="mBtnLogout" class="amMobileAction amDanger" type="button" aria-label="Salir">
-          <span class="txt">Salir</span>
+          <span class="ico">🚪</span><span class="txt">Salir</span>
         </button>`;
       document.body.appendChild(bar);
     }
