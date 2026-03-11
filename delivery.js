@@ -68,61 +68,6 @@ let CONFIRM_INT = null;
 let CONFIRM_LEFT = 0;
 let CONFIRM_MODE = "wa"; // "wa" | "manual"
 
-
-let deliveryMobileBar = null;
-let dMBtnRefresh = null;
-let dMBtnHistory = null;
-let dMBtnLogout = null;
-
-function isMobileViewport(){
-  try{ return window.matchMedia('(max-width: 860px)').matches; }catch(_e){}
-  return window.innerWidth <= 860;
-}
-function deliveryOverlayOpen(){
-  const open = (node)=> !!(node && node.style && node.style.display === 'flex');
-  return open(histBack) || open(sendBack) || open(confirmBack) || open(loading);
-}
-function syncDeliveryActionBars(){
-  const mobile = isMobileViewport();
-  const appVisible = !!(panelView && panelView.style.display !== 'none');
-  const overlay = deliveryOverlayOpen();
-  document.body.classList.toggle('deliveryOverlayOpen', overlay);
-  if(btnRefreshTop) btnRefreshTop.style.display = (appVisible && !mobile) ? 'inline-flex' : 'none';
-  if(btnHistory) btnHistory.style.display = (appVisible && !mobile) ? 'inline-flex' : 'none';
-  if(btnLogoutTop) btnLogoutTop.style.display = (appVisible && !mobile) ? 'inline-flex' : 'none';
-  if(deliveryMobileBar){
-    deliveryMobileBar.classList.toggle('isHidden', !appVisible || !mobile || overlay);
-  }
-}
-function ensureDeliveryMobileBar(){
-  if(deliveryMobileBar && document.body.contains(deliveryMobileBar)) return deliveryMobileBar;
-  let bar = document.getElementById('amDeliveryMobileBar');
-  if(!bar){
-    bar = document.createElement('div');
-    bar.id = 'amDeliveryMobileBar';
-    bar.className = 'amDeliveryMobileBar isHidden';
-    bar.innerHTML = `
-      <button id="dMBtnRefresh" class="amDeliveryMobileAction" type="button" aria-label="Recargar">Recargar</button>
-      <div class="amDeliveryMobileCenter" aria-label="Acciones principales">
-        <button id="dMBtnHistory" class="amDeliveryMobileSeg" type="button">Historial</button>
-      </div>
-      <button id="dMBtnLogout" class="amDeliveryMobileAction" type="button" aria-label="Salir">Salir</button>`;
-    document.body.appendChild(bar);
-  }
-  deliveryMobileBar = bar;
-  dMBtnRefresh = bar.querySelector('#dMBtnRefresh');
-  dMBtnHistory = bar.querySelector('#dMBtnHistory');
-  dMBtnLogout = bar.querySelector('#dMBtnLogout');
-  return bar;
-}
-function wireDeliveryMobileBar(){
-  ensureDeliveryMobileBar();
-  if(dMBtnRefresh) dMBtnRefresh.onclick = (e)=>{ e.preventDefault(); loadOrders(); };
-  if(dMBtnHistory) dMBtnHistory.onclick = (e)=>{ e.preventDefault(); openHistory(); };
-  if(dMBtnLogout) dMBtnLogout.onclick = (e)=>{ e.preventDefault(); logout(); };
-  syncDeliveryActionBars();
-}
-
 function showLoading(t="Cargando…", m="Por favor espera."){
   // ✅ Siempre encima de confirm/modales
   try{ if(loading) loading.style.zIndex = "20000"; }catch(_e){}
@@ -131,13 +76,11 @@ function showLoading(t="Cargando…", m="Por favor espera."){
   if(loadingMsg) loadingMsg.textContent = m;
   loading.style.display = "flex";
   loading.setAttribute("aria-hidden","false");
-  syncDeliveryActionBars();
 }
 function hideLoading(){
   if(!loading) return;
   loading.style.display = "none";
   loading.setAttribute("aria-hidden","true");
-  syncDeliveryActionBars();
 }
 function setStatus(msg){ if(statusEl) statusEl.textContent = msg || ""; }
 
@@ -195,6 +138,7 @@ function hasCategory(profile, wanted){
   return aliases.some(a => cats.includes(a));
 }
 
+
 async function api(payload){
   const res = await fetch(API_URL, {
     method:"POST",
@@ -204,6 +148,69 @@ async function api(payload){
   const out = await res.json().catch(async()=>({ ok:false, error: await res.text().catch(()=> "") }));
   if(!out || out.ok === false) throw new Error(out?.error || out?.message || "Error");
   return out;
+}
+
+let deliveryMobileBar = null;
+let deliveryBarObserverStarted = false;
+
+function isMobileViewport(){
+  try{ return window.matchMedia('(max-width: 720px)').matches; }catch(_e){ return window.innerWidth <= 720; }
+}
+function isVisibleEl(el){
+  if(!el) return false;
+  const cs = window.getComputedStyle ? getComputedStyle(el) : null;
+  if(cs && (cs.display === 'none' || cs.visibility === 'hidden' || Number(cs.opacity) === 0)) return false;
+  if(el.getAttribute && el.getAttribute('aria-hidden') === 'true') return false;
+  return true;
+}
+function hasDeliveryOverlayOpen(){
+  return [histBack, sendBack, confirmBack, loading].some(isVisibleEl);
+}
+function ensureDeliveryMobileBar(){
+  if(deliveryMobileBar && document.body.contains(deliveryMobileBar)) return deliveryMobileBar;
+  let bar = document.getElementById('amDeliveryMobileBar');
+  if(!bar){
+    bar = document.createElement('div');
+    bar.id = 'amDeliveryMobileBar';
+    bar.className = 'amDeliveryMobileBar isHidden';
+    bar.innerHTML = `
+      <button id="dMBtnRefresh" class="amDeliveryMobileAction isWarm" type="button" aria-label="Recargar">↻</button>
+      <div class="amDeliveryMobileCenter" role="group" aria-label="Acciones de envíos">
+        <button id="dMBtnHistory" class="amDeliveryMobileSeg isAccent" type="button">Historial</button>
+      </div>
+      <button id="dMBtnLogout" class="amDeliveryMobileAction isNeutral" type="button" aria-label="Salir">⦿</button>`;
+    document.body.appendChild(bar);
+  }
+  deliveryMobileBar = bar;
+  return bar;
+}
+function syncDeliveryActionBars(){
+  const mobile = isMobileViewport();
+  const appVisible = isVisibleEl(panelView);
+  const overlay = hasDeliveryOverlayOpen();
+  if(btnRefreshTop) btnRefreshTop.style.display = (appVisible && !mobile) ? 'inline-flex' : 'none';
+  if(btnHistory) btnHistory.style.display = (appVisible && !mobile) ? 'inline-flex' : 'none';
+  if(btnLogoutTop) btnLogoutTop.style.display = (appVisible && !mobile) ? 'inline-flex' : 'none';
+  const bar = ensureDeliveryMobileBar();
+  if(bar) bar.classList.toggle('isHidden', !appVisible || !mobile || overlay);
+  document.body.classList.toggle('deliveryOverlayOpen', !!overlay);
+}
+function wireDeliveryMobileBar(){
+  ensureDeliveryMobileBar();
+  const bRefresh = document.getElementById('dMBtnRefresh');
+  const bHistory = document.getElementById('dMBtnHistory');
+  const bLogout = document.getElementById('dMBtnLogout');
+  if(bRefresh && !bRefresh.dataset.wired){ bRefresh.dataset.wired='1'; bRefresh.addEventListener('click', ()=> btnRefreshTop?.click()); }
+  if(bHistory && !bHistory.dataset.wired){ bHistory.dataset.wired='1'; bHistory.addEventListener('click', ()=> btnHistory?.click()); }
+  if(bLogout && !bLogout.dataset.wired){ bLogout.dataset.wired='1'; bLogout.addEventListener('click', ()=> btnLogoutTop?.click()); }
+  syncDeliveryActionBars();
+}
+function watchDeliveryBarState(){
+  if(deliveryBarObserverStarted || !document.body) return;
+  const obs = new MutationObserver(()=> syncDeliveryActionBars());
+  obs.observe(document.body, { subtree:true, childList:true, attributes:true, attributeFilter:['style','class','aria-hidden'] });
+  window.addEventListener('resize', syncDeliveryActionBars);
+  deliveryBarObserverStarted = true;
 }
 
 // ---- Profiles (public list) ----
@@ -279,6 +286,7 @@ function showPanel(){
   if(btnRefreshTop) btnRefreshTop.style.display = "inline-flex";
   if(btnHistory) btnHistory.style.display = "inline-flex";
   if(btnLogoutTop) btnLogoutTop.style.display = "inline-flex";
+  syncDeliveryActionBars();
 }
 function showLogin(){
   if(panelView) panelView.style.display = "none";
@@ -286,6 +294,7 @@ function showLogin(){
   if(btnRefreshTop) btnRefreshTop.style.display = "none";
   if(btnHistory) btnHistory.style.display = "none";
   if(btnLogoutTop) btnLogoutTop.style.display = "none";
+  syncDeliveryActionBars();
 }
 
 function logout(){
@@ -454,14 +463,12 @@ function openHistory(){
   histStatus.textContent = "";
   histBack.style.display = "flex";
   histBack.setAttribute("aria-hidden","false");
-  syncDeliveryActionBars();
   loadHistory();
 }
 function closeHistory(){
   if(!histBack) return;
   histBack.style.display = "none";
   histBack.setAttribute("aria-hidden","true");
-  syncDeliveryActionBars();
 }
 function renderHistory(orders){
   HIST = orders || [];
@@ -583,7 +590,6 @@ if(!canWa){
 
   sendBack.style.display = "flex";
   sendBack.setAttribute("aria-hidden","false");
-  syncDeliveryActionBars();
 }
 
 function closeSendModal(){
@@ -591,7 +597,6 @@ function closeSendModal(){
   if(!sendBack) return;
   sendBack.style.display = "none";
   sendBack.setAttribute("aria-hidden","true");
-  syncDeliveryActionBars();
 }
 
 function buildMessage(order, etaMinutes, templateId){
@@ -695,7 +700,6 @@ function openConfirm(orderId, mode){
   if(!confirmBack) return;
   confirmBack.style.display = "flex";
   confirmBack.setAttribute("aria-hidden","false");
-  syncDeliveryActionBars();
 
   confirmOrder.textContent = orderId || "—";
   CONFIRM_LEFT = 2;
@@ -722,7 +726,6 @@ function closeConfirm(){
   if(!confirmBack) return;
   confirmBack.style.display = "none";
   confirmBack.setAttribute("aria-hidden","true");
-  syncDeliveryActionBars();
 }
 
 async function markSentOnly(){
@@ -920,10 +923,10 @@ btnHistReload?.addEventListener("click", loadHistory);
 histBack?.addEventListener("click", (ev)=>{ if(ev.target === histBack) closeHistory(); });
 
 // ---- Init ----
-wireDeliveryMobileBar();
-window.addEventListener("resize", syncDeliveryActionBars);
-
 (function init(){
+  wireDeliveryMobileBar();
+  watchDeliveryBarState();
+  syncDeliveryActionBars();
   try{
     const raw = sessionStorage.getItem(SS_KEY);
     const s = raw ? JSON.parse(raw) : null;
