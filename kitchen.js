@@ -1081,14 +1081,15 @@ function startDayRolloverWatch_(){
         bottom: calc(env(safe-area-inset-bottom, 0px) + 10px) !important;
         z-index: 88;
         display: grid;
-        grid-template-columns: 56px minmax(0,1fr) 56px;
-        gap: 12px;
+        grid-template-columns: 58px minmax(0,1fr) 58px;
+        gap: 10px;
         align-items: center;
-        padding: 0;
-        background: transparent;
-        border: 0;
-        box-shadow: none;
-        backdrop-filter: none;
+        padding: 8px;
+        border-radius: 26px;
+        background: rgba(255,253,252,.96);
+        border: 1px solid rgba(64,17,2,.08);
+        box-shadow: 0 18px 34px rgba(64,17,2,.10);
+        backdrop-filter: blur(12px);
       }
       .amMobileBar.isHidden{ display:none !important; }
       body.amOverlayOpen .amMobileBar{
@@ -1097,65 +1098,52 @@ function startDayRolloverWatch_(){
         transform: translateY(18px);
       }
       .amMobileAction{
-        width: 56px;
-        min-width: 56px;
-        height: 56px;
         min-height: 56px;
+        min-width: 56px;
         border: 1px solid rgba(64,17,2,.08);
         border-radius: 999px;
+        background: rgba(255,255,255,.96);
         color: var(--choco);
         display:flex;
         align-items:center;
         justify-content:center;
+        gap:0;
         padding: 0;
         font: inherit;
         font-weight: 900;
         cursor: pointer;
-        box-shadow: 0 8px 20px rgba(64,17,2,.06), inset 0 1px 0 rgba(255,255,255,.65);
-        white-space: nowrap;
+        box-shadow: inset 0 1px 0 rgba(255,255,255,.65);
       }
-      .amMobileAction .ico{ display:block; font-size: 22px; line-height: 1; }
+      .amMobileAction .ico{ font-size:20px; line-height:1; }
       .amMobileAction .txt{ display:none; }
-      #mBtnRefresh{
-        background: linear-gradient(180deg, rgba(252,252,252,.98), rgba(241,239,236,.98));
-        border-color: rgba(64,17,2,.10);
-      }
-      .amMobileAction.amDanger,
-      #mBtnLogout{
-        background: linear-gradient(180deg, rgba(252,252,252,.98), rgba(241,239,236,.98));
-        border-color: rgba(64,17,2,.10);
-      }
+      .amMobileAction.amDanger{ background: rgba(255,255,255,.96); }
       .amMobileAction:active{ transform: translateY(1px); }
       .amMobileCenter{
         min-width: 0;
         display: grid;
         grid-template-columns: 1fr 1fr;
-        gap: 0;
-        padding: 0;
-        min-height: 56px;
+        gap: 6px;
+        padding: 6px;
         border-radius: 999px;
         background: rgba(255,255,255,.96);
         border: 1px solid rgba(64,17,2,.08);
-        box-shadow: 0 8px 20px rgba(64,17,2,.06), inset 0 1px 0 rgba(255,255,255,.65);
-        overflow: hidden;
+        box-shadow: inset 0 1px 0 rgba(255,255,255,.65);
       }
       .amMobileSeg{
         min-width: 0;
-        min-height: 56px;
+        min-height: 50px;
         border: 0;
+        border-radius: 999px;
         background: transparent;
-        color: rgba(64,17,2,.82);
+        color: rgba(64,17,2,.78);
         display:flex;
         align-items:center;
         justify-content:center;
-        padding: 0 16px;
+        padding: 0 14px;
         font: inherit;
         font-weight: 900;
         cursor: pointer;
         transition: background .15s ease, color .15s ease, transform .08s ease;
-      }
-      .amMobileSeg + .amMobileSeg{
-        border-left: 1px solid rgba(64,17,2,.08);
       }
       .amMobileSeg .ico{ display:none; }
       .amMobileSeg .txt{
@@ -1164,13 +1152,8 @@ function startDayRolloverWatch_(){
         line-height: 1;
         white-space: nowrap;
       }
-      #mBtnHistory{
-        background: linear-gradient(180deg, rgba(251,231,237,.96), rgba(246,221,229,.96));
-      }
-      #mBtnCosts{
-        background: linear-gradient(180deg, rgba(255,247,234,.98), rgba(249,236,208,.98));
-      }
       .amMobileSeg.isPrimary{
+        background: linear-gradient(180deg, rgba(248,221,228,.92), rgba(247,234,222,.96));
         color: var(--choco);
         box-shadow: inset 0 1px 0 rgba(255,255,255,.85);
       }
@@ -2987,21 +2970,19 @@ async function finalizePostreFromOverlay(){
       bar.id = "amKitchenMobileBar";
       bar.className = "amMobileBar isHidden";
       bar.innerHTML = `
-        <button id="mBtnRefresh" class="amMobileAction amIconOnly" type="button" aria-label="Recargar" title="Recargar">
-          <span class="ico">↻</span>
-          <span class="txt">Recargar</span>
+        <button id="mBtnRefresh" class="amMobileAction" type="button" aria-label="Actualizar">
+          <span class="ico">↻</span><span class="txt">Actualizar</span>
         </button>
         <div class="amMobileCenter" aria-label="Acciones principales">
           <button id="mBtnHistory" class="amMobileSeg isPrimary" type="button">
-            <span class="txt">Historial</span>
+            <span class="ico">🕘</span><span class="txt">Historial</span>
           </button>
           <button id="mBtnCosts" class="amMobileSeg" type="button">
-            <span class="txt">Costos</span>
+            <span class="ico">💰</span><span class="txt">Costos</span>
           </button>
         </div>
-        <button id="mBtnLogout" class="amMobileAction amDanger amIconOnly" type="button" aria-label="Salir" title="Salir">
-          <span class="ico">🚪</span>
-          <span class="txt">Salir</span>
+        <button id="mBtnLogout" class="amMobileAction amDanger" type="button" aria-label="Salir">
+          <span class="ico">🚪</span><span class="txt">Salir</span>
         </button>`;
       document.body.appendChild(bar);
     }
