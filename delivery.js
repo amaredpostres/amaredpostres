@@ -1,10 +1,11 @@
-// delivery.js — AMARED Envíos (v4 UX + Historial + Opt-in fix)
+ee// delivery.js — AMARED Envíos (v4 UX + Historial + Opt-in fix)
 "use strict";
 
 console.log("AMARED delivery v11");
 
 const API_URL = "https://amared-orders.amaredpostres.workers.dev/";
 const SS_KEY = "AMARED_DELIVERY_SESSION_V4";
+const LS_KEY = "AMARED_DELIVERY_REMEMBER_V1";
 
 let SESSION = { operator: null, pin: null };
 let ORDERS = [];
@@ -89,6 +90,8 @@ const panelView = document.getElementById("panelView");
 
 const selOperator = document.getElementById("selOperator");
 const inpPin = document.getElementById("inpPin");
+const btnTogglePin = document.getElementById("btnTogglePin");
+const chkRemember = document.getElementById("chkRemember");
 const btnLogin = document.getElementById("btnLogin");
 const loginErr = document.getElementById("loginErr");
 
@@ -235,6 +238,47 @@ function renderProfilesSelect(list){
   selOperator.innerHTML = opts.join("");
 }
 
+function syncPinToggleState(){
+  if(!inpPin || !btnTogglePin) return;
+  const show = inpPin.type === "text";
+  btnTogglePin.textContent = show ? "🙈" : "👁";
+  btnTogglePin.setAttribute("aria-label", show ? "Ocultar PIN" : "Mostrar PIN");
+}
+
+function saveDeliverySession(remember = false){
+  try{ sessionStorage.setItem(SS_KEY, JSON.stringify(SESSION)); }catch(_e){}
+  try{
+    if(remember) localStorage.setItem(LS_KEY, JSON.stringify(SESSION));
+    else localStorage.removeItem(LS_KEY);
+  }catch(_e){}
+}
+
+function loadSavedDeliverySession(){
+  try{
+    const rawLocal = localStorage.getItem(LS_KEY);
+    const sLocal = rawLocal ? JSON.parse(rawLocal) : null;
+    if(sLocal?.pin && sLocal?.operator) return { data:sLocal, remembered:true };
+  }catch(_e){}
+  try{
+    const raw = sessionStorage.getItem(SS_KEY);
+    const s = raw ? JSON.parse(raw) : null;
+    if(s?.pin && s?.operator) return { data:s, remembered:false };
+  }catch(_e){}
+  return null;
+}
+
+function clearSavedDeliverySession(){
+  try{ sessionStorage.removeItem(SS_KEY); }catch(_e){}
+  try{ localStorage.removeItem(LS_KEY); }catch(_e){}
+}
+
+btnTogglePin?.addEventListener('click', ()=>{
+  if(!inpPin) return;
+  inpPin.type = inpPin.type === 'password' ? 'text' : 'password';
+  syncPinToggleState();
+});
+syncPinToggleState();
+
 async function loadProfilesOnStart(){
   renderProfilesSelect([]);
   showLoading("Cargando perfiles…","Buscando perfiles de envíos/admin.");
@@ -247,6 +291,12 @@ async function loadProfilesOnStart(){
       .filter(p => hasCategory(p,"delivery") || hasCategory(p,"admin"));
 
     renderProfilesSelect(list);
+    const saved = loadSavedDeliverySession();
+    if(saved?.data?.operator?.id && selOperator && !selOperator.value){
+      selOperator.value = String(saved.data.operator.id);
+      if(inpPin && !inpPin.value) inpPin.value = String(saved.data.pin || '');
+      if(chkRemember) chkRemember.checked = !!saved.remembered;
+    }
     if(list.length === 0){
       loginErr.textContent = "No hay perfiles con categoría delivery/admin. Ve a “Gestionar perfiles” y asigna la categoría.";
     }
@@ -277,7 +327,7 @@ async function doLogin(){
     const all = await fetchProfilesPublic();
     const p = (all||[]).find(x => String(x.id) === id);
     SESSION = { operator: { id, label: p?.label || id }, pin };
-    sessionStorage.setItem(SS_KEY, JSON.stringify(SESSION));
+    saveDeliverySession(!!chkRemember?.checked);
     showPanel();
     await loadOrders();
   }catch(e){
@@ -300,7 +350,7 @@ function showLogin(){
 
 function logout(){
   SESSION = { operator:null, pin:null };
-  sessionStorage.removeItem(SS_KEY);
+  clearSavedDeliverySession();
   if(inpPin) inpPin.value = "";
   closeHistory();
   showLogin();
@@ -929,10 +979,11 @@ histBack?.addEventListener("click", (ev)=>{ if(ev.target === histBack) closeHist
   watchDeliveryBarState();
   syncDeliveryActionBars();
   try{
-    const raw = sessionStorage.getItem(SS_KEY);
-    const s = raw ? JSON.parse(raw) : null;
-    if(s?.pin && s?.operator){
-      SESSION = s;
+    const saved = loadSavedDeliverySession();
+    if(saved?.data?.pin && saved?.data?.operator){
+      if(chkRemember) chkRemember.checked = !!saved.remembered;
+      SESSION = saved.data;
+      if(inpPin) inpPin.value = String(saved.data.pin || '');
       showPanel();
       loadOrders();
     }else{
