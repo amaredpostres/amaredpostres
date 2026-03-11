@@ -1086,7 +1086,7 @@ function startDayRolloverWatch_(){
         align-items: center;
         padding: 8px;
         border-radius: 26px;
-        background: rgba(255,253,252,.96);
+        background: rgba(254,246,239,.82);
         border: 1px solid rgba(64,17,2,.08);
         box-shadow: 0 18px 34px rgba(64,17,2,.10);
         backdrop-filter: blur(12px);
