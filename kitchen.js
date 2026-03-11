@@ -722,32 +722,6 @@ function startDayRolloverWatch_(){
   }
 
   // ========= AUTH/UI =========
-  function isMobileViewport(){
-    try{ return window.matchMedia("(max-width: 860px)").matches; }catch(_e){ return window.innerWidth <= 860; }
-  }
-  function isNodeVisible(node){
-    return !!(node && node.style && node.style.display !== "none" && node.getAttribute("aria-hidden") !== "true");
-  }
-  function hasBlockingOverlay(){
-    return isNodeVisible(costsModal)
-      || isNodeVisible(historyModal)
-      || isNodeVisible($("amRecipeOverlayV6"))
-      || isNodeVisible($("amConfirmOverlay"))
-      || isNodeVisible(loading);
-  }
-  function syncActionBarsVisibility(){
-    const headerBtns = btnRefresh?.parentElement;
-    const appVisible = !!(app && app.style.display !== "none");
-    const mobile = isMobileViewport();
-    const overlayOpen = hasBlockingOverlay();
-    document.body.classList.toggle("amOverlayOpen", overlayOpen);
-    if(headerBtns){
-      headerBtns.classList.toggle("isHidden", !appVisible || mobile);
-    }
-    if(mobileActionBar){
-      mobileActionBar.classList.toggle("isHidden", !appVisible || !mobile || overlayOpen);
-    }
-  }
   function showLogin(){
     if(loginBox) loginBox.style.display="block";
     if(app) app.style.display="none";
@@ -766,6 +740,81 @@ function startDayRolloverWatch_(){
     if(btnShopping) btnShopping.style.display="none";
     if(btnCosts) btnCosts.style.display="inline-flex";
     if(btnHistory) btnHistory.style.display="inline-flex";
+    syncActionBarsVisibility();
+  }
+
+  function isMobileViewport(){
+    return !!window.matchMedia && window.matchMedia("(max-width: 860px)").matches;
+  }
+  function isShown(el){
+    if(!el) return false;
+    if(el.getAttribute && el.getAttribute("aria-hidden") === "true") return false;
+    const inlineDisplay = (el.style && el.style.display) ? el.style.display : "";
+    if(inlineDisplay === "none") return false;
+    try{ return getComputedStyle(el).display !== "none"; }catch(_e){ return true; }
+  }
+  function isAnyOverlayOpen(){
+    return [loading, costsModal, historyModal, $("amRecipeOverlayV6"), $("amConfirmOverlay")].some(isShown);
+  }
+  let mobileActionBar = null;
+  let mBtnRefresh = null;
+  let mBtnHistory = null;
+  let mBtnCosts = null;
+  let mBtnLogout = null;
+
+  function ensureMobileActionBar(){
+    if(mobileActionBar && document.body.contains(mobileActionBar)) return mobileActionBar;
+    let bar = document.getElementById("amKitchenMobileBar");
+    if(!bar){
+      bar = document.createElement("div");
+      bar.id = "amKitchenMobileBar";
+      bar.className = "amMobileBar isHidden";
+      bar.innerHTML = `
+        <button id="mBtnRefresh" class="amMobileAction" type="button" aria-label="Recargar">
+          <span class="txt">Recargar</span>
+        </button>
+        <div class="amMobileCenter" aria-label="Acciones principales">
+          <button id="mBtnHistory" class="amMobileSeg isPrimary" type="button">
+            <span class="txt">Historial</span>
+          </button>
+          <button id="mBtnCosts" class="amMobileSeg" type="button">
+            <span class="txt">Costos</span>
+          </button>
+        </div>
+        <button id="mBtnLogout" class="amMobileAction" type="button" aria-label="Salir">
+          <span class="txt">Salir</span>
+        </button>`;
+      document.body.appendChild(bar);
+    }
+    mobileActionBar = bar;
+    mBtnRefresh = bar.querySelector("#mBtnRefresh");
+    mBtnHistory = bar.querySelector("#mBtnHistory");
+    mBtnCosts = bar.querySelector("#mBtnCosts");
+    mBtnLogout = bar.querySelector("#mBtnLogout");
+    return bar;
+  }
+
+  function syncActionBarsVisibility(){
+    const mobile = isMobileViewport();
+    const appVisible = !!app && app.style.display !== "none";
+    const overlayOpen = isAnyOverlayOpen();
+    const headerBtns = btnRefresh?.parentElement;
+    if(headerBtns){
+      headerBtns.classList.add("header-actions");
+      headerBtns.classList.toggle("isHidden", !appVisible || mobile);
+    }
+    if(mobileActionBar){
+      mobileActionBar.classList.toggle("isHidden", !appVisible || !mobile || overlayOpen);
+    }
+    document.body.classList.toggle("amOverlayOpen", !!(mobile && overlayOpen));
+  }
+
+  function wireMobileActionBar(){
+    ensureMobileActionBar();
+    if(mBtnRefresh) mBtnRefresh.onclick = (e)=>{ e.preventDefault(); refresh().catch(err=>alert(err?.message||String(err))); };
+    if(mBtnHistory) mBtnHistory.onclick = (e)=>{ e.preventDefault(); openHistoryModal(); };
+    if(mBtnCosts) mBtnCosts.onclick = (e)=>{ e.preventDefault(); openCostsModal(); };
+    if(mBtnLogout) mBtnLogout.onclick = (e)=>{ e.preventDefault(); onLogout(); };
     syncActionBarsVisibility();
   }
   function saveSession(){ sessionStorage.setItem(SS_KEY, JSON.stringify(state.session)); }
@@ -974,349 +1023,44 @@ function startDayRolloverWatch_(){
     const st=document.createElement("style");
     st.id="amStylesV6";
     st.textContent=`
-      body{
-        background:
-          radial-gradient(900px 420px at 20% 5%, rgba(242,91,143,.10), transparent 60%),
-          radial-gradient(900px 420px at 80% 8%, rgba(246,186,96,.12), transparent 60%),
-          var(--cream);
-      }
-      .hidden{ display:none !important; }
-      .topbar{
-        position: sticky;
-        top: 0;
-        z-index: 45;
-      }
-      .topbarInner{
-        max-width: 1180px;
-        gap: 16px;
-      }
-      .brandRow{
-        gap: 12px;
-        min-width: 0;
-      }
-      .brandLogo2{
-        width: 50px;
-        height: 50px;
-      }
-      .ttl{
-        font-size: clamp(20px, 2vw, 22px);
-        letter-spacing: .02em;
-      }
-      .sub{
-        font-size: 13px;
-        line-height: 1.25;
-      }
-      #loginBox{
-        max-width: 760px !important;
-        border-radius: 28px;
-        box-shadow: 0 20px 48px rgba(64,17,2,.10);
-      }
-      .layout{
-        align-items: start;
-        gap: 16px;
-      }
-      .card{
-        border-radius: 26px;
-      }
-      .cardTitle{
-        margin-bottom: 6px;
-      }
-
-      /* Menú de acciones */
-      .header-actions{
-        display:flex;
-        align-items:center;
-        gap:10px;
-        flex-wrap:wrap;
-        padding: 0;
-        margin-left:auto;
-        border-radius: 0;
-        background: transparent;
-        border: 0;
-        box-shadow: none;
-        backdrop-filter: none;
-      }
-      .header-actions.isHidden{ display:none !important; }
-      .header-actions .btn{
-        min-height: 46px;
-        border-radius: 18px;
-        padding: 10px 18px;
-        display:inline-flex;
-        align-items:center;
-        justify-content:center;
-        gap:0;
-        border: 1px solid rgba(64,17,2,.10);
-        background: linear-gradient(180deg, rgba(255,255,255,.98), rgba(247,239,232,.98));
-        box-shadow: 0 10px 22px rgba(64,17,2,.06);
-        transition: transform .12s ease, box-shadow .16s ease, border-color .16s ease;
-      }
-      .header-actions .btn:hover{
-        transform: translateY(-1px);
-        box-shadow: 0 14px 28px rgba(64,17,2,.08);
-        border-color: rgba(246,186,96,.36);
-      }
-      .header-actions .btn .ico{ display:none !important; }
-      .header-actions .btn .txt{ display:inline !important; }
-      #btnRefresh{
-        background: linear-gradient(180deg, rgba(246,196,110,.96), rgba(240,183,84,.96));
-        border-color: rgba(224,160,49,.55);
-      }
-      #btnCosts{
-        background: linear-gradient(180deg, rgba(255,247,234,.98), rgba(249,236,208,.98));
-        border-color: rgba(246,186,96,.34);
-      }
-      #btnHistory{
-        background: linear-gradient(180deg, rgba(251,240,244,.98), rgba(247,232,237,.98));
-        border-color: rgba(242,91,143,.18);
-      }
-      #btnLogout{
-        background: linear-gradient(180deg, rgba(252,252,252,.98), rgba(241,239,236,.98));
-        border-color: rgba(64,17,2,.10);
-      }
-
-      .amMobileBar{
-        position: fixed !important;
-        left: 12px;
-        right: 12px;
-        bottom: calc(env(safe-area-inset-bottom, 0px) + 10px) !important;
-        z-index: 88;
-        display: grid;
-        grid-template-columns: 100px minmax(0,1fr) 86px;
-        gap: 12px;
-        align-items: center;
-        padding: 0;
-        background: transparent;
-        border: 0;
-        box-shadow: none;
-        backdrop-filter: none;
-      }
-      .amMobileBar.isHidden{ display:none !important; }
-      body.amOverlayOpen .amMobileBar{
-        opacity: 0;
-        pointer-events: none;
-        transform: translateY(18px);
-      }
-      .amMobileAction{
-        min-height: 48px;
-        border: 1px solid rgba(64,17,2,.08);
-        border-radius: 18px;
-        color: var(--choco);
-        display:flex;
-        align-items:center;
-        justify-content:center;
-        padding: 0 14px;
-        font: inherit;
-        font-weight: 900;
-        cursor: pointer;
-        box-shadow: 0 8px 20px rgba(64,17,2,.06), inset 0 1px 0 rgba(255,255,255,.65);
-        white-space: nowrap;
-      }
-      .amMobileAction .ico{ display:none; }
-      .amMobileAction .txt{ display:block; font-size: 15px; line-height:1; }
-      #mBtnRefresh{
-        background: linear-gradient(180deg, rgba(246,196,110,.96), rgba(240,183,84,.96));
-        border-color: rgba(224,160,49,.56);
-      }
-      .amMobileAction.amDanger,
-      #mBtnLogout{
-        background: linear-gradient(180deg, rgba(252,252,252,.98), rgba(241,239,236,.98));
-        border-color: rgba(64,17,2,.10);
-      }
-      .amMobileAction:active{ transform: translateY(1px); }
-      .amMobileCenter{
-        min-width: 0;
-        display: grid;
-        grid-template-columns: 1fr 1fr;
-        gap: 0;
-        padding: 0;
-        border-radius: 22px;
-        background: rgba(255,255,255,.96);
-        border: 1px solid rgba(64,17,2,.08);
-        box-shadow: 0 8px 20px rgba(64,17,2,.06), inset 0 1px 0 rgba(255,255,255,.65);
-        overflow: hidden;
-      }
-      .amMobileSeg{
-        min-width: 0;
-        min-height: 48px;
-        border: 0;
-        background: transparent;
-        color: rgba(64,17,2,.82);
-        display:flex;
-        align-items:center;
-        justify-content:center;
-        padding: 0 12px;
-        font: inherit;
-        font-weight: 900;
-        cursor: pointer;
-        transition: background .15s ease, color .15s ease, transform .08s ease;
-      }
-      .amMobileSeg + .amMobileSeg{
-        border-left: 1px solid rgba(64,17,2,.08);
-      }
-      .amMobileSeg .ico{ display:none; }
-      .amMobileSeg .txt{
-        display:block;
-        font-size: 15px;
-        line-height: 1;
-        white-space: nowrap;
-      }
-      #mBtnHistory{
-        background: linear-gradient(180deg, rgba(251,231,237,.96), rgba(246,221,229,.96));
-      }
-      #mBtnCosts{
-        background: linear-gradient(180deg, rgba(255,247,234,.98), rgba(249,236,208,.98));
-      }
-      .amMobileSeg.isPrimary{
-        color: var(--choco);
-        box-shadow: inset 0 1px 0 rgba(255,255,255,.85);
-      }
-      .amMobileSeg:active{ transform: translateY(1px); }
-
-      #costsModal .modalBox{
-        position: relative;
-        padding-top: 22px;
-      }
-      #costsModal .rowBetween{
-        align-items:flex-start;
-        padding-right: 54px;
-      }
-      #btnCloseCosts{
-        position:absolute;
-        top:14px;
-        right:14px;
-        width:44px;
-        min-width:44px;
-        height:44px;
-        padding:0;
-        border-radius:14px;
-        display:inline-flex;
-        align-items:center;
-        justify-content:center;
-        font-size:24px;
-        line-height:1;
-      }
-      .amConfirmActions{
-        display:flex;
-        justify-content:flex-end;
-        gap:10px;
-        margin-top:14px;
-        flex-wrap:wrap;
-      }
-
-      @media (max-width: 860px){
-        body{
-          padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 92px);
-        }
-        .topbarInner{
-          justify-content:center !important;
-          padding-top:14px;
-          padding-bottom:10px;
-        }
-        .brandRow{
-          margin:0 auto;
-          justify-content:center;
-          text-align:center;
-          gap:12px;
-        }
-        .brandRow > div{
-          display:flex;
-          flex-direction:column;
-          align-items:center;
-        }
-        .brandLogo2{
-          width:56px;
-          height:56px;
-        }
-        .ttl{
-          display:none;
-        }
-        .sub{
-          display:flex;
-          flex-direction:column;
-          align-items:center;
-          gap:1px;
-          opacity:1;
-        }
-        .subMain{
-          font-size:22px;
-          line-height:1;
-          font-weight:950;
-          color:var(--choco);
-        }
-        .subMinor{
-          font-size:11px;
-          line-height:1.1;
-          font-weight:800;
-          color:rgba(64,17,2,.58);
-        }
-      }
-
-      @media (min-width: 861px){
-        .sub{
-          display:flex;
-          align-items:baseline;
-          gap:6px;
-        }
-        .subMain{
-          font-weight:900;
-          color:var(--choco);
-        }
-        .subMinor{
-          font-weight:800;
-          color:rgba(64,17,2,.58);
-        }
-      }
-
       /* Tabs Producción */
-      .prodTabs{ display:flex; gap:10px; flex-wrap:wrap; margin: 10px 0 12px; }
-      .tabBtn{
-        padding:10px 16px;
-        border-radius:16px;
-        border:1px solid rgba(64,17,2,.12);
-        background: rgba(255,255,255,.78);
-        font-weight:900;
-        cursor:pointer;
-        box-shadow: 0 6px 16px rgba(64,17,2,.04);
-      }
-      .tabBtn.active{
-        background: rgba(246,186,96,.20);
-        border-color: rgba(246,186,96,.55);
-        box-shadow: none;
-      }
+      .prodTabs{ display:flex; gap:10px; flex-wrap:wrap; margin-bottom:10px; }
+      .tabBtn{ padding:10px 14px; border-radius:14px; border:1px solid rgba(64,17,2,.12); background: rgba(255,255,255,.75); font-weight:900; cursor:pointer; }
+      .tabBtn.active{ background: rgba(246,186,96,.40); border-color: rgba(246,186,96,.85); }
+      .hidden{ display:none !important; }
 
-      /* Cards de producto */
+      /* Cards como "cuadraditos" */
       .amCard{
-        background: rgba(255,255,255,.92);
-        border: 1px solid rgba(64,17,2,.08);
-        border-radius: 20px;
-        padding: 16px;
-        box-shadow: 0 10px 20px rgba(64,17,2,.05);
+        background: rgba(255,255,255,.88);
+        border: 1px solid rgba(64,17,2,.12);
+        border-radius: 18px;
+        padding: 14px;
+        box-shadow: var(--shadow);
         margin-bottom: 12px;
       }
       .amHead{
         display:flex;
         justify-content:space-between;
         align-items:center;
-        gap:14px;
+        gap:12px;
         cursor:pointer;
         user-select:none;
       }
       .amName{
         font-weight: 950;
-        font-size: clamp(20px, 2vw, 24px);
-        line-height: 1.1;
+        font-size: 20px;
+        line-height: 1.15;
       }
       .amQty{
         font-weight: 950;
-        font-size: clamp(34px, 3vw, 42px);
+        font-size: 34px;
         line-height: 1;
-        color: var(--choco);
       }
       .amPill{
         display:inline-flex;
         align-items:center;
         gap:8px;
-        padding: 9px 14px;
+        padding: 8px 12px;
         border-radius: 999px;
         background: rgba(64,17,2,.06);
         border: 1px solid rgba(64,17,2,.10);
@@ -1324,10 +1068,11 @@ function startDayRolloverWatch_(){
       }
       .amBody{
         display:none;
-        margin-top: 14px;
+        margin-top: 12px;
       }
       .amCard.open .amBody{ display:block; }
 
+      /* Ingredientes: layout más atractivo */
       .amIngRow{
         display:flex;
         justify-content:space-between;
@@ -1348,28 +1093,31 @@ function startDayRolloverWatch_(){
         color: rgba(64,17,2,.78);
         font-weight:800;
       }
-      .amActionRow{ display:flex; justify-content:flex-end; margin-top: 14px; }
+
+
+      /* Botón grande de acción */
+      .amActionRow{ display:flex; justify-content:flex-end; margin-top: 12px; }
       .amActionRow .btn{ width: 100%; justify-content:center; }
 
-      /* Timer widget */
+      /* Timer widget bonito */
       .amStickyTimer{
         position:fixed;
-        right: 18px;
-        top: 88px;
+        right: 16px;
+        top: 78px;
         z-index: 99997;
         display:none;
-        width: 232px;
+        width: 220px;
       }
       .amStickyTimer .box{
-        background: rgba(255,255,255,.94);
+        background: rgba(255,255,255,.92);
         border: 1px solid rgba(64,17,2,.14);
-        border-radius: 20px;
-        box-shadow: 0 16px 36px rgba(64,17,2,.10);
-        padding: 14px;
+        border-radius: 18px;
+        box-shadow: var(--shadow);
+        padding: 12px;
         backdrop-filter: blur(8px);
       }
       .amStickyTimer .tTitle{ font-weight:950; font-size:13px; }
-      .amStickyTimer .tTime{ font-weight:950; font-size:24px; margin-top:4px; }
+      .amStickyTimer .tTime{ font-weight:950; font-size:22px; margin-top:4px; }
       .amStickyTimer .bar{
         height: 8px; border-radius: 999px; overflow:hidden;
         background: rgba(64,17,2,.08);
@@ -1382,113 +1130,134 @@ function startDayRolloverWatch_(){
         border-radius: 999px;
       }
 
+      /* Menú de acciones */
+      .header-actions{
+        display:flex;
+        align-items:center;
+        gap:10px;
+        flex-wrap:wrap;
+        margin-left:auto;
+      }
+      .header-actions.isHidden{ display:none !important; }
+
+      .amMobileBar{
+        position: fixed !important;
+        left: 10px;
+        right: 10px;
+        bottom: calc(env(safe-area-inset-bottom, 0px) + 10px) !important;
+        z-index: 88;
+        display:grid;
+        grid-template-columns: 108px minmax(0,1fr) 84px;
+        gap:10px;
+        align-items:center;
+        padding:8px;
+        border-radius:999px;
+        background: linear-gradient(180deg, rgba(255,251,247,.98), rgba(245,238,231,.97));
+        border: 1px solid rgba(64,17,2,.08);
+        box-shadow: 0 16px 32px rgba(64,17,2,.10), inset 0 1px 0 rgba(255,255,255,.72);
+        backdrop-filter: blur(10px);
+      }
+      .amMobileBar.isHidden{ display:none !important; }
+      body.amOverlayOpen .amMobileBar{
+        opacity:0;
+        pointer-events:none;
+        transform: translateY(18px);
+      }
+      .amMobileAction{
+        min-height:46px;
+        border:1px solid rgba(64,17,2,.08);
+        border-radius:18px;
+        color: var(--choco);
+        display:flex;
+        align-items:center;
+        justify-content:center;
+        padding:0 14px;
+        font:inherit;
+        font-weight:900;
+        cursor:pointer;
+        white-space:nowrap;
+        box-shadow: 0 8px 18px rgba(64,17,2,.06), inset 0 1px 0 rgba(255,255,255,.66);
+        transition: transform .10s ease, box-shadow .16s ease, filter .16s ease;
+      }
+      .amMobileAction:hover{ filter: brightness(1.01); }
+      .amMobileAction .ico{ display:none; }
+      .amMobileAction .txt{ display:block; font-size:14px; line-height:1; }
+      #mBtnRefresh{
+        background: linear-gradient(180deg, rgba(246,196,110,.98), rgba(240,183,84,.96));
+        border-color: rgba(224,160,49,.56);
+      }
+      #mBtnLogout{
+        background: linear-gradient(180deg, rgba(250,250,250,.98), rgba(241,239,236,.98));
+        border-color: rgba(64,17,2,.10);
+      }
+      .amMobileAction:active{ transform: translateY(1px); }
+      .amMobileCenter{
+        min-width:0;
+        display:grid;
+        grid-template-columns:1fr 1fr;
+        gap:0;
+        padding:0;
+        border-radius:999px;
+        background: rgba(255,255,255,.96);
+        border:1px solid rgba(64,17,2,.08);
+        box-shadow: inset 0 1px 0 rgba(255,255,255,.70);
+        overflow:hidden;
+      }
+      .amMobileSeg{
+        min-width:0;
+        min-height:46px;
+        border:0;
+        display:flex;
+        align-items:center;
+        justify-content:center;
+        padding:0 12px;
+        font:inherit;
+        font-weight:900;
+        color: rgba(64,17,2,.82);
+        background: transparent;
+        cursor:pointer;
+        transition: background .15s ease, color .15s ease, transform .08s ease;
+      }
+      .amMobileSeg + .amMobileSeg{ border-left: 1px solid rgba(64,17,2,.08); }
+      .amMobileSeg .ico{ display:none; }
+      .amMobileSeg .txt{ display:block; font-size:14px; line-height:1; white-space:nowrap; }
+      #mBtnHistory{ background: linear-gradient(180deg, rgba(251,231,237,.97), rgba(246,221,229,.95)); }
+      #mBtnCosts{ background: linear-gradient(180deg, rgba(255,247,234,.98), rgba(249,236,208,.96)); }
+      .amMobileSeg.isPrimary{ color: var(--choco); box-shadow: inset 0 1px 0 rgba(255,255,255,.85); }
+      .amMobileSeg:active{ transform: translateY(1px); }
+
+      @media (max-width: 860px){
+        body{ padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 92px); }
+        .header-actions{ display:none !important; }
+      }
+      @media (max-width: 390px){
+        .amMobileBar{ grid-template-columns: 96px minmax(0,1fr) 76px; gap:8px; padding:7px; }
+        .amMobileAction,.amMobileSeg{ min-height:44px; }
+        .amMobileAction{ padding:0 10px; }
+        .amMobileAction .txt,.amMobileSeg .txt{ font-size:13px; }
+      }
+      @media (min-width: 861px){
+        .amMobileBar{ display:none !important; }
+      }
+
       /* Historial modal */
-      .histList{display:flex; flex-direction:column; gap:10px; margin-top:10px; }
-      .histDay{background: rgba(255,255,255,.82); border:1px solid rgba(64,17,2,.12); border-radius:16px; padding:12px; }
-      .histDay summary{cursor:pointer; font-weight:950; list-style:none; display:flex; align-items:center; justify-content:space-between; gap:10px; }
-      .histDay summary::-webkit-details-marker{display:none; }
+      .histList{display:flex; flex-direction:column; gap:10px; margin-top:10px;}
+      .histDay{background: rgba(255,255,255,.82); border:1px solid rgba(64,17,2,.12); border-radius:16px; padding:12px;}
+      .histDay summary{cursor:pointer; font-weight:950; list-style:none; display:flex; align-items:center; justify-content:space-between; gap:10px;}
+      .histDay summary::-webkit-details-marker{display:none;}
 
       /* ===== Costos modal scroll ===== */
       #costsModal{ align-items:flex-start; overflow:auto; -webkit-overflow-scrolling:touch; }
       #costsModal .modalBox{ max-height: calc(100vh - 32px); overflow:hidden; display:flex; flex-direction:column; }
       #costsModal #costsEditor{ flex:1; min-height:0; overflow:auto; -webkit-overflow-scrolling:touch; padding-right:6px; }
       #costsModal #costsGateErr{ flex:0 0 auto; }
-
-      .histRows{margin-top:10px; display:flex; flex-direction:column; gap:8px; }
-      .histRow{display:flex; align-items:center; justify-content:space-between; gap:10px; padding:10px 12px; border-radius:14px; background: rgba(255,255,255,.75); border:1px solid rgba(64,17,2,.08); }
-      .histRow .n{font-weight:950; }
-      .histRow .q{font-weight:950; font-size:22px; line-height:1; }
-      .histMeta{margin-top:8px; font-size:12px; opacity:.7; }
-
-      @media (min-width: 861px){
-        .container{ padding-top: 16px; }
-        .header-actions{
-          justify-content:flex-end;
-          min-width: fit-content;
-        }
-      }
-
-      @media (max-width: 860px){
-        .topbarInner{
-          padding: 14px 16px;
-        }
-        .container{
-          padding: 14px;
-        }
-        #app{
-          padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 94px);
-        }
-        .layout{
-          gap: 14px;
-        }
-        .card{
-          border-radius: 22px;
-          padding: 16px;
-        }
-        .amStickyTimer{
-          right: 12px;
-          top: 76px;
-          width: 208px;
-        }
-        .header-actions{
-          display:none !important;
-        }
-      }
-
-      @media (max-width: 640px){
-        .topbarInner{
-          justify-content:flex-start !important;
-          align-items:flex-start;
-        }
-        .brandRow{
-          width: 100%;
-        }
-        .brandLogo2{
-          width: 46px;
-          height: 46px;
-        }
-        .ttl{
-          font-size: 18px;
-        }
-        .sub{
-          font-size: 11.5px;
-        }
-        #loginBox{
-          margin-top: 10px !important;
-          border-radius: 22px;
-        }
-        .prodTabs{
-          gap: 8px;
-        }
-        .tabBtn{
-          flex: 1 1 auto;
-          justify-content:center;
-          text-align:center;
-          padding: 10px 12px;
-        }
-        .amCard{
-          padding: 14px;
-          border-radius: 18px;
-        }
-        .amHead{
-          align-items:flex-start;
-        }
-        .amName{
-          font-size: 17px;
-        }
-        .amQty{
-          font-size: 24px;
-        }
-        .amPill{
-          padding: 8px 11px;
-          font-size: 12.5px;
-        }
-      }
-
-      @media (min-width: 861px){
-        .amMobileBar{ display:none !important; }
-      }
-    `;
+      
+      .histRows{margin-top:10px; display:flex; flex-direction:column; gap:8px;}
+      .histRow{display:flex; align-items:center; justify-content:space-between; gap:10px; padding:10px 12px; border-radius:14px; background: rgba(255,255,255,.75); border:1px solid rgba(64,17,2,.08);}
+      .histRow .n{font-weight:950;}
+      .histRow .q{font-weight:950; font-size:22px; line-height:1;}
+      .histMeta{margin-top:8px; font-size:12px; opacity:.7;}
+`;
     document.head.appendChild(st);
   }
 
@@ -1681,7 +1450,7 @@ function renderProfilesSelect(list, selectedId){
           <div style="font-weight:950; font-size:18px;" id="amConfTitle">Confirmar</div>
           <div class="muted small" id="amConfMsg" style="margin-top:8px;"></div>
           <div class="pill" id="amConfCountdown" style="margin-top:12px; display:inline-flex;">2</div>
-          <div class="amConfirmActions">
+          <div class="rowBetween" style="margin-top:14px;">
             <button id="amConfCancel" class="btn secondary" type="button">Cancelar</button>
             <button id="amConfOk" class="btn primary" type="button" disabled>Confirmar</button>
           </div>
@@ -2732,11 +2501,6 @@ async function finalizePostreFromOverlay(){
   
   // ========= Historial (pedidos elaborados) =========
   let btnHistory = null;
-  let mobileActionBar = null;
-  let mBtnHistory = null;
-  let mBtnCosts = null;
-  let mBtnRefresh = null;
-  let mBtnLogout = null;
   let historyModal = null;
   let histListEl = null;
   let histStatusEl = null;
@@ -2974,50 +2738,6 @@ async function finalizePostreFromOverlay(){
   }
 
 
-  function ensureMobileActionBar(){
-    if(mobileActionBar && document.body.contains(mobileActionBar)) return mobileActionBar;
-
-    let bar = document.getElementById("amKitchenMobileBar");
-    if(!bar){
-      bar = document.createElement("div");
-      bar.id = "amKitchenMobileBar";
-      bar.className = "amMobileBar isHidden";
-      bar.innerHTML = `
-        <button id="mBtnRefresh" class="amMobileAction" type="button" aria-label="Recargar">
-          <span class="txt">Recargar</span>
-        </button>
-        <div class="amMobileCenter" aria-label="Acciones principales">
-          <button id="mBtnHistory" class="amMobileSeg isPrimary" type="button">
-            <span class="txt">Historial</span>
-          </button>
-          <button id="mBtnCosts" class="amMobileSeg" type="button">
-            <span class="txt">Costos</span>
-          </button>
-        </div>
-        <button id="mBtnLogout" class="amMobileAction amDanger" type="button" aria-label="Salir">
-          <span class="txt">Salir</span>
-        </button>`;
-      document.body.appendChild(bar);
-    }
-
-    mobileActionBar = bar;
-    mBtnLogout = bar.querySelector("#mBtnLogout");
-    mBtnHistory = bar.querySelector("#mBtnHistory");
-    mBtnCosts = bar.querySelector("#mBtnCosts");
-    mBtnRefresh = bar.querySelector("#mBtnRefresh");
-    return bar;
-  }
-
-  function wireMobileActionBar(){
-    ensureMobileActionBar();
-    if(mBtnLogout) mBtnLogout.onclick = (e)=>{ e.preventDefault(); onLogout(); };
-    if(mBtnHistory) mBtnHistory.onclick = (e)=>{ e.preventDefault(); openHistoryModal(); };
-    if(mBtnCosts) mBtnCosts.onclick = (e)=>{ e.preventDefault(); openCostsModal(); };
-    if(mBtnRefresh) mBtnRefresh.onclick = (e)=>{ e.preventDefault(); refresh().catch(err=>alert(err?.message||String(err))); };
-    syncActionBarsVisibility();
-  }
-
-
 // ========= Refresh =========
   async function refresh(){
     const myNonce=state.refreshNonce;
@@ -3096,30 +2816,6 @@ async function finalizePostreFromOverlay(){
     loadProfilesOnStart();
   }
 
-  function enhanceKitchenHeader(){
-    const buildTag = document.getElementById("buildTag");
-    if(buildTag) buildTag.remove();
-    const sub = document.querySelector(".brandRow .sub");
-    if(sub && !sub.dataset.enhanced){
-      sub.innerHTML = `<span class="subMain">Cocina</span><span class="subMinor">Producción diaria</span>`;
-      sub.dataset.enhanced = "1";
-    }
-  }
-
-  function normalizeDesktopActionOrder(){
-    const headerBtns = btnRefresh?.parentElement;
-    if(!headerBtns) return;
-    headerBtns.classList.add("header-actions");
-    [btnRefresh, btnCosts, btnHistory, btnLogout].filter(Boolean).forEach(node=>headerBtns.appendChild(node));
-  }
-
-  function upgradeCostsModalChrome(){
-    if(!btnCloseCosts) return;
-    btnCloseCosts.textContent = "✕";
-    btnCloseCosts.setAttribute("aria-label", "Cerrar");
-    btnCloseCosts.setAttribute("title", "Cerrar");
-  }
-
   // ========= Init =========
   async function init(){
     injectStylesV6();
@@ -3151,9 +2847,7 @@ async function finalizePostreFromOverlay(){
     // marca contenedor header-actions si existe
     const headerBtns = btnRefresh?.parentElement;
     if(headerBtns) headerBtns.classList.add("header-actions");
-    enhanceKitchenHeader();
-    upgradeCostsModalChrome();
-    normalizeDesktopActionOrder();
+    wireMobileActionBar();
 
     showLogin();
     renderProfilesSelect([], "");
@@ -3206,7 +2900,6 @@ async function finalizePostreFromOverlay(){
     if(btnLogout) btnLogout.onclick=onLogout;
     if(btnCosts) btnCosts.onclick=openCostsModal;
     if(btnCloseCosts) btnCloseCosts.onclick=closeCostsModal;
-    wireMobileActionBar();
     syncActionBarsVisibility();
     window.addEventListener("resize", syncActionBarsVisibility, { passive:true });
     window.addEventListener("orientationchange", syncActionBarsVisibility, { passive:true });
