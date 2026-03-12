@@ -43,6 +43,7 @@ const btnLogin = document.getElementById("btnLogin");
 const loginError = document.getElementById("loginError");
 
 const operatorName = document.getElementById("operatorName");
+const adminTopbar = document.getElementById("adminTopbar");
 const btnLogout = document.getElementById("btnLogout");
 const btnRefresh = document.getElementById("btnRefresh");
 const btnHistory = document.getElementById("btnHistory");
@@ -267,10 +268,12 @@ function showPanel() {
   if (loginView) loginView.classList.add("hidden");
   if (panelView) panelView.classList.remove("hidden");
   if (operatorName) operatorName.textContent = SESSION.operator || "";
+  if (adminTopbar) adminTopbar.classList.remove("hidden");
 }
 function showLogin() {
   if (panelView) panelView.classList.add("hidden");
   if (loginView) loginView.classList.remove("hidden");
+  if (adminTopbar) adminTopbar.classList.add("hidden");
 }
 
 // =================== Drawer ===================
