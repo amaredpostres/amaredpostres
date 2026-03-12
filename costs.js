@@ -360,11 +360,11 @@ function syncSecretToggleState_(){
   if(!inp || !btn) return;
   const hidden = inp.type !== "text";
   btn.textContent = hidden ? "◉" : "◎";
-  btn.setAttribute("aria-label", hidden ? "Mostrar clave" : "Ocultar clave");
+  btn.setAttribute("aria-label", hidden ? "Mostrar PIN" : "Ocultar PIN");
 }
 
 async function fetchProfilesPublic_(category){
-  const out = await api({ action: "profiles_public_list", category });
+  const out = await api({ action:"profiles_public_list", category });
   return Array.isArray(out.profiles) ? out.profiles : [];
 }
 
@@ -388,9 +388,7 @@ async function populateLoginProfiles_(){
     const selected = saved && saved === id ? ' selected' : '';
     opts.push(`<option value="${escapeHtmlAttr(id)}"${selected}>${escapeHtml(label)}</option>`);
   }
-  if(!LOGIN_PROFILES.length){
-    opts.push('<option value="">Sin perfiles habilitados</option>');
-  }
+  if(!LOGIN_PROFILES.length) opts.push('<option value="">Sin perfiles habilitados</option>');
   sel.innerHTML = opts.join("");
 }
 
@@ -469,6 +467,11 @@ function setCostsMeta(msg){
 
 // =============== API ===============
 async function api(body, {timeoutMs=30000} = {}){
+  const payload = Object.assign({}, body || {});
+  if(payload && payload.costs_secret){
+    delete payload.costs_secret;
+    if(UNLOCKED_SECRET) payload.admin_pin = UNLOCKED_SECRET;
+  }
   const controller = new AbortController();
   const t = setTimeout(()=>controller.abort(), timeoutMs);
   let res;
@@ -476,7 +479,7 @@ async function api(body, {timeoutMs=30000} = {}){
     res = await fetch(API_URL, {
       method: "POST",
       headers: {"Content-Type":"application/json"},
-      body: JSON.stringify(body),
+      body: JSON.stringify(payload),
       signal: controller.signal,
     });
   } finally { clearTimeout(t); }
@@ -492,7 +495,8 @@ async function api(body, {timeoutMs=30000} = {}){
 }
 
 async function validateSecret(secret){
-  await api({ action:"costs_list", costs_secret: secret }, {timeoutMs: 30000});
+  const out = await api({ action:"validate_admin_pin", admin_pin: secret }, {timeoutMs: 30000});
+  if(out.valid !== true) throw new Error("PIN incorrecto o no autorizado.");
   return true;
 }
 
@@ -1860,7 +1864,10 @@ function openUnlock(msg){
     const saved = String(localStorage.getItem(LS_SECRET_KEY) || "").trim();
     chk.checked = !!saved && isRememberDeviceEnabled_();
   }
-  try{ const savedProfile = String(localStorage.getItem(LS_PROFILE_KEY) || "").trim(); if(savedProfile && el("loginProfile")) el("loginProfile").value = savedProfile; }catch(_e){}
+  try{
+    const savedProfile = String(localStorage.getItem(LS_PROFILE_KEY) || "").trim();
+    if(savedProfile && el("loginProfile")) el("loginProfile").value = savedProfile;
+  }catch(_e){}
   syncSecretToggleState_();
   if(el("secretInput")) el("secretInput").focus();
 }
@@ -1878,43 +1885,36 @@ async function doUnlock(isAuto=false){
     return;
   }
   if(!secret){
-    if(!isAuto && el("unlockMsg")) el("unlockMsg").textContent = "Escribe la clave.";
+    if(!isAuto && el("unlockMsg")) el("unlockMsg").textContent = "Escribe el PIN.";
     return;
   }
 
-  showLoading("Validando…", "Verificando la clave en el servidor.");
+  showLoading("Validando…", "Verificando el acceso en el servidor.");
   try{
     await validateSecret(secret);
     UNLOCKED_SECRET = secret;
     const chk = getRememberCheckbox_();
     const remember = !!(chk && chk.checked);
     if(remember || isAuto){
-      try{
-        localStorage.setItem(LS_SECRET_KEY, secret);
-        localStorage.setItem(LS_PROFILE_KEY, profileId);
-      }catch(_e){}
+      try{ localStorage.setItem(LS_SECRET_KEY, secret); }catch(_e){}
+      try{ localStorage.setItem(LS_PROFILE_KEY, profileId); }catch(_e){}
       setRememberDeviceEnabled_(true);
     }else{
-      try{
-        localStorage.removeItem(LS_SECRET_KEY);
-        localStorage.removeItem(LS_PROFILE_KEY);
-      }catch(_e){}
+      try{ localStorage.removeItem(LS_SECRET_KEY); }catch(_e){}
+      try{ localStorage.removeItem(LS_PROFILE_KEY); }catch(_e){}
       setRememberDeviceEnabled_(false);
     }
 
     closeUnlock();
     show(el("appRoot"));
     show(el("mobileNav"));
-
     setView("purchases");
     await loadAll();
   } catch(err){
     if(el("unlockMsg")) el("unlockMsg").textContent = (err && err.message) ? err.message : "No autorizado";
     if(isAuto){
-      try{
-        localStorage.removeItem(LS_SECRET_KEY);
-        localStorage.removeItem(LS_PROFILE_KEY);
-      }catch(_e){}
+      try{ localStorage.removeItem(LS_SECRET_KEY); }catch(_e){}
+      try{ localStorage.removeItem(LS_PROFILE_KEY); }catch(_e){}
       setRememberDeviceEnabled_(false);
     }
   } finally {
@@ -3289,14 +3289,22 @@ function bind(){
 
   // Unlock
   el("btnDoUnlock")?.addEventListener("click", ()=>doUnlock(false));
-  el("btnToggleSecret")?.addEventListener("click", ()=>{ const inp = el("secretInput"); if(!inp) return; inp.type = (inp.type === "password") ? "text" : "password"; syncSecretToggleState_(); });
+  el("btnToggleSecret")?.addEventListener("click", ()=>{
+    const inp = el("secretInput");
+    if(!inp) return;
+    inp.type = (inp.type === "password") ? "text" : "password";
+    syncSecretToggleState_();
+  });
   el("btnClear")?.addEventListener("click", ()=>{
     if(el("secretInput")) el("secretInput").value = "";
+    if(el("loginProfile")) el("loginProfile").value = "";
     if(el("unlockMsg")) el("unlockMsg").textContent = "";
     const chk = getRememberCheckbox_();
     if(chk) chk.checked = false;
     try{ localStorage.removeItem(LS_SECRET_KEY); }catch(_e){}
+    try{ localStorage.removeItem(LS_PROFILE_KEY); }catch(_e){}
     setRememberDeviceEnabled_(false);
+    syncSecretToggleState_();
     el("secretInput")?.focus();
   });
   el("secretInput")?.addEventListener("keydown", (e)=>{ if(e.key === "Enter") doUnlock(false); });
