@@ -722,6 +722,12 @@ function startDayRolloverWatch_(){
   }
 
   // ========= AUTH/UI =========
+  function setKitchenShellMode(mode){
+    try{
+      document.body.classList.remove("is-login","is-app");
+      document.body.classList.add(mode === "app" ? "is-app" : "is-login");
+    }catch(_e){}
+  }
   function isMobileViewport(){
     try{ return window.matchMedia("(max-width: 860px)").matches; }catch(_e){ return window.innerWidth <= 860; }
   }
@@ -749,6 +755,7 @@ function startDayRolloverWatch_(){
     }
   }
   function showLogin(){
+    setKitchenShellMode("login");
     if(loginBox) loginBox.style.display="block";
     if(app) app.style.display="none";
     if(btnLogout) btnLogout.style.display="none";
@@ -759,6 +766,7 @@ function startDayRolloverWatch_(){
     syncActionBarsVisibility();
   }
   function showApp(){
+    setKitchenShellMode("app");
     if(loginBox) loginBox.style.display="none";
     if(app) app.style.display="block";
     if(btnLogout) btnLogout.style.display="inline-flex";
