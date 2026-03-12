@@ -3086,9 +3086,21 @@ async function finalizePostreFromOverlay(){
   function enhanceKitchenHeader(){
     const buildTag = document.getElementById("buildTag");
     if(buildTag) buildTag.remove();
+
+    const ttl = document.querySelector(".brandRow .ttl");
     const sub = document.querySelector(".brandRow .sub");
-    if(sub && !sub.dataset.enhanced){
-      sub.innerHTML = `<span class="subMain">Cocina</span><span class="subMinor">Producción diaria</span>`;
+    const isMobile = window.matchMedia("(max-width: 860px)").matches;
+
+    if(ttl){
+      ttl.textContent = "Cocina";
+    }
+
+    if(sub){
+      if(isMobile){
+        sub.innerHTML = `<span class="subMain">Cocina</span><span class="subMinor">Producción diaria</span>`;
+      }else{
+        sub.innerHTML = `<span class="subMinor">Producción diaria</span>`;
+      }
       sub.dataset.enhanced = "1";
     }
   }
@@ -3139,6 +3151,7 @@ async function finalizePostreFromOverlay(){
     const headerBtns = btnRefresh?.parentElement;
     if(headerBtns) headerBtns.classList.add("header-actions");
     enhanceKitchenHeader();
+    window.addEventListener("resize", enhanceKitchenHeader, { passive:true });
     upgradeCostsModalChrome();
     normalizeDesktopActionOrder();
 
