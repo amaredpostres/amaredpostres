@@ -43,11 +43,17 @@ const btnLogin = document.getElementById("btnLogin");
 const loginError = document.getElementById("loginError");
 
 const operatorName = document.getElementById("operatorName");
-const adminLoginTopbar = document.getElementById("adminLoginTopbar");
-const adminPanelTopbar = document.getElementById("adminPanelTopbar");
 const btnLogout = document.getElementById("btnLogout");
 const btnRefresh = document.getElementById("btnRefresh");
 const btnHistory = document.getElementById("btnHistory");
+const btnHeaderRefresh = document.getElementById("btnHeaderRefresh");
+const btnHeaderHistory = document.getElementById("btnHeaderHistory");
+const btnHeaderLogout = document.getElementById("btnHeaderLogout");
+const adminHeaderActions = document.getElementById("adminHeaderActions");
+const adminMobileBar = document.getElementById("adminMobileBar");
+const btnMobileRefresh = document.getElementById("btnMobileRefresh");
+const btnMobileHistory = document.getElementById("btnMobileHistory");
+const btnMobileLogout = document.getElementById("btnMobileLogout");
 
 const statusEl = document.getElementById("status");
 const listEl = document.getElementById("list");
@@ -264,29 +270,48 @@ btnTogglePin?.addEventListener("click", () => {
 
 syncPinToggleState();
 
+
+function syncAdminActionBars() {
+  const panelOpen = !!panelView && !panelView.classList.contains("hidden");
+  const hasOverlay =
+    (drawerOverlay && drawerOverlay.classList.contains("show")) ||
+    (payModal && payModal.classList.contains("show")) ||
+    (cancelModal && cancelModal.classList.contains("show")) ||
+    (loadingOverlay && loadingOverlay.classList.contains("show"));
+
+  if (adminHeaderActions) {
+    const desktop = window.matchMedia("(min-width: 881px)").matches;
+    adminHeaderActions.classList.toggle("isVisible", panelOpen && desktop);
+  }
+  if (adminMobileBar) {
+    const mobile = window.matchMedia("(max-width: 880px)").matches;
+    adminMobileBar.classList.toggle("isVisible", panelOpen && mobile && !hasOverlay);
+  }
+}
+
 // =================== NAV (login/panel) ===================
 function showPanel() {
   if (loginView) loginView.classList.add("hidden");
   if (panelView) panelView.classList.remove("hidden");
   if (operatorName) operatorName.textContent = SESSION.operator || "";
-  if (adminLoginTopbar) adminLoginTopbar.classList.add("hidden");
-  if (adminPanelTopbar) adminPanelTopbar.classList.remove("hidden");
+  syncAdminActionBars();
 }
 function showLogin() {
   if (panelView) panelView.classList.add("hidden");
   if (loginView) loginView.classList.remove("hidden");
-  if (adminLoginTopbar) adminLoginTopbar.classList.remove("hidden");
-  if (adminPanelTopbar) adminPanelTopbar.classList.add("hidden");
+  syncAdminActionBars();
 }
 
 // =================== Drawer ===================
 function openDrawer() {
   if (drawerOverlay) drawerOverlay.classList.add("show");
   if (drawer) drawer.setAttribute("aria-hidden", "false");
+  syncAdminActionBars();
 }
 function closeDrawer() {
   if (drawerOverlay) drawerOverlay.classList.remove("show");
   if (drawer) drawer.setAttribute("aria-hidden", "true");
+  syncAdminActionBars();
 }
 
 // =================== MODALS ===================
@@ -294,11 +319,13 @@ function openModal(el) {
   if (!el) return;
   el.classList.add("show");
   el.setAttribute("aria-hidden", "false");
+  syncAdminActionBars();
 }
 function closeModal(el) {
   if (!el) return;
   el.classList.remove("show");
   el.setAttribute("aria-hidden", "true");
+  syncAdminActionBars();
 }
 
 // =================== ITEMS HELPERS ===================
@@ -1121,3 +1148,9 @@ btnCancelConfirm?.addEventListener("click", async () => {
 })();
 
 
+
+[btnHeaderRefresh, btnMobileRefresh].forEach(btn => btn?.addEventListener("click", ()=> btnRefresh?.click()));
+[btnHeaderHistory, btnMobileHistory].forEach(btn => btn?.addEventListener("click", ()=> btnHistory?.click()));
+[btnHeaderLogout, btnMobileLogout].forEach(btn => btn?.addEventListener("click", ()=> btnLogout?.click()));
+window.addEventListener("resize", syncAdminActionBars);
+setTimeout(syncAdminActionBars, 0);
