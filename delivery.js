@@ -338,12 +338,21 @@ async function doLogin(){
   }
 }
 
+function setDeliveryShellMode(mode){
+  try{
+    document.body.classList.remove("is-login","is-app");
+    document.body.classList.add(mode === "app" ? "is-app" : "is-login");
+  }catch(_e){}
+}
+
 function showPanel(){
+  setDeliveryShellMode("app");
   if(loginView) loginView.style.display = "none";
   if(panelView) panelView.style.display = "block";
   syncDeliveryActionBars();
 }
 function showLogin(){
+  setDeliveryShellMode("login");
   if(panelView) panelView.style.display = "none";
   if(loginView) loginView.style.display = "block";
   syncDeliveryActionBars();
