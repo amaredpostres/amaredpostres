@@ -102,16 +102,87 @@
       text-align: center;
     }
     .loadingTitle{ font-weight: 950; font-size: 18px; }
+  
+    .loginBrandWrap{
+      display:flex; justify-content:center; align-items:center;
+      margin: 8px 0 18px;
+    }
+    .loginBrandWrap img{
+      height:56px; width:auto; display:block;
+    }
+    .loginShell{
+      max-width: 760px;
+      margin: 0 auto;
+    }
+    .loginCard{
+      background: var(--paper);
+      border: 1px solid var(--border);
+      border-radius: 26px;
+      padding: 22px;
+      box-shadow: var(--shadow);
+    }
+    .loginTitle{
+      margin:0 0 6px;
+      text-align:center;
+      font-weight:950;
+      font-size: clamp(24px, 3vw, 34px);
+      line-height:1.08;
+    }
+    .loginLead{
+      margin:0 0 18px;
+      text-align:center;
+      font-size: clamp(14px, 1.4vw, 17px);
+      color: rgba(64,17,2,.74);
+      font-weight: 850;
+    }
+    .loginPinRow{
+      display:grid;
+      grid-template-columns: 1fr auto;
+      gap: 10px;
+      align-items:end;
+    }
+    .iconSquare{
+      width: 56px; height: 56px;
+      border-radius: 16px;
+      border: 1px solid var(--border);
+      background: linear-gradient(180deg, rgba(246,186,96,.92), rgba(246,186,96,.82));
+      display:flex; align-items:center; justify-content:center;
+      font-size:20px; font-weight:900;
+      cursor:pointer;
+      box-shadow: 0 10px 20px rgba(64,17,2,.08);
+    }
+    .loginRemember{
+      display:flex; align-items:center; gap:10px;
+      font-weight:900; color: rgba(64,17,2,.82);
+      margin-top: 12px;
+    }
+    .loginActions{
+      display:grid;
+      grid-template-columns: 1fr;
+      gap: 10px;
+      margin-top: 14px;
+    }
+    .loginHint{
+      margin-top:8px;
+      color: rgba(64,17,2,.72);
+      font-weight: 800;
+      font-size: 13px;
+      line-height: 1.35;
+    }
+    @media (min-width: 760px){
+      .loginActions{ grid-template-columns: 1fr; }
+    }
+
   </style>
 </head>
 <body>
-  <header class="topbar">
+  <header class="topbar hidden" id="profilesTopbar">
     <div class="topbarInner">
       <div class="brand">
         <img class="brandLogo" src="assets/Logo-Isotipo-Amared.svg" alt="AMARED" />
         <div class="brandMeta">
-          <div class="brandTitle">AMARED</div>
-          <div class="brandSubtitle">Gestión de perfiles</div>
+          <div class="brandTitle">Perfiles</div>
+          <div class="brandSubtitle">Gestión de rangos y accesos</div>
         </div>
       </div>
 
@@ -122,31 +193,53 @@
   </header>
 
   <main class="container">
-    <div class="hero">
+    <div id="profilesLoginBrand" class="loginBrandWrap"><img src="assets/Logo-Amared.svg" alt="AMARED"></div>
+    <div class="hero hidden" id="profilesHero">
       <h1 class="heroTitle">Perfiles del sistema</h1>
       <p class="heroSubtitle">Crea y administra perfiles por categoría (Cocina, Pagos, Envíos, Admin).</p>
     </div>
 
     <div class="grid2">
       <!-- LOGIN -->
-      <section class="card" id="gateCard">
-        <h2 class="cardTitle">Acceso</h2>
-        <p class="muted small">Ingresa la clave para administrar perfiles.</p>
+      <section class="loginShell" id="gateCard">
+        <div class="loginCard">
+          <h2 class="loginTitle">Acceso Perfiles</h2>
+          <p class="loginLead">Selecciona un perfil aprobado e ingresa la clave.</p>
 
-        <div class="field">
-          <label>Clave de perfiles</label>
-          <input id="inpSecret" class="input" type="password" placeholder="••••••••" autocomplete="current-password" />
+          <div class="field">
+            <label>Perfil</label>
+            <select id="loginProfile" class="input">
+              <option value="">Cargando perfiles…</option>
+            </select>
+            <div class="muted small" style="margin-top:6px;">
+              Solo aparecen perfiles activos con rango <b>Perfiles</b> o <b>Admin</b>.
+            </div>
+          </div>
+
+          <div class="field" style="margin-top:12px;">
+            <label>Clave</label>
+            <div class="loginPinRow">
+              <input id="inpSecret" class="input" type="password" placeholder="••••••••" autocomplete="current-password" />
+              <button id="btnTogglePin" class="iconSquare" type="button" aria-label="Mostrar u ocultar clave">◉</button>
+            </div>
+          </div>
+
+          <label class="loginRemember">
+            <input id="chkRememberProfiles" type="checkbox" style="transform: translateY(1px);" />
+            Recuérdame en este dispositivo
+          </label>
+          <div class="loginHint">Si lo activas, la próxima vez entrarás automáticamente desde este navegador.</div>
+
+          <div class="loginActions">
+            <button id="btnUnlock" class="btn primary" type="button">Ingresar</button>
+          </div>
+
+          <div id="gateErr" class="status" style="color:#b00020; margin-top:10px;"></div>
         </div>
-
-        <div class="row" style="margin-top:12px;">
-          <button id="btnUnlock" class="btn primary" type="button">Ingresar</button>
-        </div>
-
-        <div id="gateErr" class="status" style="color:#b00020;"></div>
       </section>
 
       <!-- ESTADO -->
-      <section class="card" id="statusCard">
+      <section class="card hidden" id="statusCard">
         <h2 class="cardTitle">Estado</h2>
         <div class="rowBetween">
           <div class="pill" id="pillState">🔒 Bloqueado</div>
@@ -205,15 +298,17 @@
 
         <div>
           <div class="field">
-            <label>Categorías</label>
-            <div class="chips">
+            <label>Rangos / páginas</label>
+            <div class="chips" id="addCats">
               <label class="chip"><input type="checkbox" value="kitchen" checked> Cocina</label>
               <label class="chip"><input type="checkbox" value="payments"> Pagos</label>
               <label class="chip"><input type="checkbox" value="delivery"> Envíos</label>
+              <label class="chip"><input type="checkbox" value="costs"> Compras / Recetas</label>
+              <label class="chip"><input type="checkbox" value="profiles"> Perfiles</label>
               <label class="chip"><input type="checkbox" value="admin"> Admin</label>
             </div>
             <div class="muted small" style="margin-top:6px;">
-              Un perfil puede estar en varias categorías.
+              Un perfil puede estar en varios rangos o páginas del sistema.
             </div>
           </div>
 
@@ -257,11 +352,13 @@
       </div>
 
       <div class="field" style="margin-top:12px;">
-        <label>Categorías</label>
+        <label>Rangos / páginas</label>
         <div class="chips" id="editCats">
           <label class="chip"><input type="checkbox" value="kitchen"> Cocina</label>
           <label class="chip"><input type="checkbox" value="payments"> Pagos</label>
           <label class="chip"><input type="checkbox" value="delivery"> Envíos</label>
+          <label class="chip"><input type="checkbox" value="costs"> Compras / Recetas</label>
+          <label class="chip"><input type="checkbox" value="profiles"> Perfiles</label>
           <label class="chip"><input type="checkbox" value="admin"> Admin</label>
         </div>
         <div class="muted small" style="margin-top:6px;">
