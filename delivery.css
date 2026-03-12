@@ -373,3 +373,39 @@ body.deliveryOverlayOpen .amDeliveryMobileBar{
   .loginActionsRow{ flex-direction:column; }
   .pinToggleBtn{ min-width:52px; height:auto; }
 }
+
+
+/* ===== v49: login centrado con logo AMARED ===== */
+.deliveryTopbarInner{ justify-content:space-between !important; }
+.deliveryLoginBrand{
+  display:none;
+  width:100%;
+  align-items:center;
+  justify-content:center;
+}
+.deliveryLoginHeaderLogo{
+  height:48px;
+  width:auto;
+  display:block;
+}
+.deliveryPage.is-login .deliveryTopbarInner{ justify-content:center !important; }
+.deliveryPage.is-login .deliveryLoginBrand{ display:flex; }
+.deliveryPage.is-login .deliveryAppBrand,
+.deliveryPage.is-login .deliveryHeaderActions{ display:none !important; }
+.deliveryPage.is-app .deliveryLoginBrand{ display:none !important; }
+.deliveryBrandTitle{ font-size:clamp(15px,1.15vw,18px); font-weight:950; line-height:1; }
+.deliveryBrandSubtitle{ font-size:11px; }
+.deliveryPage .topbarInner{ padding-top:10px; padding-bottom:10px; }
+.deliveryPage .brandLogo{ height:34px !important; }
+.loginTitle{ font-size:clamp(22px,2.15vw,28px); }
+.loginLead{ font-size:clamp(15px,1.35vw,17px); }
+@media (max-width: 720px){
+  .deliveryLoginHeaderLogo{ height:42px; }
+  .deliveryPage.is-app .topbarInner{ justify-content:center !important; }
+  .deliveryPage.is-app .deliveryAppBrand{ width:100%; justify-content:center !important; margin:0 auto; }
+  .deliveryPage.is-app .deliveryAppBrand > .deliveryBrandMeta{ align-items:center !important; text-align:center; }
+  .deliveryBrandTitle{ font-size:clamp(17px,5vw,19px); }
+  .deliveryBrandSubtitle{ font-size:11px; }
+  .loginTitle{ font-size:clamp(20px,6.2vw,24px); }
+  .loginLead{ font-size:14px; }
+}
