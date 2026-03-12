@@ -12,9 +12,11 @@
 const API_URL = "https://amared-orders.amaredpostres.workers.dev/";
 const LS_SECRET_KEY = "AMARED_COSTS_SECRET";
 const LS_REMEMBER_KEY = "AMARED_COSTS_REMEMBER_V1";
+const LS_PROFILE_KEY = "AMARED_COSTS_PROFILE_ID";
 const LS_DELETED_DESSERTS_KEY = "AMARED_DELETED_DESSERTS_V1";
 
 let UNLOCKED_SECRET = "";
+let LOGIN_PROFILES = [];
 let state = {
   items: [],
   costsByKey: {},
@@ -348,6 +350,48 @@ function escapeHtml(s){
 
 function escapeHtmlAttr(s){
   return escapeHtml(s).replace(/"/g,"&quot;");
+}
+
+
+
+function syncSecretToggleState_(){
+  const inp = el("secretInput");
+  const btn = el("btnToggleSecret");
+  if(!inp || !btn) return;
+  const hidden = inp.type !== "text";
+  btn.textContent = hidden ? "◉" : "◎";
+  btn.setAttribute("aria-label", hidden ? "Mostrar clave" : "Ocultar clave");
+}
+
+async function fetchProfilesPublic_(category){
+  const out = await api({ action: "profiles_public_list", category });
+  return Array.isArray(out.profiles) ? out.profiles : [];
+}
+
+async function populateLoginProfiles_(){
+  let rows = [];
+  try{ rows = await fetchProfilesPublic_("costs"); }catch(_e){}
+  if(!rows.length){
+    try{ rows = await fetchProfilesPublic_("admin"); }catch(_e){}
+  }
+  if(!rows.length){
+    try{ rows = await fetchProfilesPublic_("payments"); }catch(_e){}
+  }
+  LOGIN_PROFILES = Array.isArray(rows) ? rows : [];
+  const sel = el("loginProfile");
+  if(!sel) return;
+  const saved = String(localStorage.getItem(LS_PROFILE_KEY) || "").trim();
+  const opts = ['<option value="">Seleccionar…</option>'];
+  for(const p of LOGIN_PROFILES){
+    const id = String(p.id || p.profile_id || "").trim();
+    const label = String(p.label || id).trim();
+    const selected = saved && saved === id ? ' selected' : '';
+    opts.push(`<option value="${escapeHtmlAttr(id)}"${selected}>${escapeHtml(label)}</option>`);
+  }
+  if(!LOGIN_PROFILES.length){
+    opts.push('<option value="">Sin perfiles habilitados</option>');
+  }
+  sel.innerHTML = opts.join("");
 }
 
 
@@ -1816,6 +1860,8 @@ function openUnlock(msg){
     const saved = String(localStorage.getItem(LS_SECRET_KEY) || "").trim();
     chk.checked = !!saved && isRememberDeviceEnabled_();
   }
+  try{ const savedProfile = String(localStorage.getItem(LS_PROFILE_KEY) || "").trim(); if(savedProfile && el("loginProfile")) el("loginProfile").value = savedProfile; }catch(_e){}
+  syncSecretToggleState_();
   if(el("secretInput")) el("secretInput").focus();
 }
 
@@ -1825,7 +1871,12 @@ function closeUnlock(){
 }
 
 async function doUnlock(isAuto=false){
+  const profileId = String(el("loginProfile")?.value || "").trim();
   const secret = String(el("secretInput")?.value || "").trim();
+  if(!profileId){
+    if(!isAuto && el("unlockMsg")) el("unlockMsg").textContent = "Selecciona un perfil.";
+    return;
+  }
   if(!secret){
     if(!isAuto && el("unlockMsg")) el("unlockMsg").textContent = "Escribe la clave.";
     return;
@@ -1837,38 +1888,33 @@ async function doUnlock(isAuto=false){
     UNLOCKED_SECRET = secret;
     const chk = getRememberCheckbox_();
     const remember = !!(chk && chk.checked);
-    // ✅ Guardar clave solo si el usuario lo pidió
     if(remember || isAuto){
-      try{ localStorage.setItem(LS_SECRET_KEY, secret); }catch(_e){}
+      try{
+        localStorage.setItem(LS_SECRET_KEY, secret);
+        localStorage.setItem(LS_PROFILE_KEY, profileId);
+      }catch(_e){}
       setRememberDeviceEnabled_(true);
     }else{
-      try{ localStorage.removeItem(LS_SECRET_KEY); }catch(_e){}
+      try{
+        localStorage.removeItem(LS_SECRET_KEY);
+        localStorage.removeItem(LS_PROFILE_KEY);
+      }catch(_e){}
       setRememberDeviceEnabled_(false);
     }
 
     closeUnlock();
     show(el("appRoot"));
-    state.ui.openGroups = {};
+    show(el("mobileNav"));
+
     setView("purchases");
-    try{ syncMobileNavForViewport_(); }catch(_e){}
-
-    // ✅ Ocultamos el overlay de validación tan pronto la clave es válida
-    // para que el selector móvil responda de inmediato mientras terminan de cargar los datos.
-    hideLoading();
-    setMeta("Cargando datos…");
-
-    try{
-      await loadAll();
-      forceCloseDetailsOnLoad_();
-      try{ syncMobileNavForViewport_(); }catch(_e){}
-    }catch(err){
-      setMeta(`❌ Error cargando datos: ${(err && err.message) ? err.message : "Error"}`);
-    }
+    await loadAll();
   } catch(err){
     if(el("unlockMsg")) el("unlockMsg").textContent = (err && err.message) ? err.message : "No autorizado";
-    // Si falla el auto-ingreso, limpiamos el recuerdo para obligar login manual
     if(isAuto){
-      try{ localStorage.removeItem(LS_SECRET_KEY); }catch(_e){}
+      try{
+        localStorage.removeItem(LS_SECRET_KEY);
+        localStorage.removeItem(LS_PROFILE_KEY);
+      }catch(_e){}
       setRememberDeviceEnabled_(false);
     }
   } finally {
@@ -1880,6 +1926,7 @@ function logout(){
   UNLOCKED_SECRET = "";
   try{ resetRecipesAuth_(); }catch(_e){}
   try{ localStorage.removeItem(LS_SECRET_KEY); }catch(_e){}
+  try{ localStorage.removeItem(LS_PROFILE_KEY); }catch(_e){}
   setRememberDeviceEnabled_(false);
   state.buyPlan = {};
   state.ui.openGroups = {};
@@ -3242,6 +3289,7 @@ function bind(){
 
   // Unlock
   el("btnDoUnlock")?.addEventListener("click", ()=>doUnlock(false));
+  el("btnToggleSecret")?.addEventListener("click", ()=>{ const inp = el("secretInput"); if(!inp) return; inp.type = (inp.type === "password") ? "text" : "password"; syncSecretToggleState_(); });
   el("btnClear")?.addEventListener("click", ()=>{
     if(el("secretInput")) el("secretInput").value = "";
     if(el("unlockMsg")) el("unlockMsg").textContent = "";
@@ -3514,30 +3562,31 @@ el("ingModalBack")?.addEventListener("click", (e)=>{ if(e.target && e.target.id=
 }
 
 // =============== Boot ===============
-(function init(){
+(async function init(){
   bind();
-  forceCloseDetailsOnLoad_();
   loadDeletedDesserts_();
+  syncSecretToggleState_();
+  try{ await populateLoginProfiles_(); }catch(_e){}
 
   const saved = String(localStorage.getItem(LS_SECRET_KEY) || "").trim();
+  const savedProfile = String(localStorage.getItem(LS_PROFILE_KEY) || "").trim();
   const remembered = isRememberDeviceEnabled_();
 
   const chk = getRememberCheckbox_();
   if(chk) chk.checked = !!saved && remembered;
 
-  if(saved && remembered){
+  if(savedProfile && el("loginProfile")) el("loginProfile").value = savedProfile;
+
+  if(saved && remembered && savedProfile){
     if(el("secretInput")) el("secretInput").value = saved;
-    // ✅ auto unlock solo si el usuario activó "Recuérdame"
     doUnlock(true);
   } else {
-    // si hay clave guardada pero NO está habilitado recordar, la limpiamos
     if(saved && !remembered){
       try{ localStorage.removeItem(LS_SECRET_KEY); }catch(_e){}
+      try{ localStorage.removeItem(LS_PROFILE_KEY); }catch(_e){}
     }
     openUnlock("");
   }
-
-  try{ syncMobileNavForViewport_(); }catch(_e){}
 })();
 
 
