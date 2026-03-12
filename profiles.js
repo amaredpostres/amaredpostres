@@ -5,9 +5,9 @@ const API_URL = "https://amared-orders.amaredpostres.workers.dev/";
 let PROFILES_SECRET = null;
 let PROFILES_CACHE = [];
 let LOGIN_PROFILES = [];
-const LS_PROFILES_SECRET_KEY = "AMARED_PROFILES_SECRET";
+const LS_PROFILES_PIN_KEY = "AMARED_PROFILES_ADMIN_PIN";
 const LS_PROFILES_PROFILE_KEY = "AMARED_PROFILES_PROFILE";
-const LS_PROFILES_REMEMBER_KEY = "AMARED_PROFILES_REMEMBER_V1";
+const LS_PROFILES_REMEMBER_KEY = "AMARED_PROFILES_REMEMBER";
 
 // =================== DOM ===================
 const btnBack = document.getElementById("btnBack");
@@ -22,12 +22,12 @@ const btnTogglePin = document.getElementById("btnTogglePin");
 const chkRememberProfiles = document.getElementById("chkRememberProfiles");
 const btnUnlock = document.getElementById("btnUnlock");
 const gateErr = document.getElementById("gateErr");
-const profilesTopbar = document.getElementById("profilesTopbar");
-const profilesHero = document.getElementById("profilesHero");
-const profilesLoginBrand = document.getElementById("profilesLoginBrand");
 
 const pillState = document.getElementById("pillState");
 const btnLogout = document.getElementById("btnLogout");
+const profilesTopbar = document.getElementById("profilesTopbar");
+const profilesHero = document.getElementById("profilesHero");
+const profilesLoginBrand = document.getElementById("profilesLoginBrand");
 
 const pillCount = document.getElementById("pillCount");
 const btnReload = document.getElementById("btnReload");
@@ -128,7 +128,7 @@ function slugifyNameToId(name){
 }
 
 function getSelectedCategories(){
-  const checks = Array.from(document.querySelectorAll("#addCats input[type=checkbox]"));
+  const checks = Array.from(document.querySelectorAll(".chips input[type=checkbox]"));
   return checks.filter(c=>c.checked).map(c=>String(c.value||"").trim()).filter(Boolean);
 }
 
@@ -136,26 +136,26 @@ function syncPinToggleState_(){
   if(!inpSecret || !btnTogglePin) return;
   const hidden = inpSecret.type !== "text";
   btnTogglePin.textContent = hidden ? "◉" : "◎";
-  btnTogglePin.setAttribute("aria-label", hidden ? "Mostrar clave" : "Ocultar clave");
+  btnTogglePin.setAttribute("aria-label", hidden ? "Mostrar PIN" : "Ocultar PIN");
 }
 
-function saveProfilesSession_(){
+function saveProfilesRemember_(){
   try{
     if(chkRememberProfiles?.checked && PROFILES_SECRET){
-      localStorage.setItem(LS_PROFILES_SECRET_KEY, PROFILES_SECRET);
+      localStorage.setItem(LS_PROFILES_PIN_KEY, PROFILES_SECRET);
       localStorage.setItem(LS_PROFILES_PROFILE_KEY, String(loginProfile?.value || "").trim());
       localStorage.setItem(LS_PROFILES_REMEMBER_KEY, "1");
     }else{
-      localStorage.removeItem(LS_PROFILES_SECRET_KEY);
+      localStorage.removeItem(LS_PROFILES_PIN_KEY);
       localStorage.removeItem(LS_PROFILES_PROFILE_KEY);
       localStorage.removeItem(LS_PROFILES_REMEMBER_KEY);
     }
   }catch(_e){}
 }
 
-function clearProfilesSession_(){
+function clearProfilesRemember_(){
   try{
-    localStorage.removeItem(LS_PROFILES_SECRET_KEY);
+    localStorage.removeItem(LS_PROFILES_PIN_KEY);
     localStorage.removeItem(LS_PROFILES_PROFILE_KEY);
     localStorage.removeItem(LS_PROFILES_REMEMBER_KEY);
   }catch(_e){}
@@ -169,16 +169,15 @@ async function fetchProfilesPublic_(category){
 function renderLoginProfiles_(rows){
   if(!loginProfile) return;
   const list = Array.isArray(rows) ? rows : [];
-  const savedProfile = String(localStorage.getItem(LS_PROFILES_PROFILE_KEY) || "").trim();
+  const saved = String(localStorage.getItem(LS_PROFILES_PROFILE_KEY) || "").trim();
   const opts = ['<option value="">Seleccionar…</option>'];
   for(const p of list){
     const id = normalizeId(p);
-    const selected = savedProfile && savedProfile === id ? ' selected' : '';
-    opts.push(`<option value="${escapeHtml(id)}"${selected}>${escapeHtml(p.label || id)}</option>`);
+    const label = String(p.label || id).trim();
+    const selected = saved && saved === id ? ' selected' : '';
+    opts.push(`<option value="${escapeHtml(id)}"${selected}>${escapeHtml(label)}</option>`);
   }
-  if(!list.length){
-    opts.push('<option value="">Sin perfiles habilitados</option>');
-  }
+  if(!list.length) opts.push('<option value="">Sin perfiles habilitados</option>');
   loginProfile.innerHTML = opts.join("");
 }
 
@@ -211,21 +210,21 @@ async function api(payload){
 
 function setLockedUI(locked){
   if(locked){
-    pillState.textContent = "🔒 Bloqueado";
-    btnLogout.disabled = true;
+    if(btnLogout) btnLogout.disabled = true;
     if(mgrCard) mgrCard.style.display = "none";
-    if(statusCard) statusCard.classList.add("hidden");
-    if(profilesTopbar) profilesTopbar.classList.add("hidden");
+    if(statusCard) statusCard.style.display = "none";
+    if(gateCard) gateCard.style.display = "";
+    if(profilesTopbar) profilesTopbar.classList.add("profilesTopbarHidden");
     if(profilesHero) profilesHero.classList.add("hidden");
-    if(profilesLoginBrand) profilesLoginBrand.classList.remove("hidden");
+    if(profilesLoginBrand) profilesLoginBrand.style.display = "flex";
   }else{
-    pillState.textContent = "🔓 Desbloqueado";
-    btnLogout.disabled = false;
+    if(btnLogout) btnLogout.disabled = false;
     if(mgrCard) mgrCard.style.display = "block";
-    if(statusCard) statusCard.classList.remove("hidden");
-    if(profilesTopbar) profilesTopbar.classList.remove("hidden");
+    if(statusCard) statusCard.style.display = "none";
+    if(gateCard) gateCard.style.display = "none";
+    if(profilesTopbar) profilesTopbar.classList.remove("profilesTopbarHidden");
     if(profilesHero) profilesHero.classList.remove("hidden");
-    if(profilesLoginBrand) profilesLoginBrand.classList.add("hidden");
+    if(profilesLoginBrand) profilesLoginBrand.style.display = "none";
   }
 }
 
@@ -483,7 +482,7 @@ tbody?.addEventListener("click", async (ev)=>{
     showLoading("Eliminando…", "Actualizando base de datos…");
     await api({
       action: "profiles_delete",
-      profiles_secret: PROFILES_SECRET,
+      admin_pin: PROFILES_SECRET,
       profile_id: id
     });
     await loadProfiles();
@@ -506,7 +505,7 @@ async function loadProfiles(){
   try{
     const out = await api({
       action: "profiles_list",
-      profiles_secret: PROFILES_SECRET
+      admin_pin: PROFILES_SECRET
     });
     PROFILES_CACHE = Array.isArray(out.profiles) ? out.profiles : [];
     renderTable(PROFILES_CACHE);
@@ -535,22 +534,24 @@ btnUnlock?.addEventListener("click", async ()=>{
     return;
   }
   if(!secret){
-    gateErr.textContent = "Ingresa la clave.";
+    gateErr.textContent = "Ingresa el PIN.";
     return;
   }
 
   try{
     showLoading("Validando…", "Comprobando acceso…");
+    // 1) Validar clave contra el Worker (no toca Apps Script)
     const v = await api({ action: "validate_profiles_secret", profiles_secret: secret });
-    if(v.valid !== true) throw new Error("Clave incorrecta o no autorizada.");
+    if(v.valid !== true) throw new Error("PIN incorrecto o no autorizado.");
 
+    // 2) Cargar perfiles
     const out = await api({
       action: "profiles_list",
       profiles_secret: secret
     });
 
     PROFILES_SECRET = secret;
-    saveProfilesSession_();
+    saveProfilesRemember_();
     setLockedUI(false);
 
     PROFILES_CACHE = Array.isArray(out.profiles) ? out.profiles : [];
@@ -559,9 +560,9 @@ btnUnlock?.addEventListener("click", async ()=>{
     gateErr.textContent = "";
   }catch(e){
     PROFILES_SECRET = null;
-    clearProfilesSession_();
+    clearProfilesRemember_();
     setLockedUI(true);
-    gateErr.textContent = "Clave incorrecta o no autorizada.";
+    gateErr.textContent = "PIN incorrecto o no autorizado.";
     console.error("unlock error:", e, e._raw);
   }finally{
     hideLoading();
@@ -572,7 +573,7 @@ btnLogout?.addEventListener("click", ()=>{
   PROFILES_SECRET = null;
   if(inpSecret) inpSecret.value = "";
   if(loginProfile) loginProfile.value = "";
-  clearProfilesSession_();
+  clearProfilesRemember_();
   setLockedUI(true);
 });
 
@@ -611,7 +612,7 @@ btnAdd?.addEventListener("click", async ()=>{
     showLoading("Guardando…", "Creando perfil…");
     await api({
       action: "profiles_add",
-      profiles_secret: PROFILES_SECRET,
+      admin_pin: PROFILES_SECRET,
       profile_id: id,
       label: name,
       categories: cats.join(",")
@@ -662,7 +663,7 @@ btnEditSave?.addEventListener("click", async ()=>{
     showLoading("Guardando…", "Actualizando perfil…");
     await api({
       action: "profiles_add", // ✅ upsert en backend
-      profiles_secret: PROFILES_SECRET,
+      admin_pin: PROFILES_SECRET,
       profile_id: id,
       label: name,
       categories: cats.join(","),
@@ -683,7 +684,6 @@ btnEditSave?.addEventListener("click", async ()=>{
 setLockedUI(true);
 
 
-// =================== LOGIN UX BOOT ===================
 btnTogglePin?.addEventListener("click", ()=>{
   if(!inpSecret) return;
   inpSecret.type = (inpSecret.type === "password") ? "text" : "password";
@@ -695,18 +695,15 @@ inpSecret?.addEventListener("keydown", (e)=>{ if(e.key === "Enter") btnUnlock?.c
   try{
     syncPinToggleState_();
     await populateLoginProfiles_();
-    const savedSecret = String(localStorage.getItem(LS_PROFILES_SECRET_KEY) || "").trim();
-    const savedProfile = String(localStorage.getItem(LS_PROFILES_PROFILE_KEY) || "").trim();
     const remembered = localStorage.getItem(LS_PROFILES_REMEMBER_KEY) === "1";
+    const savedPin = String(localStorage.getItem(LS_PROFILES_PIN_KEY) || "").trim();
+    const savedProfile = String(localStorage.getItem(LS_PROFILES_PROFILE_KEY) || "").trim();
     if(chkRememberProfiles) chkRememberProfiles.checked = remembered;
     if(savedProfile && loginProfile) loginProfile.value = savedProfile;
-    if(savedSecret && remembered && inpSecret){
-      inpSecret.value = savedSecret;
-      if(savedProfile){
-        btnUnlock?.click();
-      }
+    if(savedPin && remembered){
+      if(inpSecret) inpSecret.value = savedPin;
+      if(savedProfile) btnUnlock?.click();
     }else{
-      clearProfilesSession_();
       setLockedUI(true);
     }
   }catch(_e){
