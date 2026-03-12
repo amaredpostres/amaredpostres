@@ -1,7 +1,8 @@
-ee// delivery.js — AMARED Envíos (v4 UX + Historial + Opt-in fix)
+;
+// delivery.js — AMARED Envíos (v4 UX + Historial + Opt-in fix)
 "use strict";
 
-console.log("AMARED delivery v11");
+console.log("AMARED delivery v12");
 
 const API_URL = "https://amared-orders.amaredpostres.workers.dev/";
 const SS_KEY = "AMARED_DELIVERY_SESSION_V4";
