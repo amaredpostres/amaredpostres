@@ -318,7 +318,7 @@ body.deliveryOverlayOpen .amDeliveryMobileBar{
 
 /* ===== v45: header + login visual ===== */
 .deliveryBrandMeta{ display:flex; flex-direction:column; gap:2px; }
-.deliveryBrandTitle{ font-size:clamp(22px,2.1vw,28px); font-weight:950; line-height:1; }
+.deliveryBrandTitle{ font-size:clamp(18px,1.8vw,24px); font-weight:950; line-height:1; }
 .deliveryBrandSubtitle{ font-size:13px; font-weight:800; color:rgba(64,17,2,.65); }
 .deliveryLoginCard{
   max-width:700px;
@@ -361,7 +361,7 @@ body.deliveryOverlayOpen .amDeliveryMobileBar{
     align-items:center !important;
     text-align:center;
   }
-  .deliveryBrandTitle{ font-size:clamp(24px,7vw,32px); }
+  .deliveryBrandTitle{ font-size:clamp(20px,6.2vw,24px); }
   .deliveryBrandSubtitle{ font-size:13.5px; }
   .deliveryLoginCard{ margin:16px auto 0; padding:18px; border-radius:22px; }
   .loginTitle{ font-size:clamp(24px,8vw,34px); }
