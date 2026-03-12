@@ -151,7 +151,11 @@
 }
 
 
-/* ===== Login de perfiles (Compras/Recetas) ===== */
+/* ===== Login con perfil / PIN ===== */
+#unlockBack{
+  background: rgba(247, 240, 233, .98);
+  z-index: 99999;
+}
 #unlockBack .modal{
   width:min(820px, 92vw);
 }
@@ -164,13 +168,12 @@
 }
 .unlockGrid{
   display:grid;
-  grid-template-columns: 1fr;
-  gap: 12px;
+  gap:12px;
 }
 .unlockPinRow{
   display:grid;
-  grid-template-columns: 1fr auto;
-  gap: 10px;
+  grid-template-columns:1fr auto;
+  gap:10px;
   align-items:end;
 }
 .unlockEyeBtn{
@@ -189,12 +192,12 @@
 }
 .unlockActions{
   display:grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 10px;
-  margin-top: 12px;
+  grid-template-columns:1fr 1fr;
+  gap:10px;
+  margin-top:12px;
 }
 @media (max-width: 640px){
-  .unlockActions{ grid-template-columns: 1fr; }
+  .unlockActions{ grid-template-columns:1fr; }
 }
 
 </style>
@@ -369,7 +372,7 @@
 <div class="modalHeader" style="justify-content:center; text-align:center;">
 <div>
 <div class="modalTitle" style="font-weight:950;">Acceso Compras y Recetas</div>
-<div class="modalSub" style="margin-top:4px;">Selecciona un perfil aprobado e ingresa la clave.</div>
+<div class="modalSub" style="margin-top:4px;">Selecciona un perfil aprobado e ingresa el PIN.</div>
 </div>
 </div>
 <div class="modalBody" style="padding:14px;">
@@ -383,10 +386,10 @@
   </div>
 
   <div class="field">
-    <label>Clave</label>
+    <label>PIN</label>
     <div class="unlockPinRow">
-      <input autocomplete="current-password" class="input" id="secretInput" placeholder="••••••••" type="password"/>
-      <button class="unlockEyeBtn" id="btnToggleSecret" type="button" aria-label="Mostrar u ocultar clave">◉</button>
+      <input autocomplete="current-password" class="input" id="secretInput" placeholder="••••••" type="password"/>
+      <button class="unlockEyeBtn" id="btnToggleSecret" type="button" aria-label="Mostrar u ocultar PIN">◉</button>
     </div>
   </div>
 
@@ -394,6 +397,7 @@
     <input id="chkRememberDevice" style="transform: translateY(1px);" type="checkbox"/>
     Recuérdame en este dispositivo
   </label>
+  <div class="hint">Si lo activas, la próxima vez entrarás automáticamente desde este navegador.</div>
 
   <div class="unlockActions">
     <button class="btn secondary" id="btnClear">Limpiar</button>
@@ -402,25 +406,6 @@
 
   <div class="pErr" id="unlockMsg"></div>
 </div>
-</div>
-</div>
-</div>
-<div class="modalBody" style="padding:14px;">
-<div class="pLoginRow">
-  <input autocomplete="current-password" class="input" id="secretInput" placeholder="COSTS_SECRET" type="password"/>
-  <div class="pLoginActions">
-    <button class="btn" id="btnClear">Limpiar</button>
-    <button class="btn primary" id="btnDoUnlock">Entrar</button>
-  </div>
-  <div class="pErr" id="unlockMsg"></div>
-</div>
-<div class="pRememberRow" style="margin-top:10px;">
-<label class="pRemember" style="display:flex; align-items:center; gap:10px; font-weight:900; color: rgba(64,17,2,.78);">
-<input id="chkRememberDevice" style="transform: translateY(1px);" type="checkbox"/>
-    Recuérdame en este dispositivo
-  </label>
-</div>
-<div class="hint" style="margin-top:10px;">Este módulo siempre pide el código por seguridad.</div>
 </div>
 </div>
 </div>
