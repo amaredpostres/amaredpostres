@@ -105,13 +105,51 @@
       @keyframes spin { to { transform: rotate(360deg); } }
 
 
+  
+
+    /* ===== v49: header/login AMARED centrado ===== */
+    .kitchenTopbarInner{ justify-content:space-between !important; }
+    .kitchenTopbarLoginBrand{
+      display:none;
+      width:100%;
+      align-items:center;
+      justify-content:center;
+    }
+    .kitchenTopbarLoginBrand img{
+      height:50px;
+      width:auto;
+      display:block;
+    }
+    .kitchenTopbarAppBrand{ display:flex; align-items:center; gap:10px; }
+    .kitchenHeaderActions{ display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
+    .kitchenPage.is-login .kitchenTopbarInner{ justify-content:center !important; }
+    .kitchenPage.is-login .kitchenTopbarLoginBrand{ display:flex; }
+    .kitchenPage.is-login .kitchenTopbarAppBrand,
+    .kitchenPage.is-login .kitchenHeaderActions{ display:none !important; }
+    .kitchenPage.is-app .kitchenTopbarLoginBrand{ display:none !important; }
+    .kitchenPage.is-app .kitchenTopbarAppBrand{ display:flex; }
+    .kitchenPage #loginBox .heroTitle{ font-size:clamp(22px,2.2vw,28px) !important; }
+    .kitchenPage #loginBox .heroSubtitle{ font-size:clamp(14px,1.3vw,16px) !important; }
+    @media (max-width: 860px){
+      .kitchenTopbarLoginBrand img{ height:44px; }
+      .kitchenPage.is-app .kitchenTopbarInner{ justify-content:center !important; }
+      .kitchenPage.is-app .kitchenTopbarAppBrand{ margin:0 auto; }
+      .kitchenPage.is-app .kitchenTopbarAppBrand > div{ text-align:center; }
+      .kitchenPage.is-app .kitchenHeaderActions{ display:none !important; }
+      .kitchenPage #loginBox .heroTitle{ font-size:clamp(21px,6.4vw,26px) !important; }
+    }
+
   </style>
 </head>
 
-<body>
+<body class="kitchenPage is-login">
   <header class="topbar">
-    <div class="topbarInner" style="justify-content:space-between;">
-      <div class="brandRow">
+    <div class="topbarInner kitchenTopbarInner">
+      <div class="kitchenTopbarLoginBrand" aria-label="AMARED">
+        <img src="assets/Logo-Amared.svg" alt="AMARED" />
+      </div>
+
+      <div class="brandRow kitchenTopbarAppBrand">
         <img class="brandLogo2" src="assets/Logo-Isotipo-Amared.svg" alt="AMARED" />
         <div>
           <div class="ttl">Cocina</div>
@@ -119,7 +157,7 @@
         </div>
       </div>
 
-      <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+      <div class="kitchenHeaderActions">
         <button id="btnLogout" class="btn secondary" type="button" style="display:none;">Cerrar sesión</button>
         <button id="btnRefresh" class="btn secondary" type="button" style="display:none;">Actualizar</button>
       </div>
