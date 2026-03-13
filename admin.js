@@ -251,6 +251,8 @@ function showPanel() {
   if (loginView) loginView.classList.add("hidden");
   const loginBrandTop = document.querySelector(".loginBrandTop");
   if (loginBrandTop) loginBrandTop.classList.add("hidden");
+  const topbar = document.getElementById("adminTopbar");
+  if (topbar) topbar.classList.remove("hidden");
   if (panelView) panelView.classList.remove("hidden");
   if (operatorName) operatorName.textContent = SESSION.operator || "";
   syncAdminActionBars();
@@ -259,6 +261,8 @@ function showLogin() {
   if (panelView) panelView.classList.add("hidden");
   const loginBrandTop = document.querySelector(".loginBrandTop");
   if (loginBrandTop) loginBrandTop.classList.remove("hidden");
+  const topbar = document.getElementById("adminTopbar");
+  if (topbar) topbar.classList.add("hidden");
   if (loginView) loginView.classList.remove("hidden");
   syncAdminActionBars();
 }
