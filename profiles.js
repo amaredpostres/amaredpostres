@@ -192,10 +192,15 @@ async function populateLoginProfiles_(){
 }
 
 async function api(payload){
+  const body = Object.assign({}, payload || {});
+  if(PROFILES_SECRET && !body.admin_pin){
+    body.admin_pin = PROFILES_SECRET;
+  }
+  delete body.profiles_secret;
   const res = await fetch(API_URL, {
     method: "POST",
     headers: {"Content-Type":"application/json"},
-    body: JSON.stringify(payload || {})
+    body: JSON.stringify(body)
   });
   const data = await res.json().catch(()=> ({}));
   if(!res.ok || data.ok===false){
@@ -540,14 +545,12 @@ btnUnlock?.addEventListener("click", async ()=>{
 
   try{
     showLoading("Validando…", "Comprobando acceso…");
-    // 1) Validar clave contra el Worker (no toca Apps Script)
-    const v = await api({ action: "validate_profiles_secret", profiles_secret: secret });
+    const v = await api({ action: "validate_admin_pin", admin_pin: secret });
     if(v.valid !== true) throw new Error("PIN incorrecto o no autorizado.");
 
-    // 2) Cargar perfiles
     const out = await api({
       action: "profiles_list",
-      profiles_secret: secret
+      admin_pin: secret
     });
 
     PROFILES_SECRET = secret;
@@ -700,9 +703,9 @@ inpSecret?.addEventListener("keydown", (e)=>{ if(e.key === "Enter") btnUnlock?.c
     const savedProfile = String(localStorage.getItem(LS_PROFILES_PROFILE_KEY) || "").trim();
     if(chkRememberProfiles) chkRememberProfiles.checked = remembered;
     if(savedProfile && loginProfile) loginProfile.value = savedProfile;
-    if(savedPin && remembered){
+    if(savedPin && remembered && savedProfile){
       if(inpSecret) inpSecret.value = savedPin;
-      if(savedProfile) btnUnlock?.click();
+      btnUnlock?.click();
     }else{
       setLockedUI(true);
     }
