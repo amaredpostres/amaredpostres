@@ -31,6 +31,10 @@ const profilesLoginBrand = document.getElementById("profilesLoginBrand");
 
 const pillCount = document.getElementById("pillCount");
 const btnReload = document.getElementById("btnReload");
+const profilesMobileBar = document.getElementById("profilesMobileBar");
+const btnMobileReload = document.getElementById("btnMobileReload");
+const btnMobileBack = document.getElementById("btnMobileBack");
+const btnMobileLock = document.getElementById("btnMobileLock");
 const tbody = document.getElementById("tbody");
 const listMsg = document.getElementById("listMsg");
 
@@ -76,6 +80,7 @@ function openEditModal(profile){
 
   editBack.style.display = "flex";
   editBack.setAttribute("aria-hidden","false");
+  syncProfilesMobileBar();
   setTimeout(()=>{ try{ editName.focus(); }catch(_e){} }, 0);
 }
 
@@ -84,6 +89,7 @@ function closeEditModal(){
   EDITING_ID = null;
   editBack.style.display = "none";
   editBack.setAttribute("aria-hidden","true");
+  syncProfilesMobileBar();
 }
 
 function getEditSelectedCategories(){
@@ -99,11 +105,13 @@ function showLoading(title, msg){
   loadingMsg.textContent = msg || "Procesando…";
   loading.style.display = "flex";
   loading.setAttribute("aria-hidden","false");
+  syncProfilesMobileBar();
 }
 function hideLoading(){
   if(!loading) return;
   loading.style.display = "none";
   loading.setAttribute("aria-hidden","true");
+  syncProfilesMobileBar();
 }
 
 function escapeHtml(s){
@@ -213,6 +221,16 @@ async function api(payload){
   return data;
 }
 
+
+function syncProfilesMobileBar(){
+  if(!profilesMobileBar) return;
+  const mobile = window.matchMedia("(max-width: 720px)").matches;
+  const unlocked = !!mgrCard && mgrCard.style.display !== "none";
+  const gateVisible = !!gateCard && gateCard.style.display !== "none";
+  const hasOverlay = (editBack && editBack.style.display === "flex") || (loading && loading.style.display === "flex");
+  profilesMobileBar.classList.toggle("isVisible", mobile && unlocked && !gateVisible && !hasOverlay);
+}
+
 function setLockedUI(locked){
   if(locked){
     if(btnLogout) btnLogout.disabled = true;
@@ -222,6 +240,7 @@ function setLockedUI(locked){
     if(profilesTopbar) profilesTopbar.classList.add("profilesTopbarHidden");
     if(profilesHero) profilesHero.classList.add("hidden");
     if(profilesLoginBrand) profilesLoginBrand.style.display = "flex";
+    syncProfilesMobileBar();
   }else{
     if(btnLogout) btnLogout.disabled = false;
     if(mgrCard) mgrCard.style.display = "block";
@@ -230,6 +249,7 @@ function setLockedUI(locked){
     if(profilesTopbar) profilesTopbar.classList.remove("profilesTopbarHidden");
     if(profilesHero) profilesHero.classList.remove("hidden");
     if(profilesLoginBrand) profilesLoginBrand.style.display = "none";
+    syncProfilesMobileBar();
   }
 }
 
@@ -713,3 +733,9 @@ inpSecret?.addEventListener("keydown", (e)=>{ if(e.key === "Enter") btnUnlock?.c
     setLockedUI(true);
   }
 })();
+
+btnMobileReload?.addEventListener("click", ()=> btnReload?.click());
+btnMobileBack?.addEventListener("click", ()=> btnBack?.click());
+btnMobileLock?.addEventListener("click", ()=> btnLogout?.click());
+window.addEventListener("resize", syncProfilesMobileBar);
+setTimeout(syncProfilesMobileBar, 0);
