@@ -48,6 +48,11 @@ const btnMobileRefresh = document.getElementById("btnMobileRefresh");
 const btnMobileHistory = document.getElementById("btnMobileHistory");
 const btnMobileLogout = document.getElementById("btnMobileLogout");
 
+/* Compatibilidad con la lógica existente del panel */
+const btnLogout = btnHeaderLogout;
+const btnRefresh = btnHeaderRefresh;
+const btnHistory = btnHeaderHistory;
+
 const statusEl = document.getElementById("status");
 const listEl = document.getElementById("list");
 
