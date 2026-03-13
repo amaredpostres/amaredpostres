@@ -1,7 +1,5 @@
 // =================== CONFIG ===================
 const API_URL = "https://amared-orders.amaredpostres.workers.dev/";
-const SS_ADMIN_KEY = "AMARED_ADMIN";
-const LS_ADMIN_KEY = "AMARED_ADMIN_REMEMBER_V1";
 
 // Catálogo (mismo de tu web pública)
 const PRODUCT_CATALOG = [
@@ -37,18 +35,13 @@ const panelView = document.getElementById("panelView");
 
 const loginOperator = document.getElementById("loginOperator");
 const loginPin = document.getElementById("loginPin");
-const btnTogglePin = document.getElementById("btnTogglePin");
-const chkRemember = document.getElementById("chkRemember");
 const btnLogin = document.getElementById("btnLogin");
 const loginError = document.getElementById("loginError");
 
 const operatorName = document.getElementById("operatorName");
-const btnLogout = document.getElementById("btnLogout");
-const btnRefresh = document.getElementById("btnRefresh");
-const btnHistory = document.getElementById("btnHistory");
+const btnHeaderLogout = document.getElementById("btnHeaderLogout");
 const btnHeaderRefresh = document.getElementById("btnHeaderRefresh");
 const btnHeaderHistory = document.getElementById("btnHeaderHistory");
-const btnHeaderLogout = document.getElementById("btnHeaderLogout");
 const adminHeaderActions = document.getElementById("adminHeaderActions");
 const adminMobileBar = document.getElementById("adminMobileBar");
 const btnMobileRefresh = document.getElementById("btnMobileRefresh");
@@ -228,47 +221,6 @@ async function loadPaymentProfiles() {
   }
 }
 
-function saveAdminSession(remember = false) {
-  try { sessionStorage.setItem(SS_ADMIN_KEY, JSON.stringify(SESSION)); } catch {}
-  try {
-    if (remember) localStorage.setItem(LS_ADMIN_KEY, JSON.stringify(SESSION));
-    else localStorage.removeItem(LS_ADMIN_KEY);
-  } catch {}
-}
-
-function loadAdminSavedSession() {
-  try {
-    const rawLocal = localStorage.getItem(LS_ADMIN_KEY);
-    const sLocal = rawLocal ? JSON.parse(rawLocal) : null;
-    if (sLocal?.pin) return { data: sLocal, remembered: true };
-  } catch {}
-  try {
-    const rawSession = sessionStorage.getItem(SS_ADMIN_KEY);
-    const sSession = rawSession ? JSON.parse(rawSession) : null;
-    if (sSession?.pin) return { data: sSession, remembered: false };
-  } catch {}
-  return null;
-}
-
-function clearAdminSavedSession() {
-  try { sessionStorage.removeItem(SS_ADMIN_KEY); } catch {}
-  try { localStorage.removeItem(LS_ADMIN_KEY); } catch {}
-}
-
-function syncPinToggleState() {
-  if (!loginPin || !btnTogglePin) return;
-  const show = loginPin.type === "text";
-  btnTogglePin.textContent = show ? "🙈" : "👁";
-  btnTogglePin.setAttribute("aria-label", show ? "Ocultar PIN" : "Mostrar PIN");
-}
-
-btnTogglePin?.addEventListener("click", () => {
-  if (!loginPin) return;
-  loginPin.type = loginPin.type === "password" ? "text" : "password";
-  syncPinToggleState();
-});
-
-syncPinToggleState();
 
 
 function syncAdminActionBars() {
@@ -292,12 +244,16 @@ function syncAdminActionBars() {
 // =================== NAV (login/panel) ===================
 function showPanel() {
   if (loginView) loginView.classList.add("hidden");
+  const loginBrandTop = document.querySelector(".loginBrandTop");
+  if (loginBrandTop) loginBrandTop.classList.add("hidden");
   if (panelView) panelView.classList.remove("hidden");
   if (operatorName) operatorName.textContent = SESSION.operator || "";
   syncAdminActionBars();
 }
 function showLogin() {
   if (panelView) panelView.classList.add("hidden");
+  const loginBrandTop = document.querySelector(".loginBrandTop");
+  if (loginBrandTop) loginBrandTop.classList.remove("hidden");
   if (loginView) loginView.classList.remove("hidden");
   syncAdminActionBars();
 }
@@ -408,13 +364,13 @@ btnLogin?.addEventListener("click", async () => {
   try {
     showLoading("Verificando acceso...");
     SESSION = { operator: prof.label, operatorId: prof.id, pin };
-    saveAdminSession(!!chkRemember?.checked);
+    sessionStorage.setItem("AMARED_ADMIN", JSON.stringify(SESSION));
 
     showPanel();
     await loadPendientes(false); // valida login (PIN)
   } catch (e) {
     SESSION = { operator: null, operatorId: null, pin: null };
-    clearAdminSavedSession();
+    sessionStorage.removeItem("AMARED_ADMIN");
     showLogin();
     loginError.textContent = `Error: ${String(e.message || e)}`;
   } finally {
@@ -424,7 +380,7 @@ btnLogin?.addEventListener("click", async () => {
 
 btnLogout?.addEventListener("click", () => {
   SESSION = { operator: null, operatorId: null, pin: null };
-  clearAdminSavedSession();
+  sessionStorage.removeItem("AMARED_ADMIN");
   closeDrawer();
   showLogin();
 });
@@ -1122,11 +1078,10 @@ btnCancelConfirm?.addEventListener("click", async () => {
   // Cargar perfiles de pagos apenas abre
   await loadPaymentProfiles();
 
-  const savedBundle = loadAdminSavedSession();
-  if (savedBundle?.data) {
+  const saved = sessionStorage.getItem("AMARED_ADMIN");
+  if (saved) {
     try {
-      const s = savedBundle.data;
-      if (chkRemember) chkRemember.checked = !!savedBundle.remembered;
+      const s = JSON.parse(saved);
       if (s?.pin) {
         // Preselecciona perfil si existe
         if (s.operatorId && loginOperator) loginOperator.value = String(s.operatorId);
@@ -1138,7 +1093,7 @@ btnCancelConfirm?.addEventListener("click", async () => {
           showPanel();
           loadPendientes(false).catch(() => {
             SESSION = { operator: null, operatorId: null, pin: null };
-            clearAdminSavedSession();
+            sessionStorage.removeItem("AMARED_ADMIN");
             showLogin();
           });
         }
@@ -1149,8 +1104,8 @@ btnCancelConfirm?.addEventListener("click", async () => {
 
 
 
-[btnHeaderRefresh, btnMobileRefresh].forEach(btn => btn?.addEventListener("click", ()=> btnRefresh?.click()));
-[btnHeaderHistory, btnMobileHistory].forEach(btn => btn?.addEventListener("click", ()=> btnHistory?.click()));
-[btnHeaderLogout, btnMobileLogout].forEach(btn => btn?.addEventListener("click", ()=> btnLogout?.click()));
+[btnMobileRefresh].forEach(btn => btn?.addEventListener("click", ()=> btnHeaderRefresh?.click()));
+[btnMobileHistory].forEach(btn => btn?.addEventListener("click", ()=> btnHeaderHistory?.click()));
+[btnMobileLogout].forEach(btn => btn?.addEventListener("click", ()=> btnHeaderLogout?.click()));
 window.addEventListener("resize", syncAdminActionBars);
 setTimeout(syncAdminActionBars, 0);
