@@ -359,7 +359,7 @@ function syncSecretToggleState_(){
   const btn = el("btnToggleSecret");
   if(!inp || !btn) return;
   const hidden = inp.type !== "text";
-  btn.textContent = hidden ? "◉" : "◎";
+  btn.textContent = hidden ? "👁" : "🙈";
   btn.setAttribute("aria-label", hidden ? "Mostrar PIN" : "Ocultar PIN");
 }
 
@@ -369,27 +369,37 @@ async function fetchProfilesPublic_(category){
 }
 
 async function populateLoginProfiles_(){
-  let rows = [];
-  try{ rows = await fetchProfilesPublic_("costs"); }catch(_e){}
-  if(!rows.length){
-    try{ rows = await fetchProfilesPublic_("admin"); }catch(_e){}
+  showLoading("Cargando perfiles…", "Buscando perfiles de compras/recetas.");
+  try{
+    let rows = [];
+    try{ rows = await fetchProfilesPublic_("costs"); }catch(_e){}
+    if(!rows.length){
+      try{ rows = await fetchProfilesPublic_("admin"); }catch(_e){}
+    }
+    if(!rows.length){
+      try{ rows = await fetchProfilesPublic_("payments"); }catch(_e){}
+    }
+    LOGIN_PROFILES = Array.isArray(rows) ? rows : [];
+    const sel = el("loginProfile");
+    if(!sel) return;
+    const saved = String(localStorage.getItem(LS_PROFILE_KEY) || "").trim();
+    const opts = ['<option value="">Seleccionar…</option>'];
+    for(const p of LOGIN_PROFILES){
+      const id = String(p.id || p.profile_id || "").trim();
+      const label = String(p.label || id).trim();
+      const selected = saved && saved === id ? ' selected' : '';
+      opts.push(`<option value="${escapeHtmlAttr(id)}"${selected}>${escapeHtml(label)}</option>`);
+    }
+    if(!LOGIN_PROFILES.length){
+      opts.push('<option value="">Sin perfiles habilitados</option>');
+      if(el("unlockMsg")) el("unlockMsg").textContent = "No hay perfiles disponibles para este acceso.";
+    }else if(el("unlockMsg")){
+      el("unlockMsg").textContent = "";
+    }
+    sel.innerHTML = opts.join("");
+  } finally {
+    hideLoading();
   }
-  if(!rows.length){
-    try{ rows = await fetchProfilesPublic_("payments"); }catch(_e){}
-  }
-  LOGIN_PROFILES = Array.isArray(rows) ? rows : [];
-  const sel = el("loginProfile");
-  if(!sel) return;
-  const saved = String(localStorage.getItem(LS_PROFILE_KEY) || "").trim();
-  const opts = ['<option value="">Seleccionar…</option>'];
-  for(const p of LOGIN_PROFILES){
-    const id = String(p.id || p.profile_id || "").trim();
-    const label = String(p.label || id).trim();
-    const selected = saved && saved === id ? ' selected' : '';
-    opts.push(`<option value="${escapeHtmlAttr(id)}"${selected}>${escapeHtml(label)}</option>`);
-  }
-  if(!LOGIN_PROFILES.length) opts.push('<option value="">Sin perfiles habilitados</option>');
-  sel.innerHTML = opts.join("");
 }
 
 
