@@ -367,15 +367,15 @@
 
 <!-- LOGIN (pantalla completa) -->
 <div class="modalOverlay" id="unlockBack">
-<div class="modal">
+<div class="modal amLoginModal">
 <div class="unlockLogoWrap"><img src="assets/Logo-Amared.svg" alt="AMARED"/></div>
-<div class="modalHeader" style="justify-content:center; text-align:center;">
+<div class="modalHeader" style="justify-content:center; text-align:center; background:transparent; border-bottom:0; padding:0 22px 8px;">
 <div>
 <div class="modalTitle" style="font-weight:950;">Acceso Compras y Recetas</div>
 <div class="modalSub" style="margin-top:4px;">Selecciona un perfil aprobado e ingresa el PIN.</div>
 </div>
 </div>
-<div class="modalBody" style="padding:14px;">
+<div class="modalBody" style="padding:0 22px 22px; display:block;">
 <div class="unlockGrid">
   <div class="field">
     <label>Perfil</label>
@@ -389,7 +389,7 @@
     <label>PIN</label>
     <div class="unlockPinRow">
       <input autocomplete="current-password" class="input" id="secretInput" placeholder="••••••" type="password"/>
-      <button class="unlockEyeBtn" id="btnToggleSecret" type="button" aria-label="Mostrar u ocultar PIN">◉</button>
+      <button class="unlockEyeBtn" id="btnToggleSecret" type="button" aria-label="Mostrar PIN">👁</button>
     </div>
   </div>
 
@@ -400,8 +400,11 @@
   <div class="hint">Si lo activas, la próxima vez entrarás automáticamente desde este navegador.</div>
 
   <div class="unlockActions">
-    <button class="btn secondary" id="btnClear">Limpiar</button>
     <button class="btn primary" id="btnDoUnlock">Ingresar</button>
+    <a class="btn secondary btnLinkLike unlockManageBtn" id="btnManageProfiles" href="profiles.html" target="_blank" rel="noopener">Gestionar perfiles</a>
+  </div>
+  <div class="unlockAuxActions">
+    <button class="btn secondary unlockClearBtn" id="btnClear">Limpiar</button>
   </div>
 
   <div class="pErr" id="unlockMsg"></div>
