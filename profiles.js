@@ -143,7 +143,7 @@ function getSelectedCategories(){
 function syncPinToggleState_(){
   if(!inpSecret || !btnTogglePin) return;
   const hidden = inpSecret.type !== "text";
-  btnTogglePin.textContent = hidden ? "◉" : "◎";
+  btnTogglePin.textContent = hidden ? "👁" : "🙈";
   btnTogglePin.setAttribute("aria-label", hidden ? "Mostrar PIN" : "Ocultar PIN");
 }
 
@@ -717,6 +717,7 @@ inpSecret?.addEventListener("keydown", (e)=>{ if(e.key === "Enter") btnUnlock?.c
 (async function bootProfilesLogin_(){
   try{
     syncPinToggleState_();
+    showLoading("Cargando perfiles…", "Buscando perfiles de perfiles/admin.");
     await populateLoginProfiles_();
     const remembered = localStorage.getItem(LS_PROFILES_REMEMBER_KEY) === "1";
     const savedPin = String(localStorage.getItem(LS_PROFILES_PIN_KEY) || "").trim();
@@ -731,6 +732,8 @@ inpSecret?.addEventListener("keydown", (e)=>{ if(e.key === "Enter") btnUnlock?.c
     }
   }catch(_e){
     setLockedUI(true);
+  }finally{
+    hideLoading();
   }
 })();
 
