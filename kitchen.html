@@ -24,7 +24,7 @@
     .brandLogo2{width:44px;height:44px;object-fit:contain;}
     .ttl{font-weight:950; line-height:1;}
     .sub{opacity:.7; font-weight:850; font-size:12px;}
-    .btnLinkLike{ text-decoration:none; display:inline-flex; align-items:center; justify-content:center; }
+    .btnLinkLike{ text-decoration:none !important; display:inline-flex; align-items:center; justify-content:center; text-align:center; }
       
     /* ✅ FIX: Overlay de carga centrado y bonito */
     .modalOverlay{
@@ -175,6 +175,7 @@
       <div class="field">
         <label class="muted small">Perfil</label>
         <select id="selOperator" class="input" style="width:100%;"></select>
+        <div class="muted small" style="margin-top:6px;">Solo aparecen perfiles activos con categoría <b>cocina</b> o <b>admin</b>.</div>
       </div>
 
       <div class="field" style="margin-top:10px;">
