@@ -116,7 +116,7 @@
       justify-content:center;
     }
     .kitchenTopbarLoginBrand img{
-      height:50px;
+      height:48px;
       width:auto;
       display:block;
     }
@@ -131,7 +131,7 @@
     .kitchenPage #loginBox .heroTitle{ font-size:clamp(22px,2.2vw,28px) !important; }
     .kitchenPage #loginBox .heroSubtitle{ font-size:clamp(14px,1.3vw,16px) !important; }
     @media (max-width: 860px){
-      .kitchenTopbarLoginBrand img{ height:44px; }
+      .kitchenTopbarLoginBrand img{ height:42px; }
       .kitchenPage.is-app .kitchenTopbarInner{ justify-content:center !important; }
       .kitchenPage.is-app .kitchenTopbarAppBrand{ margin:0 auto; }
       .kitchenPage.is-app .kitchenTopbarAppBrand > div{ text-align:center; }
@@ -166,44 +166,51 @@
 
   <!-- LOGIN BOX -->
   <div class="container">
-    <section id="loginBox" class="card amLoginCenter amLoginCard">
-      <div class="amLoginHero">
-        <h1 class="amLoginTitle">Acceso Cocina</h1>
-        <p class="amLoginLead">Selecciona un perfil aprobado e ingresa el PIN.</p>
+    <div id="loginBox" class="card" style="max-width:700px; margin: 16px auto;">
+      <div class="hero" style="padding: 0 0 8px;">
+        <h1 class="heroTitle" style="margin-top:6px;">Acceso Cocina</h1>
+        <p class="heroSubtitle">Selecciona un perfil aprobado e ingresa el PIN.</p>
       </div>
 
       <div class="field">
-        <label>Perfil</label>
-        <select id="selOperator" class="input"></select>
-        <div class="muted small" style="margin-top:6px;">Solo aparecen perfiles activos con categoría <b>kitchen</b> o <b>admin</b>.</div>
+        <label class="muted small">Perfil</label>
+        <select id="selOperator" class="input" style="width:100%;"></select>
       </div>
 
       <div class="field" style="margin-top:10px;">
-        <label>PIN</label>
-        <div class="amLoginPinRow">
-          <input id="inpPin" class="input" type="password" placeholder="••••••" autocomplete="current-password" />
-          <button id="btnTogglePin" class="amPinToggleBtn" type="button" aria-label="Mostrar PIN">👁</button>
+        <label class="muted small">PIN</label>
+        <div style="display:flex; gap:10px; align-items:center;">
+          <input id="inpPin" class="input" type="password" placeholder="••••••" />
+          <button id="btnTogglePin" class="btn secondary" type="button" style="padding:10px 14px; border-radius:14px; min-width:52px;">👁</button>
         </div>
       </div>
 
       
-      <div class="amRememberWrap">
-        <label class="amRememberLabel">
-          <input id="chkRemember" type="checkbox" />
+      <div class="field" style="margin-top:10px;">
+        <label class="muted small" style="display:flex; gap:10px; align-items:center; cursor:pointer;">
+          <input id="chkRemember" type="checkbox" style="width:18px; height:18px; accent-color:#ff5f95;" />
           <span>Recuérdame en este dispositivo</span>
         </label>
-        <div class="amRememberHint">Si lo activas, la próxima vez entrarás automáticamente desde este navegador.</div>
+        <div class="muted small" style="margin-top:6px;">Si lo activas, la próxima vez entrarás automáticamente desde este navegador.</div>
       </div>
+<div class="field" style="margin-top:12px;">
+        <div class="loginActions">
+          <button id="btnLogin" class="btn primary" type="button">Ingresar</button>
+      
+          <a id="btnManageProfiles"
+             class="btn secondary btnLinkLike"
+             href="profiles.html"
+             target="_blank"
+             rel="noopener">
+            Gestionar perfiles
+          </a>
+        </div>
+      
+        <div id="loginErr" class="muted small" style="color:#b00020; margin-top:10px;"></div>
+   </div>
 
-      <div class="amLoginActionsRow">
-        <button id="btnLogin" class="btn primary" type="button">Ingresar</button>
-        <a id="btnManageProfiles" class="btn secondary btnLinkLike" href="profiles.html">Gestionar perfiles</a>
-      </div>
 
-      <div id="loginErr" class="muted small" style="color:#b00020; margin-top:10px;"></div>
-
-
-    </section>
+    </div>
 
     <!-- APP -->
     <div id="app" style="display:none;">
