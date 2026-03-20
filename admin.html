@@ -11,23 +11,9 @@
     .hidden { display:none !important; }
 
     /* LOGIN */
-    .loginBox{
-      max-width:420px; margin:60px auto; padding:20px;
-      border-radius:18px; background:var(--paper);
-      border:1px solid var(--border); box-shadow:var(--shadow);
-    }
-    .loginBox h2{ text-align:center; margin:0 0 6px; }
-    .loginBox p{ text-align:center; font-size:14px; opacity:.7; margin:0 0 16px; }
+    .loginBox{ margin:16px auto 0; }
     .field{ display:grid; gap:6px; margin-bottom:12px; }
     .mutedSmall{ opacity:.72; font-weight:800; font-size:13px; }
-
-    .loginActions{ display:flex; gap:10px; }
-    .btnLinkLike{ text-decoration:none; display:flex; align-items:center; justify-content:center; }
-    .loginActions .btn{ flex:1; }
-    @media (max-width:520px){
-      .loginActions{ flex-direction:column; }
-      .loginActions .btn{ width:100%; }
-    }
 
 
     /* PANEL */
@@ -132,35 +118,17 @@
     .modalFooter{ display:flex; gap:10px; justify-content:flex-end; flex-wrap:wrap; }
 
     /* LOADING */
-    .loadingOverlay{
-      position:fixed; inset:0; display:none;
-      align-items:center; justify-content:center;
-      background: rgba(255,255,255,.65);
-      backdrop-filter: blur(3px);
-      z-index:12000;
-    }
+    .loadingOverlay{ position:fixed; inset:0; display:none; align-items:center; justify-content:center; z-index:12000; }
     .loadingOverlay.show{ display:flex; }
-    .loadingBox{
-      width:min(360px, 92vw);
-      padding:16px;
-      border-radius:18px;
-      background: var(--paper);
-      border:1px solid var(--border);
-      box-shadow: var(--shadow);
-      text-align:center;
-      font-weight:900;
-    }
-    .spinner{
-      width:22px; height:22px;
-      border:3px solid rgba(64,17,2,.18);
-      border-top-color: rgba(64,17,2,.75);
-      border-radius:999px;
-      margin: 0 auto 10px;
-      animation: spin 0.8s linear infinite;
-    }
-    @keyframes spin{ to{ transform: rotate(360deg); } }
   
     .topbarInner.adminTopbarInner{ justify-content:space-between; }
+    .adminLoginBrand{
+      display:none;
+      width:100%;
+      align-items:center;
+      justify-content:center;
+    }
+    .adminLoginBrand img{ height:48px; width:auto; display:block; }
     .adminBrand{ display:flex; align-items:center; gap:12px; }
     .adminBrandMeta{ display:flex; flex-direction:column; gap:2px; }
     .adminBrandTitle{ font-weight:950; font-size:18px; line-height:1.08; }
@@ -259,41 +227,37 @@
     }
 
   
-    .loginBrandTop{
-      display:flex;
-      justify-content:center;
-      align-items:center;
-      margin: 18px 0 14px;
+    .adminPage.is-login .adminTopbarInner{ justify-content:center !important; }
+    .adminPage.is-login .adminLoginBrand{ display:flex; }
+    .adminPage.is-login .adminBrand,
+    .adminPage.is-login #adminHeaderActions{ display:none !important; }
+    .adminPage.is-app .adminLoginBrand{ display:none !important; }
+    @media (max-width:880px){
+      .adminLoginBrand img{ height:42px; }
+      .adminPage.is-app .topbarInner.adminTopbarInner{ justify-content:center; }
+      .adminPage.is-app .adminBrand{ width:100%; justify-content:center; text-align:center; }
+      .adminPage.is-app .adminBrandMeta{ align-items:center; }
     }
-    .loginBrandTop img{
-      height: 58px;
-      width: auto;
-      display:block;
-    }
-
-      .adminPage .container{ max-width:980px; }
-    .adminPage .adminBrand{ gap:12px; }
-    .adminPage .adminBrandMeta{ display:flex; flex-direction:column; gap:2px; }
 
   </style>
 </head>
 
-<body class="amLoginPage adminPage is-login">
+<body class="adminPage is-login">
   <div class="topbar" id="adminTopbar">
-    <div class="topbarInner amLoginTopbarInner adminTopbarInner">
-      <div class="amLoginBrand" aria-label="AMARED">
-        <img class="amLoginHeaderLogo" src="assets/Logo-Amared.svg" alt="AMARED" />
+    <div class="topbarInner adminTopbarInner">
+      <div class="adminLoginBrand" aria-label="AMARED">
+        <img src="assets/Logo-Amared.svg" alt="AMARED" />
       </div>
 
-      <div class="amAppBrand adminBrand">
+      <div class="adminBrand">
         <img src="assets/Logo-Isotipo-Amared.svg" class="brandLogo" alt="AMARED" />
-        <div class="adminBrandMeta amAppBrandMeta">
-          <div class="adminBrandTitle amAppBrandTitle">Pagos</div>
-          <div class="adminBrandSubtitle amAppBrandSubtitle">Gestión de pagos y pedidos</div>
+        <div class="adminBrandMeta">
+          <div class="adminBrandTitle">Pagos</div>
+          <div class="adminBrandSubtitle">Gestión de pagos y pedidos</div>
         </div>
       </div>
 
-      <div id="adminHeaderActions" class="amHeaderActions adminHeaderActions" aria-label="Acciones de pagos">
+      <div id="adminHeaderActions" class="adminHeaderActions" aria-label="Acciones de pagos">
         <button id="btnHeaderRefresh" class="btn adminBtnRefresh" type="button">Actualizar</button>
         <button id="btnHeaderHistory" class="btn adminBtnHistory" type="button">Historial</button>
         <button id="btnHeaderLogout" class="btn adminBtnLogout" type="button">Cerrar sesión</button>
@@ -304,7 +268,7 @@
   <div class="container">
 
     <!-- LOGIN -->
-    <section id="loginView" class="card amLoginCard">
+    <div id="loginView" class="loginBox card amLoginCard">
       <div class="amLoginHero">
         <h2 class="amLoginTitle">Acceso Pagos</h2>
         <p class="amLoginLead">Selecciona un perfil aprobado e ingresa el PIN.</p>
@@ -328,18 +292,18 @@
 
       <div class="amRememberWrap">
         <label class="amRememberLabel">
-          <input id="chkRememberAdmin" type="checkbox" />
+          <input id="loginRemember" type="checkbox" />
           <span>Recuérdame en este dispositivo</span>
         </label>
         <div class="amRememberHint">Si lo activas, la próxima vez entrarás automáticamente desde este navegador.</div>
       </div>
 
-      <div class="amLoginActionsRow">
+      <div class="amLoginActions">
         <button id="btnLogin" class="btn primary" type="button">Ingresar</button>
-        <a id="btnManageProfiles" class="btn secondary btnLinkLike" href="profiles.html" target="_blank" rel="noopener">Gestionar perfiles</a>
+        <a id="btnManageProfiles" class="btn secondary amManageBtn" href="profiles.html" target="_blank" rel="noopener">Gestionar perfiles</a>
       </div>
-      <div id="loginError" class="status" style="color:#b00020; margin-top:10px;"></div>
-    </section>
+      <p id="loginError" class="mutedSmall amLoginError" style="text-align:left;"></p>
+    </div>
 
     <!-- PANEL (Pendientes) -->
     <div id="panelView" class="hidden">
@@ -453,12 +417,14 @@
   </div>
 
   <!-- Loading overlay -->
-  <div id="loadingOverlay" class="amLoadingOverlay" aria-hidden="true">
-    <div class="amLoadingCard">
-      <div class="amLoadingSpinner"></div>
-      <div>
-        <div id="loadingText" class="amLoadingTitle">Cargando perfiles...</div>
-        <div id="loadingDesc" class="amLoadingSub">Buscando perfiles de pagos.</div>
+  <div id="loadingOverlay" class="loadingOverlay amLoadingOverlay" aria-hidden="true">
+    <div class="amLoadingPanel">
+      <div class="amLoadingInner">
+        <div class="amLoadingSpinner"></div>
+        <div>
+          <div id="loadingText" class="amLoadingTitle">Cargando perfiles…</div>
+          <div id="loadingDesc" class="amLoadingText">Buscando perfiles de pagos.</div>
+        </div>
       </div>
     </div>
   </div>
