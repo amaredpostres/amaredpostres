@@ -200,6 +200,26 @@
   .unlockActions{ grid-template-columns:1fr; }
 }
 
+
+.costsLoginModal .amLoginHero{ text-align:center; padding:4px 0 8px; }
+.costsLoginModal .amLoginTitle{
+  margin:0 0 8px;
+  font-size:clamp(22px,2.15vw,28px);
+  line-height:1.05;
+  color:var(--choco);
+  font-weight:950;
+}
+.costsLoginModal .amLoginLead{
+  margin:0;
+  font-size:clamp(15px,1.35vw,17px);
+  font-weight:850;
+  color:rgba(64,17,2,.78);
+}
+@media (max-width: 720px){
+  .costsLoginModal .amLoginTitle{ font-size:clamp(20px,6.2vw,24px); }
+  .costsLoginModal .amLoginLead{ font-size:14px; }
+}
+
 </style>
 </head>
 <body class="costsPage is-login">
