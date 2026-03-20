@@ -28,6 +28,8 @@ let cancelTimerStarted = false;
 
 // Loading overlay counter
 let LOADING_COUNT = 0;
+const SS_KEY = "AMARED_ADMIN";
+const LS_KEY = "AMARED_ADMIN_REMEMBER_V1";
 
 // =================== DOM ===================
 const loginView = document.getElementById("loginView");
@@ -71,6 +73,7 @@ const chips = Array.from(document.querySelectorAll(".chip"));
 const loadingOverlay = document.getElementById("loadingOverlay");
 const loadingText = document.getElementById("loadingText");
 const loadingDesc = document.getElementById("loadingDesc");
+const adminLoginTopbar = document.getElementById("adminLoginTopbar");
 
 // Modal pago
 const payModal = document.getElementById("payModal");
@@ -146,6 +149,47 @@ function hideLoading() {
   if (LOADING_COUNT === 0 && loadingOverlay) loadingOverlay.classList.remove("show");
 }
 
+function syncPinToggleState() {
+  if (!loginPin || !btnTogglePin) return;
+  const hidden = loginPin.type !== "text";
+  btnTogglePin.textContent = hidden ? "👁" : "🙈";
+  btnTogglePin.setAttribute("aria-label", hidden ? "Mostrar PIN" : "Ocultar PIN");
+}
+
+function saveAdminSession(remember = false) {
+  try { sessionStorage.setItem(SS_KEY, JSON.stringify(SESSION)); } catch {}
+  try {
+    if (remember) localStorage.setItem(LS_KEY, JSON.stringify(SESSION));
+    else localStorage.removeItem(LS_KEY);
+  } catch {}
+}
+
+function loadSavedAdminSession() {
+  try {
+    const rawLocal = localStorage.getItem(LS_KEY);
+    const sLocal = rawLocal ? JSON.parse(rawLocal) : null;
+    if (sLocal?.pin && sLocal?.operator) return { data: sLocal, remembered: true };
+  } catch {}
+  try {
+    const raw = sessionStorage.getItem(SS_KEY);
+    const s = raw ? JSON.parse(raw) : null;
+    if (s?.pin && s?.operator) return { data: s, remembered: false };
+  } catch {}
+  return null;
+}
+
+function clearSavedAdminSession() {
+  try { sessionStorage.removeItem(SS_KEY); } catch {}
+  try { localStorage.removeItem(LS_KEY); } catch {}
+}
+
+btnTogglePin?.addEventListener("click", () => {
+  if (!loginPin) return;
+  loginPin.type = loginPin.type === "password" ? "text" : "password";
+  syncPinToggleState();
+});
+syncPinToggleState();
+
 // =================== API (logs + retry 429) ===================
 async function api(body, retries = 2) {
   console.log("➡️ API request:", body);
@@ -208,7 +252,7 @@ function getSelectedProfile() {
 
 async function loadPaymentProfiles() {
   // Full-screen loading mientras se cargan perfiles
-  showLoading("Cargando perfiles...", "Buscando perfiles de pagos.");
+  showLoading("Cargando perfiles...", "Buscando perfiles de pagos/admin.");
   if (loginOperator) loginOperator.disabled = true;
   if (loginPin) loginPin.disabled = true;
   if (btnLogin) btnLogin.disabled = true;
@@ -217,6 +261,13 @@ async function loadPaymentProfiles() {
     LOGIN_PROFILES = await fetchProfilesPublic("payments");
     if (!LOGIN_PROFILES.length) LOGIN_PROFILES = await fetchProfilesPublic("pago");
     renderLoginProfiles(LOGIN_PROFILES);
+    const saved = loadSavedAdminSession();
+    if (saved?.data?.operatorId && loginOperator && !loginOperator.value) {
+      loginOperator.value = String(saved.data.operatorId);
+      if (loginPin && !loginPin.value) loginPin.value = String(saved.data.pin || "");
+      if (loginRemember) loginRemember.checked = !!saved.remembered;
+      syncPinToggleState();
+    }
   } catch (e) {
     LOGIN_PROFILES = [];
     renderLoginProfiles([]);
@@ -251,22 +302,24 @@ function syncAdminActionBars() {
 }
 
 // =================== NAV (login/panel) ===================
-function setAdminShellMode(mode) {
-  try {
-    document.body.classList.remove("is-login", "is-app");
-    document.body.classList.add(mode === "app" ? "is-app" : "is-login");
-  } catch {}
-}
 function showPanel() {
-  setAdminShellMode("app");
+  document.body.classList.remove("is-login");
+  document.body.classList.add("is-app");
   if (loginView) loginView.classList.add("hidden");
+  if (adminLoginTopbar) adminLoginTopbar.classList.add("hidden");
+  const topbar = document.getElementById("adminTopbar");
+  if (topbar) topbar.classList.remove("hidden");
   if (panelView) panelView.classList.remove("hidden");
   if (operatorName) operatorName.textContent = SESSION.operator || "";
   syncAdminActionBars();
 }
 function showLogin() {
-  setAdminShellMode("login");
+  document.body.classList.remove("is-app");
+  document.body.classList.add("is-login");
   if (panelView) panelView.classList.add("hidden");
+  if (adminLoginTopbar) adminLoginTopbar.classList.remove("hidden");
+  const topbar = document.getElementById("adminTopbar");
+  if (topbar) topbar.classList.add("hidden");
   if (loginView) loginView.classList.remove("hidden");
   syncAdminActionBars();
 }
@@ -364,24 +417,6 @@ function calcTotals(items) {
 }
 
 // =================== LOGIN ===================
-function saveAdminSession(remember) {
-  try { sessionStorage.setItem("AMARED_ADMIN", JSON.stringify(SESSION)); } catch {}
-  try {
-    if (remember) localStorage.setItem("AMARED_ADMIN_REMEMBER", JSON.stringify(SESSION));
-    else localStorage.removeItem("AMARED_ADMIN_REMEMBER");
-  } catch {}
-}
-function clearAdminSession() {
-  try { sessionStorage.removeItem("AMARED_ADMIN"); } catch {}
-  try { localStorage.removeItem("AMARED_ADMIN_REMEMBER"); } catch {}
-}
-btnTogglePin?.addEventListener("click", () => {
-  if (!loginPin) return;
-  const hidden = loginPin.type === "password";
-  loginPin.type = hidden ? "text" : "password";
-  btnTogglePin.textContent = hidden ? "🙈" : "👁";
-  btnTogglePin.setAttribute("aria-label", hidden ? "Ocultar PIN" : "Mostrar PIN");
-});
 btnLogin?.addEventListener("click", async () => {
   loginError.textContent = "";
   const prof = getSelectedProfile();
@@ -393,7 +428,7 @@ btnLogin?.addEventListener("click", async () => {
   }
 
   try {
-    showLoading("Verificando acceso...", "Validando el PIN de pagos.");
+    showLoading("Validando...", "Comprobando acceso...");
     SESSION = { operator: prof.label, operatorId: prof.id, pin };
     saveAdminSession(!!loginRemember?.checked);
 
@@ -401,7 +436,7 @@ btnLogin?.addEventListener("click", async () => {
     await loadPendientes(false); // valida login (PIN)
   } catch (e) {
     SESSION = { operator: null, operatorId: null, pin: null };
-    clearAdminSession();
+    clearSavedAdminSession();
     showLogin();
     loginError.textContent = `Error: ${String(e.message || e)}`;
   } finally {
@@ -411,7 +446,7 @@ btnLogin?.addEventListener("click", async () => {
 
 btnLogout?.addEventListener("click", () => {
   SESSION = { operator: null, operatorId: null, pin: null };
-  clearAdminSession();
+  clearSavedAdminSession();
   closeDrawer();
   showLogin();
 });
@@ -1109,15 +1144,16 @@ btnCancelConfirm?.addEventListener("click", async () => {
   // Cargar perfiles de pagos apenas abre
   await loadPaymentProfiles();
 
-  const saved = localStorage.getItem("AMARED_ADMIN_REMEMBER") || sessionStorage.getItem("AMARED_ADMIN");
+  const savedWrap = loadSavedAdminSession();
+  const saved = savedWrap?.data || null;
   if (saved) {
     try {
-      const s = JSON.parse(saved);
+      const s = saved;
+      if (loginRemember) loginRemember.checked = !!savedWrap?.remembered;
       if (s?.pin) {
         // Preselecciona perfil si existe
         if (s.operatorId && loginOperator) loginOperator.value = String(s.operatorId);
         if (loginPin) loginPin.value = String(s.pin || "");
-        if (loginRemember) loginRemember.checked = !!localStorage.getItem("AMARED_ADMIN_REMEMBER");
         const prof = s.operatorId ? (LOGIN_PROFILES.find(p => p.id === String(s.operatorId)) || null) : null;
         SESSION = { operator: prof?.label || String(s.operator || ""), operatorId: prof?.id || String(s.operatorId || ""), pin: String(s.pin || "") };
 
@@ -1125,7 +1161,7 @@ btnCancelConfirm?.addEventListener("click", async () => {
           showPanel();
           loadPendientes(false).catch(() => {
             SESSION = { operator: null, operatorId: null, pin: null };
-            clearAdminSession()
+            clearSavedAdminSession();
             showLogin();
           });
         }
