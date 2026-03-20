@@ -893,41 +893,16 @@ body{
 .backToTop.hidden{ display:none !important; }
 
 
-/* ===== Shared delivery-style login + loader ===== */
+/* ===== Shared login clone (base tomada de Delivery) ===== */
 .btnLinkLike{
   text-decoration:none;
-  display:inline-flex;
-  align-items:center;
-  justify-content:center;
-  text-align:center;
-}
-
-.amLoginTopbar{
-  position:sticky;
-  top:0;
-  z-index:15;
-}
-.amLoginTopbarInner{
-  justify-content:center !important;
-  padding-top:10px !important;
-  padding-bottom:10px !important;
-}
-.amLoginBrand{
   display:flex;
-  width:100%;
   align-items:center;
   justify-content:center;
-}
-.amLoginHeaderLogo{
-  height:48px;
-  width:auto;
-  display:block;
-}
-.amLoginCenter{
-  max-width:700px;
-  margin:28px auto 0;
 }
 .amLoginCard{
+  max-width:700px;
+  margin:28px auto 0;
   padding:26px;
   border-radius:26px;
   background:rgba(255,255,255,.88);
@@ -936,17 +911,27 @@ body{
 .amLoginHero{ text-align:center; padding:4px 0 8px; }
 .amLoginTitle{
   margin:0 0 8px;
-  font-size:clamp(22px,2.15vw,28px);
+  font-size:clamp(26px,2.6vw,34px);
   line-height:1.05;
   color:var(--choco);
 }
 .amLoginLead{
   margin:0;
-  font-size:clamp(15px,1.35vw,17px);
+  font-size:clamp(16px,1.6vw,18px);
   font-weight:850;
   color:rgba(64,17,2,.78);
 }
-.amLoginPinRow{ display:flex; gap:10px; align-items:center; }
+.amLoginFieldHint{
+  margin-top:6px;
+  color:rgba(64,17,2,.66);
+  font-size:13px;
+  font-weight:750;
+}
+.amLoginPinRow{
+  display:flex;
+  gap:10px;
+  align-items:center;
+}
 .amLoginPinRow .input{ flex:1; }
 .amPinToggleBtn{
   min-width:54px;
@@ -968,7 +953,11 @@ body{
   font-weight:850;
   color:rgba(64,17,2,.82);
 }
-.amRememberLabel input{ width:18px; height:18px; accent-color:#ff5f95; }
+.amRememberLabel input{
+  width:18px;
+  height:18px;
+  accent-color:#ff5f95;
+}
 .amRememberHint{
   margin-top:6px;
   color:rgba(64,17,2,.66);
@@ -986,19 +975,32 @@ body{
   flex:1;
   min-height:48px;
 }
-.amOverlay{
+.amLoginActionsRowSingle .btn{
+  width:100%;
+}
+.amLoginTopbarBrand{
+  display:flex;
+  width:100%;
+  align-items:center;
+  justify-content:center;
+}
+.amLoginTopbarLogo{
+  height:48px;
+  width:auto;
+  display:block;
+}
+.amLoadingOverlay{
   position:fixed;
   inset:0;
   background:rgba(64,17,2,.25);
   backdrop-filter:blur(6px);
-  display:none;
+  display:flex;
   align-items:center;
   justify-content:center;
   padding:16px;
-  z-index:20000;
+  z-index:9999;
 }
-.amOverlay.show{ display:flex; }
-.amModal{
+.amLoadingCard{
   width:min(520px, 100%);
   background:rgba(255,255,255,.92);
   border:1px solid rgba(64,17,2,.12);
@@ -1006,29 +1008,43 @@ body{
   padding:16px;
   box-shadow:0 18px 40px rgba(0,0,0,.18);
 }
-.amLoaderRow{ display:flex; gap:10px; align-items:center; }
-.amModalTitle{
+.amLoadingRow{
+  display:flex;
+  gap:10px;
+  align-items:center;
+}
+.amLoadingTitle{
   font-weight:950;
-  font-size:16px;
+  font-size:18px;
   color:var(--choco);
 }
-.spinner{
+.amLoadingSub{
+  margin-top:4px;
+  color:rgba(64,17,2,.66);
+  font-size:13px;
+  font-weight:750;
+}
+.amSpinner{
   width:18px;
   height:18px;
   border-radius:999px;
   border:2px solid rgba(64,17,2,.18);
   border-top-color:rgba(64,17,2,.70);
-  animation: spin 1s linear infinite;
+  animation:amSpin 1s linear infinite;
 }
-@keyframes spin{ to{ transform: rotate(360deg); } }
-@media (max-width:720px){
-  .amLoginHeaderLogo{ height:42px; }
-  .amLoginCenter{ margin:16px auto 0; }
-  .amLoginCard{ padding:18px; border-radius:22px; }
-  .amLoginTitle{ font-size:clamp(20px,6.2vw,24px); }
-  .amLoginLead{ font-size:14px; }
+@keyframes amSpin{ to{ transform:rotate(360deg); } }
+
+@media (max-width: 720px){
+  .amLoginCard{
+    margin:16px auto 0;
+    padding:18px;
+    border-radius:22px;
+  }
+  .amLoginTitle{ font-size:clamp(22px,7vw,30px); }
+  .amLoginLead{ font-size:15px; }
+  .amLoginTopbarLogo{ height:42px; }
 }
-@media (max-width:520px){
+@media (max-width: 520px){
   .amLoginActionsRow{ flex-direction:column; }
   .amPinToggleBtn{ min-width:52px; height:auto; }
 }
