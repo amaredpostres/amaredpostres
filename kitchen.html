@@ -166,53 +166,48 @@
 
   <!-- LOGIN BOX -->
   <div class="container">
-    <div id="loginBox" class="card" style="max-width:700px; margin: 16px auto;">
-      <div class="hero" style="padding: 0 0 8px;">
-        <h1 class="heroTitle" style="margin-top:6px;">Acceso Cocina</h1>
-        <p class="heroSubtitle">Selecciona un perfil aprobado e ingresa el PIN.</p>
+    <div id="loginBox" class="card amLoginCard">
+      <div class="amLoginHero">
+        <h1 class="heroTitle amLoginTitle" style="margin-top:6px;">Acceso Cocina</h1>
+        <p class="heroSubtitle amLoginLead">Selecciona un perfil aprobado e ingresa el PIN.</p>
       </div>
 
       <div class="field">
-        <label class="muted small">Perfil</label>
+        <label>Perfil</label>
         <select id="selOperator" class="input" style="width:100%;"></select>
+        <div class="amLoginFieldHint">Solo aparecen perfiles activos con categoría <b>kitchen</b> o <b>admin</b>.</div>
       </div>
 
       <div class="field" style="margin-top:10px;">
-        <label class="muted small">PIN</label>
-        <div style="display:flex; gap:10px; align-items:center;">
+        <label>PIN</label>
+        <div class="amLoginPinRow">
           <input id="inpPin" class="input" type="password" placeholder="••••••" />
-          <button id="btnTogglePin" class="btn secondary" type="button" style="padding:10px 14px; border-radius:14px; min-width:52px;">👁</button>
+          <button id="btnTogglePin" class="amPinToggleBtn" type="button" aria-label="Mostrar PIN">👁</button>
         </div>
       </div>
 
-      
-      <div class="field" style="margin-top:10px;">
-        <label class="muted small" style="display:flex; gap:10px; align-items:center; cursor:pointer;">
-          <input id="chkRemember" type="checkbox" style="width:18px; height:18px; accent-color:#ff5f95;" />
+      <div class="amRememberWrap">
+        <label class="amRememberLabel">
+          <input id="chkRemember" type="checkbox" />
           <span>Recuérdame en este dispositivo</span>
         </label>
-        <div class="muted small" style="margin-top:6px;">Si lo activas, la próxima vez entrarás automáticamente desde este navegador.</div>
+        <div class="amRememberHint">Si lo activas, la próxima vez entrarás automáticamente desde este navegador.</div>
       </div>
-<div class="field" style="margin-top:12px;">
-        <div class="loginActions">
-          <button id="btnLogin" class="btn primary" type="button">Ingresar</button>
-      
-          <a id="btnManageProfiles"
-             class="btn secondary btnLinkLike"
-             href="profiles.html"
-             target="_blank"
-             rel="noopener">
-            Gestionar perfiles
-          </a>
-        </div>
-      
-        <div id="loginErr" class="muted small" style="color:#b00020; margin-top:10px;"></div>
-   </div>
 
+      <div class="amLoginActionsRow">
+        <button id="btnLogin" class="btn primary" type="button">Ingresar</button>
+        <a id="btnManageProfiles"
+           class="btn secondary btnLinkLike"
+           href="profiles.html"
+           target="_blank"
+           rel="noopener">Gestionar perfiles</a>
+      </div>
 
+      <div id="loginErr" class="muted small" style="color:#b00020; margin-top:10px;"></div>
     </div>
 
     <!-- APP -->
+
     <div id="app" style="display:none;">
       <div class="layout">
         
@@ -286,17 +281,16 @@
   </div>
 
   <!-- LOADING -->
-  <div id="loading" class="modalOverlay" aria-hidden="true" style="display:none;">
-    <div class="modalBox" style="max-width:520px;">
-      <div style="display:flex; gap:12px; align-items:center;">
-        <div id="loadingSpin" class="spin"></div>
+  <div id="loading" class="amLoadingOverlay" aria-hidden="true" style="display:none;">
+    <div class="amLoadingCard">
+      <div class="amLoadingRow">
+        <div id="loadingSpin" class="amSpinner"></div>
         <div>
-          <div style="font-weight:950; font-size:18px;" id="loadingTitle">Cargando…</div>
-          <div class="muted small" id="loadingMsg" style="margin-top:6px;">Procesando</div>
- </div>
-  </div>
-</div>
-
+          <div id="loadingTitle" class="amLoadingTitle">Cargando…</div>
+          <div id="loadingMsg" class="amLoadingSub">Procesando</div>
+        </div>
+      </div>
+    </div>
   </div>
 
   <!-- COSTOS MODAL (si lo usas) -->
