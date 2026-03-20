@@ -104,28 +104,17 @@
     .loadingTitle{ font-weight: 950; font-size: 18px; }
   
     .profilesTopbarHidden{ display:none !important; }
-    .loginBrandTop{
-      display:flex; justify-content:center; align-items:center;
-      margin: 18px 0 14px;
+    .profilesLoginBrandHeader{
+      display:none;
+      width:100%;
+      align-items:center;
+      justify-content:center;
     }
-    .loginBrandTop img{ height:58px; width:auto; display:block; }
+    .profilesLoginBrandHeader img{ height:48px; width:auto; display:block; }
     .profilesLoginShell{ max-width:760px; margin:0 auto; }
-    .profilesLoginCard{
-      background: var(--paper);
-      border:1px solid var(--border);
-      border-radius:26px;
-      padding:22px;
-      box-shadow: var(--shadow);
-    }
-    .profilesLoginTitle{
-      margin:0 0 8px; text-align:center; font-weight:950;
-      font-size: clamp(26px, 3vw, 40px); line-height:1.08;
-    }
-    .profilesLoginLead{
-      margin:0 0 18px; text-align:center;
-      font-size: clamp(14px, 1.4vw, 17px);
-      color: rgba(64,17,2,.74); font-weight:850;
-    }
+    .profilesLoginCard{ }
+    .profilesLoginTitle{ }
+    .profilesLoginLead{ }
     .profilesPinRow{
       display:grid; grid-template-columns:1fr auto; gap:10px; align-items:end;
     }
@@ -311,32 +300,35 @@
       }
     }
 
-      .profilesPage .container{ max-width:980px; }
-    .profilesPage .profilesLoginShell{ max-width:920px; margin:0 auto; }
-    .profilesPage .profilesLoginCard{ padding:0; border:0; background:transparent; box-shadow:none; }
-    .profilesPage #gateCard{ margin-top:28px; }
-    @media (max-width: 720px){
-      .profilesPage #gateCard{ margin-top:16px; }
+
+    .profilesPage.is-login #profilesTopbar{ display:block !important; }
+    .profilesPage.is-login .topbarInner{ justify-content:center !important; }
+    .profilesPage.is-login .profilesLoginBrandHeader{ display:flex; }
+    .profilesPage.is-login .brand,
+    .profilesPage.is-login .profilesHeaderActions{ display:none !important; }
+    .profilesPage.is-app .profilesLoginBrandHeader{ display:none !important; }
+    @media (max-width:720px){
+      .profilesLoginBrandHeader img{ height:42px; }
+      .profilesPage.is-app .topbarInner{ justify-content:center !important; }
+      .profilesPage.is-app .brand{ width:100%; justify-content:center; }
+      .profilesPage.is-app .brandMeta{ text-align:center; }
     }
 
   </style>
 </head>
-<body class="amLoginPage profilesPage is-login">
+<body class="profilesPage is-login">
   <header class="topbar" id="profilesTopbar">
-    <div class="topbarInner amLoginTopbarInner">
-      <div class="amLoginBrand" aria-label="AMARED">
-        <img class="amLoginHeaderLogo" src="assets/Logo-Amared.svg" alt="AMARED" />
-      </div>
-
-      <div class="brand amAppBrand">
+    <div class="topbarInner">
+      <div class="profilesLoginBrandHeader" aria-label="AMARED"><img src="assets/Logo-Amared.svg" alt="AMARED"></div>
+      <div class="brand">
         <img class="brandLogo" src="assets/Logo-Isotipo-Amared.svg" alt="AMARED" />
-        <div class="brandMeta amAppBrandMeta">
-          <div class="brandTitle amAppBrandTitle">Gestión de Perfiles</div>
-          <div class="brandSubtitle amAppBrandSubtitle">Rangos y accesos del sistema</div>
+        <div class="brandMeta">
+          <div class="brandTitle">Gestión de Perfiles</div>
+          <div class="brandSubtitle">Rangos y accesos del sistema</div>
         </div>
       </div>
 
-      <div class="row profilesHeaderActions amHeaderActions">
+      <div class="row profilesHeaderActions">
         <button id="btnBack" class="btn secondary profilesBtnBack" type="button">Volver atrás</button>
         <button id="btnLogout" class="btn secondary profilesBtnLogout" type="button" disabled>Cerrar sesión</button>
       </div>
@@ -350,21 +342,19 @@
     </div>
 
     <section class="profilesLoginShell" id="gateCard">
-      <div class="profilesLoginCard amLoginCard">
-        <div class="amLoginHero">
-          <h2 class="profilesLoginTitle amLoginTitle">Acceso Perfiles</h2>
-          <p class="profilesLoginLead amLoginLead">Selecciona un perfil aprobado e ingresa el PIN.</p>
-        </div>
+      <div class="profilesLoginCard card amLoginCard">
+        <h2 class="profilesLoginTitle amLoginTitle">Acceso Perfiles</h2>
+        <p class="profilesLoginLead amLoginLead">Selecciona un perfil aprobado e ingresa el PIN.</p>
 
         <div class="field">
           <label>Perfil</label>
           <select id="loginProfile" class="input">
             <option value="">Cargando perfiles…</option>
           </select>
-          <div class="amLoginNote">Solo aparecen perfiles activos con rango <b>Perfiles</b> o <b>Admin</b>.</div>
+          <div class="amLoginNote">Solo aparecen perfiles activos con categoría <b>profiles</b> o <b>admin</b>.</div>
         </div>
 
-        <div class="field" style="margin-top:10px;">
+        <div class="field" style="margin-top:12px;">
           <label>PIN</label>
           <div class="profilesPinRow amLoginPinRow">
             <input id="inpSecret" class="input" type="password" placeholder="••••••" autocomplete="current-password" />
@@ -372,19 +362,17 @@
           </div>
         </div>
 
-        <div class="amRememberWrap">
-          <label class="profilesRemember amRememberLabel">
-            <input id="chkRememberProfiles" type="checkbox" />
-            <span>Recuérdame en este dispositivo</span>
-          </label>
-          <div class="profilesLoginHint amRememberHint">Si lo activas, la próxima vez entrarás automáticamente desde este navegador.</div>
-        </div>
+        <div class="amRememberWrap"><label class="profilesRemember amRememberLabel">
+          <input id="chkRememberProfiles" type="checkbox" style="transform: translateY(1px);" />
+          Recuérdame en este dispositivo
+        </label>
+        <div class="profilesLoginHint amRememberHint">Si lo activas, la próxima vez entrarás automáticamente desde este navegador.</div></div>
 
-        <div class="amLoginActionsRow" style="margin-top:14px;">
+        <div class="amLoginActions">
           <button id="btnUnlock" class="btn primary" type="button">Ingresar</button>
         </div>
 
-        <div id="gateErr" class="status" style="color:#b00020;"></div>
+        <div id="gateErr" class="status amLoginError"></div>
       </div>
     </section>
 
@@ -522,12 +510,14 @@
     </div>
   </div>
 
-  <div id="loading" class="amLoadingOverlay" aria-hidden="true">
-    <div class="amLoadingCard">
-      <div class="amLoadingSpinner"></div>
-      <div>
-        <div class="amLoadingTitle" id="loadingTitle">Cargando perfiles...</div>
-        <div class="amLoadingSub" id="loadingMsg">Buscando perfiles de gestión.</div>
+  <div id="loading" class="loadingOverlay amLoadingOverlay" aria-hidden="true">
+    <div class="amLoadingPanel">
+      <div class="amLoadingInner">
+        <div class="amLoadingSpinner"></div>
+        <div>
+          <div class="amLoadingTitle" id="loadingTitle">Cargando perfiles…</div>
+          <div class="amLoadingText" id="loadingMsg">Buscando perfiles de gestión.</div>
+        </div>
       </div>
     </div>
   </div>
