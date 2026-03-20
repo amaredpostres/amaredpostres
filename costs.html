@@ -153,68 +153,60 @@
 
 /* ===== Login con perfil / PIN ===== */
 #unlockBack{
-  background: transparent;
-  backdrop-filter: none;
-  align-items:flex-start;
-  justify-content:center;
-  padding:18px;
-  padding-top:108px;
+  background: rgba(247, 240, 233, .98);
   z-index: 99999;
 }
 #unlockBack .modal{
-  width:min(700px, 100%);
-  background: transparent;
-  border: 0;
-  box-shadow: none;
-  padding: 0;
+  width:min(820px, 92vw);
+}
+.unlockLogoWrap{
+  display:flex; justify-content:center; align-items:center;
+  margin-bottom:14px;
+}
+.unlockLogoWrap img{
+  height:58px; width:auto; display:block;
 }
 .unlockGrid{
   display:grid;
   gap:12px;
 }
 .unlockPinRow{
-  display:flex;
+  display:grid;
+  grid-template-columns:1fr auto;
   gap:10px;
-  align-items:center;
+  align-items:end;
 }
-.unlockPinRow .input{ flex:1; }
 .unlockEyeBtn{
-  min-width:54px; height:48px; padding:0 14px;
+  width:56px; height:56px;
   border-radius:16px;
   border:1px solid var(--border);
-  background: linear-gradient(180deg, rgba(246,186,96,.96), rgba(245,196,108,.92));
-  box-shadow:0 10px 22px rgba(246,186,96,.22);
-  font-size:18px; font-weight:900;
+  background: linear-gradient(180deg, rgba(246,186,96,.92), rgba(246,186,96,.82));
+  display:flex; align-items:center; justify-content:center;
+  font-size:20px; font-weight:900;
   cursor:pointer;
+  box-shadow: 0 10px 20px rgba(64,17,2,.08);
 }
 .unlockRemember{
   display:flex; align-items:center; gap:10px;
-  font-weight:850; color: rgba(64,17,2,.82);
-}
-.unlockRemember input{
-  width:18px; height:18px; accent-color:#ff5f95;
+  font-weight:900; color: rgba(64,17,2,.82);
 }
 .unlockActions{
-  display:flex;
+  display:grid;
+  grid-template-columns:1fr 1fr;
   gap:10px;
-  margin-top:14px;
+  margin-top:12px;
 }
-.unlockActions .btn,
-.unlockActions .btnLinkLike{ flex:1; min-height:48px; }
-@media (max-width: 720px){
-  #unlockBack{ padding-top:88px; padding-left:12px; padding-right:12px; }
-}
-@media (max-width: 520px){
-  .unlockActions{ flex-direction:column; }
+@media (max-width: 640px){
+  .unlockActions{ grid-template-columns:1fr; }
 }
 
 </style>
 </head>
-<body class="amLoginPage costsPage is-login">
-<header class="topbar amLoginOnlyBar" id="costsLoginTopbar">
-  <div class="topbarInner amLoginTopbarInner">
-    <div class="amLoginBrand" aria-label="AMARED">
-      <img class="amLoginHeaderLogo" src="assets/Logo-Amared.svg" alt="AMARED"/>
+<body class="costsPage is-login">
+<header class="topbar costsLoginTopbar">
+  <div class="topbarInner costsLoginTopbarInner">
+    <div class="costsLoginBrand" aria-label="AMARED">
+      <img src="assets/Logo-Amared.svg" alt="AMARED" />
     </div>
   </div>
 </header>
@@ -380,13 +372,12 @@
   <button class="mNavBtn" id="mNavExit" type="button" aria-label="Salir">⎋</button>
 </div>
 
-<!-- LOGIN (pantalla completa) -->
+<!-- LOGIN -->
 <div class="modalOverlay" id="unlockBack">
-<div class="modal">
-  <section class="card amLoginCard">
+  <div class="modal costsLoginModal card amLoginCard">
     <div class="amLoginHero">
-      <div class="modalTitle amLoginTitle" style="font-weight:950;">Acceso Compras y Recetas</div>
-      <div class="modalSub amLoginLead" style="margin-top:4px;">Selecciona un perfil aprobado e ingresa el PIN.</div>
+      <div class="amLoginTitle">Acceso Compras y Recetas</div>
+      <div class="amLoginLead">Selecciona un perfil aprobado e ingresa el PIN.</div>
     </div>
     <div class="modalBody" style="padding:0;">
       <div class="unlockGrid">
@@ -395,7 +386,7 @@
           <select id="loginProfile" class="input">
             <option value="">Cargando perfiles…</option>
           </select>
-          <div class="amLoginNote">Solo aparecen perfiles activos con rango <b>Compras / Recetas</b>, <b>Admin</b> o <b>Pagos</b>.</div>
+          <div class="amLoginNote">Solo aparecen perfiles activos con categoría <b>costs</b>, <b>payments</b> o <b>admin</b>.</div>
         </div>
 
         <div class="field" style="margin-top:10px;">
@@ -411,19 +402,18 @@
             <input id="chkRememberDevice" type="checkbox"/>
             <span>Recuérdame en este dispositivo</span>
           </label>
-          <div class="hint amRememberHint">Si lo activas, la próxima vez entrarás automáticamente desde este navegador.</div>
+          <div class="amRememberHint">Si lo activas, la próxima vez entrarás automáticamente desde este navegador.</div>
         </div>
 
-        <div class="unlockActions amLoginActionsRow">
+        <div class="amLoginActions">
           <button class="btn primary" id="btnDoUnlock">Ingresar</button>
-          <a class="btn secondary btnLinkLike" href="profiles.html" target="_blank" rel="noopener">Gestionar perfiles</a>
+          <a class="btn secondary amManageBtn" href="profiles.html" target="_blank" rel="noopener">Gestionar perfiles</a>
         </div>
 
-        <div class="pErr" id="unlockMsg"></div>
+        <div class="pErr amLoginError" id="unlockMsg"></div>
       </div>
     </div>
-  </section>
-</div>
+  </div>
 </div>
 
 <!-- LOGIN: RECETAS (código adicional) -->
@@ -675,13 +665,15 @@
 </div>
 </div>
 </div>
-<!-- LOADING overlay (pantalla completa) -->
-<div class="amLoadingOverlay hidden" id="loadingBack">
-  <div class="amLoadingCard">
-    <div class="amLoadingSpinner"></div>
-    <div>
-      <div class="amLoadingTitle" id="loadingTitle">Cargando perfiles...</div>
-      <div class="amLoadingSub" id="loadingSub">Buscando perfiles de compras y recetas.</div>
+<!-- LOADING overlay -->
+<div class="modalOverlay hidden amLoadingOverlay" id="loadingBack">
+  <div class="amLoadingPanel">
+    <div class="amLoadingInner">
+      <div class="amLoadingSpinner"></div>
+      <div>
+        <div id="loadingTitle" class="amLoadingTitle">Cargando perfiles…</div>
+        <div id="loadingSub" class="amLoadingText">Buscando perfiles de compras y recetas.</div>
+      </div>
     </div>
   </div>
 </div>
