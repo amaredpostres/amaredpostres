@@ -12,57 +12,21 @@
 
     /* LOGIN */
     .loginBox{
-      max-width:760px;
-      margin:0 auto;
-      padding:26px;
-      border-radius:26px;
-      background:rgba(255,255,255,.88);
-      border:1px solid var(--border);
-      box-shadow:0 18px 40px rgba(64,17,2,.08);
+      max-width:420px; margin:60px auto; padding:20px;
+      border-radius:18px; background:var(--paper);
+      border:1px solid var(--border); box-shadow:var(--shadow);
     }
-    .loginHero{ text-align:center; padding:4px 0 8px; }
-    .loginTitle{
-      margin:0 0 8px;
-      font-size:clamp(22px,2.15vw,28px);
-      line-height:1.05;
-      color:var(--choco);
-      font-weight:950;
-    }
-    .loginLead{
-      margin:0;
-      font-size:clamp(15px,1.35vw,17px);
-      font-weight:850;
-      color:rgba(64,17,2,.78);
-      text-align:center;
-    }
+    .loginBox h2{ text-align:center; margin:0 0 6px; }
+    .loginBox p{ text-align:center; font-size:14px; opacity:.7; margin:0 0 16px; }
     .field{ display:grid; gap:6px; margin-bottom:12px; }
     .mutedSmall{ opacity:.72; font-weight:800; font-size:13px; }
-    .loginPinRow{ display:grid; grid-template-columns:1fr auto; gap:10px; align-items:end; }
-    .pinToggleBtn{
-      width:56px;
-      height:48px;
-      border-radius:16px;
-      border:1px solid var(--border);
-      background:linear-gradient(180deg, rgba(246,186,96,.96), rgba(245,196,108,.92));
-      box-shadow:0 10px 22px rgba(246,186,96,.22);
-      font-size:18px;
-      cursor:pointer;
-    }
-    .loginRemember{ margin-top:10px; }
-    .loginRememberLabel{ display:flex; align-items:center; gap:10px; cursor:pointer; font-weight:850; color:rgba(64,17,2,.82); }
-    .loginRememberLabel input{ width:18px; height:18px; accent-color:#ff5f95; }
-    .loginRememberHint{ margin-top:6px; color:rgba(64,17,2,.66); font-size:13px; font-weight:750; }
-    .loginActions{ display:flex; gap:10px; margin-top:14px; }
-    .btnLinkLike{ text-decoration:none !important; display:flex; align-items:center; justify-content:center; text-align:center; }
-    .loginActions .btn,
-    .loginActions .btnLinkLike{ flex:1; min-height:52px; }
+
+    .loginActions{ display:flex; gap:10px; }
+    .btnLinkLike{ text-decoration:none; display:flex; align-items:center; justify-content:center; }
+    .loginActions .btn{ flex:1; }
     @media (max-width:520px){
-      .loginBox{ padding:18px; border-radius:22px; }
-      .loginTitle{ font-size:clamp(20px,6.2vw,24px); }
-      .loginLead{ font-size:14px; }
       .loginActions{ flex-direction:column; }
-      .loginActions .btn,
-      .loginActions .btnLinkLike{ width:100%; }
+      .loginActions .btn{ width:100%; }
     }
 
 
@@ -307,21 +271,29 @@
       display:block;
     }
 
+      .adminPage .container{ max-width:980px; }
+    .adminPage .adminBrand{ gap:12px; }
+    .adminPage .adminBrandMeta{ display:flex; flex-direction:column; gap:2px; }
+
   </style>
 </head>
 
-<body>
-  <div class="topbar hidden" id="adminTopbar">
-    <div class="topbarInner adminTopbarInner">
-      <div class="adminBrand">
+<body class="amLoginPage adminPage is-login">
+  <div class="topbar" id="adminTopbar">
+    <div class="topbarInner amLoginTopbarInner adminTopbarInner">
+      <div class="amLoginBrand" aria-label="AMARED">
+        <img class="amLoginHeaderLogo" src="assets/Logo-Amared.svg" alt="AMARED" />
+      </div>
+
+      <div class="amAppBrand adminBrand">
         <img src="assets/Logo-Isotipo-Amared.svg" class="brandLogo" alt="AMARED" />
-        <div class="adminBrandMeta">
-          <div class="adminBrandTitle">Pagos</div>
-          <div class="adminBrandSubtitle">Gestión de pagos y pedidos</div>
+        <div class="adminBrandMeta amAppBrandMeta">
+          <div class="adminBrandTitle amAppBrandTitle">Pagos</div>
+          <div class="adminBrandSubtitle amAppBrandSubtitle">Gestión de pagos y pedidos</div>
         </div>
       </div>
 
-      <div id="adminHeaderActions" class="adminHeaderActions" aria-label="Acciones de pagos">
+      <div id="adminHeaderActions" class="amHeaderActions adminHeaderActions" aria-label="Acciones de pagos">
         <button id="btnHeaderRefresh" class="btn adminBtnRefresh" type="button">Actualizar</button>
         <button id="btnHeaderHistory" class="btn adminBtnHistory" type="button">Historial</button>
         <button id="btnHeaderLogout" class="btn adminBtnLogout" type="button">Cerrar sesión</button>
@@ -332,11 +304,10 @@
   <div class="container">
 
     <!-- LOGIN -->
-    <div class="loginBrandTop"><img src="assets/Logo-Amared.svg" alt="AMARED"></div>
-    <div id="loginView" class="loginBox">
-      <div class="loginHero">
-        <h2 class="loginTitle">Acceso Pagos</h2>
-        <p class="loginLead">Selecciona un perfil aprobado e ingresa el PIN.</p>
+    <section id="loginView" class="card amLoginCard">
+      <div class="amLoginHero">
+        <h2 class="amLoginTitle">Acceso Pagos</h2>
+        <p class="amLoginLead">Selecciona un perfil aprobado e ingresa el PIN.</p>
       </div>
 
       <div class="field">
@@ -344,31 +315,31 @@
         <select id="loginOperator" class="input">
           <option value="">Cargando perfiles...</option>
         </select>
-        <div class="mutedSmall" style="margin-top:6px;">Solo aparecen perfiles activos con categoría <b>pagos</b>.</div>
+        <div class="amLoginNote">Solo aparecen perfiles activos con categoría <b>payments</b> o <b>admin</b>.</div>
       </div>
 
-      <div class="field">
+      <div class="field" style="margin-top:10px;">
         <label>PIN</label>
-        <div class="loginPinRow">
+        <div class="amLoginPinRow">
           <input id="loginPin" type="password" class="input" placeholder="••••••" autocomplete="current-password" />
-          <button id="btnTogglePin" class="pinToggleBtn" type="button" aria-label="Mostrar PIN">👁</button>
+          <button id="btnTogglePin" class="amPinToggleBtn" type="button" aria-label="Mostrar PIN">👁</button>
         </div>
       </div>
 
-      <div class="loginRemember">
-        <label class="loginRememberLabel">
+      <div class="amRememberWrap">
+        <label class="amRememberLabel">
           <input id="chkRememberAdmin" type="checkbox" />
           <span>Recuérdame en este dispositivo</span>
         </label>
-        <div class="loginRememberHint">Si lo activas, la próxima vez entrarás automáticamente desde este navegador.</div>
+        <div class="amRememberHint">Si lo activas, la próxima vez entrarás automáticamente desde este navegador.</div>
       </div>
 
-      <div class="loginActions">
+      <div class="amLoginActionsRow">
         <button id="btnLogin" class="btn primary" type="button">Ingresar</button>
         <a id="btnManageProfiles" class="btn secondary btnLinkLike" href="profiles.html" target="_blank" rel="noopener">Gestionar perfiles</a>
       </div>
-      <p id="loginError" class="mutedSmall" style="color:#b00020; text-align:center; margin-top:10px;"></p>
-    </div>
+      <div id="loginError" class="status" style="color:#b00020; margin-top:10px;"></div>
+    </section>
 
     <!-- PANEL (Pendientes) -->
     <div id="panelView" class="hidden">
@@ -482,12 +453,12 @@
   </div>
 
   <!-- Loading overlay -->
-  <div id="loadingOverlay" class="loadingOverlay" aria-hidden="true">
-    <div class="loadingBox">
-      <div class="spinner"></div>
+  <div id="loadingOverlay" class="amLoadingOverlay" aria-hidden="true">
+    <div class="amLoadingCard">
+      <div class="amLoadingSpinner"></div>
       <div>
-        <div id="loadingText">Cargando...</div>
-        <div id="loadingDesc" class="loadingDesc">Por favor espera.</div>
+        <div id="loadingText" class="amLoadingTitle">Cargando perfiles...</div>
+        <div id="loadingDesc" class="amLoadingSub">Buscando perfiles de pagos.</div>
       </div>
     </div>
   </div>
