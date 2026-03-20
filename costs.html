@@ -200,31 +200,17 @@
   .unlockActions{ grid-template-columns:1fr; }
 }
 
-.costsLoginTitle{
-  margin:0 0 8px;
-  text-align:center;
-  font-weight:950;
-  font-size:clamp(22px, 2.15vw, 28px);
-  line-height:1.05;
-  color:var(--choco);
-  letter-spacing:0;
-}
-.costsLoginLead{
-  margin:0;
-  text-align:center;
-  font-size:clamp(15px, 1.35vw, 17px);
-  font-weight:850;
-  color:rgba(64,17,2,.78);
-  letter-spacing:0;
-}
-@media (max-width: 640px){
-  .costsLoginTitle{ font-size:clamp(20px, 6.2vw, 24px); }
-  .costsLoginLead{ font-size:14px; }
-}
-
 </style>
 </head>
-<body class="costsPage">
+<body class="costsPage is-login">
+<header class="topbar costsLoginTopbar" id="costsLoginTopbar">
+<div class="topbarInner costsLoginTopbarInner">
+<div class="amLoginTopbarBrand" aria-label="AMARED">
+<img class="amLoginTopbarLogo" src="assets/Logo-Amared.svg" alt="AMARED"/>
+</div>
+</div>
+</header>
+
 <!-- APP (solo después de desbloquear) -->
 <div class="page" id="appRoot" style="display:none;">
 <header class="topbar">
@@ -389,41 +375,41 @@
 
 <!-- LOGIN (pantalla completa) -->
 <div class="modalOverlay" id="unlockBack">
-<div class="modal">
-<div class="unlockLogoWrap"><img src="assets/Logo-Amared.svg" alt="AMARED"/></div>
-<div class="modalHeader" style="justify-content:center; text-align:center;">
-<div>
-<h2 class="costsLoginTitle">Acceso Compras y Recetas</h2>
-<p class="costsLoginLead" style="margin-top:0;">Selecciona un perfil aprobado e ingresa el PIN.</p>
+<div class="modal costsLoginModal amLoginCard">
+<div class="amLoginHero">
+<div class="modalTitle amLoginTitle" style="font-weight:950;">Acceso Compras y Recetas</div>
+<div class="modalSub amLoginLead" style="margin-top:0;">Selecciona un perfil aprobado e ingresa el PIN.</div>
 </div>
-</div>
-<div class="modalBody" style="padding:14px;">
+<div class="modalBody costsLoginBody" style="padding:0;">
 <div class="unlockGrid">
   <div class="field">
     <label>Perfil</label>
     <select id="loginProfile" class="input">
       <option value="">Cargando perfiles…</option>
     </select>
-    <div class="hint" style="margin-top:6px;">Solo aparecen perfiles activos con rango <b>Compras / Recetas</b>, <b>Admin</b> o <b>Pagos</b>.</div>
+    <div class="amLoginFieldHint">Solo aparecen perfiles activos con categoría <b>costs</b>, <b>payments</b> o <b>admin</b>.</div>
   </div>
 
-  <div class="field">
+  <div class="field" style="margin-top:10px;">
     <label>PIN</label>
-    <div class="unlockPinRow">
+    <div class="unlockPinRow amLoginPinRow">
       <input autocomplete="current-password" class="input" id="secretInput" placeholder="••••••" type="password"/>
-      <button class="unlockEyeBtn" id="btnToggleSecret" type="button" aria-label="Mostrar u ocultar PIN">◉</button>
+      <button class="unlockEyeBtn amPinToggleBtn" id="btnToggleSecret" type="button" aria-label="Mostrar u ocultar PIN">👁</button>
     </div>
   </div>
 
-  <label class="unlockRemember">
-    <input id="chkRememberDevice" style="transform: translateY(1px);" type="checkbox"/>
-    Recuérdame en este dispositivo
-  </label>
-  <div class="hint">Si lo activas, la próxima vez entrarás automáticamente desde este navegador.</div>
+  <div class="amRememberWrap">
+    <label class="unlockRemember amRememberLabel">
+      <input id="chkRememberDevice" type="checkbox"/>
+      <span>Recuérdame en este dispositivo</span>
+    </label>
+    <div class="hint amRememberHint">Si lo activas, la próxima vez entrarás automáticamente desde este navegador.</div>
+  </div>
 
-  <div class="unlockActions">
-    <button class="btn secondary" id="btnClear">Limpiar</button>
+  <div class="unlockActions amLoginActionsRow">
     <button class="btn primary" id="btnDoUnlock">Ingresar</button>
+    <a class="btn secondary btnLinkLike" href="profiles.html" target="_blank" rel="noopener">Gestionar perfiles</a>
+    <button class="btn secondary costsHiddenAuxBtn" id="btnClear" type="button" tabindex="-1" aria-hidden="true">Limpiar</button>
   </div>
 
   <div class="pErr" id="unlockMsg"></div>
