@@ -143,7 +143,7 @@ function getSelectedCategories(){
 function syncPinToggleState_(){
   if(!inpSecret || !btnTogglePin) return;
   const hidden = inpSecret.type !== "text";
-  btnTogglePin.textContent = hidden ? "👁" : "🙈";
+  btnTogglePin.textContent = hidden ? "◉" : "◎";
   btnTogglePin.setAttribute("aria-label", hidden ? "Mostrar PIN" : "Ocultar PIN");
 }
 
@@ -232,6 +232,9 @@ function syncProfilesMobileBar(){
 }
 
 function setLockedUI(locked){
+  document.body.classList.toggle("is-login", !!locked);
+  document.body.classList.toggle("is-app", !locked);
+
   if(locked){
     if(btnLogout) btnLogout.disabled = true;
     if(mgrCard) mgrCard.style.display = "none";
@@ -239,7 +242,7 @@ function setLockedUI(locked){
     if(gateCard) gateCard.style.display = "";
     if(profilesTopbar) profilesTopbar.classList.add("profilesTopbarHidden");
     if(profilesHero) profilesHero.classList.add("hidden");
-    if(profilesLoginBrand) profilesLoginBrand.style.display = "";
+    if(profilesLoginBrand) profilesLoginBrand.style.display = "none";
     syncProfilesMobileBar();
   }else{
     if(btnLogout) btnLogout.disabled = false;
