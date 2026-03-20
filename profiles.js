@@ -27,7 +27,6 @@ const pillState = document.getElementById("pillState");
 const btnLogout = document.getElementById("btnLogout");
 const profilesTopbar = document.getElementById("profilesTopbar");
 const profilesHero = document.getElementById("profilesHero");
-const profilesLoginBrand = document.getElementById("profilesLoginBrand");
 
 const pillCount = document.getElementById("pillCount");
 const btnReload = document.getElementById("btnReload");
@@ -191,17 +190,12 @@ function renderLoginProfiles_(rows){
 
 async function populateLoginProfiles_(){
   let rows = [];
-  showLoading("Cargando perfiles...", "Buscando perfiles de gestión.");
-  try{
-    try{ rows = await fetchProfilesPublic_("profiles"); }catch(_e){}
-    if(!rows.length){
-      try{ rows = await fetchProfilesPublic_("admin"); }catch(_e){}
-    }
-    LOGIN_PROFILES = Array.isArray(rows) ? rows : [];
-    renderLoginProfiles_(LOGIN_PROFILES);
-  } finally {
-    hideLoading();
+  try{ rows = await fetchProfilesPublic_("profiles"); }catch(_e){}
+  if(!rows.length){
+    try{ rows = await fetchProfilesPublic_("admin"); }catch(_e){}
   }
+  LOGIN_PROFILES = Array.isArray(rows) ? rows : [];
+  renderLoginProfiles_(LOGIN_PROFILES);
 }
 
 async function api(payload){
@@ -237,13 +231,16 @@ function syncProfilesMobileBar(){
 }
 
 function setLockedUI(locked){
-  document.body.classList.remove("is-login", "is-app");
-  document.body.classList.add(locked ? "is-login" : "is-app");
+  try{
+    document.body.classList.remove("is-login","is-app");
+    document.body.classList.add(locked ? "is-login" : "is-app");
+  }catch(_e){}
   if(locked){
     if(btnLogout) btnLogout.disabled = true;
     if(mgrCard) mgrCard.style.display = "none";
     if(statusCard) statusCard.style.display = "none";
     if(gateCard) gateCard.style.display = "";
+    if(profilesTopbar) profilesTopbar.classList.remove("profilesTopbarHidden");
     if(profilesHero) profilesHero.classList.add("hidden");
     syncProfilesMobileBar();
   }else{
@@ -251,6 +248,7 @@ function setLockedUI(locked){
     if(mgrCard) mgrCard.style.display = "block";
     if(statusCard) statusCard.style.display = "none";
     if(gateCard) gateCard.style.display = "none";
+    if(profilesTopbar) profilesTopbar.classList.remove("profilesTopbarHidden");
     if(profilesHero) profilesHero.classList.remove("hidden");
     syncProfilesMobileBar();
   }
@@ -529,7 +527,7 @@ async function loadProfiles(){
   listMsg.textContent = "";
   mgrErr.textContent = "";
 
-  showLoading("Cargando…", "Leyendo perfiles del sistema…");
+  showLoading("Cargando…", "Leyendo perfiles…");
   try{
     const out = await api({
       action: "profiles_list",
@@ -567,7 +565,7 @@ btnUnlock?.addEventListener("click", async ()=>{
   }
 
   try{
-    showLoading("Validando…", "Verificando acceso de perfiles.");
+    showLoading("Validando…", "Comprobando acceso…");
     const v = await api({ action: "validate_admin_pin", admin_pin: secret });
     if(v.valid !== true) throw new Error("PIN incorrecto o no autorizado.");
 
@@ -588,7 +586,6 @@ btnUnlock?.addEventListener("click", async ()=>{
     PROFILES_SECRET = null;
     clearProfilesRemember_();
     setLockedUI(true);
-  syncPinToggleState_();
     gateErr.textContent = "PIN incorrecto o no autorizado.";
     console.error("unlock error:", e, e._raw);
   }finally{
