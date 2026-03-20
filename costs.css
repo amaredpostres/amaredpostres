@@ -960,85 +960,30 @@ select.input{
 }
 
 
-/* ===== Login visual unificado ===== */
-.costsPage #unlockBack{
-  background: linear-gradient(90deg, rgba(250,232,234,.96), rgba(249,242,233,.96));
-  z-index: 99999 !important;
+/* ===== Login compartido Costs ===== */
+.costsLoginTopbar{ display:block; }
+.costsPage.is-app .costsLoginTopbar{ display:none; }
+.costsPage.is-login .costsLoginTopbar{ display:block; }
+.costsLoginTopbarInner{ justify-content:center !important; }
+.costsLoginBrand{ display:flex; align-items:center; justify-content:center; width:100%; }
+.costsLoginBrand img{ height:48px; width:auto; display:block; }
+.costsLoginModal{
+  width:min(700px, 100%);
+  overflow:visible;
+  background:rgba(255,255,255,.88);
 }
-.costsPage #unlockBack .modal.amLoginModal{
-  width:min(760px, 92vw);
-  background: rgba(255,255,255,.88);
-  border-radius:26px;
-  box-shadow: 0 18px 40px rgba(64,17,2,.08);
-  overflow: visible;
+.costsPage.is-login #unlockBack{
+  background: transparent;
+  padding: 26px 18px 18px;
+  align-items:flex-start;
+  z-index: 45;
 }
-.costsPage .unlockLogoWrap{
-  display:flex;
-  justify-content:center;
-  align-items:center;
-  margin: 18px 0 10px;
-}
-.costsPage .unlockLogoWrap img{
-  height:58px;
-  width:auto;
-  display:block;
-}
-.costsPage .unlockPinRow{
-  display:grid;
-  grid-template-columns:1fr auto;
-  gap:10px;
-  align-items:end;
-}
-.costsPage .unlockEyeBtn{
-  width:56px;
-  height:48px;
-  border-radius:16px;
-  border:1px solid var(--border);
-  background: linear-gradient(180deg, rgba(246,186,96,.96), rgba(245,196,108,.92));
-  box-shadow: 0 10px 22px rgba(246,186,96,.22);
-}
-.costsPage .unlockRemember{
-  display:flex;
-  align-items:center;
-  gap:10px;
-  font-weight:900;
-  color: rgba(64,17,2,.82);
-}
-.costsPage .unlockRemember input{
-  width:18px;
-  height:18px;
-  accent-color:#ff5f95;
-}
-.costsPage .unlockActions{
-  display:flex;
-  gap:10px;
-  margin-top:14px;
-}
-.costsPage .unlockActions .btn,
-.costsPage .unlockActions .btnLinkLike{
-  flex:1;
-  min-height:52px;
-}
-.costsPage .unlockManageBtn{
-  text-decoration:none !important;
-  display:flex;
-  align-items:center;
-  justify-content:center;
-  text-align:center;
-  font-weight:900;
-}
-.costsPage .unlockAuxActions{
-  margin-top:10px;
-}
-.costsPage .unlockClearBtn{
-  width:100%;
-}
-@media (max-width: 640px){
-  .costsPage #unlockBack .modal.amLoginModal{
-    width:min(560px, 96vw);
-    border-radius:22px;
-  }
-  .costsPage .unlockActions{
-    flex-direction:column;
-  }
+.costsPage.is-login #unlockBack .modalBody{ padding:0 !important; }
+.costsPage.is-login #unlockBack .unlockGrid{ display:grid; gap:0; }
+.costsPage.is-login #unlockBack .hint{ display:none; }
+.costsPage.is-login #unlockBack .unlockRemember{ border:0; padding:0; background:transparent; }
+.costsPage.is-login #unlockBack .unlockActions{ display:none !important; }
+@media (max-width:720px){
+  .costsLoginBrand img{ height:42px; }
+  .costsPage.is-login #unlockBack{ padding-top:18px; }
 }
