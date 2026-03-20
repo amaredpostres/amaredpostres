@@ -369,9 +369,9 @@ async function fetchProfilesPublic_(category){
 }
 
 async function populateLoginProfiles_(){
-  showLoading("Cargando perfiles…", "Buscando perfiles de compras/recetas.");
+  let rows = [];
+  showLoading("Cargando perfiles...", "Buscando perfiles de compras y recetas.");
   try{
-    let rows = [];
     try{ rows = await fetchProfilesPublic_("costs"); }catch(_e){}
     if(!rows.length){
       try{ rows = await fetchProfilesPublic_("admin"); }catch(_e){}
@@ -390,18 +390,19 @@ async function populateLoginProfiles_(){
       const selected = saved && saved === id ? ' selected' : '';
       opts.push(`<option value="${escapeHtmlAttr(id)}"${selected}>${escapeHtml(label)}</option>`);
     }
-    if(!LOGIN_PROFILES.length){
-      opts.push('<option value="">Sin perfiles habilitados</option>');
-      if(el("unlockMsg")) el("unlockMsg").textContent = "No hay perfiles disponibles para este acceso.";
-    }else if(el("unlockMsg")){
-      el("unlockMsg").textContent = "";
-    }
+    if(!LOGIN_PROFILES.length) opts.push('<option value="">Sin perfiles habilitados</option>');
     sel.innerHTML = opts.join("");
   } finally {
     hideLoading();
   }
 }
 
+
+
+function setShellMode(mode){
+  document.body.classList.remove("is-login", "is-app");
+  document.body.classList.add(mode === "app" ? "is-app" : "is-login");
+}
 
 // =============== Loading ===============
 function showLoading(title, sub){
@@ -1861,6 +1862,7 @@ function isDessertLocallyDeleted_(id){
 }
 
 function openUnlock(msg){
+  setShellMode("login");
   if(el("unlockMsg")) el("unlockMsg").textContent = msg || "";
   show(el("unlockBack"));
   hide(el("appRoot"));
@@ -1899,7 +1901,7 @@ async function doUnlock(isAuto=false){
     return;
   }
 
-  showLoading("Validando…", "Verificando el acceso en el servidor.");
+  showLoading("Validando…", "Verificando acceso de compras y recetas.");
   try{
     await validateSecret(secret);
     UNLOCKED_SECRET = secret;
@@ -1916,6 +1918,7 @@ async function doUnlock(isAuto=false){
     }
 
     closeUnlock();
+    setShellMode("app");
     show(el("appRoot"));
     show(el("mobileNav"));
     setView("purchases");
@@ -3581,6 +3584,7 @@ el("ingModalBack")?.addEventListener("click", (e)=>{ if(e.target && e.target.id=
 
 // =============== Boot ===============
 (async function init(){
+  setShellMode("login");
   bind();
   loadDeletedDesserts_();
   syncSecretToggleState_();
