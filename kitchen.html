@@ -24,7 +24,7 @@
     .brandLogo2{width:44px;height:44px;object-fit:contain;}
     .ttl{font-weight:950; line-height:1;}
     .sub{opacity:.7; font-weight:850; font-size:12px;}
-    .btnLinkLike{ text-decoration:none !important; display:inline-flex; align-items:center; justify-content:center; text-align:center; }
+    .btnLinkLike{ text-decoration:none; display:inline-flex; align-items:center; justify-content:center; }
       
     /* ✅ FIX: Overlay de carga centrado y bonito */
     .modalOverlay{
@@ -142,22 +142,22 @@
   </style>
 </head>
 
-<body class="kitchenPage is-login">
+<body class="amLoginPage kitchenPage is-login">
   <header class="topbar">
-    <div class="topbarInner kitchenTopbarInner">
-      <div class="kitchenTopbarLoginBrand" aria-label="AMARED">
-        <img src="assets/Logo-Amared.svg" alt="AMARED" />
+    <div class="topbarInner amLoginTopbarInner kitchenTopbarInner">
+      <div class="amLoginBrand kitchenTopbarLoginBrand" aria-label="AMARED">
+        <img class="amLoginHeaderLogo" src="assets/Logo-Amared.svg" alt="AMARED" />
       </div>
 
-      <div class="brandRow kitchenTopbarAppBrand">
+      <div class="brandRow amAppBrand kitchenTopbarAppBrand">
         <img class="brandLogo2" src="assets/Logo-Isotipo-Amared.svg" alt="AMARED" />
-        <div>
-          <div class="ttl">Cocina</div>
-          <div class="sub">Producción diaria</div>
+        <div class="amAppBrandMeta">
+          <div class="ttl amAppBrandTitle">Cocina</div>
+          <div class="sub amAppBrandSubtitle">Producción diaria</div>
         </div>
       </div>
 
-      <div class="kitchenHeaderActions">
+      <div class="kitchenHeaderActions amHeaderActions">
         <button id="btnLogout" class="btn secondary" type="button" style="display:none;">Cerrar sesión</button>
         <button id="btnRefresh" class="btn secondary" type="button" style="display:none;">Actualizar</button>
       </div>
@@ -166,52 +166,41 @@
 
   <!-- LOGIN BOX -->
   <div class="container">
-    <div id="loginBox" class="card" style="max-width:700px; margin: 16px auto;">
-      <div class="hero" style="padding: 0 0 8px;">
-        <h1 class="heroTitle" style="margin-top:6px;">Acceso Cocina</h1>
-        <p class="heroSubtitle">Selecciona un perfil aprobado e ingresa el PIN.</p>
+    <section id="loginBox" class="card amLoginCard">
+      <div class="amLoginHero">
+        <h1 class="heroTitle amLoginTitle" style="margin-top:6px;">Acceso Cocina</h1>
+        <p class="heroSubtitle amLoginLead">Selecciona un perfil aprobado e ingresa el PIN.</p>
       </div>
 
       <div class="field">
-        <label class="muted small">Perfil</label>
+        <label>Perfil</label>
         <select id="selOperator" class="input" style="width:100%;"></select>
-        <div class="muted small" style="margin-top:6px;">Solo aparecen perfiles activos con categoría <b>cocina</b> o <b>admin</b>.</div>
+        <div class="amLoginNote">Solo aparecen perfiles activos con categoría <b>kitchen</b> o <b>admin</b>.</div>
       </div>
 
       <div class="field" style="margin-top:10px;">
-        <label class="muted small">PIN</label>
-        <div style="display:flex; gap:10px; align-items:center;">
-          <input id="inpPin" class="input" type="password" placeholder="••••••" />
-          <button id="btnTogglePin" class="btn secondary" type="button" style="padding:10px 14px; border-radius:14px; min-width:52px;">👁</button>
+        <label>PIN</label>
+        <div class="amLoginPinRow">
+          <input id="inpPin" class="input" type="password" placeholder="••••••" autocomplete="current-password" />
+          <button id="btnTogglePin" class="amPinToggleBtn" type="button" aria-label="Mostrar PIN">👁</button>
         </div>
       </div>
 
-      
-      <div class="field" style="margin-top:10px;">
-        <label class="muted small" style="display:flex; gap:10px; align-items:center; cursor:pointer;">
-          <input id="chkRemember" type="checkbox" style="width:18px; height:18px; accent-color:#ff5f95;" />
+      <div class="amRememberWrap">
+        <label class="amRememberLabel">
+          <input id="chkRemember" type="checkbox" />
           <span>Recuérdame en este dispositivo</span>
         </label>
-        <div class="muted small" style="margin-top:6px;">Si lo activas, la próxima vez entrarás automáticamente desde este navegador.</div>
+        <div class="amRememberHint">Si lo activas, la próxima vez entrarás automáticamente desde este navegador.</div>
       </div>
-<div class="field" style="margin-top:12px;">
-        <div class="loginActions">
-          <button id="btnLogin" class="btn primary" type="button">Ingresar</button>
-      
-          <a id="btnManageProfiles"
-             class="btn secondary btnLinkLike"
-             href="profiles.html"
-             target="_blank"
-             rel="noopener">
-            Gestionar perfiles
-          </a>
-        </div>
-      
-        <div id="loginErr" class="muted small" style="color:#b00020; margin-top:10px;"></div>
-   </div>
 
+      <div class="amLoginActionsRow">
+        <button id="btnLogin" class="btn primary" type="button">Ingresar</button>
+        <a id="btnManageProfiles" class="btn secondary btnLinkLike" href="profiles.html" target="_blank" rel="noopener">Gestionar perfiles</a>
+      </div>
 
-    </div>
+      <div id="loginErr" class="status" style="color:#b00020; margin-top:10px;"></div>
+    </section>
 
     <!-- APP -->
     <div id="app" style="display:none;">
