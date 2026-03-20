@@ -1851,6 +1851,8 @@ function isDessertLocallyDeleted_(id){
 }
 
 function openUnlock(msg){
+  document.body.classList.add("is-login");
+  document.body.classList.remove("is-app");
   if(el("unlockMsg")) el("unlockMsg").textContent = msg || "";
   show(el("unlockBack"));
   hide(el("appRoot"));
@@ -1906,6 +1908,8 @@ async function doUnlock(isAuto=false){
     }
 
     closeUnlock();
+    document.body.classList.add("is-app");
+    document.body.classList.remove("is-login");
     show(el("appRoot"));
     show(el("mobileNav"));
     setView("purchases");
