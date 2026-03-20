@@ -103,12 +103,25 @@
     }
     .loadingTitle{ font-weight: 950; font-size: 18px; }
   
-    .profilesTopbarHidden{ display:none !important; }
-    .loginBrandTop{
-      display:flex; justify-content:center; align-items:center;
-      margin: 18px 0 14px;
+    .profilesTopbarHidden{ display:block !important; }
+    .profilesPage .topbarInner{ justify-content:space-between !important; }
+    .profilesLoginTopbarBrand{
+      display:none;
+      width:100%;
+      align-items:center;
+      justify-content:center;
     }
-    .loginBrandTop img{ height:58px; width:auto; display:block; }
+    .profilesLoginTopbarBrand img{
+      height:48px;
+      width:auto;
+      display:block;
+    }
+    .profilesPage.is-login .profilesLoginTopbarBrand{ display:flex; }
+    .profilesPage.is-login .brand,
+    .profilesPage.is-login .profilesHeaderActions{ display:none !important; }
+    .profilesPage.is-app .profilesLoginTopbarBrand{ display:none !important; }
+    .loginBrandTop{ display:none !important; }
+    .loginBrandTop img{ height:48px; width:auto; display:block; }
     .profilesLoginShell{ max-width:760px; margin:0 auto; }
     .profilesLoginCard{
       background: var(--paper);
@@ -144,10 +157,24 @@
       margin-top:8px; color: rgba(64,17,2,.72);
       font-weight:800; font-size:13px; line-height:1.35;
     }
+    .profilesLoginCard .field label{
+      font-size:15px;
+      font-weight:400;
+      color:var(--choco);
+      margin-bottom:8px;
+    }
+    .profilesLoginCard .input,
+    .profilesLoginCard select{
+      font-weight:400;
+    }
+    .profilesLoginCard .muted.small{
+      font-weight:750;
+    }
     .profilesMgrCard{ margin-top:14px; }
     .profilesTableWrap{ overflow:auto; -webkit-overflow-scrolling: touch; }
     @media (max-width: 720px){
       .profilesLoginCard{ padding:18px; border-radius:22px; }
+      .profilesLoginTopbarBrand img{ height:42px; }
       .profilesLoginTitle{ font-size: clamp(22px, 7vw, 30px); }
       .profilesLoginLead{ font-size:15px; }
       .profilesTableWrap .table{ min-width:640px; }
@@ -313,9 +340,10 @@
 
   </style>
 </head>
-<body>
+<body class="profilesPage is-login">
   <header class="topbar profilesTopbarHidden" id="profilesTopbar">
     <div class="topbarInner">
+      <div class="profilesLoginTopbarBrand" aria-label="AMARED"><img src="assets/Logo-Amared.svg" alt="AMARED"></div>
       <div class="brand">
         <img class="brandLogo" src="assets/Logo-Isotipo-Amared.svg" alt="AMARED" />
         <div class="brandMeta">
@@ -332,54 +360,46 @@
   </header>
 
   <main class="container">
-    <header id="profilesLoginBrand" class="topbar amLoginTopbar">
-      <div class="topbarInner amLoginTopbarInner">
-        <div class="amLoginBrand" aria-label="AMARED">
-          <img class="amLoginHeaderLogo" src="assets/Logo-Amared.svg" alt="AMARED">
-        </div>
-      </div>
-    </header>
+    <div class="loginBrandTop" id="profilesLoginBrand"><img src="assets/Logo-Amared.svg" alt="AMARED"></div>
 
     <div class="hero hidden" id="profilesHero">
       <h1 class="heroTitle">Perfiles del sistema</h1>
       <p class="heroSubtitle">Administra rangos de acceso para Cocina, Pagos, Envíos, Compras, Perfiles y Admin.</p>
     </div>
 
-    <section id="gateCard" class="card amLoginCenter amLoginCard">
-      <div class="amLoginHero">
-        <h2 class="amLoginTitle">Acceso Perfiles</h2>
-        <p class="amLoginLead">Selecciona un perfil aprobado e ingresa el PIN.</p>
-      </div>
+    <section class="profilesLoginShell" id="gateCard">
+      <div class="profilesLoginCard">
+        <h2 class="profilesLoginTitle">Acceso Perfiles</h2>
+        <p class="profilesLoginLead">Selecciona un perfil aprobado e ingresa el PIN.</p>
 
-      <div class="field">
-        <label>Perfil</label>
-        <select id="loginProfile" class="input">
-          <option value="">Cargando perfiles…</option>
-        </select>
-        <div class="muted small" style="margin-top:6px;">Solo aparecen perfiles activos con categoría <b>profiles</b> o <b>admin</b>.</div>
-      </div>
-
-      <div class="field" style="margin-top:10px;">
-        <label>PIN</label>
-        <div class="amLoginPinRow">
-          <input id="inpSecret" class="input" type="password" placeholder="••••••" autocomplete="current-password" />
-          <button id="btnTogglePin" class="amPinToggleBtn" type="button" aria-label="Mostrar PIN">👁</button>
+        <div class="field">
+          <label>Perfil</label>
+          <select id="loginProfile" class="input">
+            <option value="">Cargando perfiles…</option>
+          </select>
+          <div class="muted small" style="margin-top:6px;">Solo aparecen perfiles activos con rango <b>Perfiles</b> o <b>Admin</b>.</div>
         </div>
-      </div>
 
-      <div class="amRememberWrap">
-        <label class="amRememberLabel">
-          <input id="chkRememberProfiles" type="checkbox" />
-          <span>Recuérdame en este dispositivo</span>
+        <div class="field" style="margin-top:12px;">
+          <label>PIN</label>
+          <div class="profilesPinRow">
+            <input id="inpSecret" class="input" type="password" placeholder="••••••" autocomplete="current-password" />
+            <button id="btnTogglePin" class="profilesEyeBtn" type="button" aria-label="Mostrar u ocultar PIN">◉</button>
+          </div>
+        </div>
+
+        <label class="profilesRemember">
+          <input id="chkRememberProfiles" type="checkbox" style="transform: translateY(1px);" />
+          Recuérdame en este dispositivo
         </label>
-        <div class="amRememberHint">Si lo activas, la próxima vez entrarás automáticamente desde este navegador.</div>
-      </div>
+        <div class="profilesLoginHint">Si lo activas, la próxima vez entrarás automáticamente desde este navegador.</div>
 
-      <div class="amLoginActionsRow">
-        <button id="btnUnlock" class="btn primary" type="button">Ingresar</button>
-      </div>
+        <div class="row" style="margin-top:14px;">
+          <button id="btnUnlock" class="btn primary" type="button">Ingresar</button>
+        </div>
 
-      <div id="gateErr" class="status" style="color:#b00020; margin-top:10px;"></div>
+        <div id="gateErr" class="status" style="color:#b00020;"></div>
+      </div>
     </section>
 
     <!-- MANAGER -->
@@ -516,15 +536,10 @@
     </div>
   </div>
 
-  <div id="loading" class="amOverlay" aria-hidden="true" style="display:none;">
-    <div class="amModal">
-      <div class="amLoaderRow">
-        <div class="spinner"></div>
-        <div>
-          <div id="loadingTitle" class="amModalTitle">Cargando…</div>
-          <div class="muted small" id="loadingMsg">Procesando</div>
-        </div>
-      </div>
+  <div id="loading" class="loadingOverlay" aria-hidden="true">
+    <div class="loadingCard">
+      <div class="loadingTitle" id="loadingTitle">Cargando…</div>
+      <div class="muted small" id="loadingMsg" style="margin-top:6px;">Procesando</div>
     </div>
   </div>
 
