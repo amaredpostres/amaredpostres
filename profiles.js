@@ -189,18 +189,13 @@ function renderLoginProfiles_(rows){
 }
 
 async function populateLoginProfiles_(){
-  showLoading("Cargando perfiles…", "Buscando perfiles de gestión.");
   let rows = [];
-  try{
-    try{ rows = await fetchProfilesPublic_("profiles"); }catch(_e){}
-    if(!rows.length){
-      try{ rows = await fetchProfilesPublic_("admin"); }catch(_e){}
-    }
-    LOGIN_PROFILES = Array.isArray(rows) ? rows : [];
-    renderLoginProfiles_(LOGIN_PROFILES);
-  } finally {
-    hideLoading();
+  try{ rows = await fetchProfilesPublic_("profiles"); }catch(_e){}
+  if(!rows.length){
+    try{ rows = await fetchProfilesPublic_("admin"); }catch(_e){}
   }
+  LOGIN_PROFILES = Array.isArray(rows) ? rows : [];
+  renderLoginProfiles_(LOGIN_PROFILES);
 }
 
 async function api(payload){
@@ -245,7 +240,7 @@ function setLockedUI(locked){
     if(mgrCard) mgrCard.style.display = "none";
     if(statusCard) statusCard.style.display = "none";
     if(gateCard) gateCard.style.display = "";
-    if(profilesTopbar) profilesTopbar.classList.remove("profilesTopbarHidden");
+    if(profilesTopbar) profilesTopbar.classList.add("profilesTopbarHidden");
     if(profilesHero) profilesHero.classList.add("hidden");
     syncProfilesMobileBar();
   }else{
