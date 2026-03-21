@@ -135,35 +135,28 @@
     .loadingOverlay{
       position:fixed; inset:0; display:none;
       align-items:center; justify-content:center;
-      padding:16px;
-      background: rgba(64,17,2,.25);
-      backdrop-filter: blur(6px);
-      z-index: 99999;
+      background: rgba(255,255,255,.65);
+      backdrop-filter: blur(3px);
+      z-index:12000;
     }
     .loadingOverlay.show{ display:flex; }
     .loadingBox{
       width:min(360px, 92vw);
-      padding:14px 16px;
-      border-radius:22px;
-      background: rgba(255,255,255,.92);
-      border:1px solid rgba(64,17,2,.12);
-      box-shadow: 0 18px 40px rgba(0,0,0,.18);
-      text-align:left;
+      padding:16px;
+      border-radius:18px;
+      background: var(--paper);
+      border:1px solid var(--border);
+      box-shadow: var(--shadow);
+      text-align:center;
       font-weight:900;
     }
-    .loadingRow{
-      display:flex;
-      gap:12px;
-      align-items:center;
-    }
-    .loadingBox .spinner{
-      width:18px; height:18px;
-      border:2px solid rgba(64,17,2,.18);
-      border-top-color: rgba(64,17,2,.70);
+    .spinner{
+      width:22px; height:22px;
+      border:3px solid rgba(64,17,2,.18);
+      border-top-color: rgba(64,17,2,.75);
       border-radius:999px;
-      margin:0;
-      flex:0 0 auto;
-      animation: spin 1s linear infinite;
+      margin: 0 auto 10px;
+      animation: spin 0.8s linear infinite;
     }
     @keyframes spin{ to{ transform: rotate(360deg); } }
   
@@ -178,6 +171,12 @@
       margin: 16px 0 10px;
     }
     .loginBrandTop img{ height:58px; width:auto; display:block; }
+
+    .amLoginTopbar{ position:sticky; top:0; z-index:15; }
+    .amLoginTopbarInner{ justify-content:center; }
+    .amLoginBrand{ display:flex; align-items:center; justify-content:center; width:100%; }
+    .amLoginHeaderLogo{ height:58px; width:auto; display:block; }
+    @media (max-width:720px){ .amLoginHeaderLogo{ height:44px; } }
 
     .adminHeaderActions{
       display:none; align-items:center; gap:10px; flex-wrap:wrap;
@@ -458,13 +457,13 @@
     </div>
   </div>
   <!-- Loading overlay -->
-  <div id="loadingOverlay" class="loadingOverlay" aria-hidden="true">
-    <div class="loadingBox">
-      <div class="loadingRow">
+  <div id="loadingOverlay" class="amOverlay" aria-hidden="true">
+    <div class="amModal">
+      <div class="amLoaderRow">
         <div class="spinner"></div>
         <div>
-          <div id="loadingText" style="font-weight:950; font-size:16px; color:var(--choco);">Cargando...</div>
-          <div id="loadingDesc" class="muted small" style="margin-top:4px;">Por favor espera.</div>
+          <div id="loadingText" class="amModalTitle">Cargando...</div>
+          <div id="loadingDesc" class="muted small">Por favor espera.</div>
         </div>
       </div>
     </div>
