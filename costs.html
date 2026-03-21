@@ -154,7 +154,7 @@
 /* ===== Login con perfil / PIN ===== */
 #unlockBack{
   background: rgba(247, 240, 233, .98);
-  z-index: 99999;
+  z-index: 14;
 }
 #unlockBack .modal{
   width:min(820px, 92vw);
@@ -200,12 +200,16 @@
   .unlockActions{ grid-template-columns:1fr; }
 }
 
-
+.costsHiddenAuxBtn{
+  display:none !important;
+}
 
 .costsLoginTopbar{
   position:sticky;
   top:0;
   z-index:15;
+  background: rgba(247, 240, 233, .98);
+  border-bottom:1px solid rgba(64,17,2,.08);
 }
 .costsLoginTopbarInner{
   justify-content:center;
