@@ -126,26 +126,6 @@
       font-size: clamp(14px, 1.4vw, 17px);
       color: rgba(64,17,2,.74); font-weight:850;
     }
-
-    /* Tipografía del login igual a Admin */
-    .amLoginTitle{
-      margin:0 0 8px;
-      text-align:center;
-      font-weight:950;
-      font-size:clamp(22px,2.15vw,28px);
-      line-height:1.05;
-    }
-    .amLoginLead{
-      margin:0;
-      text-align:center;
-      font-size:clamp(15px,1.35vw,17px);
-      color: rgba(64,17,2,.78);
-      font-weight:850;
-    }
-    @media (max-width: 720px){
-      .amLoginTitle{ font-size:clamp(20px,6.2vw,24px); }
-      .amLoginLead{ font-size:14px; }
-    }
     .profilesPinRow{
       display:grid; grid-template-columns:1fr auto; gap:10px; align-items:end;
     }
@@ -169,7 +149,7 @@
     @media (max-width: 720px){
       .profilesLoginCard{ padding:18px; border-radius:22px; }
       .profilesLoginTitle{ font-size: clamp(22px, 7vw, 30px); }
-      .profilesLoginLead{ font-size:14px; }
+      .profilesLoginLead{ font-size:15px; }
       .profilesTableWrap .table{ min-width:640px; }
       .row .btn{ width:100%; }
     }
@@ -366,13 +346,13 @@
       margin:0 0 8px;
       text-align:center;
       font-weight:950;
-      font-size:clamp(22px,2.15vw,28px);
+      font-size:clamp(26px,2.6vw,34px);
       line-height:1.05;
     }
     .profilesLoginLead{
       margin:0;
       text-align:center;
-      font-size:clamp(15px,1.35vw,17px);
+      font-size:clamp(16px,1.6vw,18px);
       color: rgba(64,17,2,.78);
       font-weight:850;
     }
@@ -425,15 +405,15 @@
       padding: 16px;
     }
     #loading .loadingCard{
-      width:min(520px, 100%);
+      width:min(360px, 92vw);
       background: rgba(255,255,255,.92);
       border:1px solid rgba(64,17,2,.12);
       border-radius:22px;
-      padding:16px;
+      padding:14px 16px;
       box-shadow:0 18px 40px rgba(0,0,0,.18);
       text-align:left;
     }
-    #loading .loadingCard .row{ gap:10px; flex-wrap:nowrap; }
+    #loading .loadingCard .row{ gap:12px; flex-wrap:nowrap; }
     .profilesLoadingSpinner{
       width:18px; height:18px;
       border-radius:999px;
@@ -446,7 +426,7 @@
       .profilesLoginTopbar img{ height:42px; }
       .profilesLoginShell{ margin:16px auto 0; }
       .profilesLoginCard{ padding:18px; border-radius:22px; }
-      .profilesLoginTitle{ font-size:clamp(20px,6.2vw,24px); }
+      .profilesLoginTitle{ font-size:clamp(22px,7vw,30px); }
       .profilesLoginLead{ font-size:15px; }
     }
 
@@ -487,8 +467,8 @@
     <section class="profilesLoginShell" id="gateCard">
       <div class="profilesLoginCard">
         <div class="amLoginHero">
-          <h2 class="amLoginTitle">Acceso Perfiles</h2>
-          <p class="amLoginLead">Selecciona un perfil aprobado e ingresa el PIN.</p>
+          <h2 class="profilesLoginTitle">Acceso Perfiles</h2>
+          <p class="profilesLoginLead">Selecciona un perfil aprobado e ingresa el PIN.</p>
         </div>
 
         <div class="field">
