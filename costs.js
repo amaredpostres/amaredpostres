@@ -359,7 +359,7 @@ function syncSecretToggleState_(){
   const btn = el("btnToggleSecret");
   if(!inp || !btn) return;
   const hidden = inp.type !== "text";
-  btn.textContent = hidden ? "👁" : "🙈";
+  btn.textContent = hidden ? "◉" : "◎";
   btn.setAttribute("aria-label", hidden ? "Mostrar PIN" : "Ocultar PIN");
 }
 
@@ -1851,8 +1851,6 @@ function isDessertLocallyDeleted_(id){
 }
 
 function openUnlock(msg){
-  document.body.classList.add("is-login");
-  document.body.classList.remove("is-app");
   if(el("unlockMsg")) el("unlockMsg").textContent = msg || "";
   show(el("unlockBack"));
   hide(el("appRoot"));
@@ -1908,8 +1906,6 @@ async function doUnlock(isAuto=false){
     }
 
     closeUnlock();
-    document.body.classList.add("is-app");
-    document.body.classList.remove("is-login");
     show(el("appRoot"));
     show(el("mobileNav"));
     setView("purchases");
@@ -3578,7 +3574,11 @@ el("ingModalBack")?.addEventListener("click", (e)=>{ if(e.target && e.target.id=
   bind();
   loadDeletedDesserts_();
   syncSecretToggleState_();
-  try{ await populateLoginProfiles_(); }catch(_e){}
+  try{
+    showLoading("Cargando…", "Leyendo perfiles aprobados.");
+    await populateLoginProfiles_();
+  }catch(_e){}
+  finally{ hideLoading(); }
 
   const saved = String(localStorage.getItem(LS_SECRET_KEY) || "").trim();
   const savedProfile = String(localStorage.getItem(LS_PROFILE_KEY) || "").trim();
