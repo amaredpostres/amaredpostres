@@ -142,20 +142,11 @@ function showLoading(text = "Cargando...", desc = "Por favor espera.") {
   LOADING_COUNT++;
   if (loadingText) loadingText.textContent = text;
   if (loadingDesc) loadingDesc.textContent = desc;
-  if (loadingOverlay) {
-    loadingOverlay.style.position = "fixed";
-    loadingOverlay.style.inset = "0";
-    loadingOverlay.style.zIndex = "999999";
-    loadingOverlay.classList.add("show");
-    loadingOverlay.setAttribute("aria-hidden", "false");
-  }
+  if (loadingOverlay) loadingOverlay.classList.add("show");
 }
 function hideLoading() {
   LOADING_COUNT = Math.max(0, LOADING_COUNT - 1);
-  if (LOADING_COUNT === 0 && loadingOverlay) {
-    loadingOverlay.classList.remove("show");
-    loadingOverlay.setAttribute("aria-hidden", "true");
-  }
+  if (LOADING_COUNT === 0 && loadingOverlay) loadingOverlay.classList.remove("show");
 }
 
 function syncPinToggleState() {
