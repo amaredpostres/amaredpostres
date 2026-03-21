@@ -369,27 +369,32 @@ async function fetchProfilesPublic_(category){
 }
 
 async function populateLoginProfiles_(){
-  let rows = [];
-  try{ rows = await fetchProfilesPublic_("costs"); }catch(_e){}
-  if(!rows.length){
-    try{ rows = await fetchProfilesPublic_("admin"); }catch(_e){}
+  showLoading("Cargando perfiles…", "Buscando perfiles de compras y recetas.");
+  try{
+    let rows = [];
+    try{ rows = await fetchProfilesPublic_("costs"); }catch(_e){}
+    if(!rows.length){
+      try{ rows = await fetchProfilesPublic_("admin"); }catch(_e){}
+    }
+    if(!rows.length){
+      try{ rows = await fetchProfilesPublic_("payments"); }catch(_e){}
+    }
+    LOGIN_PROFILES = Array.isArray(rows) ? rows : [];
+    const sel = el("loginProfile");
+    if(!sel) return;
+    const saved = String(localStorage.getItem(LS_PROFILE_KEY) || "").trim();
+    const opts = ['<option value="">Seleccionar…</option>'];
+    for(const p of LOGIN_PROFILES){
+      const id = String(p.id || p.profile_id || "").trim();
+      const label = String(p.label || id).trim();
+      const selected = saved && saved === id ? ' selected' : '';
+      opts.push(`<option value="${escapeHtmlAttr(id)}"${selected}>${escapeHtml(label)}</option>`);
+    }
+    if(!LOGIN_PROFILES.length) opts.push('<option value="">Sin perfiles habilitados</option>');
+    sel.innerHTML = opts.join("");
+  } finally {
+    hideLoading();
   }
-  if(!rows.length){
-    try{ rows = await fetchProfilesPublic_("payments"); }catch(_e){}
-  }
-  LOGIN_PROFILES = Array.isArray(rows) ? rows : [];
-  const sel = el("loginProfile");
-  if(!sel) return;
-  const saved = String(localStorage.getItem(LS_PROFILE_KEY) || "").trim();
-  const opts = ['<option value="">Seleccionar…</option>'];
-  for(const p of LOGIN_PROFILES){
-    const id = String(p.id || p.profile_id || "").trim();
-    const label = String(p.label || id).trim();
-    const selected = saved && saved === id ? ' selected' : '';
-    opts.push(`<option value="${escapeHtmlAttr(id)}"${selected}>${escapeHtml(label)}</option>`);
-  }
-  if(!LOGIN_PROFILES.length) opts.push('<option value="">Sin perfiles habilitados</option>');
-  sel.innerHTML = opts.join("");
 }
 
 
@@ -3574,11 +3579,7 @@ el("ingModalBack")?.addEventListener("click", (e)=>{ if(e.target && e.target.id=
   bind();
   loadDeletedDesserts_();
   syncSecretToggleState_();
-  try{
-    showLoading("Cargando…", "Leyendo perfiles aprobados.");
-    await populateLoginProfiles_();
-  }catch(_e){}
-  finally{ hideLoading(); }
+  try{ await populateLoginProfiles_(); }catch(_e){}
 
   const saved = String(localStorage.getItem(LS_SECRET_KEY) || "").trim();
   const savedProfile = String(localStorage.getItem(LS_PROFILE_KEY) || "").trim();
