@@ -27,7 +27,6 @@ const pillState = document.getElementById("pillState");
 const btnLogout = document.getElementById("btnLogout");
 const profilesTopbar = document.getElementById("profilesTopbar");
 const profilesHero = document.getElementById("profilesHero");
-const profilesLoginBrand = document.getElementById("profilesLoginBrand");
 
 const pillCount = document.getElementById("pillCount");
 const btnReload = document.getElementById("btnReload");
@@ -190,13 +189,18 @@ function renderLoginProfiles_(rows){
 }
 
 async function populateLoginProfiles_(){
+  showLoading("Cargando perfiles…", "Buscando perfiles de gestión.");
   let rows = [];
-  try{ rows = await fetchProfilesPublic_("profiles"); }catch(_e){}
-  if(!rows.length){
-    try{ rows = await fetchProfilesPublic_("admin"); }catch(_e){}
+  try{
+    try{ rows = await fetchProfilesPublic_("profiles"); }catch(_e){}
+    if(!rows.length){
+      try{ rows = await fetchProfilesPublic_("admin"); }catch(_e){}
+    }
+    LOGIN_PROFILES = Array.isArray(rows) ? rows : [];
+    renderLoginProfiles_(LOGIN_PROFILES);
+  } finally {
+    hideLoading();
   }
-  LOGIN_PROFILES = Array.isArray(rows) ? rows : [];
-  renderLoginProfiles_(LOGIN_PROFILES);
 }
 
 async function api(payload){
@@ -232,16 +236,17 @@ function syncProfilesMobileBar(){
 }
 
 function setLockedUI(locked){
-  document.body.classList.toggle("is-login", !!locked);
-  document.body.classList.toggle("is-app", !locked);
+  try{
+    document.body.classList.remove("is-login","is-app");
+    document.body.classList.add(locked ? "is-login" : "is-app");
+  }catch(_e){}
   if(locked){
     if(btnLogout) btnLogout.disabled = true;
     if(mgrCard) mgrCard.style.display = "none";
     if(statusCard) statusCard.style.display = "none";
     if(gateCard) gateCard.style.display = "";
-    if(profilesTopbar) profilesTopbar.classList.add("profilesTopbarHidden");
+    if(profilesTopbar) profilesTopbar.classList.remove("profilesTopbarHidden");
     if(profilesHero) profilesHero.classList.add("hidden");
-    if(profilesLoginBrand) profilesLoginBrand.style.display = "block";
     syncProfilesMobileBar();
   }else{
     if(btnLogout) btnLogout.disabled = false;
@@ -250,7 +255,6 @@ function setLockedUI(locked){
     if(gateCard) gateCard.style.display = "none";
     if(profilesTopbar) profilesTopbar.classList.remove("profilesTopbarHidden");
     if(profilesHero) profilesHero.classList.remove("hidden");
-    if(profilesLoginBrand) profilesLoginBrand.style.display = "none";
     syncProfilesMobileBar();
   }
 }
