@@ -149,7 +149,7 @@
     @media (max-width: 720px){
       .profilesLoginCard{ padding:18px; border-radius:22px; }
       .profilesLoginTitle{ font-size: clamp(22px, 7vw, 30px); }
-      .profilesLoginLead{ font-size:15px; }
+      .profilesLoginLead{ font-size:14px; }
       .profilesTableWrap .table{ min-width:640px; }
       .row .btn{ width:100%; }
     }
@@ -346,13 +346,13 @@
       margin:0 0 8px;
       text-align:center;
       font-weight:950;
-      font-size:clamp(26px,2.6vw,34px);
+      font-size:clamp(22px,2.15vw,28px);
       line-height:1.05;
     }
     .profilesLoginLead{
       margin:0;
       text-align:center;
-      font-size:clamp(16px,1.6vw,18px);
+      font-size:clamp(15px,1.35vw,17px);
       color: rgba(64,17,2,.78);
       font-weight:850;
     }
@@ -405,15 +405,15 @@
       padding: 16px;
     }
     #loading .loadingCard{
-      width:min(360px, 92vw);
+      width:min(520px, 100%);
       background: rgba(255,255,255,.92);
       border:1px solid rgba(64,17,2,.12);
       border-radius:22px;
-      padding:14px 16px;
+      padding:16px;
       box-shadow:0 18px 40px rgba(0,0,0,.18);
       text-align:left;
     }
-    #loading .loadingCard .row{ gap:12px; flex-wrap:nowrap; }
+    #loading .loadingCard .row{ gap:10px; flex-wrap:nowrap; }
     .profilesLoadingSpinner{
       width:18px; height:18px;
       border-radius:999px;
@@ -422,11 +422,12 @@
       animation: pspin 1s linear infinite;
       flex:0 0 auto;
     }
+    @keyframes pspin{ to{ transform: rotate(360deg); } }
     @media (max-width: 720px){
       .profilesLoginTopbar img{ height:42px; }
       .profilesLoginShell{ margin:16px auto 0; }
       .profilesLoginCard{ padding:18px; border-radius:22px; }
-      .profilesLoginTitle{ font-size:clamp(22px,7vw,30px); }
+      .profilesLoginTitle{ font-size:clamp(20px,6.2vw,24px); }
       .profilesLoginLead{ font-size:15px; }
     }
 
