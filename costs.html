@@ -201,6 +201,34 @@
 }
 
 
+
+.costsLoginTopbar{
+  position:sticky;
+  top:0;
+  z-index:15;
+}
+.costsLoginTopbarInner{
+  justify-content:center;
+}
+.costsLoginTopbar .amLoginTopbarBrand{
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  width:100%;
+}
+.costsLoginTopbar .amLoginTopbarLogo{
+  height:58px;
+  width:auto;
+  display:block;
+}
+.costsLoginModal.amLoginCard{
+  width:min(820px, 92vw);
+  border-radius:26px;
+}
+@media (max-width:720px){
+  .costsLoginTopbar .amLoginTopbarLogo{ height:44px; }
+}
+
 .costsLoginModal .amLoginHero{ text-align:center; padding:4px 0 8px; }
 .costsLoginModal .amLoginTitle{
   margin:0 0 8px;
