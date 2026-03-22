@@ -11,7 +11,6 @@ const LS_PROFILES_REMEMBER_KEY = "AMARED_PROFILES_REMEMBER";
 
 // =================== DOM ===================
 const btnBack = document.getElementById("btnBack");
-const btnGateBack = document.getElementById("btnGateBack");
 
 const gateCard = document.getElementById("gateCard");
 const statusCard = document.getElementById("statusCard");
@@ -40,6 +39,8 @@ const listMsg = document.getElementById("listMsg");
 
 const inpName = document.getElementById("inpName");
 const inpId = document.getElementById("inpId");
+const inpPassword = document.getElementById("inpPassword");
+const inpPassword2 = document.getElementById("inpPassword2");
 const btnAdd = document.getElementById("btnAdd");
 const mgrErr = document.getElementById("mgrErr");
 
@@ -55,6 +56,9 @@ const btnEditSave = document.getElementById("btnEditSave");
 const editName = document.getElementById("editName");
 const editId = document.getElementById("editId");
 const editCatsWrap = document.getElementById("editCats");
+const editPassword = document.getElementById("editPassword");
+const editPassword2 = document.getElementById("editPassword2");
+const editAdminPinConfirm = document.getElementById("editAdminPinConfirm");
 const editErr = document.getElementById("editErr");
 
 let EDITING_ID = null;
@@ -70,6 +74,9 @@ function openEditModal(profile){
   EDITING_ID = normalizeId(profile);
   editId.value = EDITING_ID;
   editName.value = String(profile.label || "").trim();
+  if(editPassword) editPassword.value = "";
+  if(editPassword2) editPassword2.value = "";
+  if(editAdminPinConfirm) editAdminPinConfirm.value = "";
 
   const cats = normCatsAny(profile.categories);
   const checks = Array.from(editCatsWrap?.querySelectorAll('input[type="checkbox"]') || []);
@@ -87,6 +94,9 @@ function openEditModal(profile){
 function closeEditModal(){
   if(!editBack) return;
   EDITING_ID = null;
+  if(editPassword) editPassword.value = "";
+  if(editPassword2) editPassword2.value = "";
+  if(editAdminPinConfirm) editAdminPinConfirm.value = "";
   editBack.style.display = "none";
   editBack.setAttribute("aria-hidden","true");
   syncProfilesMobileBar();
@@ -250,7 +260,7 @@ function setLockedUI(locked){
     if(statusCard) statusCard.style.display = "none";
     if(gateCard) gateCard.style.display = "none";
     if(profilesTopbar) profilesTopbar.classList.remove("profilesTopbarHidden");
-    if(profilesHero) profilesHero.classList.add("hidden");
+    if(profilesHero) profilesHero.classList.remove("hidden");
     syncProfilesMobileBar();
   }
 }
@@ -455,7 +465,7 @@ function renderTable(rows){
   pillCount.textContent = `${active.length} perfiles`;
 
   if(active.length===0){
-    tbody.innerHTML = `<tr><td colspan="4" class="muted small">Sin datos.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="5" class="muted small">Sin datos.</td></tr>`;
     return;
   }
 
@@ -468,11 +478,14 @@ function renderTable(rows){
       .map(c=>`<span class="badge">${escapeHtml(c)}</span>`)
       .join(" ");
 
+    const passState = p.has_password ? `<span class="badge" style="background:rgba(246,186,96,.18); border-color:rgba(246,186,96,.35);">Configurada</span>` : `<span class="badge" style="background:rgba(242,91,143,.10); border-color:rgba(242,91,143,.25);">Pendiente</span>`;
+
     const tr = document.createElement("tr");
     tr.innerHTML = `
       <td><code>${escapeHtml(pid)}</code></td>
       <td>${escapeHtml(p.label||"")}</td>
       <td>${cats || `<span class="muted small">—</span>`}</td>
+      <td>${passState}</td>
       <td style="display:flex; gap:8px; flex-wrap:wrap;"><button class="btn secondary btnEdit" data-id="${escapeHtml(pid)}">Editar</button><button class="btn secondary btnDel" data-id="${escapeHtml(pid)}">Eliminar</button></td>
     `;
     tbody.appendChild(tr);
@@ -543,13 +556,10 @@ async function loadProfiles(){
 }
 
 // =================== EVENTS ===================
-function goBackFromProfiles_(){
+btnBack?.addEventListener("click", ()=>{
   if(history.length > 1) history.back();
   else location.href = "index.html";
-}
-
-btnBack?.addEventListener("click", goBackFromProfiles_);
-btnGateBack?.addEventListener("click", goBackFromProfiles_);
+});
 
 inpName?.addEventListener("input", ()=>{
   inpId.value = slugifyNameToId(inpName.value);
@@ -617,6 +627,8 @@ btnAdd?.addEventListener("click", async ()=>{
   mgrErr.textContent = "";
   const name = String(inpName.value||"").trim();
   const id = String(inpId.value||"").trim();
+  const password = String(inpPassword?.value||"").trim();
+  const password2 = String(inpPassword2?.value||"").trim();
   const cats = getSelectedCategories();
 
   if(!PROFILES_SECRET){
@@ -635,6 +647,18 @@ btnAdd?.addEventListener("click", async ()=>{
     mgrErr.textContent = "Selecciona al menos una categoría.";
     return;
   }
+  if(!password){
+    mgrErr.textContent = "Ingresa una contraseña inicial para el perfil.";
+    return;
+  }
+  if(password.length < 4){
+    mgrErr.textContent = "La contraseña debe tener al menos 4 caracteres.";
+    return;
+  }
+  if(password !== password2){
+    mgrErr.textContent = "Las contraseñas no coinciden.";
+    return;
+  }
 
   try{
     showLoading("Guardando…", "Creando perfil…");
@@ -643,11 +667,14 @@ btnAdd?.addEventListener("click", async ()=>{
       admin_pin: PROFILES_SECRET,
       profile_id: id,
       label: name,
-      categories: cats.join(",")
+      categories: cats.join(","),
+      password_plain: password
     });
 
     inpName.value = "";
     inpId.value = "";
+    if(inpPassword) inpPassword.value = "";
+    if(inpPassword2) inpPassword2.value = "";
     await loadProfiles();
   }catch(e){
     mgrErr.textContent = e.message || "Error agregando perfil.";
@@ -672,6 +699,9 @@ btnEditSave?.addEventListener("click", async ()=>{
   }
   const id = String(EDITING_ID || editId.value || "").trim();
   const name = String(editName.value||"").trim();
+  const newPassword = String(editPassword?.value||"").trim();
+  const newPassword2 = String(editPassword2?.value||"").trim();
+  const confirmPin = String(editAdminPinConfirm?.value||"").trim();
   const cats = getEditSelectedCategories();
 
   if(!id){
@@ -686,6 +716,24 @@ btnEditSave?.addEventListener("click", async ()=>{
     editErr.textContent = "Selecciona al menos una categoría.";
     return;
   }
+  if(newPassword || newPassword2){
+    if(newPassword.length < 4){
+      editErr.textContent = "La nueva contraseña debe tener al menos 4 caracteres.";
+      return;
+    }
+    if(newPassword !== newPassword2){
+      editErr.textContent = "Las nuevas contraseñas no coinciden.";
+      return;
+    }
+    if(!confirmPin){
+      editErr.textContent = "Ingresa el código admin para confirmar el cambio de contraseña.";
+      return;
+    }
+    if(confirmPin !== PROFILES_SECRET){
+      editErr.textContent = "El código admin de confirmación no coincide.";
+      return;
+    }
+  }
 
   try{
     showLoading("Guardando…", "Actualizando perfil…");
@@ -695,6 +743,7 @@ btnEditSave?.addEventListener("click", async ()=>{
       profile_id: id,
       label: name,
       categories: cats.join(","),
+      password_plain: newPassword || undefined,
       updated_by: "PROFILES_UI"
     });
     closeEditModal();
