@@ -508,3 +508,27 @@ body.deliveryOverlayOpen .amDeliveryMobileBar{
 @media (min-width: 721px){
   .deliveryPage .deliveryHeaderActions{ display:flex; }
 }
+
+
+/* ===== mobile header centering fix ===== */
+@media (max-width: 720px){
+  .deliveryPage.is-app .deliveryTopbarInner{
+    justify-content:center !important;
+    gap:12px;
+  }
+  .deliveryPage.is-app .deliveryAppBrand{
+    width:100%;
+    justify-content:center !important;
+    align-items:center;
+    margin:0 auto;
+  }
+  .deliveryPage.is-app .deliveryAppBrand > .deliveryBrandMeta{
+    width:auto;
+    flex:0 1 auto;
+    align-items:center !important;
+    text-align:center;
+  }
+  .deliveryPage.is-app .deliveryHeaderActions{
+    display:none !important;
+  }
+}
