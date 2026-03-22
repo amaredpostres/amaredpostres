@@ -2978,8 +2978,8 @@ async function finalizePostreFromOverlay(){
       bar.id = "amKitchenMobileBar";
       bar.className = "amMobileBar isHidden";
       bar.innerHTML = `
-        <button id="mBtnRefresh" class="amMobileAction" type="button" aria-label="Actualizar">
-          <span class="ico">↻</span><span class="txt">Actualizar</span>
+        <button id="mBtnRefresh" class="amMobileAction" type="button" aria-label="Recargar">
+          <span class="ico">↻</span><span class="txt">Recargar</span>
         </button>
         <div class="amMobileCenter" aria-label="Acciones principales">
           <button id="mBtnHistory" class="amMobileSeg isPrimary" type="button">
@@ -2990,7 +2990,7 @@ async function finalizePostreFromOverlay(){
           </button>
         </div>
         <button id="mBtnLogout" class="amMobileAction amDanger" type="button" aria-label="Salir">
-          <span class="ico">🚪</span><span class="txt">Salir</span>
+          <span class="ico">⎋</span><span class="txt">Salir</span>
         </button>`;
       document.body.appendChild(bar);
     }
@@ -3095,20 +3095,15 @@ async function finalizePostreFromOverlay(){
     const buildTag = document.getElementById("buildTag");
     if(buildTag) buildTag.remove();
 
-    const ttl = document.querySelector(".brandRow .ttl");
-    const sub = document.querySelector(".brandRow .sub");
-    const isMobile = window.matchMedia("(max-width: 860px)").matches;
+    const ttl = document.querySelector(".kitchenTopbarAppBrand .ttl, .brandRow .ttl");
+    const sub = document.querySelector(".kitchenTopbarAppBrand .sub, .brandRow .sub");
 
     if(ttl){
       ttl.textContent = "Cocina";
     }
 
     if(sub){
-      if(isMobile){
-        sub.innerHTML = `<span class="subMain">Cocina</span><span class="subMinor">Producción diaria</span>`;
-      }else{
-        sub.innerHTML = `<span class="subMinor">Producción diaria</span>`;
-      }
+      sub.textContent = "Producción diaria";
       sub.dataset.enhanced = "1";
     }
   }
@@ -3143,10 +3138,10 @@ async function finalizePostreFromOverlay(){
 
     // Botones header: reemplaza texto por iconos en móvil (si tu HTML usa spans, se verá mejor)
     if(btnLogout && !btnLogout.querySelector(".ico")){
-      btnLogout.innerHTML = `<span class="ico" style="display:none;">🚪</span><span class="txt">Cerrar sesión</span>`;
+      btnLogout.innerHTML = `<span class="ico" style="display:none;">⎋</span><span class="txt">Salir</span>`;
     }
     if(btnRefresh && !btnRefresh.querySelector(".ico")){
-      btnRefresh.innerHTML = `<span class="ico" style="display:none;">🔄</span><span class="txt">Actualizar</span>`;
+      btnRefresh.innerHTML = `<span class="ico" style="display:none;">↻</span><span class="txt">Recargar</span>`;
     }
     if(btnHistory && !btnHistory.querySelector(".ico")){
       btnHistory.innerHTML = `<span class="ico" style="display:none;">🕘</span><span class="txt">Historial</span>`;
