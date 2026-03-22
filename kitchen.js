@@ -2978,8 +2978,8 @@ async function finalizePostreFromOverlay(){
       bar.id = "amKitchenMobileBar";
       bar.className = "amMobileBar isHidden";
       bar.innerHTML = `
-        <button id="mBtnRefresh" class="amMobileAction" type="button" aria-label="Recargar">
-          <span class="ico">↻</span><span class="txt">Recargar</span>
+        <button id="mBtnRefresh" class="amMobileAction" type="button" aria-label="Actualizar">
+          <span class="ico">↻</span><span class="txt">Actualizar</span>
         </button>
         <div class="amMobileCenter" aria-label="Acciones principales">
           <button id="mBtnHistory" class="amMobileSeg isPrimary" type="button">
@@ -2990,7 +2990,7 @@ async function finalizePostreFromOverlay(){
           </button>
         </div>
         <button id="mBtnLogout" class="amMobileAction amDanger" type="button" aria-label="Salir">
-          <span class="ico">⎋</span><span class="txt">Salir</span>
+          <span class="ico">🚪</span><span class="txt">Salir</span>
         </button>`;
       document.body.appendChild(bar);
     }
@@ -3084,26 +3084,35 @@ async function finalizePostreFromOverlay(){
   function onLogout(){
     state.refreshNonce++;
     clearSession();
+    clearRememberSession();
+    if(chkRemember) chkRemember.checked = false;
+    if(inpPin) inpPin.value = "";
+    if(selOperator) selOperator.value = "";
     closeRecipe();
     closeCostsModal();
     showLogin();
-    // vuelve a cargar perfiles
-    loadProfilesOnStart();
+    // vuelve a cargar perfiles sin restaurar sesión previa
+    loadProfilesOnStart().catch(()=>{});
   }
 
   function enhanceKitchenHeader(){
     const buildTag = document.getElementById("buildTag");
     if(buildTag) buildTag.remove();
 
-    const ttl = document.querySelector(".kitchenTopbarAppBrand .ttl, .brandRow .ttl");
-    const sub = document.querySelector(".kitchenTopbarAppBrand .sub, .brandRow .sub");
+    const ttl = document.querySelector(".brandRow .ttl");
+    const sub = document.querySelector(".brandRow .sub");
+    const isMobile = window.matchMedia("(max-width: 860px)").matches;
 
     if(ttl){
       ttl.textContent = "Cocina";
     }
 
     if(sub){
-      sub.textContent = "Producción diaria";
+      if(isMobile){
+        sub.innerHTML = `<span class="subMain">Cocina</span><span class="subMinor">Producción diaria</span>`;
+      }else{
+        sub.innerHTML = `<span class="subMinor">Producción diaria</span>`;
+      }
       sub.dataset.enhanced = "1";
     }
   }
@@ -3138,10 +3147,10 @@ async function finalizePostreFromOverlay(){
 
     // Botones header: reemplaza texto por iconos en móvil (si tu HTML usa spans, se verá mejor)
     if(btnLogout && !btnLogout.querySelector(".ico")){
-      btnLogout.innerHTML = `<span class="ico" style="display:none;">⎋</span><span class="txt">Salir</span>`;
+      btnLogout.innerHTML = `<span class="ico" style="display:none;">🚪</span><span class="txt">Cerrar sesión</span>`;
     }
     if(btnRefresh && !btnRefresh.querySelector(".ico")){
-      btnRefresh.innerHTML = `<span class="ico" style="display:none;">↻</span><span class="txt">Recargar</span>`;
+      btnRefresh.innerHTML = `<span class="ico" style="display:none;">🔄</span><span class="txt">Actualizar</span>`;
     }
     if(btnHistory && !btnHistory.querySelector(".ico")){
       btnHistory.innerHTML = `<span class="ico" style="display:none;">🕘</span><span class="txt">Historial</span>`;
