@@ -437,8 +437,8 @@
   </style>
 </head>
 <body class="profilesPage is-login">
-  <header class="profilesLoginTopbar" id="profilesLoginBrand">
-    <div class="topbarInner">
+  <header class="topbar amLoginTopbar" id="profilesLoginBrand">
+    <div class="topbarInner amLoginTopbarInner">
       <div class="amLoginTopbarBrand" aria-label="AMARED">
         <img class="amLoginTopbarLogo" src="assets/Logo-Amared.svg" alt="AMARED">
       </div>
@@ -468,11 +468,11 @@
       <p class="heroSubtitle">Administra rangos de acceso para Cocina, Pagos, Envíos, Compras, Perfiles y Admin.</p>
     </div>
 
-    <section class="profilesLoginShell" id="gateCard">
-      <div class="profilesLoginCard">
+    <section id="gateCard">
+      <div class="card amLoginCard">
         <div class="amLoginHero">
-          <h2 class="profilesLoginTitle">Acceso Perfiles</h2>
-          <p class="profilesLoginLead">Selecciona un perfil aprobado e ingresa el PIN.</p>
+          <h2 class="amLoginTitle">Acceso Perfiles</h2>
+          <p class="amLoginLead">Selecciona un perfil aprobado e ingresa el PIN.</p>
         </div>
 
         <div class="field">
@@ -485,23 +485,26 @@
 
         <div class="field" style="margin-top:10px;">
           <label>PIN</label>
-          <div class="profilesPinRow">
+          <div class="amLoginPinRow">
             <input id="inpSecret" class="input" type="password" placeholder="••••••" autocomplete="current-password" />
-            <button id="btnTogglePin" class="profilesEyeBtn" type="button" aria-label="Mostrar u ocultar PIN">👁</button>
+            <button id="btnTogglePin" class="amPinToggleBtn" type="button" aria-label="Mostrar u ocultar PIN">👁</button>
           </div>
         </div>
 
-        <label class="profilesRemember">
+        <div class="amRememberWrap">
+        <label class="amRememberLabel">
           <input id="chkRememberProfiles" type="checkbox" />
           Recuérdame en este dispositivo
         </label>
-        <div class="profilesLoginHint">Si lo activas, la próxima vez entrarás automáticamente desde este navegador.</div>
+        <div class="amRememberHint">Si lo activas, la próxima vez entrarás automáticamente desde este navegador.</div>
+      </div>
 
-        <div class="profilesLoginActions">
+        <div class="amLoginActionsRow">
           <button id="btnUnlock" class="btn primary" type="button">Ingresar</button>
+          <button id="btnGateBack" class="btn secondary" type="button">Volver atrás</button>
         </div>
 
-        <div id="gateErr" class="status" style="color:#b00020; margin-top:10px;"></div>
+        <div id="gateErr" class="status amLoginStatus"></div>
       </div>
     </section>
 
@@ -639,13 +642,13 @@
     </div>
   </div>
 
-  <div id="loading" class="loadingOverlay" aria-hidden="true" style="display:none;">
-    <div class="loadingCard">
-      <div class="row" style="align-items:center;">
-        <div class="profilesLoadingSpinner"></div>
+  <div id="loading" class="amLoadingOverlay" aria-hidden="true" style="display:none;">
+    <div class="amLoadingCard">
+      <div class="amLoadingRow">
+        <div class="amSpinner"></div>
         <div>
-          <div class="loadingTitle" id="loadingTitle">Cargando…</div>
-          <div class="muted small" id="loadingMsg" style="margin-top:4px;">Procesando</div>
+          <div class="amLoadingTitle" id="loadingTitle">Cargando…</div>
+          <div class="amLoadingSub" id="loadingMsg">Procesando</div>
         </div>
       </div>
     </div>
