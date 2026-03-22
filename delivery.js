@@ -48,7 +48,7 @@ function ensureDeliveryMobileBar(){
         </button>
       </div>
       <button id="dMBtnLogout" class="amDeliveryMobileAction isNeutral" type="button" aria-label="Salir">
-        <span class="ico">⎋</span><span class="txt">Salir</span>
+        <span class="ico">🚪</span><span class="txt">Salir</span>
       </button>`;
     document.body.appendChild(bar);
   }
@@ -358,12 +358,18 @@ function showLogin(){
   syncDeliveryActionBars();
 }
 
-function logout(){
+async function logout(){
   SESSION = { operator:null, pin:null };
   clearSavedDeliverySession();
+  if(chkRemember) chkRemember.checked = false;
   if(inpPin) inpPin.value = "";
+  if(selOperator) selOperator.value = "";
+  loginErr.textContent = "";
   closeHistory();
   showLogin();
+  try{
+    await loadProfilesOnStart();
+  }catch(_e){}
 }
 
 // ---- Orders ----
@@ -904,10 +910,10 @@ async function copyMsg(){
 // ---- Events ----
 btnLogin?.addEventListener("click", doLogin);
 btnRefresh?.addEventListener("click", loadOrders);
-btnLogout?.addEventListener("click", logout);
+btnLogout?.addEventListener("click", ()=>{ logout().catch(()=>{}); });
 btnHistory?.addEventListener("click", openHistory);
 btnRefreshTop?.addEventListener("click", loadOrders);
-btnLogoutTop?.addEventListener("click", logout);
+btnLogoutTop?.addEventListener("click", ()=>{ logout().catch(()=>{}); });
 
 listEl?.addEventListener("click", (ev)=>{
   const btnSend = ev.target?.closest?.(".btnSend");
