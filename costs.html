@@ -154,7 +154,7 @@
 /* ===== Login con perfil / PIN ===== */
 #unlockBack{
   background: rgba(247, 240, 233, .98);
-  z-index: 14;
+  z-index: 99999;
 }
 #unlockBack .modal{
   width:min(820px, 92vw);
@@ -200,19 +200,16 @@
   .unlockActions{ grid-template-columns:1fr; }
 }
 
-.costsHiddenAuxBtn{
-  display:none !important;
-}
 
+
+/* ===== Login: misma línea gráfica que Profiles / Delivery ===== */
 .costsLoginTopbar{
-  position:sticky;
-  top:0;
-  z-index:15;
-  background: rgba(247, 240, 233, .98);
-  border-bottom:1px solid rgba(64,17,2,.08);
+  position: sticky;
+  top: 0;
+  z-index: 15;
 }
 .costsLoginTopbarInner{
-  justify-content:center;
+  justify-content: center !important;
 }
 .costsLoginTopbar .amLoginTopbarBrand{
   display:flex;
@@ -221,19 +218,39 @@
   width:100%;
 }
 .costsLoginTopbar .amLoginTopbarLogo{
-  height:58px;
+  height:48px;
   width:auto;
   display:block;
-}
-.costsLoginModal.amLoginCard{
-  width:min(820px, 92vw);
-  border-radius:26px;
-}
-@media (max-width:720px){
-  .costsLoginTopbar .amLoginTopbarLogo{ height:44px; }
+  opacity:1 !important;
+  filter:none !important;
 }
 
-.costsLoginModal .amLoginHero{ text-align:center; padding:4px 0 8px; }
+/* El login no debe apagar el header; solo centrarse debajo del logo */
+.costsPage #unlockBack{
+  background: transparent !important;
+  backdrop-filter: none !important;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 18px;
+  padding-top: 40px;
+  z-index: 35 !important;
+}
+.costsPage #unlockBack .costsLoginModal.amLoginCard{
+  width: min(770px, 100%);
+  margin: 0 auto;
+  border-radius: 26px;
+  background: rgba(255,255,255,.88);
+  border: 1px solid var(--border);
+  box-shadow: 0 18px 40px rgba(64,17,2,.08);
+  overflow: hidden;
+}
+.costsPage #unlockBack .modalBody.costsLoginBody{
+  padding: 0 28px 28px !important;
+}
+.costsLoginModal .amLoginHero{
+  text-align:center;
+  padding: 26px 28px 10px;
+}
 .costsLoginModal .amLoginTitle{
   margin:0 0 8px;
   text-align:center;
@@ -248,9 +265,49 @@
   color:rgba(64,17,2,.78);
   font-weight:850;
 }
-@media (max-width: 720px){
+.costsPage .unlockGrid{ display:grid; gap:12px; }
+.costsPage .unlockPinRow{ display:flex; gap:10px; align-items:center; }
+.costsPage .unlockPinRow .input{ flex:1; }
+.costsPage .unlockEyeBtn{
+  min-width:54px;
+  height:48px;
+  padding:0 14px;
+  border-radius:16px;
+  border:1px solid var(--border);
+  background: linear-gradient(180deg, rgba(246,186,96,.96), rgba(245,196,108,.92));
+  box-shadow:0 10px 22px rgba(246,186,96,.22);
+  font-size:18px;
+  font-weight:900;
+  cursor:pointer;
+}
+.costsPage .btnLinkLike{
+  text-decoration:none;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+}
+.costsPage .unlockActions.amLoginActionsRow{
+  display:flex;
+  gap:10px;
+  margin-top:14px;
+}
+.costsPage .unlockActions.amLoginActionsRow .btn,
+.costsPage .unlockActions.amLoginActionsRow .btnLinkLike{
+  flex:1;
+  min-height:48px;
+}
+.costsPage .costsHiddenAuxBtn{ display:none !important; }
+@media (max-width:720px){
+  .costsLoginTopbar .amLoginTopbarLogo{ height:42px; }
+  .costsPage #unlockBack{ padding-top: 16px; padding-left:12px; padding-right:12px; }
+  .costsPage #unlockBack .costsLoginModal.amLoginCard{ width:min(100%, 100%); border-radius:22px; }
+  .costsPage #unlockBack .modalBody.costsLoginBody{ padding: 0 18px 18px !important; }
+  .costsLoginModal .amLoginHero{ padding: 18px 18px 8px; }
   .costsLoginModal .amLoginTitle{ font-size:clamp(20px,6.2vw,24px); }
   .costsLoginModal .amLoginLead{ font-size:14px; }
+}
+@media (max-width:520px){
+  .costsPage .unlockActions.amLoginActionsRow{ flex-direction:column; }
 }
 
 </style>
@@ -462,7 +519,7 @@
   <div class="unlockActions amLoginActionsRow">
     <button class="btn primary" id="btnDoUnlock">Ingresar</button>
     <a class="btn secondary btnLinkLike" href="profiles.html" target="_blank" rel="noopener">Gestionar perfiles</a>
-    <button class="btn secondary costsHiddenAuxBtn" id="btnClear" type="button" tabindex="-1" aria-hidden="true">Limpiar</button>
+    <button class="btn secondary costsHiddenAuxBtn" id="btnClear" type="button" tabindex="-1" aria-hidden="true" style="display:none !important;">Limpiar</button>
   </div>
 
   <div class="pErr" id="unlockMsg"></div>
