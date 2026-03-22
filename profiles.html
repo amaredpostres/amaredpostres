@@ -93,15 +93,16 @@
       padding: 18px;
     }
     .loadingCard{
-      width: min(520px, 100%);
+      width:auto;
+      max-width:min(430px, calc(100vw - 32px));
       background: var(--paper);
       border: 1px solid var(--border);
       border-radius: 22px;
-      padding: 16px;
+      padding: 14px 18px;
       box-shadow: var(--shadow);
-      text-align: center;
+      text-align: left;
     }
-    .loadingTitle{ font-weight: 950; font-size: 18px; }
+    .loadingTitle{ font-weight: 950; font-size: 18px; line-height:1.08; }
   
     .profilesTopbarHidden{ display:none !important; }
     .loginBrandTop{
@@ -405,15 +406,17 @@
       padding: 16px;
     }
     #loading .loadingCard{
-      width:min(420px, 92vw);
-      background: rgba(255,255,255,.92);
+      width:auto;
+      max-width:min(430px, calc(100vw - 32px));
+      background: rgba(255,255,255,.96);
       border:1px solid rgba(64,17,2,.12);
       border-radius:22px;
-      padding:14px 16px;
+      padding:14px 18px;
       box-shadow:0 18px 40px rgba(0,0,0,.18);
       text-align:left;
     }
-    #loading .loadingCard .row{ gap:10px; flex-wrap:nowrap; justify-content:flex-start; }
+    #loading .loadingCard .row{ gap:10px; flex-wrap:nowrap; align-items:center; }
+    #loading .loadingCard .row > div:last-child{ min-width:0; }
     .profilesLoadingSpinner{
       width:18px; height:18px;
       border-radius:999px;
