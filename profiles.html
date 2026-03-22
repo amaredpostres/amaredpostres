@@ -434,6 +434,41 @@
       .profilesLoginLead{ font-size:15px; }
     }
 
+  
+
+    /* ===== Profiles chrome sync ===== */
+    .profilesHeaderActions{
+      display:flex;
+      align-items:center;
+      gap:10px;
+      flex-wrap:wrap;
+    }
+    .profilesMobileBar{ z-index: 9500; }
+    .profilesMobileCenter{ grid-template-columns:1fr; }
+    @media (max-width: 720px){
+      .profilesPage.is-app #profilesTopbar .topbarInner{
+        justify-content: space-between !important;
+        gap: 12px;
+      }
+      .profilesPage.is-app #profilesTopbar .amSectionBrand{
+        width:auto;
+        justify-content:flex-start;
+        text-align:left;
+      }
+      .profilesPage.is-app #profilesTopbar .amSectionBrandMeta{
+        align-items:flex-start;
+        text-align:left;
+      }
+      .profilesHeaderActions{ display:none !important; }
+      .profilesMgrCard{ padding-bottom: 96px; }
+      .profilesMgrCard #btnReload{ display:none !important; }
+      .profilesTopbarHidden{ display:none !important; }
+      .profilesMobileBar.isVisible{ display:grid; }
+    }
+    @media (min-width: 721px){
+      .profilesMobileBar{ display:none !important; }
+    }
+
   </style>
 </head>
 <body class="profilesPage is-login">
@@ -446,24 +481,24 @@
   </header>
   
   <header class="topbar profilesTopbarHidden" id="profilesTopbar">
-    <div class="topbarInner">
-      <div class="brand">
-        <img class="brandLogo" src="assets/Logo-Isotipo-Amared.svg" alt="AMARED" />
-        <div class="brandMeta">
-          <div class="brandTitle">Gestión de Perfiles</div>
-          <div class="brandSubtitle">Rangos y accesos del sistema</div>
+    <div class="topbarInner amSectionTopbarInner">
+      <div class="amSectionBrand">
+        <img class="amSectionBrandLogo" src="assets/Logo-Isotipo-Amared.svg" alt="AMARED" />
+        <div class="amSectionBrandMeta">
+          <div class="amSectionTitle">Gestión de perfiles</div>
+          <div class="amSectionSubtitle">Rangos y accesos del sistema</div>
         </div>
       </div>
 
-      <div class="row profilesHeaderActions">
-        <button id="btnBack" class="btn secondary profilesBtnBack" type="button">Volver atrás</button>
-        <button id="btnLogout" class="btn secondary profilesBtnLogout" type="button" disabled>Cerrar sesión</button>
+      <div class="amSectionActions profilesHeaderActions">
+        <button id="btnBack" class="btn amBtnSoft profilesBtnBack" type="button">Volver</button>
+        <button id="btnLogout" class="btn amBtnNeutral profilesBtnLogout" type="button" disabled>Salir</button>
       </div>
     </div>
   </header>
 
   <main class="container">
-    <div class="hero hidden" id="profilesHero">
+    <div class="hero hidden" id="profilesHero" style="display:none;">
       <h1 class="heroTitle">Perfiles del sistema</h1>
       <p class="heroSubtitle">Administra rangos de acceso para Cocina, Pagos, Envíos, Compras, Perfiles y Admin.</p>
     </div>
@@ -514,7 +549,7 @@
         <h2 class="cardTitle" style="margin:0;">Listado</h2>
         <div class="row">
           <div class="pill" id="pillCount">0 perfiles</div>
-          <button id="btnReload" class="btn secondary profilesBtnRefresh" type="button">Actualizar</button>
+          <button id="btnReload" class="btn secondary profilesBtnRefresh" type="button">Recargar</button>
         </div>
       </div>
 
@@ -634,12 +669,12 @@
   </div>
 
 
-  <div id="profilesMobileBar" class="profilesMobileBar" aria-label="Acciones de perfiles">
-    <button id="btnMobileReload" class="profilesMobileBtn" type="button" aria-label="Actualizar">↻</button>
-    <div class="profilesMobileCenter">
-      <button id="btnMobileBack" class="profilesMobilePill back" type="button">Volver atrás</button>
-      <button id="btnMobileLock" class="profilesMobilePill logout" type="button">Cerrar sesión</button>
+  <div id="profilesMobileBar" class="amBottomBar profilesMobileBar" aria-label="Acciones de perfiles">
+    <button id="btnMobileReload" class="amBottomIconBtn profilesMobileBtn" type="button" aria-label="Recargar"><span class="ico">↻</span><span class="txt">Recargar</span></button>
+    <div class="amBottomCenter one profilesMobileCenter">
+      <button id="btnMobileBack" class="amBottomPill isAccent profilesMobilePill back" type="button">Volver</button>
     </div>
+    <button id="btnMobileLock" class="amBottomIconBtn profilesMobileBtn" type="button" aria-label="Salir"><span class="ico">⎋</span><span class="txt">Salir</span></button>
   </div>
 
   <div id="loading" class="amLoadingOverlay" aria-hidden="true" style="display:none;">
