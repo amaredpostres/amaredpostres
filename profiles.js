@@ -11,6 +11,7 @@ const LS_PROFILES_REMEMBER_KEY = "AMARED_PROFILES_REMEMBER";
 
 // =================== DOM ===================
 const btnBack = document.getElementById("btnBack");
+const btnGateBack = document.getElementById("btnGateBack");
 
 const gateCard = document.getElementById("gateCard");
 const statusCard = document.getElementById("statusCard");
@@ -542,10 +543,13 @@ async function loadProfiles(){
 }
 
 // =================== EVENTS ===================
-btnBack?.addEventListener("click", ()=>{
+function goBackFromProfiles_(){
   if(history.length > 1) history.back();
   else location.href = "index.html";
-});
+}
+
+btnBack?.addEventListener("click", goBackFromProfiles_);
+btnGateBack?.addEventListener("click", goBackFromProfiles_);
 
 inpName?.addEventListener("input", ()=>{
   inpId.value = slugifyNameToId(inpName.value);
