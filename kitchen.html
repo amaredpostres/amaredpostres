@@ -145,8 +145,8 @@
 <body class="kitchenPage is-login">
   <header class="topbar">
     <div class="topbarInner kitchenTopbarInner">
-      <div class="kitchenTopbarLoginBrand" aria-label="AMARED">
-        <img src="assets/Logo-Amared.svg" alt="AMARED" />
+      <div class="kitchenTopbarLoginBrand amLoginTopbarBrand" aria-label="AMARED">
+        <img class="amLoginTopbarLogo" src="assets/Logo-Amared.svg" alt="AMARED" />
       </div>
 
       <div class="brandRow kitchenTopbarAppBrand">
@@ -168,8 +168,8 @@
   <div class="container">
     <div id="loginBox" class="card amLoginCard">
       <div class="amLoginHero">
-        <h1 class="heroTitle amLoginTitle" style="margin-top:6px;">Acceso Cocina</h1>
-        <p class="heroSubtitle amLoginLead">Selecciona un perfil aprobado e ingresa el PIN.</p>
+        <h1 class="amLoginTitle">Acceso Cocina</h1>
+        <p class="amLoginLead">Selecciona un perfil aprobado e ingresa el PIN.</p>
       </div>
 
       <div class="field">
@@ -203,7 +203,7 @@
            rel="noopener">Gestionar perfiles</a>
       </div>
 
-      <div id="loginErr" class="muted small" style="color:#b00020; margin-top:10px;"></div>
+      <div id="loginErr" class="status amLoginStatus"></div>
     </div>
 
     <!-- APP -->
