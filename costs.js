@@ -1855,7 +1855,15 @@ function isDessertLocallyDeleted_(id){
   return !!map && Object.prototype.hasOwnProperty.call(map, did);
 }
 
+function setAuthViewState_(locked){
+  try{
+    document.body.classList.remove("is-login","is-app");
+    document.body.classList.add(locked ? "is-login" : "is-app");
+  }catch(_e){}
+}
+
 function openUnlock(msg){
+  setAuthViewState_(true);
   if(el("unlockMsg")) el("unlockMsg").textContent = msg || "";
   show(el("unlockBack"));
   hide(el("appRoot"));
@@ -1911,6 +1919,7 @@ async function doUnlock(isAuto=false){
     }
 
     closeUnlock();
+    setAuthViewState_(false);
     show(el("appRoot"));
     show(el("mobileNav"));
     setView("purchases");
