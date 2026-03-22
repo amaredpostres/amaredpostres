@@ -273,8 +273,23 @@
       .adminHeaderActions{ display:none !important; }
       .adminMobileBar.isVisible{ display:grid; }
       .adminPage.is-app .adminTopbarInner{ justify-content:center !important; }
-      .adminPage.is-app .adminBrand,
-      .adminPage.is-app .adminBrandMeta{ justify-content:center; align-items:center; text-align:center; width:100%; }
+      .adminPage.is-app .adminBrand{
+        width:100%;
+        justify-content:center;
+        align-items:center;
+        text-align:center;
+        margin:0 auto;
+      }
+      .adminPage.is-app .adminBrandMeta{
+        width:auto;
+        flex:0 1 auto;
+        justify-content:center;
+        align-items:center;
+        text-align:center;
+      }
+      .adminPage.is-app .adminBrand .amSectionBrandLogo{
+        margin:0;
+      }
       .adminBrandTitle{ font-size:clamp(23px, 6vw, 25px) !important; }
       .adminBrandSubtitle{ font-size:12.5px !important; }
     }
