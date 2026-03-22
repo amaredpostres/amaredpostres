@@ -445,19 +445,23 @@
     }
     .profilesMobileBar{ z-index: 9500; }
     .profilesMobileCenter{ grid-template-columns:1fr; }
+    .profilesPage.is-app #profilesLoginBrand{ display:none !important; }
+    .profilesPage.is-login #profilesLoginBrand{ display:block; }
+
     @media (max-width: 720px){
       .profilesPage.is-app #profilesTopbar .topbarInner{
-        justify-content: space-between !important;
+        justify-content: center !important;
         gap: 12px;
       }
       .profilesPage.is-app #profilesTopbar .amSectionBrand{
-        width:auto;
-        justify-content:flex-start;
-        text-align:left;
+        width:100%;
+        justify-content:center;
+        text-align:center;
+        margin:0 auto;
       }
       .profilesPage.is-app #profilesTopbar .amSectionBrandMeta{
-        align-items:flex-start;
-        text-align:left;
+        align-items:center;
+        text-align:center;
       }
       .profilesHeaderActions{ display:none !important; }
       .profilesMgrCard{ padding-bottom: 96px; }
