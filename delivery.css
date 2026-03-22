@@ -463,3 +463,48 @@ body.deliveryOverlayOpen .amDeliveryMobileBar{
   .amLoadingTitle{ font-size:15px; }
   .amLoadingText{ font-size:12.5px; }
 }
+
+
+/* ===== Delivery header sync ===== */
+.deliveryTopbarInner{
+  justify-content: space-between !important;
+}
+.deliveryPage .deliveryAppBrand{
+  display:flex;
+  align-items:center;
+  gap:12px;
+}
+.deliveryPage.is-login .deliveryTopbarInner{ justify-content:center !important; }
+.deliveryPage.is-login .deliveryLoginBrand{ display:flex; }
+.deliveryPage.is-login .deliveryAppBrand,
+.deliveryPage.is-login .deliveryHeaderActions{ display:none !important; }
+.deliveryPage.is-app .deliveryLoginBrand{ display:none !important; }
+.deliveryPage.is-app .deliveryAppBrand{ display:flex; }
+.deliveryPage.is-app .deliveryHeaderActions{ display:flex; }
+.deliveryPage .deliveryBrandTitle{
+  font-size: clamp(20px, 1.7vw, 22px);
+}
+.deliveryPage .deliveryBrandSubtitle{
+  font-size: 12.5px;
+}
+@media (max-width: 720px){
+  .deliveryPage.is-app .deliveryTopbarInner{
+    justify-content: space-between !important;
+    gap: 12px;
+  }
+  .deliveryPage.is-app .deliveryAppBrand{
+    width: auto;
+    justify-content: flex-start !important;
+    margin: 0;
+  }
+  .deliveryPage.is-app .deliveryAppBrand > .deliveryBrandMeta{
+    align-items: flex-start !important;
+    text-align: left;
+  }
+  .deliveryHeaderActions{ display:none !important; }
+  .deliveryPage .deliveryBrandTitle{ font-size: clamp(23px, 6vw, 25px); }
+  .deliveryPage .deliveryBrandSubtitle{ font-size: 12.5px; }
+}
+@media (min-width: 721px){
+  .deliveryPage .deliveryHeaderActions{ display:flex; }
+}
