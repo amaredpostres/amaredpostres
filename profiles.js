@@ -716,8 +716,10 @@ btnTogglePin?.addEventListener("click", ()=>{
 inpSecret?.addEventListener("keydown", (e)=>{ if(e.key === "Enter") btnUnlock?.click(); });
 
 (async function bootProfilesLogin_(){
+  let shouldAutoUnlock = false;
   try{
     syncPinToggleState_();
+    showLoading("Cargando perfiles…", "Buscando perfiles de perfiles.");
     await populateLoginProfiles_();
     const remembered = localStorage.getItem(LS_PROFILES_REMEMBER_KEY) === "1";
     const savedPin = String(localStorage.getItem(LS_PROFILES_PIN_KEY) || "").trim();
@@ -726,13 +728,16 @@ inpSecret?.addEventListener("keydown", (e)=>{ if(e.key === "Enter") btnUnlock?.c
     if(savedProfile && loginProfile) loginProfile.value = savedProfile;
     if(savedPin && remembered && savedProfile){
       if(inpSecret) inpSecret.value = savedPin;
-      btnUnlock?.click();
+      shouldAutoUnlock = true;
     }else{
       setLockedUI(true);
     }
   }catch(_e){
     setLockedUI(true);
+  }finally{
+    hideLoading();
   }
+  if(shouldAutoUnlock) btnUnlock?.click();
 })();
 
 btnMobileReload?.addEventListener("click", ()=> btnReload?.click());
