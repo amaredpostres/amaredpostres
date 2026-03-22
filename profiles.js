@@ -250,7 +250,7 @@ function setLockedUI(locked){
     if(statusCard) statusCard.style.display = "none";
     if(gateCard) gateCard.style.display = "none";
     if(profilesTopbar) profilesTopbar.classList.remove("profilesTopbarHidden");
-    if(profilesHero) profilesHero.classList.remove("hidden");
+    if(profilesHero) profilesHero.classList.add("hidden");
     syncProfilesMobileBar();
   }
 }
