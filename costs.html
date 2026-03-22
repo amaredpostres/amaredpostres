@@ -208,13 +208,14 @@
   transform:none !important;
 }
 .unlockActions{
-  display:grid;
-  grid-template-columns:1fr 1fr;
+  display:flex;
   gap:10px;
   margin-top:14px;
+  justify-content:stretch;
 }
 .unlockActions .btn,
 .unlockActions .btnLinkLike{
+  flex:1;
   min-height:48px;
 }
 .costsHiddenAuxBtn{
@@ -253,6 +254,8 @@
   width:auto;
   display:block;
 }
+.costsPage.is-login #costsLoginTopbar{ display:block; }
+.costsPage.is-app #costsLoginTopbar{ display:none !important; }
 .costsLoginModal.amLoginCard{
   width:min(700px, 100%);
   border-radius:26px;
@@ -298,9 +301,15 @@
   background:transparent;
 }
 .amLoginActionsRow{
-  display:grid;
-  grid-template-columns:1fr 1fr;
+  display:flex;
   gap:10px;
+  margin-top:14px;
+  justify-content:stretch;
+}
+.amLoginActionsRow .btn,
+.amLoginActionsRow .btnLinkLike{
+  flex:1;
+  min-height:48px;
 }
 @media (max-width: 720px){
   #unlockBack{ padding:16px 12px 0; }
@@ -311,7 +320,7 @@
   .costsLoginModal .amLoginTitle{ font-size:clamp(20px,6.2vw,24px); }
   .costsLoginModal .amLoginLead{ font-size:15px; }
   .unlockActions,
-  .amLoginActionsRow{ grid-template-columns:1fr; }
+  .amLoginActionsRow{ flex-direction:column; }
 }
 
 
@@ -527,7 +536,7 @@
     <button class="btn secondary costsHiddenAuxBtn" id="btnClear" type="button" tabindex="-1" aria-hidden="true">Limpiar</button>
   </div>
 
-  <div class="pErr" id="unlockMsg"></div>
+  <div class="status amLoginStatus" id="unlockMsg"></div>
 </div>
 </div>
 </div>
@@ -783,16 +792,16 @@
 </div>
 </div>
 <!-- LOADING overlay (pantalla completa) -->
-<div class="modalOverlay hidden" id="loadingBack">
-<div class="modal" style="width:min(520px, 96vw);">
-<div class="modalBody" style="padding:14px; display:flex; gap:12px; align-items:center;">
-<div class="pSpinner"></div>
-<div>
-<div id="loadingTitle" style="font-weight:950;">Cargando…</div>
-<div id="loadingSub" style="opacity:.75; font-weight:800; margin-top:2px;">Un momento.</div>
-</div>
-</div>
-</div>
+<div class="amLoadingOverlay hidden" id="loadingBack">
+  <div class="amLoadingCard">
+    <div class="amLoadingRow">
+      <div class="amSpinner"></div>
+      <div>
+        <div id="loadingTitle" class="amLoadingTitle">Cargando…</div>
+        <div id="loadingSub" class="amLoadingSub">Un momento.</div>
+      </div>
+    </div>
+  </div>
 </div>
 <script src="kitchen-costs.js?v=20260307-v17"></script>
 <script src="costs.js?v=20260307-v17"></script>
