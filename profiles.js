@@ -11,6 +11,7 @@ const LS_PROFILES_REMEMBER_KEY = "AMARED_PROFILES_REMEMBER";
 
 // =================== DOM ===================
 const btnBack = document.getElementById("btnBack");
+const btnGateBack = document.getElementById("btnGateBack");
 
 const gateCard = document.getElementById("gateCard");
 const statusCard = document.getElementById("statusCard");
@@ -260,7 +261,7 @@ function setLockedUI(locked){
     if(statusCard) statusCard.style.display = "none";
     if(gateCard) gateCard.style.display = "none";
     if(profilesTopbar) profilesTopbar.classList.remove("profilesTopbarHidden");
-    if(profilesHero) profilesHero.classList.remove("hidden");
+    if(profilesHero) profilesHero.classList.add("hidden");
     syncProfilesMobileBar();
   }
 }
@@ -478,7 +479,9 @@ function renderTable(rows){
       .map(c=>`<span class="badge">${escapeHtml(c)}</span>`)
       .join(" ");
 
-    const passState = p.has_password ? `<span class="badge" style="background:rgba(246,186,96,.18); border-color:rgba(246,186,96,.35);">Configurada</span>` : `<span class="badge" style="background:rgba(242,91,143,.10); border-color:rgba(242,91,143,.25);">Pendiente</span>`;
+    const passState = p.has_password
+      ? `<span class="badge" style="background:rgba(246,186,96,.18); border-color:rgba(246,186,96,.35);">Configurada</span>`
+      : `<span class="badge" style="background:rgba(242,91,143,.10); border-color:rgba(242,91,143,.25);">Pendiente</span>`;
 
     const tr = document.createElement("tr");
     tr.innerHTML = `
@@ -556,10 +559,13 @@ async function loadProfiles(){
 }
 
 // =================== EVENTS ===================
-btnBack?.addEventListener("click", ()=>{
+function goBackFromProfiles_(){
   if(history.length > 1) history.back();
   else location.href = "index.html";
-});
+}
+
+btnBack?.addEventListener("click", goBackFromProfiles_);
+btnGateBack?.addEventListener("click", goBackFromProfiles_);
 
 inpName?.addEventListener("input", ()=>{
   inpId.value = slugifyNameToId(inpName.value);
