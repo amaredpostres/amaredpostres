@@ -159,6 +159,47 @@
       .kitchenPage .sub{ font-size:12.5px !important; }
     }
 
+
+    /* ===== Ajuste final mobile header ===== */
+    @media (max-width: 860px){
+      .kitchenPage.is-app .kitchenTopbarInner{
+        justify-content:center !important;
+        gap:12px;
+      }
+      .kitchenPage.is-app .kitchenTopbarAppBrand{
+        width:100%;
+        justify-content:center !important;
+        margin:0 auto !important;
+        text-align:center;
+      }
+      .kitchenPage.is-app .kitchenTopbarAppBrand .amSectionBrandMeta{
+        align-items:center !important;
+        text-align:center !important;
+        width:auto;
+      }
+      .kitchenPage.is-app .kitchenTopbarAppBrand .ttl,
+      .kitchenPage.is-app .kitchenTopbarAppBrand .sub,
+      .kitchenPage.is-app .kitchenTopbarAppBrand .amSectionTitle,
+      .kitchenPage.is-app .kitchenTopbarAppBrand .amSectionSubtitle{
+        display:block !important;
+        visibility:visible !important;
+      }
+      .kitchenPage.is-app .kitchenTopbarAppBrand .ttl,
+      .kitchenPage.is-app .kitchenTopbarAppBrand .amSectionTitle{
+        font-size:clamp(24px, 6.4vw, 27px) !important;
+        line-height:1.05 !important;
+      }
+      .kitchenPage.is-app .kitchenTopbarAppBrand .sub,
+      .kitchenPage.is-app .kitchenTopbarAppBrand .amSectionSubtitle{
+        font-size:13px !important;
+        line-height:1.18 !important;
+        opacity:.72 !important;
+      }
+      .kitchenPage.is-app .kitchenHeaderActions{
+        display:none !important;
+      }
+    }
+
   </style>
 </head>
 
