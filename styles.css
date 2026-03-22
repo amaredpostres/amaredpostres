@@ -1225,18 +1225,20 @@ body{
 
 @media (max-width: 860px){
   .amSectionTopbarInner{
+    justify-content:center;
     gap:12px;
     padding-top:10px;
     padding-bottom:10px;
   }
   .amSectionBrand{
-    width:auto;
-    justify-content:flex-start;
-    text-align:left;
+    width:100%;
+    justify-content:center;
+    text-align:center;
+    margin:0 auto;
   }
   .amSectionBrandMeta{
-    align-items:flex-start;
-    text-align:left;
+    align-items:center;
+    text-align:center;
   }
   .amSectionBrandLogo{
     width:46px;
