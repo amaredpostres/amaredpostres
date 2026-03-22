@@ -48,7 +48,7 @@ function ensureDeliveryMobileBar(){
         </button>
       </div>
       <button id="dMBtnLogout" class="amDeliveryMobileAction isNeutral" type="button" aria-label="Salir">
-        <span class="ico">🚪</span><span class="txt">Salir</span>
+        <span class="ico">⎋</span><span class="txt">Salir</span>
       </button>`;
     document.body.appendChild(bar);
   }
