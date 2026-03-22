@@ -1019,3 +1019,30 @@ select.input{
   #loadingBack #loadingTitle{ font-size:15px; }
   #loadingBack #loadingSub{ font-size:12.5px; }
 }
+
+
+/* ===== Header sync with AMARED sections ===== */
+.costsPage .topbarInner.amSectionTopbarInner{
+  justify-content: space-between !important;
+}
+@media (max-width: 560px){
+  .costsPage .topbarInner.amSectionTopbarInner{
+    justify-content: space-between !important;
+    gap: 12px;
+  }
+  .costsPage .amSectionBrand{
+    width: auto;
+    justify-content: flex-start;
+    text-align: left;
+  }
+  .costsPage .amSectionBrandMeta{
+    align-items: flex-start;
+    text-align: left;
+  }
+  .costsPage .amSectionTitle{
+    font-size: clamp(24px, 6.8vw, 26px);
+  }
+  .costsPage .amSectionSubtitle{
+    font-size: 12.5px;
+  }
+}
