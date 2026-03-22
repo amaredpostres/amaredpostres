@@ -139,6 +139,26 @@
       .kitchenPage #loginBox .heroTitle{ font-size:clamp(21px,6.4vw,26px) !important; }
     }
 
+  
+
+    /* ===== Kitchen chrome sync ===== */
+    .kitchenTopbarInner{ justify-content:space-between !important; }
+    .kitchenPage.is-login .kitchenTopbarInner{ justify-content:center !important; }
+    .kitchenPage.is-app .kitchenTopbarInner{ justify-content:space-between !important; }
+    .kitchenPage.is-app .kitchenTopbarAppBrand{ width:auto; justify-content:flex-start !important; margin:0; }
+    .kitchenPage.is-app .kitchenTopbarAppBrand .amSectionBrandMeta{ align-items:flex-start; text-align:left; }
+    .kitchenPage.is-app .kitchenHeaderActions{ display:flex; }
+    .kitchenPage .ttl{ font-size:clamp(20px, 1.7vw, 22px) !important; }
+    .kitchenPage .sub{ font-size:12.5px !important; }
+    @media (max-width: 860px){
+      .kitchenPage.is-app .kitchenTopbarInner{ justify-content:space-between !important; gap:12px; }
+      .kitchenPage.is-app .kitchenTopbarAppBrand{ width:auto; justify-content:flex-start !important; margin:0; }
+      .kitchenPage.is-app .kitchenTopbarAppBrand .amSectionBrandMeta{ align-items:flex-start; text-align:left; }
+      .kitchenPage.is-app .kitchenHeaderActions{ display:none !important; }
+      .kitchenPage .ttl{ font-size:clamp(23px, 6vw, 25px) !important; }
+      .kitchenPage .sub{ font-size:12.5px !important; }
+    }
+
   </style>
 </head>
 
@@ -149,17 +169,17 @@
         <img class="amLoginTopbarLogo" src="assets/Logo-Amared.svg" alt="AMARED" />
       </div>
 
-      <div class="brandRow kitchenTopbarAppBrand">
-        <img class="brandLogo2" src="assets/Logo-Isotipo-Amared.svg" alt="AMARED" />
-        <div>
-          <div class="ttl">Cocina</div>
-          <div class="sub">Producción diaria</div>
+      <div class="amSectionBrand kitchenTopbarAppBrand">
+        <img class="amSectionBrandLogo" src="assets/Logo-Isotipo-Amared.svg" alt="AMARED" />
+        <div class="amSectionBrandMeta">
+          <div class="amSectionTitle ttl">Cocina</div>
+          <div class="amSectionSubtitle sub">Producción diaria</div>
         </div>
       </div>
 
-      <div class="kitchenHeaderActions">
-        <button id="btnLogout" class="btn secondary" type="button" style="display:none;">Cerrar sesión</button>
-        <button id="btnRefresh" class="btn secondary" type="button" style="display:none;">Actualizar</button>
+      <div class="amSectionActions kitchenHeaderActions">
+        <button id="btnRefresh" class="btn amBtnWarm" type="button" style="display:none;">Recargar</button>
+        <button id="btnLogout" class="btn amBtnNeutral" type="button" style="display:none;">Salir</button>
       </div>
     </div>
   </header>
