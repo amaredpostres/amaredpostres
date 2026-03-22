@@ -153,64 +153,95 @@
 
 /* ===== Login con perfil / PIN ===== */
 #unlockBack{
-  background: rgba(247, 240, 233, .98);
-  z-index: 99999;
+  position:relative;
+  inset:auto;
+  background:transparent;
+  display:block;
+  place-items:normal;
+  padding:28px 16px 0;
+  z-index:1;
 }
+#unlockBack.hidden{ display:none !important; }
 #unlockBack .modal{
-  width:min(820px, 92vw);
+  width:min(700px, 100%);
+  margin:0 auto;
+  background:rgba(255,255,255,.88);
+  border:1px solid var(--border);
+  border-radius:26px;
+  box-shadow:0 18px 40px rgba(64,17,2,.08);
+  overflow:visible;
 }
-.unlockLogoWrap{
-  display:flex; justify-content:center; align-items:center;
-  margin-bottom:14px;
-}
-.unlockLogoWrap img{
-  height:58px; width:auto; display:block;
-}
-.unlockGrid{
-  display:grid;
-  gap:12px;
-}
+.unlockGrid{ display:grid; gap:12px; padding:0 26px 26px; }
 .unlockPinRow{
-  display:grid;
-  grid-template-columns:1fr auto;
+  display:flex;
   gap:10px;
-  align-items:end;
+  align-items:center;
 }
 .unlockEyeBtn{
-  width:56px; height:56px;
+  min-width:54px;
+  height:48px;
+  padding:0 14px;
   border-radius:16px;
   border:1px solid var(--border);
-  background: linear-gradient(180deg, rgba(246,186,96,.92), rgba(246,186,96,.82));
-  display:flex; align-items:center; justify-content:center;
-  font-size:20px; font-weight:900;
+  background:linear-gradient(180deg, rgba(246,186,96,.96), rgba(245,196,108,.92));
+  box-shadow:0 10px 22px rgba(246,186,96,.22);
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  font-size:18px;
+  font-weight:900;
   cursor:pointer;
-  box-shadow: 0 10px 20px rgba(64,17,2,.08);
 }
 .unlockRemember{
-  display:flex; align-items:center; gap:10px;
-  font-weight:900; color: rgba(64,17,2,.82);
+  display:flex;
+  align-items:center;
+  gap:10px;
+  cursor:pointer;
+  font-weight:850;
+  color:rgba(64,17,2,.82);
+  margin-top:10px;
+}
+.unlockRemember input{
+  width:18px;
+  height:18px;
+  accent-color:#ff5f95;
+  transform:none !important;
 }
 .unlockActions{
   display:grid;
   grid-template-columns:1fr 1fr;
   gap:10px;
-  margin-top:12px;
+  margin-top:14px;
 }
-@media (max-width: 640px){
-  .unlockActions{ grid-template-columns:1fr; }
+.unlockActions .btn,
+.unlockActions .btnLinkLike{
+  min-height:48px;
 }
-
-
-
-/* ===== Login: misma línea gráfica que Profiles / Delivery ===== */
+.costsHiddenAuxBtn{
+  display:none !important;
+}
+.btnLinkLike{
+  text-decoration:none;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+}
+.amLoginFieldHint{
+  margin-top:6px;
+  color:rgba(64,17,2,.78);
+  font-size:13.5px;
+  font-weight:800;
+  line-height:1.35;
+}
 .costsLoginTopbar{
-  position: sticky;
-  top: 0;
-  z-index: 15;
+  position:sticky;
+  top:0;
+  z-index:10;
+  backdrop-filter:blur(10px);
+  background:rgba(254,246,239,.72);
+  border-bottom:1px solid var(--border);
 }
-.costsLoginTopbarInner{
-  justify-content: center !important;
-}
+.costsLoginTopbarInner{ justify-content:center; }
 .costsLoginTopbar .amLoginTopbarBrand{
   display:flex;
   align-items:center;
@@ -221,36 +252,24 @@
   height:48px;
   width:auto;
   display:block;
-  opacity:1 !important;
-  filter:none !important;
 }
-
-/* El login no debe apagar el header; solo centrarse debajo del logo */
-.costsPage #unlockBack{
-  background: transparent !important;
-  backdrop-filter: none !important;
-  align-items: flex-start;
-  justify-content: center;
-  padding: 18px;
-  padding-top: 40px;
-  z-index: 35 !important;
+.costsLoginModal.amLoginCard{
+  width:min(700px, 100%);
+  border-radius:26px;
 }
-.costsPage #unlockBack .costsLoginModal.amLoginCard{
-  width: min(770px, 100%);
-  margin: 0 auto;
-  border-radius: 26px;
-  background: rgba(255,255,255,.88);
-  border: 1px solid var(--border);
-  box-shadow: 0 18px 40px rgba(64,17,2,.08);
-  overflow: hidden;
+.costsLoginModal .modalBody{ padding:0; }
+.costsLoginModal .field label{
+  font-size:12.5px;
+  color:rgba(64,17,2,.78);
+  font-weight:400;
+  margin-bottom:6px;
 }
-.costsPage #unlockBack .modalBody.costsLoginBody{
-  padding: 0 28px 28px !important;
+.costsLoginModal .input{
+  font-weight:400;
+  background:rgba(255,255,255,.85);
 }
-.costsLoginModal .amLoginHero{
-  text-align:center;
-  padding: 26px 28px 10px;
-}
+.costsLoginModal #loginProfile{ font-weight:400; }
+.costsLoginModal .amLoginHero{ text-align:center; padding:26px 26px 8px; }
 .costsLoginModal .amLoginTitle{
   margin:0 0 8px;
   text-align:center;
@@ -265,50 +284,36 @@
   color:rgba(64,17,2,.78);
   font-weight:850;
 }
-.costsPage .unlockGrid{ display:grid; gap:12px; }
-.costsPage .unlockPinRow{ display:flex; gap:10px; align-items:center; }
-.costsPage .unlockPinRow .input{ flex:1; }
-.costsPage .unlockEyeBtn{
-  min-width:54px;
-  height:48px;
-  padding:0 14px;
-  border-radius:16px;
-  border:1px solid var(--border);
-  background: linear-gradient(180deg, rgba(246,186,96,.96), rgba(245,196,108,.92));
-  box-shadow:0 10px 22px rgba(246,186,96,.22);
-  font-size:18px;
-  font-weight:900;
-  cursor:pointer;
+.amRememberWrap{
+  margin-top:10px;
 }
-.costsPage .btnLinkLike{
-  text-decoration:none;
-  display:flex;
-  align-items:center;
-  justify-content:center;
+.amRememberHint{
+  margin-top:6px;
+  color:rgba(64,17,2,.66);
+  font-size:13px;
+  font-weight:750;
+  line-height:1.35;
+  padding:0;
+  border:none;
+  background:transparent;
 }
-.costsPage .unlockActions.amLoginActionsRow{
-  display:flex;
+.amLoginActionsRow{
+  display:grid;
+  grid-template-columns:1fr 1fr;
   gap:10px;
-  margin-top:14px;
 }
-.costsPage .unlockActions.amLoginActionsRow .btn,
-.costsPage .unlockActions.amLoginActionsRow .btnLinkLike{
-  flex:1;
-  min-height:48px;
-}
-.costsPage .costsHiddenAuxBtn{ display:none !important; }
-@media (max-width:720px){
+@media (max-width: 720px){
+  #unlockBack{ padding:16px 12px 0; }
   .costsLoginTopbar .amLoginTopbarLogo{ height:42px; }
-  .costsPage #unlockBack{ padding-top: 16px; padding-left:12px; padding-right:12px; }
-  .costsPage #unlockBack .costsLoginModal.amLoginCard{ width:min(100%, 100%); border-radius:22px; }
-  .costsPage #unlockBack .modalBody.costsLoginBody{ padding: 0 18px 18px !important; }
-  .costsLoginModal .amLoginHero{ padding: 18px 18px 8px; }
+  #unlockBack .modal{ border-radius:22px; }
+  .unlockGrid{ padding:0 18px 18px; }
+  .costsLoginModal .amLoginHero{ padding:18px 18px 8px; }
   .costsLoginModal .amLoginTitle{ font-size:clamp(20px,6.2vw,24px); }
-  .costsLoginModal .amLoginLead{ font-size:14px; }
+  .costsLoginModal .amLoginLead{ font-size:15px; }
+  .unlockActions,
+  .amLoginActionsRow{ grid-template-columns:1fr; }
 }
-@media (max-width:520px){
-  .costsPage .unlockActions.amLoginActionsRow{ flex-direction:column; }
-}
+
 
 </style>
 </head>
@@ -519,7 +524,7 @@
   <div class="unlockActions amLoginActionsRow">
     <button class="btn primary" id="btnDoUnlock">Ingresar</button>
     <a class="btn secondary btnLinkLike" href="profiles.html" target="_blank" rel="noopener">Gestionar perfiles</a>
-    <button class="btn secondary costsHiddenAuxBtn" id="btnClear" type="button" tabindex="-1" aria-hidden="true" style="display:none !important;">Limpiar</button>
+    <button class="btn secondary costsHiddenAuxBtn" id="btnClear" type="button" tabindex="-1" aria-hidden="true">Limpiar</button>
   </div>
 
   <div class="pErr" id="unlockMsg"></div>
