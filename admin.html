@@ -132,7 +132,7 @@
     .modalFooter{ display:flex; gap:10px; justify-content:flex-end; flex-wrap:wrap; }
 
     /* LOADING */
-    .loadingOverlay{
+    .adminLoadingOverlay{
       position:fixed; inset:0; display:none;
       align-items:center; justify-content:center;
       background: rgba(64,17,2,.25);
@@ -140,29 +140,7 @@
       z-index:12000;
       padding:16px;
     }
-    .loadingOverlay.show{ display:flex; }
-    .loadingBox{
-      width:auto;
-      max-width:min(430px, calc(100vw - 32px));
-      padding:14px 18px;
-      border-radius:22px;
-      background: rgba(255,255,255,.96);
-      border:1px solid rgba(64,17,2,.12);
-      box-shadow: 0 18px 40px rgba(0,0,0,.18);
-    }
-    .loadingRow{ display:flex; gap:10px; align-items:center; flex-wrap:nowrap; }
-    .loadingCopy{ text-align:left; min-width:0; }
-    .spinner{
-      width:18px; height:18px;
-      border:2px solid rgba(64,17,2,.18);
-      border-top-color: rgba(64,17,2,.70);
-      border-radius:999px;
-      margin:0;
-      flex:0 0 auto;
-      animation: spin 1s linear infinite;
-    }
-    .loadingTitleText{ font-weight:950; font-size:18px; line-height:1.08; }
-    @keyframes spin{ to{ transform: rotate(360deg); } }
+    .adminLoadingOverlay.show{ display:flex; }
   
     .topbarInner.adminTopbarInner{ justify-content:space-between; }
     .adminBrand{ display:flex; align-items:center; gap:12px; }
@@ -179,8 +157,8 @@
     .amLoginTopbar{ position:sticky; top:0; z-index:15; }
     .amLoginTopbarInner{ justify-content:center; }
     .amLoginBrand{ display:flex; align-items:center; justify-content:center; width:100%; }
-    .amLoginHeaderLogo{ height:50px; width:auto; display:block; }
-    @media (max-width:720px){ .amLoginHeaderLogo{ height:44px; } }
+    .amLoginTopbarLogo{ height:48px; width:auto; display:block; }
+    @media (max-width:720px){ .amLoginTopbarLogo{ height:42px; } }
 
     .adminHeaderActions{
       display:none; align-items:center; gap:10px; flex-wrap:wrap;
@@ -288,7 +266,7 @@
   <header id="adminLoginTopbar" class="topbar amLoginTopbar">
     <div class="topbarInner amLoginTopbarInner">
       <div class="amLoginBrand" aria-label="AMARED">
-        <img class="amLoginHeaderLogo" src="assets/Logo-Amared.svg" alt="AMARED">
+        <img class="amLoginTopbarLogo" src="assets/Logo-Amared.svg" alt="AMARED">
       </div>
     </div>
   </header>
@@ -347,7 +325,7 @@
         <button id="btnLogin" class="btn primary" type="button">Ingresar</button>
         <a id="btnManageProfiles" class="btn secondary btnLinkLike" href="profiles.html">Gestionar perfiles</a>
       </div>
-      <div id="loginError" class="status" style="color:#b00020; margin-top:10px;"></div>
+      <div id="loginError" class="status amLoginStatus"></div>
     </section>
 
     <!-- PANEL (Pendientes) -->
@@ -461,13 +439,13 @@
     </div>
   </div>
   <!-- Loading overlay -->
-  <div id="loadingOverlay" class="loadingOverlay" aria-hidden="true">
-    <div class="loadingBox">
-      <div class="loadingRow">
-        <div class="spinner"></div>
-        <div class="loadingCopy">
-          <div id="loadingText" class="loadingTitleText">Cargando...</div>
-          <div id="loadingDesc" class="muted small" style="margin-top:4px;">Por favor espera.</div>
+  <div id="loadingOverlay" class="adminLoadingOverlay" aria-hidden="true">
+    <div class="amLoadingCard">
+      <div class="amLoadingRow">
+        <div class="amSpinner"></div>
+        <div>
+          <div id="loadingText" class="amLoadingTitle">Cargando...</div>
+          <div id="loadingDesc" class="amLoadingSub">Por favor espera.</div>
         </div>
       </div>
     </div>
