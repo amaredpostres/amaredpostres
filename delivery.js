@@ -281,10 +281,24 @@ function hasCategory(profile, wanted){
 }
 
 async function api(payload){
+  const body = Object.assign({}, payload || {});
+  if(
+    SESSION?.operator?.id &&
+    SESSION?.pin &&
+    body.action !== "profiles_auth" &&
+    body.action !== "profiles_public_list" &&
+    body.action !== "validate_admin_pin" &&
+    !body.auth_profile_id
+  ){
+    body.auth_profile_id = String(SESSION.operator.id || "").trim();
+    body.auth_profile_password = String(SESSION.pin || "").trim();
+    body.auth_page = "delivery";
+  }
+
   const res = await fetch(API_URL, {
     method:"POST",
     headers:{ "Content-Type":"application/json" },
-    body: JSON.stringify(payload || {})
+    body: JSON.stringify(body)
   });
   const out = await res.json().catch(async()=>({ ok:false, error: await res.text().catch(()=> "") }));
   if(!out || out.ok === false) throw new Error(out?.error || out?.message || "Error");
@@ -579,8 +593,12 @@ async function loadOrders(){
     renderOrders(orders);
   }catch(e){
     console.error("loadOrders error:", e);
-    setStatus(e?.message || "Error cargando pedidos.");
+    const msg = e?.message || "Error cargando pedidos.";
+    setStatus(msg);
     if(listEl) listEl.innerHTML = "";
+    if(/unauthorized/i.test(String(msg))){
+      loginErr.textContent = "No se pudo validar la sesión para envíos. Revisa el Worker actualizado.";
+    }
   }finally{
     hideLoading();
   }
