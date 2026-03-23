@@ -241,7 +241,7 @@
     const st = document.createElement("style");
     st.id = "amHubReturnStyles";
     st.textContent = `
-      .amHubReturnChip{position:fixed; right:14px; bottom:calc(env(safe-area-inset-bottom, 0px) + 84px); z-index:9499; display:none; align-items:center; justify-content:center; min-height:42px; padding:0 16px; border-radius:999px; border:1px solid rgba(255,255,255,.92); background:linear-gradient(180deg, rgba(255,255,255,.96), rgba(252,247,242,.92)); box-shadow:0 12px 24px rgba(64,17,2,.14); font-weight:900; color:var(--choco);}
+      .amHubReturnChip{position:fixed; top:calc(env(safe-area-inset-top, 0px) + 88px); right:14px; bottom:auto; z-index:9499; display:none; align-items:center; justify-content:center; min-height:40px; padding:0 15px; border-radius:999px; border:1px solid rgba(255,255,255,.96); background:linear-gradient(180deg, rgba(246,186,96,.97), rgba(242,91,143,.88)); box-shadow:0 12px 24px rgba(64,17,2,.18); font-weight:900; color:#401102; backdrop-filter: blur(8px);}
       .amHubReturnChip.isVisible{display:inline-flex;}
       @media (min-width: 721px){ .amHubReturnChip{ display:none !important; } }
     `;
@@ -787,7 +787,7 @@ function startDayRolloverWatch_(){
       btn.id = "btnKitchenHub";
       btn.type = "button";
       btn.className = "btn amBtnSoft";
-      btn.textContent = "Mi espacio";
+      btn.textContent = "Panel";
       btn.addEventListener("click", goHub_);
       headerBtns.insertBefore(btn, btnLogout || null);
     }
@@ -797,7 +797,7 @@ function startDayRolloverWatch_(){
       chip.id = "kitchenHubChip";
       chip.type = "button";
       chip.className = "amHubReturnChip";
-      chip.textContent = "Mi espacio";
+      chip.textContent = "Panel";
       chip.addEventListener("click", goHub_);
       document.body.appendChild(chip);
     }
