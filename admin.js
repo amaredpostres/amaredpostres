@@ -40,7 +40,17 @@ function hasHubAccess_(){
 function revealHubBoot_(){
   try{ document.documentElement.classList.remove("hubBoot"); document.documentElement.classList.add("hubReady"); }catch(_e){}
 }
-function goHub_(){ window.location.href = HUB_URL; }
+
+function goHub_(){
+  try{
+    const ref = String(document.referrer || '');
+    if((FROM_HUB || /(^|\/)hub\.html(?:\?|$)/i.test(ref)) && window.history.length > 1){
+      window.history.back();
+      return;
+    }
+  }catch(_e){}
+  window.location.href = HUB_URL;
+}
 function ensureHubReturnStyles_(){
   if(document.getElementById("amHubReturnStyles")) return;
   const st = document.createElement("style");
@@ -320,6 +330,7 @@ async function loadPaymentProfiles() {
 
 
 
+
 function ensureAdminHubReturnUI(){
   if(!hasHubAccess_()) return null;
   ensureHubReturnStyles_();
@@ -333,18 +344,21 @@ function ensureAdminHubReturnUI(){
     btn.addEventListener("click", goHub_);
     adminHeaderActions.insertBefore(btn, btnHeaderLogout || null);
   }
-  let chip = document.getElementById("adminHubChip");
-  if(!chip){
-    chip = document.createElement("button");
-    chip.id = "adminHubChip";
-    chip.type = "button";
-    chip.className = "amHubReturnChip";
-    chip.textContent = "Panel";
-    chip.addEventListener("click", goHub_);
-    document.body.appendChild(chip);
-  }
-  return { btn, chip };
+  const chip = document.getElementById("adminHubChip");
+  if(chip) chip.remove();
+  return { btn };
 }
+
+function syncAdminMobileReturnAction(){
+  if(!btnMobileLogout) return;
+  const fromHub = hasHubAccess_();
+  const ico = btnMobileLogout.querySelector('.ico');
+  const txt = btnMobileLogout.querySelector('.txt');
+  btnMobileLogout.setAttribute('aria-label', fromHub ? 'Volver al panel' : 'Salir');
+  if(ico) ico.textContent = fromHub ? '⌂' : '⎋';
+  if(txt) txt.textContent = fromHub ? 'Panel' : 'Salir';
+}
+
 
 function syncAdminActionBars() {
   const panelOpen = !!panelView && !panelView.classList.contains("hidden");
@@ -359,12 +373,12 @@ function syncAdminActionBars() {
     adminHeaderActions.classList.toggle("isVisible", panelOpen && desktop);
   }
   const mobile = window.matchMedia("(max-width: 880px)").matches;
+  syncAdminMobileReturnAction();
   if (adminMobileBar) {
     adminMobileBar.classList.toggle("isVisible", panelOpen && mobile && !hasOverlay);
   }
   const hubUi = ensureAdminHubReturnUI();
   if (hubUi?.btn) hubUi.btn.style.display = (panelOpen && !mobile) ? "inline-flex" : "none";
-  if (hubUi?.chip) hubUi.chip.classList.toggle("isVisible", panelOpen && mobile && !hasOverlay);
 }
 
 // =================== NAV (login/panel) ===================
@@ -1265,6 +1279,6 @@ btnCancelConfirm?.addEventListener("click", async () => {
 
 [btnMobileRefresh].forEach(btn => btn?.addEventListener("click", ()=> btnHeaderRefresh?.click()));
 [btnMobileHistory].forEach(btn => btn?.addEventListener("click", ()=> btnHeaderHistory?.click()));
-[btnMobileLogout].forEach(btn => btn?.addEventListener("click", ()=> btnHeaderLogout?.click()));
+[btnMobileLogout].forEach(btn => btn?.addEventListener("click", ()=> { if(hasHubAccess_()) goHub_(); else btnHeaderLogout?.click(); }));
 window.addEventListener("resize", syncAdminActionBars);
 setTimeout(syncAdminActionBars, 0);
