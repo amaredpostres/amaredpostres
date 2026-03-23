@@ -303,6 +303,26 @@
   display:block;
 }
 body.is-app .costsLoginTopbar{ display:none !important; }
+
+.costsAppTopbar{ display:none; }
+body.is-app .costsAppTopbar{ display:block !important; }
+body.is-login .costsAppTopbar{ display:none !important; }
+body.is-app .costsLoginTopbar{ display:none !important; }
+body.is-login .costsLoginTopbar{ display:block; }
+
+@media (max-width: 560px){
+  .costsPage.is-app .amSectionTopbarInner{
+    justify-content:center !important;
+  }
+  .costsPage.is-app .amSectionBrand{
+    margin:0 auto;
+  }
+  .costsPage.is-app .amSectionBrandMeta{
+    align-items:center;
+    text-align:center;
+  }
+}
+
 .costsLoginModal.amLoginCard{
   width:min(700px, 100%);
   border-radius:26px;
@@ -369,7 +389,7 @@ body.is-app .costsLoginTopbar{ display:none !important; }
 /* ===== Loading overlay unificado ===== */
 #loadingBack.amLoadingOverlay{ z-index: 120000 !important; }
 #loadingBack.amLoadingOverlay.hidden{ display:none !important; }
-#loadingBack .amLoadingCard{ width:min(380px, 92vw); }
+#loadingBack .amLoadingCard{ width:min(520px, 100%); }
 </style>
 </head>
 <body class="costsPage is-login">
@@ -394,16 +414,16 @@ body.is-app .costsLoginTopbar{ display:none !important; }
 
 <!-- APP (solo después de desbloquear) -->
 <div class="page" id="appRoot" style="display:none;">
-<header class="topbar">
-<div class="topbarInner" style="justify-content:space-between;">
-<div class="brand" style="gap:12px;">
-<img alt="AMARED" class="brandLogo" src="assets/Logo-Isotipo-Amared.svg" style="height:44px;"/>
-<div style="display:flex; flex-direction:column; gap:2px;">
-  <div style="font-weight:950; line-height:1.1;">Compras y Recetas</div>
-  <div style="font-size:12.5px; font-weight:800; color:rgba(64,17,2,.65);">Costos, compras e ingredientes</div>
+<header class="topbar costsAppTopbar" id="costsAppTopbar">
+<div class="topbarInner amSectionTopbarInner">
+<div class="amSectionBrand">
+<img alt="AMARED" class="amSectionBrandLogo" src="assets/Logo-Isotipo-Amared.svg"/>
+<div class="amSectionBrandMeta">
+  <div class="amSectionTitle">Compras y Recetas</div>
+  <div class="amSectionSubtitle">Costos, compras e ingredientes</div>
 </div>
 </div>
-<div class="pTopBtns">
+<div class="pTopBtns amSectionActions">
 <button class="btn secondary" id="btnReload">Recargar</button>
 <div aria-label="Compras y Recetas" class="pTabs" role="tablist">
 <button aria-selected="true" class="pTabBtn isActive" id="btnTabPurchases" role="tab">Compras</button>
