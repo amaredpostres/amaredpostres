@@ -7,6 +7,29 @@ console.log("AMARED delivery v12");
 const API_URL = "https://amared-orders.amaredpostres.workers.dev/";
 const SS_KEY = "AMARED_DELIVERY_SESSION_V4";
 const LS_KEY = "AMARED_DELIVERY_REMEMBER_V1";
+const HUB_URL = "hub.html";
+const HUB_SESSION_KEY = "AMARED_HUB_SESSION_V1";
+const HUB_REMEMBER_KEY = "AMARED_HUB_REMEMBER_V1";
+const FROM_HUB = (() => { try { return new URLSearchParams(window.location.search).get("hub") === "1"; } catch { return false; } })();
+function hasHubAccess_(){
+  try{ return FROM_HUB || !!sessionStorage.getItem(HUB_SESSION_KEY) || !!localStorage.getItem(HUB_REMEMBER_KEY); }catch(_e){ return FROM_HUB; }
+}
+function revealHubBoot_(){
+  try{ document.documentElement.classList.remove("hubBoot"); document.documentElement.classList.add("hubReady"); }catch(_e){}
+}
+function goHub_(){ window.location.href = HUB_URL; }
+function ensureHubReturnStyles_(){
+  if(document.getElementById("amHubReturnStyles")) return;
+  const st = document.createElement("style");
+  st.id = "amHubReturnStyles";
+  st.textContent = `
+    .amHubReturnChip{position:fixed; top:calc(env(safe-area-inset-top, 0px) + 88px); right:14px; bottom:auto; z-index:9499; display:none; align-items:center; justify-content:center; min-height:40px; padding:0 15px; border-radius:999px; border:1px solid rgba(255,255,255,.96); background:linear-gradient(180deg, rgba(246,186,96,.97), rgba(242,91,143,.88)); box-shadow:0 12px 24px rgba(64,17,2,.18); font-weight:900; color:#401102; backdrop-filter: blur(8px);}
+    .amHubReturnChip.isVisible{display:inline-flex;}
+    @media (min-width: 721px){ .amHubReturnChip{ display:none !important; } }
+  `;
+  document.head.appendChild(st);
+}
+
 
 let SESSION = { operator: null, pin: null };
 let ORDERS = [];
@@ -55,6 +78,32 @@ function ensureDeliveryMobileBar(){
   deliveryMobileBar = bar;
   return bar;
 }
+function ensureDeliveryHubReturnUI(){
+  if(!hasHubAccess_()) return null;
+  ensureHubReturnStyles_();
+  let btn = document.getElementById("btnDeliveryHub");
+  const desktopWrap = document.querySelector('.deliveryHeaderActions');
+  if(desktopWrap && !btn){
+    btn = document.createElement('button');
+    btn.id = 'btnDeliveryHub';
+    btn.type = 'button';
+    btn.className = 'btn amBtnSoft';
+    btn.textContent = 'Panel';
+    btn.addEventListener('click', goHub_);
+    desktopWrap.insertBefore(btn, btnLogoutTop || null);
+  }
+  let chip = document.getElementById('deliveryHubChip');
+  if(!chip){
+    chip = document.createElement('button');
+    chip.id = 'deliveryHubChip';
+    chip.type = 'button';
+    chip.className = 'amHubReturnChip';
+    chip.textContent = 'Panel';
+    chip.addEventListener('click', goHub_);
+    document.body.appendChild(chip);
+  }
+  return { btn, chip };
+}
 function syncDeliveryActionBars(){
   const mobile = isMobileViewport();
   const appVisible = isVisibleEl(panelView);
@@ -62,6 +111,9 @@ function syncDeliveryActionBars(){
   if(btnRefreshTop) btnRefreshTop.style.display = (appVisible && !mobile) ? 'inline-flex' : 'none';
   if(btnHistory) btnHistory.style.display = (appVisible && !mobile) ? 'inline-flex' : 'none';
   if(btnLogoutTop) btnLogoutTop.style.display = (appVisible && !mobile) ? 'inline-flex' : 'none';
+  const hubUi = ensureDeliveryHubReturnUI();
+  if(hubUi?.btn) hubUi.btn.style.display = (appVisible && !mobile) ? 'inline-flex' : 'none';
+  if(hubUi?.chip) hubUi.chip.classList.toggle('isVisible', appVisible && mobile && !overlay);
   const bar = ensureDeliveryMobileBar();
   if(bar) bar.classList.toggle('isHidden', !appVisible || !mobile || overlay);
   document.body.classList.toggle('deliveryOverlayOpen', !!overlay);
@@ -985,7 +1037,7 @@ btnHistReload?.addEventListener("click", loadHistory);
 histBack?.addEventListener("click", (ev)=>{ if(ev.target === histBack) closeHistory(); });
 
 // ---- Init ----
-(function init(){
+(async function init(){
   wireDeliveryMobileBar();
   watchDeliveryBarState();
   syncDeliveryActionBars();
@@ -996,13 +1048,17 @@ histBack?.addEventListener("click", (ev)=>{ if(ev.target === histBack) closeHist
       SESSION = Object.assign({}, saved.data, { pin: String(saved?.data?.pin || saved?.data?.password || "") });
       if(inpPin) inpPin.value = String(saved.data.pin || saved.data.password || '');
       showPanel();
-      loadOrders();
+      await loadOrders();
     }else{
       showLogin();
-      loadProfilesOnStart();
+      await loadProfilesOnStart();
     }
   }catch{
     showLogin();
-    loadProfilesOnStart();
+    await loadProfilesOnStart();
+  }finally{
+    hideLoading();
+    revealHubBoot_();
+    syncDeliveryActionBars();
   }
 })();
