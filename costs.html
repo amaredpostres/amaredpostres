@@ -2,55 +2,6 @@
 
 <html lang="es">
 <head>
-  <script>
-    try {
-      if (new URLSearchParams(window.location.search).get("hub") === "1") {
-        document.documentElement.classList.add("hubBoot");
-      } else {
-        document.documentElement.classList.add("hubReady");
-      }
-    } catch (_e) {
-      document.documentElement.classList.add("hubReady");
-    }
-  </script>
-  
-<style>
-  html.hubBoot body { opacity: 1; overflow: hidden; }
-  html.hubReady body { opacity: 1; transition: opacity .12s ease; }
-  .amHubBootOverlay{
-    position: fixed;
-    inset: 0;
-    z-index: 130000;
-    display: none;
-    align-items: center;
-    justify-content: center;
-    padding: 16px;
-    background: rgba(64,17,2,.25);
-    backdrop-filter: blur(6px);
-  }
-  html.hubBoot .amHubBootOverlay{ display:flex; }
-  html.hubReady .amHubBootOverlay{ display:none; }
-  .amHubBootCard{
-    width:min(520px, 100%);
-    background:rgba(255,255,255,.92);
-    border:1px solid rgba(64,17,2,.12);
-    border-radius:22px;
-    padding:16px;
-    box-shadow:0 18px 40px rgba(0,0,0,.18);
-  }
-  .amHubBootRow{ display:flex; gap:10px; align-items:center; }
-  .amHubBootSpinner{
-    width:18px;
-    height:18px;
-    border-radius:999px;
-    border:2px solid rgba(64,17,2,.18);
-    border-top-color:rgba(64,17,2,.70);
-    animation:amSpin 1s linear infinite;
-    flex:0 0 auto;
-  }
-  .amHubBootTitle{ font-weight:950; font-size:18px; color:var(--choco); }
-  .amHubBootSub{ margin-top:4px; color:rgba(64,17,2,.66); font-size:13px; font-weight:750; }
-</style>
 <meta charset="utf-8"/>
 <meta content="width=device-width, initial-scale=1" name="viewport"/>
 <title>AMARED · Compras y Recetas</title>
@@ -200,7 +151,7 @@
 }
 
 
-/* ===== Login con perfil / contraseña ===== */
+/* ===== Login con perfil / PIN ===== */
 #unlockBack{
   position:relative;
   inset:auto;
@@ -302,7 +253,6 @@
   width:auto;
   display:block;
 }
-body.is-app .costsLoginTopbar{ display:none !important; }
 .costsLoginModal.amLoginCard{
   width:min(700px, 100%);
   border-radius:26px;
@@ -365,25 +315,9 @@ body.is-app .costsLoginTopbar{ display:none !important; }
 }
 
 
-
-/* ===== Loading overlay unificado ===== */
-#loadingBack.amLoadingOverlay{ z-index: 120000 !important; }
-#loadingBack.amLoadingOverlay.hidden{ display:none !important; }
-#loadingBack .amLoadingCard{ width:min(380px, 92vw); }
 </style>
 </head>
 <body class="costsPage is-login">
-<div class="amHubBootOverlay" aria-hidden="true">
-  <div class="amHubBootCard">
-    <div class="amHubBootRow">
-      <div class="amHubBootSpinner"></div>
-      <div>
-        <div class="amHubBootTitle">Cargando página…</div>
-        <div class="amHubBootSub">Estamos preparando tu espacio.</div>
-      </div>
-    </div>
-  </div>
-</div>
 <header class="topbar costsLoginTopbar" id="costsLoginTopbar">
 <div class="topbarInner costsLoginTopbarInner">
 <div class="amLoginTopbarBrand" aria-label="AMARED">
@@ -559,7 +493,7 @@ body.is-app .costsLoginTopbar{ display:none !important; }
 <div class="modal costsLoginModal amLoginCard">
 <div class="amLoginHero">
 <h2 class="amLoginTitle">Acceso Compras y Recetas</h2>
-<p class="amLoginLead">Selecciona un perfil aprobado e ingresa la contraseña.</p>
+<p class="amLoginLead">Selecciona un perfil aprobado e ingresa el PIN.</p>
 </div>
 <div class="modalBody costsLoginBody" style="padding:0;">
 <div class="unlockGrid">
@@ -572,10 +506,10 @@ body.is-app .costsLoginTopbar{ display:none !important; }
   </div>
 
   <div class="field" style="margin-top:10px;">
-    <label>Contraseña</label>
+    <label>PIN</label>
     <div class="unlockPinRow amLoginPinRow">
       <input autocomplete="current-password" class="input" id="secretInput" placeholder="••••••" type="password"/>
-      <button class="unlockEyeBtn amPinToggleBtn" id="btnToggleSecret" type="button" aria-label="Mostrar u ocultar contraseña">👁</button>
+      <button class="unlockEyeBtn amPinToggleBtn" id="btnToggleSecret" type="button" aria-label="Mostrar u ocultar PIN">👁</button>
     </div>
   </div>
 
@@ -849,16 +783,16 @@ body.is-app .costsLoginTopbar{ display:none !important; }
 </div>
 </div>
 <!-- LOADING overlay (pantalla completa) -->
-<div id="loadingBack" class="amLoadingOverlay hidden" aria-hidden="true">
-  <div class="amLoadingCard">
-    <div class="amLoadingRow">
-      <div class="amSpinner"></div>
-      <div>
-        <div id="loadingTitle" class="amLoadingTitle">Cargando…</div>
-        <div id="loadingSub" class="amLoadingSub">Un momento.</div>
-      </div>
-    </div>
-  </div>
+<div class="modalOverlay hidden" id="loadingBack">
+<div class="modal" style="width:min(520px, 96vw);">
+<div class="modalBody" style="padding:14px; display:flex; gap:12px; align-items:center;">
+<div class="pSpinner"></div>
+<div>
+<div id="loadingTitle" style="font-weight:950;">Cargando…</div>
+<div id="loadingSub" style="opacity:.75; font-weight:800; margin-top:2px;">Un momento.</div>
+</div>
+</div>
+</div>
 </div>
 <script src="kitchen-costs.js?v=20260307-v17"></script>
 <script src="costs.js?v=20260307-v17"></script>
