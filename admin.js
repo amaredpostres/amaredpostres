@@ -153,7 +153,7 @@ function syncPinToggleState() {
   if (!loginPin || !btnTogglePin) return;
   const hidden = loginPin.type !== "text";
   btnTogglePin.textContent = hidden ? "👁" : "🙈";
-  btnTogglePin.setAttribute("aria-label", hidden ? "Mostrar PIN" : "Ocultar PIN");
+  btnTogglePin.setAttribute("aria-label", hidden ? "Mostrar contraseña" : "Ocultar contraseña");
 }
 
 function saveAdminSession(remember = false) {
@@ -192,12 +192,26 @@ syncPinToggleState();
 
 // =================== API (logs + retry 429) ===================
 async function api(body, retries = 2) {
-  console.log("➡️ API request:", body);
+  const payload = Object.assign({}, body || {});
+  if (
+    SESSION?.operatorId &&
+    SESSION?.pin &&
+    payload.action !== "profiles_auth" &&
+    payload.action !== "validate_admin_pin" &&
+    payload.action !== "profiles_public_list" &&
+    !payload.auth_profile_id
+  ) {
+    payload.auth_profile_id = String(SESSION.operatorId || "").trim();
+    payload.auth_profile_password = String(SESSION.pin || "").trim();
+    payload.auth_page = "admin";
+  }
+
+  console.log("➡️ API request:", payload);
 
   const res = await fetch(API_URL, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body)
+    body: JSON.stringify(payload)
   });
 
   console.log("⬅️ API status:", res.status);
@@ -420,20 +434,31 @@ function calcTotals(items) {
 btnLogin?.addEventListener("click", async () => {
   loginError.textContent = "";
   const prof = getSelectedProfile();
-  const pin = (loginPin?.value || "").trim();
+  const password = (loginPin?.value || "").trim();
 
-  if (!prof || !pin) {
-    loginError.textContent = "Selecciona un perfil y escribe el PIN.";
+  if (!prof || !password) {
+    loginError.textContent = "Selecciona un perfil y escribe la contraseña.";
     return;
   }
 
   try {
     showLoading("Validando...", "Comprobando acceso...");
-    SESSION = { operator: prof.label, operatorId: prof.id, pin };
+    const auth = await api({
+      action: "profiles_auth",
+      profile_id: prof.id,
+      password_plain: password
+    });
+    const cats = Array.isArray(auth?.profile?.categories) ? auth.profile.categories.map(v => String(v || "").toLowerCase()) : [];
+    const allowed = cats.includes("admin") || cats.includes("payments") || cats.includes("pago");
+    if (auth.valid !== true || !allowed) {
+      throw new Error(auth?.error || "Perfil sin permisos para pagos.");
+    }
+
+    SESSION = { operator: auth.profile.label || prof.label, operatorId: prof.id, pin: password };
     saveAdminSession(!!loginRemember?.checked);
 
     showPanel();
-    await loadPendientes(false); // valida login (PIN)
+    await loadPendientes(false);
   } catch (e) {
     SESSION = { operator: null, operatorId: null, pin: null };
     clearSavedAdminSession();
@@ -1150,12 +1175,12 @@ btnCancelConfirm?.addEventListener("click", async () => {
     try {
       const s = saved;
       if (loginRemember) loginRemember.checked = !!savedWrap?.remembered;
-      if (s?.pin) {
+      if (s?.pin || s?.password) {
         // Preselecciona perfil si existe
         if (s.operatorId && loginOperator) loginOperator.value = String(s.operatorId);
-        if (loginPin) loginPin.value = String(s.pin || "");
+        if (loginPin) loginPin.value = String(s.pin || s.password || "");
         const prof = s.operatorId ? (LOGIN_PROFILES.find(p => p.id === String(s.operatorId)) || null) : null;
-        SESSION = { operator: prof?.label || String(s.operator || ""), operatorId: prof?.id || String(s.operatorId || ""), pin: String(s.pin || "") };
+        SESSION = { operator: prof?.label || String(s.operator || ""), operatorId: prof?.id || String(s.operatorId || ""), pin: String(s.pin || s.password || "") };
 
         if (SESSION.operator && SESSION.pin) {
           showPanel();
