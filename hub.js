@@ -253,7 +253,7 @@ function openModule(key){
   const mod = MODULES.find(m => m.key === key);
   if(!mod) return;
   setModuleSession(mod);
-  window.location.href = mod.href;
+  window.location.href = `${mod.href}?hub=1`;
 }
 
 async function login(){
