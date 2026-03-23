@@ -253,7 +253,16 @@ function openModule(key){
   const mod = MODULES.find(m => m.key === key);
   if(!mod) return;
   setModuleSession(mod);
-  window.location.href = `${mod.href}?hub=1`;
+  showLoading(`Abriendo ${mod.title}…`, 'Preparando acceso a la página seleccionada.');
+  try{
+    if(hubGrid){
+      hubGrid.style.pointerEvents = 'none';
+      hubGrid.style.opacity = '.92';
+    }
+  }catch(_e){}
+  window.setTimeout(()=>{
+    window.location.href = `${mod.href}?hub=1`;
+  }, 90);
 }
 
 async function login(){
