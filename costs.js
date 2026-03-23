@@ -14,43 +14,8 @@ const LS_SECRET_KEY = "AMARED_COSTS_SECRET";
 const LS_REMEMBER_KEY = "AMARED_COSTS_REMEMBER_V1";
 const LS_PROFILE_KEY = "AMARED_COSTS_PROFILE_ID";
 const LS_DELETED_DESSERTS_KEY = "AMARED_DELETED_DESSERTS_V1";
-const SS_COSTS_SESSION_KEY = "AMARED_COSTS_SESSION_V1";
-const HUB_URL = "hub.html";
-const HUB_SESSION_KEY = "AMARED_HUB_SESSION_V1";
-const HUB_REMEMBER_KEY = "AMARED_HUB_REMEMBER_V1";
-const FROM_HUB = (() => { try { return new URLSearchParams(window.location.search).get("hub") === "1"; } catch { return false; } })();
-function hasHubAccess_(){
-  try{ return FROM_HUB || !!sessionStorage.getItem(HUB_SESSION_KEY) || !!localStorage.getItem(HUB_REMEMBER_KEY); }catch(_e){ return FROM_HUB; }
-}
-function revealHubBoot_(){
-  try{ document.documentElement.classList.remove("hubBoot"); document.documentElement.classList.add("hubReady"); }catch(_e){}
-}
-
-function goHub_(){
-  try{
-    const ref = String(document.referrer || '');
-    if((FROM_HUB || /(^|\/)hub\.html(?:\?|$)/i.test(ref)) && window.history.length > 1){
-      window.history.back();
-      return;
-    }
-  }catch(_e){}
-  window.location.href = HUB_URL;
-}
-function ensureHubReturnStyles_(){
-  if(document.getElementById("amHubReturnStyles")) return;
-  const st = document.createElement("style");
-  st.id = "amHubReturnStyles";
-  st.textContent = `
-    .amHubReturnChip{position:fixed; top:calc(env(safe-area-inset-top, 0px) + 88px); right:14px; bottom:auto; z-index:9499; display:none; align-items:center; justify-content:center; min-height:40px; padding:0 15px; border-radius:999px; border:1px solid rgba(255,255,255,.96); background:linear-gradient(180deg, rgba(246,186,96,.97), rgba(242,91,143,.88)); box-shadow:0 12px 24px rgba(64,17,2,.18); font-weight:900; color:#401102; backdrop-filter: blur(8px);}
-    .amHubReturnChip.isVisible{display:inline-flex;}
-    @media (min-width: 721px){ .amHubReturnChip{ display:none !important; } }
-  `;
-  document.head.appendChild(st);
-}
-
 
 let UNLOCKED_SECRET = "";
-let UNLOCKED_PROFILE = { id:"", label:"", categories:[] };
 let LOGIN_PROFILES = [];
 let state = {
   items: [],
@@ -250,42 +215,6 @@ function updateMobileNavLabel_(){
 function openMobileNavSheet_(){ updateMobileNavLabel_(); }
 function closeMobileNavSheet_(){}
 
-
-function ensureCostsHubReturnUI(){
-  if(!hasHubAccess_()) return null;
-  const desktopWrap = document.querySelector('.pTopBtns');
-  let btn = document.getElementById('btnCostsHub');
-  if(desktopWrap && !btn){
-    btn = document.createElement('button');
-    btn.id = 'btnCostsHub';
-    btn.type = 'button';
-    btn.className = 'btn secondary';
-    btn.textContent = 'Panel';
-    btn.addEventListener('click', goHub_);
-    desktopWrap.insertBefore(btn, el('btnExit') || null);
-  }
-  const chip = document.getElementById('costsHubChip');
-  if(chip) chip.remove();
-  return { btn };
-}
-
-function syncCostsMobileReturnAction_(){
-  const btn = el('mNavExit');
-  if(!btn) return;
-  const fromHub = hasHubAccess_();
-  btn.setAttribute('aria-label', fromHub ? 'Volver al panel' : 'Salir');
-  btn.textContent = fromHub ? '⌂' : '⎋';
-}
-
-function setCostsShellMode_(mode){
-  const isApp = mode === 'app';
-  document.body.classList.remove('is-login','is-app');
-  document.body.classList.add(isApp ? 'is-app' : 'is-login');
-  const loginTopbar = el('costsLoginTopbar');
-  if(loginTopbar) loginTopbar.style.display = isApp ? 'none' : '';
-}
-
-
 function syncMobileNavForViewport_(){
   const nav = el("mobileNav");
   const app = el("appRoot");
@@ -295,10 +224,6 @@ function syncMobileNavForViewport_(){
   const appVisible = !!app && !app.classList.contains("hidden") && app.hidden !== true && (app.style.display !== "none");
   const unlockVisible = !!unlock && !unlock.classList.contains("hidden") && unlock.hidden !== true && (unlock.style.display !== "none");
   const isMobile = (()=>{ try{ return window.innerWidth <= 560; }catch(_e){ return false; } })();
-
-  const hubUi = ensureCostsHubReturnUI();
-  if(hubUi?.btn) hubUi.btn.style.display = (appVisible && !isMobile) ? "inline-flex" : "none";
-  syncCostsMobileReturnAction_();
 
   if(isMobile && appVisible && !unlockVisible){
     show(nav);
@@ -435,19 +360,7 @@ function syncSecretToggleState_(){
   if(!inp || !btn) return;
   const hidden = inp.type !== "text";
   btn.textContent = hidden ? "◉" : "◎";
-  btn.setAttribute("aria-label", hidden ? "Mostrar contraseña" : "Ocultar contraseña");
-}
-
-function loadPortalCostsSession_(){
-  try{
-    const raw = sessionStorage.getItem(SS_COSTS_SESSION_KEY);
-    const data = raw ? JSON.parse(raw) : null;
-    if(data?.id && data?.password) return data;
-  }catch(_e){}
-  return null;
-}
-function clearPortalCostsSession_(){
-  try{ sessionStorage.removeItem(SS_COSTS_SESSION_KEY); }catch(_e){}
+  btn.setAttribute("aria-label", hidden ? "Mostrar PIN" : "Ocultar PIN");
 }
 
 async function fetchProfilesPublic_(category){
@@ -462,6 +375,9 @@ async function populateLoginProfiles_(){
     try{ rows = await fetchProfilesPublic_("costs"); }catch(_e){}
     if(!rows.length){
       try{ rows = await fetchProfilesPublic_("admin"); }catch(_e){}
+    }
+    if(!rows.length){
+      try{ rows = await fetchProfilesPublic_("payments"); }catch(_e){}
     }
     LOGIN_PROFILES = Array.isArray(rows) ? rows : [];
     const sel = el("loginProfile");
@@ -557,19 +473,9 @@ function setCostsMeta(msg){
 // =============== API ===============
 async function api(body, {timeoutMs=30000} = {}){
   const payload = Object.assign({}, body || {});
-  if(payload && payload.costs_secret) delete payload.costs_secret;
-  if(
-    UNLOCKED_PROFILE?.id &&
-    UNLOCKED_SECRET &&
-    payload.action !== "profiles_auth" &&
-    payload.action !== "profiles_public_list" &&
-    payload.action !== "validate_admin_pin" &&
-    payload.action !== "validate_profiles_secret" &&
-    !payload.auth_profile_id
-  ){
-    payload.auth_profile_id = String(UNLOCKED_PROFILE.id || "").trim();
-    payload.auth_profile_password = String(UNLOCKED_SECRET || "").trim();
-    payload.auth_page = "costs";
+  if(payload && payload.costs_secret){
+    delete payload.costs_secret;
+    if(UNLOCKED_SECRET) payload.admin_pin = UNLOCKED_SECRET;
   }
   const controller = new AbortController();
   const t = setTimeout(()=>controller.abort(), timeoutMs);
@@ -593,14 +499,10 @@ async function api(body, {timeoutMs=30000} = {}){
   return out;
 }
 
-async function validateSecret(secret, profileId){
-  const out = await api({ action:"profiles_auth", profile_id: profileId, password_plain: secret }, {timeoutMs: 30000});
-  const cats = Array.isArray(out?.profile?.categories)
-    ? out.profile.categories.map(v => String(v || "").trim().toLowerCase())
-    : [];
-  const allowed = cats.includes("admin") || cats.includes("costs") || cats.includes("purchases");
-  if(out.valid !== true || !allowed) throw new Error(out?.error || "Contraseña incorrecta o no autorizada.");
-  return out.profile || { id: profileId, label: profileId, categories: cats };
+async function validateSecret(secret){
+  const out = await api({ action:"validate_admin_pin", admin_pin: secret }, {timeoutMs: 30000});
+  if(out.valid !== true) throw new Error("PIN incorrecto o no autorizado.");
+  return true;
 }
 
 // =============== RECETAS (desde hoja RECETAS) ===============
@@ -1955,7 +1857,6 @@ function isDessertLocallyDeleted_(id){
 
 function openUnlock(msg){
   if(el("unlockMsg")) el("unlockMsg").textContent = msg || "";
-  setCostsShellMode_("login");
   show(el("unlockBack"));
   hide(el("appRoot"));
   // ✅ En login no mostramos el menú inferior móvil
@@ -1981,34 +1882,25 @@ function closeUnlock(){
   hide(el("unlockBack"));
 }
 
-async function doUnlock(isAuto=false, opts={}){
+async function doUnlock(isAuto=false){
   const profileId = String(el("loginProfile")?.value || "").trim();
   const secret = String(el("secretInput")?.value || "").trim();
-  const fromPortal = !!opts.fromPortal;
-  const silent = !!opts.silent;
-  const rememberOverride = (typeof opts.remember === "boolean") ? opts.remember : null;
-
   if(!profileId){
-    if(!isAuto && !silent && el("unlockMsg")) el("unlockMsg").textContent = "Selecciona un perfil.";
+    if(!isAuto && el("unlockMsg")) el("unlockMsg").textContent = "Selecciona un perfil.";
     return;
   }
   if(!secret){
-    if(!isAuto && !silent && el("unlockMsg")) el("unlockMsg").textContent = "Escribe la contraseña.";
+    if(!isAuto && el("unlockMsg")) el("unlockMsg").textContent = "Escribe el PIN.";
     return;
   }
 
   showLoading("Validando…", "Verificando el acceso en el servidor.");
   try{
-    const authProfile = await validateSecret(secret, profileId);
+    await validateSecret(secret);
     UNLOCKED_SECRET = secret;
-    UNLOCKED_PROFILE = {
-      id: String(authProfile?.id || profileId || "").trim(),
-      label: String(authProfile?.label || profileId || "").trim(),
-      categories: Array.isArray(authProfile?.categories) ? authProfile.categories : []
-    };
     const chk = getRememberCheckbox_();
-    const remember = (rememberOverride !== null) ? rememberOverride : !!(chk && chk.checked);
-    if(remember){
+    const remember = !!(chk && chk.checked);
+    if(remember || isAuto){
       try{ localStorage.setItem(LS_SECRET_KEY, secret); }catch(_e){}
       try{ localStorage.setItem(LS_PROFILE_KEY, profileId); }catch(_e){}
       setRememberDeviceEnabled_(true);
@@ -2017,21 +1909,18 @@ async function doUnlock(isAuto=false, opts={}){
       try{ localStorage.removeItem(LS_PROFILE_KEY); }catch(_e){}
       setRememberDeviceEnabled_(false);
     }
+
     closeUnlock();
-    setCostsShellMode_("app");
     show(el("appRoot"));
     show(el("mobileNav"));
     setView("purchases");
     await loadAll();
   } catch(err){
-    UNLOCKED_SECRET = "";
-    UNLOCKED_PROFILE = { id:"", label:"", categories:[] };
-    if(!silent && el("unlockMsg")) el("unlockMsg").textContent = (err && err.message) ? err.message : "No autorizado";
-    if(isAuto || fromPortal){
+    if(el("unlockMsg")) el("unlockMsg").textContent = (err && err.message) ? err.message : "No autorizado";
+    if(isAuto){
       try{ localStorage.removeItem(LS_SECRET_KEY); }catch(_e){}
       try{ localStorage.removeItem(LS_PROFILE_KEY); }catch(_e){}
       setRememberDeviceEnabled_(false);
-      clearPortalCostsSession_();
     }
   } finally {
     hideLoading();
@@ -2040,7 +1929,6 @@ async function doUnlock(isAuto=false, opts={}){
 
 function logout(){
   UNLOCKED_SECRET = "";
-  UNLOCKED_PROFILE = { id:"", label:"", categories:[] };
   try{ resetRecipesAuth_(); }catch(_e){}
   try{ localStorage.removeItem(LS_SECRET_KEY); }catch(_e){}
   try{ localStorage.removeItem(LS_PROFILE_KEY); }catch(_e){}
@@ -2053,7 +1941,6 @@ function logout(){
   if(chk) chk.checked = false;
   hide(el("mobileNav"));
   hide(el("mNavSheetBack"));
-  clearPortalCostsSession_();
   openUnlock("Sesión cerrada.");
 }
 
@@ -3293,7 +3180,7 @@ function bind(){
 
   // Mobile nav (solo móvil)
   bindFastTap_("mNavReload", ()=> el("btnReload")?.click());
-  bindFastTap_("mNavExit", ()=> { if(hasHubAccess_()) goHub_(); else el("btnExit")?.click(); });
+  bindFastTap_("mNavExit", ()=> el("btnExit")?.click());
   bindFastTap_("mNavGoPurchases", ()=>{
     if(state.view === "purchases"){
       updateMobileNavLabel_();
@@ -3697,32 +3584,21 @@ el("ingModalBack")?.addEventListener("click", (e)=>{ if(e.target && e.target.id=
   const saved = String(localStorage.getItem(LS_SECRET_KEY) || "").trim();
   const savedProfile = String(localStorage.getItem(LS_PROFILE_KEY) || "").trim();
   const remembered = isRememberDeviceEnabled_();
-  const portal = loadPortalCostsSession_();
 
   const chk = getRememberCheckbox_();
   if(chk) chk.checked = !!saved && remembered;
 
   if(savedProfile && el("loginProfile")) el("loginProfile").value = savedProfile;
 
-  try{
-    if(portal?.id && portal?.password){
-      if(el("loginProfile")) el("loginProfile").value = String(portal.id || "").trim();
-      if(el("secretInput")) el("secretInput").value = String(portal.password || "").trim();
-      if(chk) chk.checked = !!portal.remember;
-      await doUnlock(false, { fromPortal:true, silent:true, remember: !!portal.remember });
-    } else if(saved && remembered && savedProfile){
-      if(el("secretInput")) el("secretInput").value = saved;
-      await doUnlock(true);
-    } else {
-      if(saved && !remembered){
-        try{ localStorage.removeItem(LS_SECRET_KEY); }catch(_e){}
-        try{ localStorage.removeItem(LS_PROFILE_KEY); }catch(_e){}
-      }
-      openUnlock("");
+  if(saved && remembered && savedProfile){
+    if(el("secretInput")) el("secretInput").value = saved;
+    doUnlock(true);
+  } else {
+    if(saved && !remembered){
+      try{ localStorage.removeItem(LS_SECRET_KEY); }catch(_e){}
+      try{ localStorage.removeItem(LS_PROFILE_KEY); }catch(_e){}
     }
-  } finally {
-    revealHubBoot_();
-    syncMobileNavForViewport_();
+    openUnlock("");
   }
 })();
 
