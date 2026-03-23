@@ -14,8 +14,10 @@ const LS_SECRET_KEY = "AMARED_COSTS_SECRET";
 const LS_REMEMBER_KEY = "AMARED_COSTS_REMEMBER_V1";
 const LS_PROFILE_KEY = "AMARED_COSTS_PROFILE_ID";
 const LS_DELETED_DESSERTS_KEY = "AMARED_DELETED_DESSERTS_V1";
+const SS_COSTS_SESSION_KEY = "AMARED_COSTS_SESSION_V1";
 
 let UNLOCKED_SECRET = "";
+let UNLOCKED_PROFILE = { id:"", label:"", categories:[] };
 let LOGIN_PROFILES = [];
 let state = {
   items: [],
@@ -360,7 +362,19 @@ function syncSecretToggleState_(){
   if(!inp || !btn) return;
   const hidden = inp.type !== "text";
   btn.textContent = hidden ? "◉" : "◎";
-  btn.setAttribute("aria-label", hidden ? "Mostrar PIN" : "Ocultar PIN");
+  btn.setAttribute("aria-label", hidden ? "Mostrar contraseña" : "Ocultar contraseña");
+}
+
+function loadPortalCostsSession_(){
+  try{
+    const raw = sessionStorage.getItem(SS_COSTS_SESSION_KEY);
+    const data = raw ? JSON.parse(raw) : null;
+    if(data?.id && data?.password) return data;
+  }catch(_e){}
+  return null;
+}
+function clearPortalCostsSession_(){
+  try{ sessionStorage.removeItem(SS_COSTS_SESSION_KEY); }catch(_e){}
 }
 
 async function fetchProfilesPublic_(category){
@@ -375,9 +389,6 @@ async function populateLoginProfiles_(){
     try{ rows = await fetchProfilesPublic_("costs"); }catch(_e){}
     if(!rows.length){
       try{ rows = await fetchProfilesPublic_("admin"); }catch(_e){}
-    }
-    if(!rows.length){
-      try{ rows = await fetchProfilesPublic_("payments"); }catch(_e){}
     }
     LOGIN_PROFILES = Array.isArray(rows) ? rows : [];
     const sel = el("loginProfile");
@@ -473,9 +484,19 @@ function setCostsMeta(msg){
 // =============== API ===============
 async function api(body, {timeoutMs=30000} = {}){
   const payload = Object.assign({}, body || {});
-  if(payload && payload.costs_secret){
-    delete payload.costs_secret;
-    if(UNLOCKED_SECRET) payload.admin_pin = UNLOCKED_SECRET;
+  if(payload && payload.costs_secret) delete payload.costs_secret;
+  if(
+    UNLOCKED_PROFILE?.id &&
+    UNLOCKED_SECRET &&
+    payload.action !== "profiles_auth" &&
+    payload.action !== "profiles_public_list" &&
+    payload.action !== "validate_admin_pin" &&
+    payload.action !== "validate_profiles_secret" &&
+    !payload.auth_profile_id
+  ){
+    payload.auth_profile_id = String(UNLOCKED_PROFILE.id || "").trim();
+    payload.auth_profile_password = String(UNLOCKED_SECRET || "").trim();
+    payload.auth_page = "costs";
   }
   const controller = new AbortController();
   const t = setTimeout(()=>controller.abort(), timeoutMs);
@@ -499,10 +520,14 @@ async function api(body, {timeoutMs=30000} = {}){
   return out;
 }
 
-async function validateSecret(secret){
-  const out = await api({ action:"validate_admin_pin", admin_pin: secret }, {timeoutMs: 30000});
-  if(out.valid !== true) throw new Error("PIN incorrecto o no autorizado.");
-  return true;
+async function validateSecret(secret, profileId){
+  const out = await api({ action:"profiles_auth", profile_id: profileId, password_plain: secret }, {timeoutMs: 30000});
+  const cats = Array.isArray(out?.profile?.categories)
+    ? out.profile.categories.map(v => String(v || "").trim().toLowerCase())
+    : [];
+  const allowed = cats.includes("admin") || cats.includes("costs") || cats.includes("purchases");
+  if(out.valid !== true || !allowed) throw new Error(out?.error || "Contraseña incorrecta o no autorizada.");
+  return out.profile || { id: profileId, label: profileId, categories: cats };
 }
 
 // =============== RECETAS (desde hoja RECETAS) ===============
@@ -1855,15 +1880,7 @@ function isDessertLocallyDeleted_(id){
   return !!map && Object.prototype.hasOwnProperty.call(map, did);
 }
 
-function setAuthViewState_(locked){
-  try{
-    document.body.classList.remove("is-login","is-app");
-    document.body.classList.add(locked ? "is-login" : "is-app");
-  }catch(_e){}
-}
-
 function openUnlock(msg){
-  setAuthViewState_(true);
   if(el("unlockMsg")) el("unlockMsg").textContent = msg || "";
   show(el("unlockBack"));
   hide(el("appRoot"));
@@ -1890,25 +1907,34 @@ function closeUnlock(){
   hide(el("unlockBack"));
 }
 
-async function doUnlock(isAuto=false){
+async function doUnlock(isAuto=false, opts={}){
   const profileId = String(el("loginProfile")?.value || "").trim();
   const secret = String(el("secretInput")?.value || "").trim();
+  const fromPortal = !!opts.fromPortal;
+  const silent = !!opts.silent;
+  const rememberOverride = (typeof opts.remember === "boolean") ? opts.remember : null;
+
   if(!profileId){
-    if(!isAuto && el("unlockMsg")) el("unlockMsg").textContent = "Selecciona un perfil.";
+    if(!isAuto && !silent && el("unlockMsg")) el("unlockMsg").textContent = "Selecciona un perfil.";
     return;
   }
   if(!secret){
-    if(!isAuto && el("unlockMsg")) el("unlockMsg").textContent = "Escribe el PIN.";
+    if(!isAuto && !silent && el("unlockMsg")) el("unlockMsg").textContent = "Escribe la contraseña.";
     return;
   }
 
   showLoading("Validando…", "Verificando el acceso en el servidor.");
   try{
-    await validateSecret(secret);
+    const authProfile = await validateSecret(secret, profileId);
     UNLOCKED_SECRET = secret;
+    UNLOCKED_PROFILE = {
+      id: String(authProfile?.id || profileId || "").trim(),
+      label: String(authProfile?.label || profileId || "").trim(),
+      categories: Array.isArray(authProfile?.categories) ? authProfile.categories : []
+    };
     const chk = getRememberCheckbox_();
-    const remember = !!(chk && chk.checked);
-    if(remember || isAuto){
+    const remember = (rememberOverride !== null) ? rememberOverride : !!(chk && chk.checked);
+    if(remember){
       try{ localStorage.setItem(LS_SECRET_KEY, secret); }catch(_e){}
       try{ localStorage.setItem(LS_PROFILE_KEY, profileId); }catch(_e){}
       setRememberDeviceEnabled_(true);
@@ -1917,19 +1943,22 @@ async function doUnlock(isAuto=false){
       try{ localStorage.removeItem(LS_PROFILE_KEY); }catch(_e){}
       setRememberDeviceEnabled_(false);
     }
+    if(fromPortal) clearPortalCostsSession_();
 
     closeUnlock();
-    setAuthViewState_(false);
     show(el("appRoot"));
     show(el("mobileNav"));
     setView("purchases");
     await loadAll();
   } catch(err){
-    if(el("unlockMsg")) el("unlockMsg").textContent = (err && err.message) ? err.message : "No autorizado";
-    if(isAuto){
+    UNLOCKED_SECRET = "";
+    UNLOCKED_PROFILE = { id:"", label:"", categories:[] };
+    if(!silent && el("unlockMsg")) el("unlockMsg").textContent = (err && err.message) ? err.message : "No autorizado";
+    if(isAuto || fromPortal){
       try{ localStorage.removeItem(LS_SECRET_KEY); }catch(_e){}
       try{ localStorage.removeItem(LS_PROFILE_KEY); }catch(_e){}
       setRememberDeviceEnabled_(false);
+      clearPortalCostsSession_();
     }
   } finally {
     hideLoading();
@@ -1938,6 +1967,7 @@ async function doUnlock(isAuto=false){
 
 function logout(){
   UNLOCKED_SECRET = "";
+  UNLOCKED_PROFILE = { id:"", label:"", categories:[] };
   try{ resetRecipesAuth_(); }catch(_e){}
   try{ localStorage.removeItem(LS_SECRET_KEY); }catch(_e){}
   try{ localStorage.removeItem(LS_PROFILE_KEY); }catch(_e){}
@@ -1950,6 +1980,7 @@ function logout(){
   if(chk) chk.checked = false;
   hide(el("mobileNav"));
   hide(el("mNavSheetBack"));
+  clearPortalCostsSession_();
   openUnlock("Sesión cerrada.");
 }
 
@@ -3593,13 +3624,19 @@ el("ingModalBack")?.addEventListener("click", (e)=>{ if(e.target && e.target.id=
   const saved = String(localStorage.getItem(LS_SECRET_KEY) || "").trim();
   const savedProfile = String(localStorage.getItem(LS_PROFILE_KEY) || "").trim();
   const remembered = isRememberDeviceEnabled_();
+  const portal = loadPortalCostsSession_();
 
   const chk = getRememberCheckbox_();
   if(chk) chk.checked = !!saved && remembered;
 
   if(savedProfile && el("loginProfile")) el("loginProfile").value = savedProfile;
 
-  if(saved && remembered && savedProfile){
+  if(portal?.id && portal?.password){
+    if(el("loginProfile")) el("loginProfile").value = String(portal.id || "").trim();
+    if(el("secretInput")) el("secretInput").value = String(portal.password || "").trim();
+    if(chk) chk.checked = !!portal.remember;
+    doUnlock(false, { fromPortal:true, silent:true, remember: !!portal.remember });
+  } else if(saved && remembered && savedProfile){
     if(el("secretInput")) el("secretInput").value = saved;
     doUnlock(true);
   } else {
