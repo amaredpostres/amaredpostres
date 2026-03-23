@@ -8,6 +8,7 @@ let LOGIN_PROFILES = [];
 const LS_PROFILES_PIN_KEY = "AMARED_PROFILES_ADMIN_PIN";
 const LS_PROFILES_PROFILE_KEY = "AMARED_PROFILES_PROFILE";
 const LS_PROFILES_REMEMBER_KEY = "AMARED_PROFILES_REMEMBER";
+const SS_PROFILES_SESSION_KEY = "AMARED_PROFILES_SESSION_V1";
 let PROFILE_SESSION = { id: null, label: null, password: null, categories: [] };
 
 // =================== DOM ===================
@@ -115,6 +116,7 @@ function showLoading(title, msg){
   if(!loading) return;
   loadingTitle.textContent = title || "Cargando…";
   loadingMsg.textContent = msg || "Procesando…";
+  loading.style.zIndex = "120000";
   loading.style.display = "flex";
   loading.setAttribute("aria-hidden","false");
   syncProfilesMobileBar();
@@ -179,6 +181,18 @@ function clearProfilesRemember_(){
     localStorage.removeItem(LS_PROFILES_PROFILE_KEY);
     localStorage.removeItem(LS_PROFILES_REMEMBER_KEY);
   }catch(_e){}
+}
+
+function loadPortalProfilesSession_(){
+  try{
+    const raw = sessionStorage.getItem(SS_PROFILES_SESSION_KEY);
+    const data = raw ? JSON.parse(raw) : null;
+    if(data?.id && data?.password) return data;
+  }catch(_e){}
+  return null;
+}
+function clearPortalProfilesSession_(){
+  try{ sessionStorage.removeItem(SS_PROFILES_SESSION_KEY); }catch(_e){}
 }
 
 async function fetchProfilesPublic_(category){
@@ -624,6 +638,7 @@ btnLogout?.addEventListener("click", ()=>{
   if(inpSecret) inpSecret.value = "";
   if(loginProfile) loginProfile.value = "";
   clearProfilesRemember_();
+  clearPortalProfilesSession_();
   setLockedUI(true);
 });
 
@@ -785,15 +800,25 @@ inpSecret?.addEventListener("keydown", (e)=>{ if(e.key === "Enter") btnUnlock?.c
     syncPinToggleState_();
     showLoading("Cargando perfiles…", "Buscando perfiles de perfiles.");
     await populateLoginProfiles_();
+
+    const portalSession = loadPortalProfilesSession_();
     const remembered = localStorage.getItem(LS_PROFILES_REMEMBER_KEY) === "1";
     const savedPin = String(localStorage.getItem(LS_PROFILES_PIN_KEY) || "").trim();
     const savedProfile = String(localStorage.getItem(LS_PROFILES_PROFILE_KEY) || "").trim();
-    if(chkRememberProfiles) chkRememberProfiles.checked = remembered;
-    if(savedProfile && loginProfile) loginProfile.value = savedProfile;
-    if(savedPin && remembered && savedProfile){
+
+    if(portalSession?.id && portalSession?.password){
+      if(chkRememberProfiles) chkRememberProfiles.checked = !!portalSession.remember;
+      if(loginProfile) loginProfile.value = String(portalSession.id || "").trim();
+      if(inpSecret) inpSecret.value = String(portalSession.password || "").trim();
+      shouldAutoUnlock = true;
+      clearPortalProfilesSession_();
+    }else if(savedPin && remembered && savedProfile){
+      if(chkRememberProfiles) chkRememberProfiles.checked = remembered;
+      if(loginProfile) loginProfile.value = savedProfile;
       if(inpSecret) inpSecret.value = savedPin;
       shouldAutoUnlock = true;
     }else{
+      if(chkRememberProfiles) chkRememberProfiles.checked = false;
       setLockedUI(true);
     }
   }catch(_e){
