@@ -1,6 +1,21 @@
 <!doctype html>
 <html lang="es">
 <head>
+  <script>
+    try {
+      if (new URLSearchParams(window.location.search).get("hub") === "1") {
+        document.documentElement.classList.add("hubBoot");
+      } else {
+        document.documentElement.classList.add("hubReady");
+      }
+    } catch (_e) {
+      document.documentElement.classList.add("hubReady");
+    }
+  </script>
+  <style>
+    html.hubBoot body { opacity: 0; }
+    html.hubReady body { opacity: 1; transition: opacity .12s ease; }
+  </style>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>AMARED · Cocina</title>
