@@ -151,7 +151,7 @@
 }
 
 
-/* ===== Login con perfil / PIN ===== */
+/* ===== Login con perfil / contraseña ===== */
 #unlockBack{
   position:relative;
   inset:auto;
@@ -208,14 +208,13 @@
   transform:none !important;
 }
 .unlockActions{
-  display:flex;
+  display:grid;
+  grid-template-columns:1fr 1fr;
   gap:10px;
   margin-top:14px;
-  justify-content:stretch;
 }
 .unlockActions .btn,
 .unlockActions .btnLinkLike{
-  flex:1;
   min-height:48px;
 }
 .costsHiddenAuxBtn{
@@ -254,8 +253,6 @@
   width:auto;
   display:block;
 }
-.costsPage.is-login #costsLoginTopbar{ display:block; }
-.costsPage.is-app #costsLoginTopbar{ display:none !important; }
 .costsLoginModal.amLoginCard{
   width:min(700px, 100%);
   border-radius:26px;
@@ -301,15 +298,9 @@
   background:transparent;
 }
 .amLoginActionsRow{
-  display:flex;
+  display:grid;
+  grid-template-columns:1fr 1fr;
   gap:10px;
-  margin-top:14px;
-  justify-content:stretch;
-}
-.amLoginActionsRow .btn,
-.amLoginActionsRow .btnLinkLike{
-  flex:1;
-  min-height:48px;
 }
 @media (max-width: 720px){
   #unlockBack{ padding:16px 12px 0; }
@@ -320,7 +311,7 @@
   .costsLoginModal .amLoginTitle{ font-size:clamp(20px,6.2vw,24px); }
   .costsLoginModal .amLoginLead{ font-size:15px; }
   .unlockActions,
-  .amLoginActionsRow{ flex-direction:column; }
+  .amLoginActionsRow{ grid-template-columns:1fr; }
 }
 
 
@@ -338,15 +329,15 @@
 <!-- APP (solo después de desbloquear) -->
 <div class="page" id="appRoot" style="display:none;">
 <header class="topbar">
-<div class="topbarInner amSectionTopbarInner">
-<div class="amSectionBrand">
-<img alt="AMARED" class="amSectionBrandLogo" src="assets/Logo-Isotipo-Amared.svg"/>
-<div class="amSectionBrandMeta">
-  <div class="amSectionTitle">Compras y Recetas</div>
-  <div class="amSectionSubtitle">Costos, compras e ingredientes</div>
+<div class="topbarInner" style="justify-content:space-between;">
+<div class="brand" style="gap:12px;">
+<img alt="AMARED" class="brandLogo" src="assets/Logo-Isotipo-Amared.svg" style="height:44px;"/>
+<div style="display:flex; flex-direction:column; gap:2px;">
+  <div style="font-weight:950; line-height:1.1;">Compras y Recetas</div>
+  <div style="font-size:12.5px; font-weight:800; color:rgba(64,17,2,.65);">Costos, compras e ingredientes</div>
 </div>
 </div>
-<div class="pTopBtns amSectionActions">
+<div class="pTopBtns">
 <button class="btn secondary" id="btnReload">Recargar</button>
 <div aria-label="Compras y Recetas" class="pTabs" role="tablist">
 <button aria-selected="true" class="pTabBtn isActive" id="btnTabPurchases" role="tab">Compras</button>
@@ -502,7 +493,7 @@
 <div class="modal costsLoginModal amLoginCard">
 <div class="amLoginHero">
 <h2 class="amLoginTitle">Acceso Compras y Recetas</h2>
-<p class="amLoginLead">Selecciona un perfil aprobado e ingresa el PIN.</p>
+<p class="amLoginLead">Selecciona un perfil aprobado e ingresa la contraseña.</p>
 </div>
 <div class="modalBody costsLoginBody" style="padding:0;">
 <div class="unlockGrid">
@@ -515,10 +506,10 @@
   </div>
 
   <div class="field" style="margin-top:10px;">
-    <label>PIN</label>
+    <label>Contraseña</label>
     <div class="unlockPinRow amLoginPinRow">
       <input autocomplete="current-password" class="input" id="secretInput" placeholder="••••••" type="password"/>
-      <button class="unlockEyeBtn amPinToggleBtn" id="btnToggleSecret" type="button" aria-label="Mostrar u ocultar PIN">👁</button>
+      <button class="unlockEyeBtn amPinToggleBtn" id="btnToggleSecret" type="button" aria-label="Mostrar u ocultar contraseña">👁</button>
     </div>
   </div>
 
@@ -536,7 +527,7 @@
     <button class="btn secondary costsHiddenAuxBtn" id="btnClear" type="button" tabindex="-1" aria-hidden="true">Limpiar</button>
   </div>
 
-  <div class="status amLoginStatus" id="unlockMsg"></div>
+  <div class="pErr" id="unlockMsg"></div>
 </div>
 </div>
 </div>
@@ -792,16 +783,16 @@
 </div>
 </div>
 <!-- LOADING overlay (pantalla completa) -->
-<div class="amLoadingOverlay hidden" id="loadingBack">
-  <div class="amLoadingCard">
-    <div class="amLoadingRow">
-      <div class="amSpinner"></div>
-      <div>
-        <div id="loadingTitle" class="amLoadingTitle">Cargando…</div>
-        <div id="loadingSub" class="amLoadingSub">Un momento.</div>
-      </div>
-    </div>
-  </div>
+<div class="modalOverlay hidden" id="loadingBack">
+<div class="modal" style="width:min(520px, 96vw);">
+<div class="modalBody" style="padding:14px; display:flex; gap:12px; align-items:center;">
+<div class="pSpinner"></div>
+<div>
+<div id="loadingTitle" style="font-weight:950;">Cargando…</div>
+<div id="loadingSub" style="opacity:.75; font-weight:800; margin-top:2px;">Un momento.</div>
+</div>
+</div>
+</div>
 </div>
 <script src="kitchen-costs.js?v=20260307-v17"></script>
 <script src="costs.js?v=20260307-v17"></script>
