@@ -366,8 +366,9 @@
 
 
 /* ===== Loading overlay unificado ===== */
-#loadingBack.amLoadingOverlay{ z-index: 9999 !important; }
-#loadingBack[aria-hidden="true"]{ display:none !important; }
+#loadingBack.amLoadingOverlay{ z-index: 120000 !important; }
+#loadingBack.amLoadingOverlay.hidden{ display:none !important; }
+#loadingBack .amLoadingCard{ width:min(380px, 92vw); }
 </style>
 </head>
 <body class="costsPage is-login">
@@ -847,13 +848,13 @@
 </div>
 </div>
 <!-- LOADING overlay (pantalla completa) -->
-<div id="loadingBack" class="amLoadingOverlay" aria-hidden="true" style="display:none;">
+<div id="loadingBack" class="amLoadingOverlay hidden" aria-hidden="true">
   <div class="amLoadingCard">
     <div class="amLoadingRow">
       <div class="amSpinner"></div>
       <div>
         <div id="loadingTitle" class="amLoadingTitle">Cargando…</div>
-        <div id="loadingSub" class="amLoadingSub">Procesando</div>
+        <div id="loadingSub" class="amLoadingSub">Un momento.</div>
       </div>
     </div>
   </div>
