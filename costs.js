@@ -15,6 +15,29 @@ const LS_REMEMBER_KEY = "AMARED_COSTS_REMEMBER_V1";
 const LS_PROFILE_KEY = "AMARED_COSTS_PROFILE_ID";
 const LS_DELETED_DESSERTS_KEY = "AMARED_DELETED_DESSERTS_V1";
 const SS_COSTS_SESSION_KEY = "AMARED_COSTS_SESSION_V1";
+const HUB_URL = "hub.html";
+const HUB_SESSION_KEY = "AMARED_HUB_SESSION_V1";
+const HUB_REMEMBER_KEY = "AMARED_HUB_REMEMBER_V1";
+const FROM_HUB = (() => { try { return new URLSearchParams(window.location.search).get("hub") === "1"; } catch { return false; } })();
+function hasHubAccess_(){
+  try{ return FROM_HUB || !!sessionStorage.getItem(HUB_SESSION_KEY) || !!localStorage.getItem(HUB_REMEMBER_KEY); }catch(_e){ return FROM_HUB; }
+}
+function revealHubBoot_(){
+  try{ document.documentElement.classList.remove("hubBoot"); document.documentElement.classList.add("hubReady"); }catch(_e){}
+}
+function goHub_(){ window.location.href = HUB_URL; }
+function ensureHubReturnStyles_(){
+  if(document.getElementById("amHubReturnStyles")) return;
+  const st = document.createElement("style");
+  st.id = "amHubReturnStyles";
+  st.textContent = `
+    .amHubReturnChip{position:fixed; right:14px; bottom:calc(env(safe-area-inset-bottom, 0px) + 84px); z-index:9499; display:none; align-items:center; justify-content:center; min-height:42px; padding:0 16px; border-radius:999px; border:1px solid rgba(255,255,255,.92); background:linear-gradient(180deg, rgba(255,255,255,.96), rgba(252,247,242,.92)); box-shadow:0 12px 24px rgba(64,17,2,.14); font-weight:900; color:var(--choco);}
+    .amHubReturnChip.isVisible{display:inline-flex;}
+    @media (min-width: 721px){ .amHubReturnChip{ display:none !important; } }
+  `;
+  document.head.appendChild(st);
+}
+
 
 let UNLOCKED_SECRET = "";
 let UNLOCKED_PROFILE = { id:"", label:"", categories:[] };
@@ -217,6 +240,33 @@ function updateMobileNavLabel_(){
 function openMobileNavSheet_(){ updateMobileNavLabel_(); }
 function closeMobileNavSheet_(){}
 
+function ensureCostsHubReturnUI(){
+  if(!hasHubAccess_()) return null;
+  ensureHubReturnStyles_();
+  const desktopWrap = document.querySelector('.pTopBtns');
+  let btn = document.getElementById('btnCostsHub');
+  if(desktopWrap && !btn){
+    btn = document.createElement('button');
+    btn.id = 'btnCostsHub';
+    btn.type = 'button';
+    btn.className = 'btn secondary';
+    btn.textContent = 'Mi espacio';
+    btn.addEventListener('click', goHub_);
+    desktopWrap.insertBefore(btn, el('btnExit') || null);
+  }
+  let chip = document.getElementById('costsHubChip');
+  if(!chip){
+    chip = document.createElement('button');
+    chip.id = 'costsHubChip';
+    chip.type = 'button';
+    chip.className = 'amHubReturnChip';
+    chip.textContent = 'Mi espacio';
+    chip.addEventListener('click', goHub_);
+    document.body.appendChild(chip);
+  }
+  return { btn, chip };
+}
+
 function syncMobileNavForViewport_(){
   const nav = el("mobileNav");
   const app = el("appRoot");
@@ -226,6 +276,10 @@ function syncMobileNavForViewport_(){
   const appVisible = !!app && !app.classList.contains("hidden") && app.hidden !== true && (app.style.display !== "none");
   const unlockVisible = !!unlock && !unlock.classList.contains("hidden") && unlock.hidden !== true && (unlock.style.display !== "none");
   const isMobile = (()=>{ try{ return window.innerWidth <= 560; }catch(_e){ return false; } })();
+
+  const hubUi = ensureCostsHubReturnUI();
+  if(hubUi?.btn) hubUi.btn.style.display = (appVisible && !isMobile) ? "inline-flex" : "none";
+  if(hubUi?.chip) hubUi.chip.classList.toggle("isVisible", isMobile && appVisible && !unlockVisible && !isFrontOverlayOpen_());
 
   if(isMobile && appVisible && !unlockVisible){
     show(nav);
@@ -3631,20 +3685,25 @@ el("ingModalBack")?.addEventListener("click", (e)=>{ if(e.target && e.target.id=
 
   if(savedProfile && el("loginProfile")) el("loginProfile").value = savedProfile;
 
-  if(portal?.id && portal?.password){
-    if(el("loginProfile")) el("loginProfile").value = String(portal.id || "").trim();
-    if(el("secretInput")) el("secretInput").value = String(portal.password || "").trim();
-    if(chk) chk.checked = !!portal.remember;
-    doUnlock(false, { fromPortal:true, silent:true, remember: !!portal.remember });
-  } else if(saved && remembered && savedProfile){
-    if(el("secretInput")) el("secretInput").value = saved;
-    doUnlock(true);
-  } else {
-    if(saved && !remembered){
-      try{ localStorage.removeItem(LS_SECRET_KEY); }catch(_e){}
-      try{ localStorage.removeItem(LS_PROFILE_KEY); }catch(_e){}
+  try{
+    if(portal?.id && portal?.password){
+      if(el("loginProfile")) el("loginProfile").value = String(portal.id || "").trim();
+      if(el("secretInput")) el("secretInput").value = String(portal.password || "").trim();
+      if(chk) chk.checked = !!portal.remember;
+      await doUnlock(false, { fromPortal:true, silent:true, remember: !!portal.remember });
+    } else if(saved && remembered && savedProfile){
+      if(el("secretInput")) el("secretInput").value = saved;
+      await doUnlock(true);
+    } else {
+      if(saved && !remembered){
+        try{ localStorage.removeItem(LS_SECRET_KEY); }catch(_e){}
+        try{ localStorage.removeItem(LS_PROFILE_KEY); }catch(_e){}
+      }
+      openUnlock("");
     }
-    openUnlock("");
+  } finally {
+    revealHubBoot_();
+    syncMobileNavForViewport_();
   }
 })();
 
