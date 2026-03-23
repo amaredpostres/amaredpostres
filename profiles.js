@@ -10,6 +10,16 @@ const LS_PROFILES_PROFILE_KEY = "AMARED_PROFILES_PROFILE";
 const LS_PROFILES_REMEMBER_KEY = "AMARED_PROFILES_REMEMBER";
 const SS_PROFILES_SESSION_KEY = "AMARED_PROFILES_SESSION_V1";
 let PROFILE_SESSION = { id: null, label: null, password: null, categories: [] };
+const HUB_URL = "hub.html";
+const HUB_SESSION_KEY = "AMARED_HUB_SESSION_V1";
+const HUB_REMEMBER_KEY = "AMARED_HUB_REMEMBER_V1";
+const FROM_HUB = (() => { try { return new URLSearchParams(window.location.search).get("hub") === "1"; } catch { return false; } })();
+function hasHubAccess_(){
+  try{ return FROM_HUB || !!sessionStorage.getItem(HUB_SESSION_KEY) || !!localStorage.getItem(HUB_REMEMBER_KEY); }catch(_e){ return FROM_HUB; }
+}
+function revealHubBoot_(){
+  try{ document.documentElement.classList.remove("hubBoot"); document.documentElement.classList.add("hubReady"); }catch(_e){}
+}
 
 // =================== DOM ===================
 const btnBack = document.getElementById("btnBack");
@@ -557,6 +567,7 @@ tbody?.addEventListener("click", async (ev)=>{
     console.error("delete error:", e, e._raw);
   }finally{
     hideLoading();
+    revealHubBoot_();
   }
 });
 
@@ -580,6 +591,10 @@ async function loadProfiles(){
 
 // =================== EVENTS ===================
 function goBackFromProfiles_(){
+  if(hasHubAccess_()){
+    location.href = HUB_URL;
+    return;
+  }
   if(history.length > 1) history.back();
   else location.href = "index.html";
 }
@@ -825,6 +840,7 @@ inpSecret?.addEventListener("keydown", (e)=>{ if(e.key === "Enter") btnUnlock?.c
     setLockedUI(true);
   }finally{
     hideLoading();
+    if(!shouldAutoUnlock) revealHubBoot_();
   }
   if(shouldAutoUnlock) btnUnlock?.click();
 })();
