@@ -590,7 +590,15 @@ async function loadProfiles(){
 }
 
 // =================== EVENTS ===================
+
 function goBackFromProfiles_(){
+  try{
+    const ref = String(document.referrer || '');
+    if((hasHubAccess_() || /(^|\/)hub\.html(?:\?|$)/i.test(ref)) && history.length > 1){
+      history.back();
+      return;
+    }
+  }catch(_e){}
   if(hasHubAccess_()){
     location.href = HUB_URL;
     return;
@@ -826,7 +834,6 @@ inpSecret?.addEventListener("keydown", (e)=>{ if(e.key === "Enter") btnUnlock?.c
       if(loginProfile) loginProfile.value = String(portalSession.id || "").trim();
       if(inpSecret) inpSecret.value = String(portalSession.password || "").trim();
       shouldAutoUnlock = true;
-      clearPortalProfilesSession_();
     }else if(savedPin && remembered && savedProfile){
       if(chkRememberProfiles) chkRememberProfiles.checked = remembered;
       if(loginProfile) loginProfile.value = savedProfile;
