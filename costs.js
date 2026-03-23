@@ -25,7 +25,17 @@ function hasHubAccess_(){
 function revealHubBoot_(){
   try{ document.documentElement.classList.remove("hubBoot"); document.documentElement.classList.add("hubReady"); }catch(_e){}
 }
-function goHub_(){ window.location.href = HUB_URL; }
+
+function goHub_(){
+  try{
+    const ref = String(document.referrer || '');
+    if((FROM_HUB || /(^|\/)hub\.html(?:\?|$)/i.test(ref)) && window.history.length > 1){
+      window.history.back();
+      return;
+    }
+  }catch(_e){}
+  window.location.href = HUB_URL;
+}
 function ensureHubReturnStyles_(){
   if(document.getElementById("amHubReturnStyles")) return;
   const st = document.createElement("style");
@@ -240,9 +250,9 @@ function updateMobileNavLabel_(){
 function openMobileNavSheet_(){ updateMobileNavLabel_(); }
 function closeMobileNavSheet_(){}
 
+
 function ensureCostsHubReturnUI(){
   if(!hasHubAccess_()) return null;
-  ensureHubReturnStyles_();
   const desktopWrap = document.querySelector('.pTopBtns');
   let btn = document.getElementById('btnCostsHub');
   if(desktopWrap && !btn){
@@ -254,18 +264,27 @@ function ensureCostsHubReturnUI(){
     btn.addEventListener('click', goHub_);
     desktopWrap.insertBefore(btn, el('btnExit') || null);
   }
-  let chip = document.getElementById('costsHubChip');
-  if(!chip){
-    chip = document.createElement('button');
-    chip.id = 'costsHubChip';
-    chip.type = 'button';
-    chip.className = 'amHubReturnChip';
-    chip.textContent = 'Panel';
-    chip.addEventListener('click', goHub_);
-    document.body.appendChild(chip);
-  }
-  return { btn, chip };
+  const chip = document.getElementById('costsHubChip');
+  if(chip) chip.remove();
+  return { btn };
 }
+
+function syncCostsMobileReturnAction_(){
+  const btn = el('mNavExit');
+  if(!btn) return;
+  const fromHub = hasHubAccess_();
+  btn.setAttribute('aria-label', fromHub ? 'Volver al panel' : 'Salir');
+  btn.textContent = fromHub ? '⌂' : '⎋';
+}
+
+function setCostsShellMode_(mode){
+  const isApp = mode === 'app';
+  document.body.classList.remove('is-login','is-app');
+  document.body.classList.add(isApp ? 'is-app' : 'is-login');
+  const loginTopbar = el('costsLoginTopbar');
+  if(loginTopbar) loginTopbar.style.display = isApp ? 'none' : '';
+}
+
 
 function syncMobileNavForViewport_(){
   const nav = el("mobileNav");
@@ -279,7 +298,7 @@ function syncMobileNavForViewport_(){
 
   const hubUi = ensureCostsHubReturnUI();
   if(hubUi?.btn) hubUi.btn.style.display = (appVisible && !isMobile) ? "inline-flex" : "none";
-  if(hubUi?.chip) hubUi.chip.classList.toggle("isVisible", isMobile && appVisible && !unlockVisible && !isFrontOverlayOpen_());
+  syncCostsMobileReturnAction_();
 
   if(isMobile && appVisible && !unlockVisible){
     show(nav);
@@ -1936,6 +1955,7 @@ function isDessertLocallyDeleted_(id){
 
 function openUnlock(msg){
   if(el("unlockMsg")) el("unlockMsg").textContent = msg || "";
+  setCostsShellMode_("login");
   show(el("unlockBack"));
   hide(el("appRoot"));
   // ✅ En login no mostramos el menú inferior móvil
@@ -1997,9 +2017,8 @@ async function doUnlock(isAuto=false, opts={}){
       try{ localStorage.removeItem(LS_PROFILE_KEY); }catch(_e){}
       setRememberDeviceEnabled_(false);
     }
-    if(fromPortal) clearPortalCostsSession_();
-
     closeUnlock();
+    setCostsShellMode_("app");
     show(el("appRoot"));
     show(el("mobileNav"));
     setView("purchases");
@@ -3274,7 +3293,7 @@ function bind(){
 
   // Mobile nav (solo móvil)
   bindFastTap_("mNavReload", ()=> el("btnReload")?.click());
-  bindFastTap_("mNavExit", ()=> el("btnExit")?.click());
+  bindFastTap_("mNavExit", ()=> { if(hasHubAccess_()) goHub_(); else el("btnExit")?.click(); });
   bindFastTap_("mNavGoPurchases", ()=>{
     if(state.view === "purchases"){
       updateMobileNavLabel_();
