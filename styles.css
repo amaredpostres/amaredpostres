@@ -921,32 +921,6 @@ body{
   font-weight:850;
   color:rgba(64,17,2,.78);
 }
-.amLoginCard .field label{
-  display:block;
-  margin-bottom:6px;
-  font-size:12.5px;
-  color:rgba(64,17,2,.78);
-  font-weight:400;
-}
-.amLoginCard .input{
-  font-weight:400;
-  background:rgba(255,255,255,.85);
-}
-.amLoginCard select.input{
-  font-weight:400;
-}
-.amLoginStatus{
-  color:#b00020;
-  margin-top:10px;
-}
-.amLoginTopbar{
-  position:sticky;
-  top:0;
-  z-index:10;
-}
-.amLoginTopbarInner{
-  justify-content:center;
-}
 .amLoginFieldHint{
   margin-top:6px;
   color:rgba(64,17,2,.66);
@@ -1076,7 +1050,6 @@ body{
 }
 
 
-/* ===== Shared app chrome (topbar + bottom action bars) ===== */
 .amSectionTopbarInner{
   justify-content: space-between;
   align-items: center;
@@ -1148,95 +1121,14 @@ body{
   color: var(--choco);
 }
 
-.amBottomBar{
-  position:fixed;
-  left:12px;
-  right:12px;
-  bottom: calc(env(safe-area-inset-bottom, 0px) + 12px);
-  z-index: 9500;
-  display:none;
-  grid-template-columns:52px minmax(0,1fr) 52px;
-  gap:9px;
-  align-items:center;
-  padding:9px;
-  border-radius:999px;
-  border:1px solid rgba(64,17,2,.10);
-  background: rgba(254,246,239,.84);
-  box-shadow: 0 18px 44px rgba(64,17,2,.14);
-  backdrop-filter: blur(10px);
-}
-.amBottomBar.isVisible{ display:grid; }
-.amBottomIconBtn{
-  width:52px;
-  height:52px;
-  min-width:52px;
-  min-height:52px;
-  border:1px solid rgba(255,255,255,.92);
-  border-radius:999px;
-  background: linear-gradient(180deg, rgba(255,255,255,.98), rgba(249,246,242,.94));
-  color: var(--choco);
-  display:flex;
-  align-items:center;
-  justify-content:center;
-  gap:0;
-  padding:0;
-  font:inherit;
-  font-weight:950;
-  cursor:pointer;
-  box-shadow: 0 10px 22px rgba(64,17,2,.08), inset 0 1px 0 rgba(255,255,255,.85);
-}
-.amBottomIconBtn .ico{ font-size:19px; line-height:1; }
-.amBottomIconBtn .txt{ display:none; }
-.amBottomIconBtn:active{ transform:translateY(1px); }
-.amBottomCenter{
-  min-width:0;
-  display:grid;
-  gap:6px;
-  padding:4px;
-  border-radius:999px;
-  background: linear-gradient(180deg, rgba(255,255,255,.96), rgba(248,244,239,.94));
-  border:1px solid rgba(255,255,255,.92);
-  box-shadow: 0 10px 22px rgba(64,17,2,.06), inset 0 1px 0 rgba(255,255,255,.80);
-}
-.amBottomCenter.one{ grid-template-columns:1fr; }
-.amBottomCenter.two{ grid-template-columns:1fr 1fr; }
-.amBottomCenter.one .amBottomPill{ width:100%; }
-.amBottomPill{
-  min-width:0;
-  min-height:50px;
-  border:0;
-  border-radius:999px;
-  background:transparent;
-  color:rgba(64,17,2,.78);
-  display:flex;
-  align-items:center;
-  justify-content:center;
-  padding:0 16px;
-  width:100%;
-  font:inherit;
-  font-weight:950;
-  font-size:14.5px;
-  line-height:1;
-  cursor:pointer;
-  transition: background .16s ease, color .16s ease, box-shadow .16s ease, transform .12s ease;
-  white-space:nowrap;
-}
-.amBottomPill.isAccent{
-  background: linear-gradient(180deg, rgba(242,91,143,.18), rgba(246,186,96,.18));
-  color: var(--choco);
-  box-shadow: inset 0 0 0 1px rgba(64,17,2,.08), 0 8px 18px rgba(64,17,2,.08);
-}
-.amBottomPill:active{ transform:translateY(1px); }
-
 @media (max-width: 860px){
   .amSectionTopbarInner{
-    justify-content:center;
     gap:12px;
     padding-top:10px;
     padding-bottom:10px;
   }
   .amSectionBrand{
-    width:100%;
+    width:auto;
     justify-content:center;
     text-align:center;
     margin:0 auto;
@@ -1256,3 +1148,4 @@ body{
     font-size:12.5px;
   }
 }
+
