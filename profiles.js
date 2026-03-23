@@ -8,6 +8,7 @@ let LOGIN_PROFILES = [];
 const LS_PROFILES_PIN_KEY = "AMARED_PROFILES_ADMIN_PIN";
 const LS_PROFILES_PROFILE_KEY = "AMARED_PROFILES_PROFILE";
 const LS_PROFILES_REMEMBER_KEY = "AMARED_PROFILES_REMEMBER";
+let PROFILE_SESSION = { id: null, label: null, password: null, categories: [] };
 
 // =================== DOM ===================
 const btnBack = document.getElementById("btnBack");
@@ -155,14 +156,14 @@ function syncPinToggleState_(){
   if(!inpSecret || !btnTogglePin) return;
   const hidden = inpSecret.type !== "text";
   btnTogglePin.textContent = hidden ? "👁" : "🙈";
-  btnTogglePin.setAttribute("aria-label", hidden ? "Mostrar PIN" : "Ocultar PIN");
+  btnTogglePin.setAttribute("aria-label", hidden ? "Mostrar contraseña" : "Ocultar contraseña");
 }
 
 function saveProfilesRemember_(){
   try{
-    if(chkRememberProfiles?.checked && PROFILES_SECRET){
-      localStorage.setItem(LS_PROFILES_PIN_KEY, PROFILES_SECRET);
-      localStorage.setItem(LS_PROFILES_PROFILE_KEY, String(loginProfile?.value || "").trim());
+    if(chkRememberProfiles?.checked && PROFILE_SESSION?.id && PROFILE_SESSION?.password){
+      localStorage.setItem(LS_PROFILES_PIN_KEY, String(PROFILE_SESSION.password || ""));
+      localStorage.setItem(LS_PROFILES_PROFILE_KEY, String(PROFILE_SESSION.id || ""));
       localStorage.setItem(LS_PROFILES_REMEMBER_KEY, "1");
     }else{
       localStorage.removeItem(LS_PROFILES_PIN_KEY);
@@ -212,8 +213,17 @@ async function populateLoginProfiles_(){
 
 async function api(payload){
   const body = Object.assign({}, payload || {});
-  if(PROFILES_SECRET && !body.admin_pin){
-    body.admin_pin = PROFILES_SECRET;
+  if (
+    PROFILE_SESSION?.id &&
+    PROFILE_SESSION?.password &&
+    body.action !== "profiles_auth" &&
+    body.action !== "validate_admin_pin" &&
+    body.action !== "profiles_public_list" &&
+    !body.auth_profile_id
+  ) {
+    body.auth_profile_id = String(PROFILE_SESSION.id || "").trim();
+    body.auth_profile_password = String(PROFILE_SESSION.password || "").trim();
+    body.auth_page = "profiles";
   }
   delete body.profiles_secret;
   const res = await fetch(API_URL, {
@@ -525,7 +535,6 @@ tbody?.addEventListener("click", async (ev)=>{
     showLoading("Eliminando…", "Actualizando base de datos…");
     await api({
       action: "profiles_delete",
-      admin_pin: PROFILES_SECRET,
       profile_id: id
     });
     await loadProfiles();
@@ -540,16 +549,13 @@ tbody?.addEventListener("click", async (ev)=>{
 
 // =================== DATA ===================
 async function loadProfiles(){
-  if(!PROFILES_SECRET) throw new Error("No autorizado.");
+  if(!PROFILE_SESSION?.id || !PROFILE_SESSION?.password) throw new Error("No autorizado.");
   listMsg.textContent = "";
   mgrErr.textContent = "";
 
   showLoading("Cargando…", "Leyendo perfiles…");
   try{
-    const out = await api({
-      action: "profiles_list",
-      admin_pin: PROFILES_SECRET
-    });
+    const out = await api({ action: "profiles_list" });
     PROFILES_CACHE = Array.isArray(out.profiles) ? out.profiles : [];
     renderTable(PROFILES_CACHE);
     listMsg.textContent = `Actualizado: ${new Date().toLocaleString("es-CO")}`;
@@ -580,33 +586,33 @@ btnUnlock?.addEventListener("click", async ()=>{
     return;
   }
   if(!secret){
-    gateErr.textContent = "Ingresa el PIN.";
+    gateErr.textContent = "Ingresa la contraseña.";
     return;
   }
 
   try{
     showLoading("Validando…", "Comprobando acceso…");
-    const v = await api({ action: "validate_admin_pin", admin_pin: secret });
-    if(v.valid !== true) throw new Error("PIN incorrecto o no autorizado.");
+    const auth = await api({ action: "profiles_auth", profile_id: profileId, password_plain: secret });
+    const cats = Array.isArray(auth?.profile?.categories) ? auth.profile.categories.map(v => String(v || "").toLowerCase()) : [];
+    const allowed = cats.includes("admin") || cats.includes("profiles");
+    if(auth.valid !== true || !allowed) throw new Error(auth?.error || "Perfil sin permisos para gestionar perfiles.");
 
-    const out = await api({
-      action: "profiles_list",
-      admin_pin: secret
-    });
-
-    PROFILES_SECRET = secret;
+    PROFILE_SESSION = {
+      id: profileId,
+      label: auth?.profile?.label || (LOGIN_PROFILES.find(p => normalizeId(p) === profileId)?.label || profileId),
+      password: secret,
+      categories: auth?.profile?.categories || []
+    };
     saveProfilesRemember_();
     setLockedUI(false);
-
-    PROFILES_CACHE = Array.isArray(out.profiles) ? out.profiles : [];
-    renderTable(PROFILES_CACHE);
+    await loadProfiles();
     listMsg.textContent = "Acceso concedido.";
     gateErr.textContent = "";
   }catch(e){
-    PROFILES_SECRET = null;
+    PROFILE_SESSION = { id:null, label:null, password:null, categories:[] };
     clearProfilesRemember_();
     setLockedUI(true);
-    gateErr.textContent = "PIN incorrecto o no autorizado.";
+    gateErr.textContent = e?.message || "Contraseña incorrecta o no autorizada.";
     console.error("unlock error:", e, e._raw);
   }finally{
     hideLoading();
@@ -614,7 +620,7 @@ btnUnlock?.addEventListener("click", async ()=>{
 });
 
 btnLogout?.addEventListener("click", ()=>{
-  PROFILES_SECRET = null;
+  PROFILE_SESSION = { id:null, label:null, password:null, categories:[] };
   if(inpSecret) inpSecret.value = "";
   if(loginProfile) loginProfile.value = "";
   clearProfilesRemember_();
@@ -637,8 +643,8 @@ btnAdd?.addEventListener("click", async ()=>{
   const password2 = String(inpPassword2?.value||"").trim();
   const cats = getSelectedCategories();
 
-  if(!PROFILES_SECRET){
-    mgrErr.textContent = "Primero ingresa la clave.";
+  if(!PROFILE_SESSION?.id || !PROFILE_SESSION?.password){
+    mgrErr.textContent = "Primero inicia sesión.";
     return;
   }
   if(!name){
@@ -670,7 +676,6 @@ btnAdd?.addEventListener("click", async ()=>{
     showLoading("Guardando…", "Creando perfil…");
     await api({
       action: "profiles_add",
-      admin_pin: PROFILES_SECRET,
       profile_id: id,
       label: name,
       categories: cats.join(","),
@@ -699,8 +704,8 @@ editBack?.addEventListener("click", (ev)=>{
 btnEditSave?.addEventListener("click", async ()=>{
   editErr.textContent = "";
 
-  if(!PROFILES_SECRET){
-    editErr.textContent = "Primero ingresa la clave.";
+  if(!PROFILE_SESSION?.id || !PROFILE_SESSION?.password){
+    editErr.textContent = "Primero inicia sesión.";
     return;
   }
   const id = String(EDITING_ID || editId.value || "").trim();
@@ -735,8 +740,9 @@ btnEditSave?.addEventListener("click", async ()=>{
       editErr.textContent = "Ingresa el código admin para confirmar el cambio de contraseña.";
       return;
     }
-    if(confirmPin !== PROFILES_SECRET){
-      editErr.textContent = "El código admin de confirmación no coincide.";
+    const validCode = await api({ action: "validate_admin_pin", admin_pin: confirmPin });
+    if(validCode.valid !== true){
+      editErr.textContent = "El código admin de confirmación no es válido.";
       return;
     }
   }
@@ -745,7 +751,6 @@ btnEditSave?.addEventListener("click", async ()=>{
     showLoading("Guardando…", "Actualizando perfil…");
     await api({
       action: "profiles_add", // ✅ upsert en backend
-      admin_pin: PROFILES_SECRET,
       profile_id: id,
       label: name,
       categories: cats.join(","),
