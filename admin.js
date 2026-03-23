@@ -30,6 +30,29 @@ let cancelTimerStarted = false;
 let LOADING_COUNT = 0;
 const SS_KEY = "AMARED_ADMIN";
 const LS_KEY = "AMARED_ADMIN_REMEMBER_V1";
+const HUB_URL = "hub.html";
+const HUB_SESSION_KEY = "AMARED_HUB_SESSION_V1";
+const HUB_REMEMBER_KEY = "AMARED_HUB_REMEMBER_V1";
+const FROM_HUB = (() => { try { return new URLSearchParams(window.location.search).get("hub") === "1"; } catch { return false; } })();
+function hasHubAccess_(){
+  try{ return FROM_HUB || !!sessionStorage.getItem(HUB_SESSION_KEY) || !!localStorage.getItem(HUB_REMEMBER_KEY); }catch(_e){ return FROM_HUB; }
+}
+function revealHubBoot_(){
+  try{ document.documentElement.classList.remove("hubBoot"); document.documentElement.classList.add("hubReady"); }catch(_e){}
+}
+function goHub_(){ window.location.href = HUB_URL; }
+function ensureHubReturnStyles_(){
+  if(document.getElementById("amHubReturnStyles")) return;
+  const st = document.createElement("style");
+  st.id = "amHubReturnStyles";
+  st.textContent = `
+    .amHubReturnChip{position:fixed; right:14px; bottom:calc(env(safe-area-inset-bottom, 0px) + 84px); z-index:9499; display:none; align-items:center; justify-content:center; min-height:42px; padding:0 16px; border-radius:999px; border:1px solid rgba(255,255,255,.92); background:linear-gradient(180deg, rgba(255,255,255,.96), rgba(252,247,242,.92)); box-shadow:0 12px 24px rgba(64,17,2,.14); font-weight:900; color:var(--choco);}
+    .amHubReturnChip.isVisible{display:inline-flex;}
+    @media (min-width: 721px){ .amHubReturnChip{ display:none !important; } }
+  `;
+  document.head.appendChild(st);
+}
+
 
 // =================== DOM ===================
 const loginView = document.getElementById("loginView");
@@ -297,6 +320,32 @@ async function loadPaymentProfiles() {
 
 
 
+function ensureAdminHubReturnUI(){
+  if(!hasHubAccess_()) return null;
+  ensureHubReturnStyles_();
+  let btn = document.getElementById("btnHeaderHub");
+  if(adminHeaderActions && !btn){
+    btn = document.createElement("button");
+    btn.id = "btnHeaderHub";
+    btn.type = "button";
+    btn.className = "btn amBtnSoft";
+    btn.textContent = "Mi espacio";
+    btn.addEventListener("click", goHub_);
+    adminHeaderActions.insertBefore(btn, btnHeaderLogout || null);
+  }
+  let chip = document.getElementById("adminHubChip");
+  if(!chip){
+    chip = document.createElement("button");
+    chip.id = "adminHubChip";
+    chip.type = "button";
+    chip.className = "amHubReturnChip";
+    chip.textContent = "Mi espacio";
+    chip.addEventListener("click", goHub_);
+    document.body.appendChild(chip);
+  }
+  return { btn, chip };
+}
+
 function syncAdminActionBars() {
   const panelOpen = !!panelView && !panelView.classList.contains("hidden");
   const hasOverlay =
@@ -309,10 +358,13 @@ function syncAdminActionBars() {
     const desktop = window.matchMedia("(min-width: 881px)").matches;
     adminHeaderActions.classList.toggle("isVisible", panelOpen && desktop);
   }
+  const mobile = window.matchMedia("(max-width: 880px)").matches;
   if (adminMobileBar) {
-    const mobile = window.matchMedia("(max-width: 880px)").matches;
     adminMobileBar.classList.toggle("isVisible", panelOpen && mobile && !hasOverlay);
   }
+  const hubUi = ensureAdminHubReturnUI();
+  if (hubUi?.btn) hubUi.btn.style.display = (panelOpen && !mobile) ? "inline-flex" : "none";
+  if (hubUi?.chip) hubUi.chip.classList.toggle("isVisible", panelOpen && mobile && !hasOverlay);
 }
 
 // =================== NAV (login/panel) ===================
@@ -1166,32 +1218,46 @@ btnCancelConfirm?.addEventListener("click", async () => {
 
 // =================== INIT ===================
 (async function init() {
-  // Cargar perfiles de pagos apenas abre
-  await loadPaymentProfiles();
+  try {
+    await loadPaymentProfiles();
 
-  const savedWrap = loadSavedAdminSession();
-  const saved = savedWrap?.data || null;
-  if (saved) {
-    try {
-      const s = saved;
-      if (loginRemember) loginRemember.checked = !!savedWrap?.remembered;
-      if (s?.pin || s?.password) {
-        // Preselecciona perfil si existe
-        if (s.operatorId && loginOperator) loginOperator.value = String(s.operatorId);
-        if (loginPin) loginPin.value = String(s.pin || s.password || "");
-        const prof = s.operatorId ? (LOGIN_PROFILES.find(p => p.id === String(s.operatorId)) || null) : null;
-        SESSION = { operator: prof?.label || String(s.operator || ""), operatorId: prof?.id || String(s.operatorId || ""), pin: String(s.pin || s.password || "") };
+    const savedWrap = loadSavedAdminSession();
+    const saved = savedWrap?.data || null;
+    if (saved) {
+      try {
+        const s = saved;
+        if (loginRemember) loginRemember.checked = !!savedWrap?.remembered;
+        if (s?.pin || s?.password) {
+          if (s.operatorId && loginOperator) loginOperator.value = String(s.operatorId);
+          if (loginPin) loginPin.value = String(s.pin || s.password || "");
+          const prof = s.operatorId ? (LOGIN_PROFILES.find(p => p.id === String(s.operatorId)) || null) : null;
+          SESSION = { operator: prof?.label || String(s.operator || ""), operatorId: prof?.id || String(s.operatorId || ""), pin: String(s.pin || s.password || "") };
 
-        if (SESSION.operator && SESSION.pin) {
-          showPanel();
-          loadPendientes(false).catch(() => {
-            SESSION = { operator: null, operatorId: null, pin: null };
-            clearSavedAdminSession();
+          if (SESSION.operator && SESSION.pin) {
+            showPanel();
+            try {
+              await loadPendientes(false);
+            } catch (_e) {
+              SESSION = { operator: null, operatorId: null, pin: null };
+              clearSavedAdminSession();
+              showLogin();
+            }
+          } else {
             showLogin();
-          });
+          }
+        } else {
+          showLogin();
         }
+      } catch {
+        showLogin();
       }
-    } catch {}
+    } else {
+      showLogin();
+    }
+  } finally {
+    hideLoading();
+    revealHubBoot_();
+    syncAdminActionBars();
   }
 })();
 
