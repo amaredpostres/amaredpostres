@@ -243,7 +243,7 @@ function syncPinToggleState(){
   if(!inpPin || !btnTogglePin) return;
   const show = inpPin.type === "text";
   btnTogglePin.textContent = show ? "🙈" : "👁";
-  btnTogglePin.setAttribute("aria-label", show ? "Ocultar PIN" : "Mostrar PIN");
+  btnTogglePin.setAttribute("aria-label", show ? "Ocultar contraseña" : "Mostrar contraseña");
 }
 
 function saveDeliverySession(remember = false){
@@ -295,7 +295,7 @@ async function loadProfilesOnStart(){
     const saved = loadSavedDeliverySession();
     if(saved?.data?.operator?.id && selOperator && !selOperator.value){
       selOperator.value = String(saved.data.operator.id);
-      if(inpPin && !inpPin.value) inpPin.value = String(saved.data.pin || '');
+      if(inpPin && !inpPin.value) inpPin.value = String(saved.data.pin || saved.data.password || '');
       if(chkRemember) chkRemember.checked = !!saved.remembered;
     }
     if(list.length === 0){
@@ -314,20 +314,19 @@ async function loadProfilesOnStart(){
 async function doLogin(){
   loginErr.textContent = "";
   const id = String(selOperator?.value || "").trim();
-  const pin = String(inpPin?.value || "").trim();
+  const password = String(inpPin?.value || "").trim();
   if(!id){ loginErr.textContent = "Selecciona un perfil."; return; }
-  if(!pin){ loginErr.textContent = "Ingresa el PIN."; return; }
+  if(!password){ loginErr.textContent = "Ingresa la contraseña."; return; }
 
   showLoading("Validando…","Comprobando acceso…");
   try{
-    const out = await api({ action:"validate_admin_pin", admin_pin: pin });
-    if(!out.valid){
-      loginErr.textContent = "PIN incorrecto.";
-      return;
+    const auth = await api({ action:"profiles_auth", profile_id: id, password_plain: password });
+    const cats = Array.isArray(auth?.profile?.categories) ? auth.profile.categories.map(v => String(v || "").toLowerCase()) : [];
+    const allowed = cats.includes("admin") || cats.includes("delivery");
+    if(auth.valid !== true || !allowed){
+      throw new Error(auth?.error || "Perfil sin permisos para envíos.");
     }
-    const all = await fetchProfilesPublic();
-    const p = (all||[]).find(x => String(x.id) === id);
-    SESSION = { operator: { id, label: p?.label || id }, pin };
+    SESSION = { operator: { id, label: auth?.profile?.label || id }, pin: password };
     saveDeliverySession(!!chkRemember?.checked);
     showPanel();
     await loadOrders();
@@ -358,18 +357,14 @@ function showLogin(){
   syncDeliveryActionBars();
 }
 
-async function logout(){
+function logout(){
   SESSION = { operator:null, pin:null };
   clearSavedDeliverySession();
-  if(chkRemember) chkRemember.checked = false;
   if(inpPin) inpPin.value = "";
   if(selOperator) selOperator.value = "";
-  loginErr.textContent = "";
   closeHistory();
   showLogin();
-  try{
-    await loadProfilesOnStart();
-  }catch(_e){}
+  loadProfilesOnStart();
 }
 
 // ---- Orders ----
@@ -910,10 +905,10 @@ async function copyMsg(){
 // ---- Events ----
 btnLogin?.addEventListener("click", doLogin);
 btnRefresh?.addEventListener("click", loadOrders);
-btnLogout?.addEventListener("click", ()=>{ logout().catch(()=>{}); });
+btnLogout?.addEventListener("click", logout);
 btnHistory?.addEventListener("click", openHistory);
 btnRefreshTop?.addEventListener("click", loadOrders);
-btnLogoutTop?.addEventListener("click", ()=>{ logout().catch(()=>{}); });
+btnLogoutTop?.addEventListener("click", logout);
 
 listEl?.addEventListener("click", (ev)=>{
   const btnSend = ev.target?.closest?.(".btnSend");
@@ -996,10 +991,10 @@ histBack?.addEventListener("click", (ev)=>{ if(ev.target === histBack) closeHist
   syncDeliveryActionBars();
   try{
     const saved = loadSavedDeliverySession();
-    if(saved?.data?.pin && saved?.data?.operator){
+    if((saved?.data?.pin || saved?.data?.password) && saved?.data?.operator){
       if(chkRemember) chkRemember.checked = !!saved.remembered;
-      SESSION = saved.data;
-      if(inpPin) inpPin.value = String(saved.data.pin || '');
+      SESSION = Object.assign({}, saved.data, { pin: String(saved?.data?.pin || saved?.data?.password || "") });
+      if(inpPin) inpPin.value = String(saved.data.pin || saved.data.password || '');
       showPanel();
       loadOrders();
     }else{
