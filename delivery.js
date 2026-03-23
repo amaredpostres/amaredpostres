@@ -17,7 +17,17 @@ function hasHubAccess_(){
 function revealHubBoot_(){
   try{ document.documentElement.classList.remove("hubBoot"); document.documentElement.classList.add("hubReady"); }catch(_e){}
 }
-function goHub_(){ window.location.href = HUB_URL; }
+
+function goHub_(){
+  try{
+    const ref = String(document.referrer || '');
+    if((FROM_HUB || /(^|\/)hub\.html(?:\?|$)/i.test(ref)) && window.history.length > 1){
+      window.history.back();
+      return;
+    }
+  }catch(_e){}
+  window.location.href = HUB_URL;
+}
 function ensureHubReturnStyles_(){
   if(document.getElementById("amHubReturnStyles")) return;
   const st = document.createElement("style");
@@ -78,32 +88,37 @@ function ensureDeliveryMobileBar(){
   deliveryMobileBar = bar;
   return bar;
 }
+
 function ensureDeliveryHubReturnUI(){
   if(!hasHubAccess_()) return null;
   ensureHubReturnStyles_();
-  let btn = document.getElementById("btnDeliveryHub");
   const desktopWrap = document.querySelector('.deliveryHeaderActions');
+  let btn = document.getElementById('btnDeliveryHub');
   if(desktopWrap && !btn){
     btn = document.createElement('button');
     btn.id = 'btnDeliveryHub';
     btn.type = 'button';
-    btn.className = 'btn amBtnSoft';
+    btn.className = 'btn secondary';
     btn.textContent = 'Panel';
     btn.addEventListener('click', goHub_);
     desktopWrap.insertBefore(btn, btnLogoutTop || null);
   }
-  let chip = document.getElementById('deliveryHubChip');
-  if(!chip){
-    chip = document.createElement('button');
-    chip.id = 'deliveryHubChip';
-    chip.type = 'button';
-    chip.className = 'amHubReturnChip';
-    chip.textContent = 'Panel';
-    chip.addEventListener('click', goHub_);
-    document.body.appendChild(chip);
-  }
-  return { btn, chip };
+  const chip = document.getElementById('deliveryHubChip');
+  if(chip) chip.remove();
+  return { btn };
 }
+
+function syncDeliveryMobileReturnAction(){
+  const btn = document.getElementById('dMBtnLogout');
+  if(!btn) return;
+  const fromHub = hasHubAccess_();
+  const ico = btn.querySelector('.ico');
+  const txt = btn.querySelector('.txt');
+  btn.setAttribute('aria-label', fromHub ? 'Volver al panel' : 'Salir');
+  if(ico) ico.textContent = fromHub ? '⌂' : '🚪';
+  if(txt) txt.textContent = fromHub ? 'Panel' : 'Salir';
+}
+
 function syncDeliveryActionBars(){
   const mobile = isMobileViewport();
   const appVisible = isVisibleEl(panelView);
@@ -113,8 +128,8 @@ function syncDeliveryActionBars(){
   if(btnLogoutTop) btnLogoutTop.style.display = (appVisible && !mobile) ? 'inline-flex' : 'none';
   const hubUi = ensureDeliveryHubReturnUI();
   if(hubUi?.btn) hubUi.btn.style.display = (appVisible && !mobile) ? 'inline-flex' : 'none';
-  if(hubUi?.chip) hubUi.chip.classList.toggle('isVisible', appVisible && mobile && !overlay);
   const bar = ensureDeliveryMobileBar();
+  syncDeliveryMobileReturnAction();
   if(bar) bar.classList.toggle('isHidden', !appVisible || !mobile || overlay);
   document.body.classList.toggle('deliveryOverlayOpen', !!overlay);
 }
@@ -125,7 +140,7 @@ function wireDeliveryMobileBar(){
   const bLogout = document.getElementById('dMBtnLogout');
   if(bRefresh && !bRefresh.dataset.wired){ bRefresh.dataset.wired='1'; bRefresh.addEventListener('click', ()=> btnRefreshTop?.click()); }
   if(bHistory && !bHistory.dataset.wired){ bHistory.dataset.wired='1'; bHistory.addEventListener('click', ()=> btnHistory?.click()); }
-  if(bLogout && !bLogout.dataset.wired){ bLogout.dataset.wired='1'; bLogout.addEventListener('click', ()=> btnLogoutTop?.click()); }
+  if(bLogout && !bLogout.dataset.wired){ bLogout.dataset.wired='1'; bLogout.addEventListener('click', ()=> { if(hasHubAccess_()) goHub_(); else btnLogoutTop?.click(); }); }
   syncDeliveryActionBars();
 }
 function watchDeliveryBarState(){
