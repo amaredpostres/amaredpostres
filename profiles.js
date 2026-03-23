@@ -653,6 +653,7 @@ btnUnlock?.addEventListener("click", async ()=>{
     console.error("unlock error:", e, e._raw);
   }finally{
     hideLoading();
+    revealHubBoot_();
   }
 });
 
