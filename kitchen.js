@@ -477,10 +477,24 @@ tabProdToday?.addEventListener("click", ()=>setProdTab("today"));
 
   // ========= API =========
   async function api(payload){
+    const body = Object.assign({}, payload || {});
+    if (
+      state?.session?.operatorId &&
+      state?.session?.pin &&
+      body.action !== "profiles_auth" &&
+      body.action !== "validate_admin_pin" &&
+      body.action !== "profiles_public_list" &&
+      !body.auth_profile_id
+    ) {
+      body.auth_profile_id = String(state.session.operatorId || "").trim();
+      body.auth_profile_password = String(state.session.pin || "").trim();
+      body.auth_page = "kitchen";
+    }
+
     const res = await fetch(API_URL,{
       method:"POST",
       headers:{ "Content-Type":"application/json" },
-      body: JSON.stringify(payload||{})
+      body: JSON.stringify(body)
     });
     const out = await res.json().catch(async()=>({ok:false,error: await res.text().catch(()=> "Error")}));
     if(!out || out.ok !== true) throw new Error(out?.error || "Error");
@@ -780,7 +794,7 @@ function startDayRolloverWatch_(){
   function loadSession(){
     const raw=sessionStorage.getItem(SS_KEY);
     const s=raw? safeJsonParse(raw):null;
-    if(s?.operatorId && s?.operatorLabel && s?.pin){ state.session=s; return true; }
+    if(s?.operatorId && s?.operatorLabel && (s?.pin || s?.password)){ state.session={...s, pin:String(s.pin || s.password || "")}; return true; }
     return false;
   }
   function saveRememberSession(){
@@ -792,7 +806,7 @@ function startDayRolloverWatch_(){
     try{
       const raw=localStorage.getItem(LS_KEY);
       const s=raw? safeJsonParse(raw):null;
-      if(s?.operatorId && s?.operatorLabel && s?.pin){ return s; }
+      if(s?.operatorId && s?.operatorLabel && (s?.pin || s?.password)){ return {...s, pin:String(s.pin || s.password || "")}; }
     }catch(_e){}
     return null;
   }
@@ -801,11 +815,11 @@ function startDayRolloverWatch_(){
   }
   function clearSession(){ sessionStorage.removeItem(SS_KEY); state.session={operatorId:null, operatorLabel:null, pin:null}; }
 
-  async function validatePinBestEffort(pin){
-    const out = await apiTry({action:"validate_admin_pin", admin_pin: pin});
-    if(out.ok===true) return true;
-    if(String(out.error||"").toLowerCase().includes("unknown action")) return true;
-    throw new Error("PIN inválido o no autorizado.");
+  async function validateProfileBestEffort(profileId, password){
+    const out = await apiTry({action:"profiles_auth", profile_id: profileId, password_plain: password});
+    if(out.ok===true && out.valid === true) return out.profile || {};
+    if(String(out.error||"").toLowerCase().includes("unknown action")) return { id: profileId };
+    throw new Error(out?.error || "Contraseña incorrecta o no autorizada.");
   }
 
   // ========= WORKER PUBLIC ACTIONS (requeridas) =========
@@ -3032,7 +3046,7 @@ async function finalizePostreFromOverlay(){
   async function onLogin(){
     loginErr.textContent="";
     const pin=String(inpPin.value||"").trim();
-    if(pin.length<4){ loginErr.textContent="Escribe el PIN."; return; }
+    if(pin.length<4){ loginErr.textContent="Escribe la contraseña."; return; }
     if(!state.profilesLoaded){ loginErr.textContent="Perfiles no cargados."; return; }
 
     const selectedId=selOperator.value;
@@ -3040,9 +3054,12 @@ async function finalizePostreFromOverlay(){
 
     showLoading("Validando…","Verificando acceso…");
     try{
-      await validatePinBestEffort(pin);
+      const authProfile = await validateProfileBestEffort(selectedId, pin);
+      const cats = Array.isArray(authProfile?.categories) ? authProfile.categories.map(v => String(v || "").toLowerCase()) : [];
+      const allowed = cats.includes("admin") || cats.includes("kitchen");
+      if(!allowed) throw new Error("Perfil sin permisos para cocina.");
 
-      const label=state.profiles.find(p=>p.id===selectedId)?.label;
+      const label=authProfile?.label || state.profiles.find(p=>p.id===selectedId)?.label;
       if(!label) throw new Error("Perfil no válido.");
 
       state.session={operatorId:selectedId, operatorLabel:label, pin};
@@ -3075,7 +3092,7 @@ async function finalizePostreFromOverlay(){
     clearRememberSession();
     if(chkRemember) chkRemember.checked=false;
       showLogin();
-      loginErr.textContent = e?.message || "PIN inválido o no autorizado.";
+      loginErr.textContent = e?.message || "Contraseña incorrecta o no autorizada.";
     }finally{
       hideLoading();
     }
@@ -3084,15 +3101,11 @@ async function finalizePostreFromOverlay(){
   function onLogout(){
     state.refreshNonce++;
     clearSession();
-    clearRememberSession();
-    if(chkRemember) chkRemember.checked = false;
-    if(inpPin) inpPin.value = "";
-    if(selOperator) selOperator.value = "";
     closeRecipe();
     closeCostsModal();
     showLogin();
-    // vuelve a cargar perfiles sin restaurar sesión previa
-    loadProfilesOnStart().catch(()=>{});
+    // vuelve a cargar perfiles
+    loadProfilesOnStart();
   }
 
   function enhanceKitchenHeader(){
@@ -3189,7 +3202,9 @@ async function finalizePostreFromOverlay(){
       state.session = remembered;
       try{
         showLoading("Ingresando…","Validando sesión guardada…");
-        await validatePinBestEffort(remembered.pin);
+        const rememberedAuth = await validateProfileBestEffort(remembered.operatorId, remembered.pin);
+        const rememberedCats = Array.isArray(rememberedAuth?.categories) ? rememberedAuth.categories.map(v => String(v || "").toLowerCase()) : [];
+        if(!(rememberedCats.includes("admin") || rememberedCats.includes("kitchen"))) throw new Error("Perfil sin permisos para cocina.");
         showApp();
         await refresh();
         startWidgetTicker();
@@ -3209,6 +3224,7 @@ async function finalizePostreFromOverlay(){
       btnTogglePin.onclick = ()=>{
         const isPass = inpPin.type === "password";
         inpPin.type = isPass ? "text" : "password";
+        btnTogglePin.setAttribute("aria-label", isPass ? "Ocultar contraseña" : "Mostrar contraseña");
         btnTogglePin.textContent = isPass ? "🙈" : "👁";
       };
     }
