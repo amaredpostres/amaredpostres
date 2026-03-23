@@ -3,6 +3,8 @@ const HUB_SS_KEY = "AMARED_HUB_SESSION_V1";
 const HUB_LS_KEY = "AMARED_HUB_REMEMBER_V1";
 const PROFILES_SS_KEY = "AMARED_PROFILES_SESSION_V1";
 const COSTS_SS_KEY = "AMARED_COSTS_SESSION_V1";
+const HUB_PROFILES_CACHE_KEY = "AMARED_HUB_PROFILES_CACHE_V1";
+const HUB_PROFILES_CACHE_TTL = 5 * 60 * 1000;
 
 const MODULES = [
   { key:"kitchen", title:"Cocina", desc:"Gestiona la preparación y el avance de los pedidos.", href:"kitchen.html", icon:"🍰", allow:["kitchen","admin"] },
@@ -52,7 +54,7 @@ function showLoading(title, msg){
   hubLoadingMsg.textContent = msg || "Procesando";
   hubLoading.style.display = "flex";
 }
-function hideLoading(){ if(hubLoading) hubLoading.style.display = "none"; }
+function hideLoading(){ if(hubLoading) hubLoading.style.display = "none"; syncMobileBar(); }
 
 async function api(payload){
   const res = await fetch(API_URL, {
@@ -135,12 +137,43 @@ function renderProfiles(list){
   hubProfile.innerHTML = opts.join("");
 }
 
-async function loadProfiles(){
+
+function getCachedProfiles(){
+  try{
+    const raw = sessionStorage.getItem(HUB_PROFILES_CACHE_KEY);
+    const data = raw ? JSON.parse(raw) : null;
+    if(!data || !Array.isArray(data.items)) return null;
+    if((Date.now() - Number(data.ts || 0)) > HUB_PROFILES_CACHE_TTL) return null;
+    return data.items;
+  }catch(_e){ return null; }
+}
+function setCachedProfiles(items){
+  try{ sessionStorage.setItem(HUB_PROFILES_CACHE_KEY, JSON.stringify({ ts: Date.now(), items: Array.isArray(items) ? items : [] })); }catch(_e){}
+}
+function resetHubBusyState(){
+  try{ if(hubLoading) hubLoading.style.display = 'none'; }catch(_e){}
+  try{
+    if(hubGrid){
+      hubGrid.style.pointerEvents = '';
+      hubGrid.style.opacity = '';
+    }
+  }catch(_e){}
+  syncMobileBar();
+}
+
+async function loadProfiles(force=false){
+  const cached = !force ? getCachedProfiles() : null;
+  if(cached && cached.length){
+    state.profiles = cached.filter(p => normalizeCats(p.categories).length > 0);
+    renderProfiles(state.profiles);
+  }
+  if(cached && !force) return;
   showLoading("Cargando perfiles…", "Buscando perfiles disponibles.");
   try{
     const out = await api({ action:"profiles_public_list" });
     const list = Array.isArray(out.profiles) ? out.profiles : [];
     state.profiles = list.filter(p => normalizeCats(p.categories).length > 0);
+    setCachedProfiles(state.profiles);
     renderProfiles(state.profiles);
   } finally {
     hideLoading();
@@ -155,7 +188,7 @@ function setShell(mode){
   hubAppView.style.display = isApp ? "block" : "none";
   hubTopbar.style.display = isApp ? "block" : "none";
   hubLoginTopbar.style.display = isApp ? "none" : "block";
-  syncMobileBar();
+  resetHubBusyState();
 }
 
 function syncMobileBar(){
@@ -172,6 +205,8 @@ function renderModules(){
   hubWelcomeTitle.textContent = `Hola, ${session?.label || session?.id || ""}`;
   hubProfilePill.textContent = `Perfil: ${session?.label || session?.id || ""}`;
   hubCountPill.textContent = `${mods.length} ${mods.length === 1 ? "página" : "páginas"}`;
+
+  resetHubBusyState();
 
   if(!mods.length){
     hubGrid.innerHTML = "";
@@ -336,10 +371,21 @@ hubGrid?.addEventListener('click', (ev)=>{
   openModule(String(card.getAttribute('data-key') || '').trim());
 });
 window.addEventListener('resize', syncMobileBar);
+window.addEventListener('pageshow', ()=>{
+  resetHubBusyState();
+  if(state.session){ setShell('app'); renderModules(); }
+  else syncMobileBar();
+});
+
 
 (async function boot(){
   syncPassToggle();
-  await loadProfiles();
   const restored = await restoreSession();
-  if(!restored) setShell('login');
+  if(!restored){
+    await loadProfiles();
+    setShell('login');
+  } else {
+    loadProfiles(true).catch(()=>{});
+  }
+  resetHubBusyState();
 })();
