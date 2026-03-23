@@ -1,0 +1,157 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>AMARED · Mi espacio</title>
+  <link rel="icon" href="assets/favicon.ico" type="image/x-icon">
+  <link rel="stylesheet" href="styles.css" />
+  <style>
+    .hubPage .topbarInner{ justify-content:space-between; }
+    .hubLoginTopbar .topbarInner{ justify-content:center; }
+    .hubLoginTopbar img{ height:48px; width:auto; display:block; }
+    .hubLoginShell{ max-width:720px; margin:24px auto 0; }
+    .hubLoginCard{ background:var(--paper); border:1px solid var(--border); border-radius:26px; padding:22px; box-shadow:var(--shadow); }
+    .hubLoginTitle{ margin:0 0 8px; text-align:center; font-weight:950; font-size:clamp(26px,3vw,40px); line-height:1.08; }
+    .hubLoginLead{ margin:0 0 18px; text-align:center; font-size:clamp(14px,1.35vw,17px); color:rgba(64,17,2,.74); font-weight:850; }
+    .hubPassRow{ display:grid; grid-template-columns:1fr auto; gap:10px; align-items:end; }
+    .hubEyeBtn{ width:56px; height:56px; border-radius:16px; border:1px solid var(--border); background:linear-gradient(180deg, rgba(246,186,96,.92), rgba(246,186,96,.82)); display:flex; align-items:center; justify-content:center; font-size:20px; font-weight:900; cursor:pointer; box-shadow:0 10px 20px rgba(64,17,2,.08); }
+    .hubRemember{ display:flex; align-items:center; gap:10px; font-weight:900; color:rgba(64,17,2,.82); margin-top:12px; }
+    .hubLoginActions{ margin-top:14px; }
+    .hubLoginActions .btn{ width:100%; min-height:48px; }
+    .hubTopbar{ display:none; }
+    .hubBrand{ display:flex; align-items:center; gap:12px; }
+    .hubBrandIcon{ width:42px; height:42px; object-fit:contain; }
+    .hubBrandMeta{ display:flex; flex-direction:column; gap:2px; }
+    .hubBrandTitle{ font-weight:950; font-size:20px; line-height:1.05; }
+    .hubBrandSub{ font-size:12.5px; color:rgba(64,17,2,.65); font-weight:800; }
+    .hubActions{ display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+    .hubApp{ display:none; }
+    .hubWelcome{ margin-top:14px; }
+    .hubWelcomeTitle{ margin:0; font-size:clamp(24px,2.4vw,34px); line-height:1.08; }
+    .hubWelcomeSub{ margin:8px 0 0; color:rgba(64,17,2,.75); font-weight:800; }
+    .hubMetaRow{ display:flex; gap:10px; flex-wrap:wrap; margin-top:12px; }
+    .hubGrid{ display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:14px; margin-top:16px; }
+    .hubCard{ border:1px solid var(--border); border-radius:22px; background:rgba(255,255,255,.72); box-shadow:0 14px 30px rgba(64,17,2,.08); padding:18px; display:grid; gap:12px; text-align:left; cursor:pointer; transition:transform .12s ease, box-shadow .12s ease; }
+    .hubCard:hover{ transform:translateY(-1px); box-shadow:0 16px 34px rgba(64,17,2,.12); }
+    .hubCardTop{ display:flex; align-items:flex-start; justify-content:space-between; gap:12px; }
+    .hubEmoji{ width:52px; height:52px; border-radius:18px; display:flex; align-items:center; justify-content:center; font-size:24px; background:linear-gradient(180deg, rgba(246,186,96,.24), rgba(242,91,143,.14)); border:1px solid rgba(64,17,2,.08); }
+    .hubCardTitle{ margin:0; font-size:20px; line-height:1.08; font-weight:950; }
+    .hubCardDesc{ margin:0; color:rgba(64,17,2,.72); font-weight:800; line-height:1.4; }
+    .hubCardBtn{ justify-self:start; min-height:44px; }
+    .hubEmpty{ text-align:center; padding:28px 16px; }
+    .hubEmpty p{ margin:8px 0 0; color:rgba(64,17,2,.72); font-weight:800; }
+    .hubMobileBar{ position:fixed; left:12px; right:12px; bottom:calc(env(safe-area-inset-bottom, 0px) + 12px); display:none; align-items:center; gap:12px; padding:10px 12px; border-radius:26px; border:1px solid rgba(64,17,2,.10); background:rgba(254,246,239,.84); box-shadow:0 14px 34px rgba(64,17,2,.14); backdrop-filter:blur(10px); z-index:9500; }
+    .hubMobileBar.isVisible{ display:flex; }
+    .hubMobileCenter{ flex:1; min-width:0; border-radius:999px; border:1px solid rgba(64,17,2,.10); background:rgba(255,255,255,.92); padding:4px; display:grid; grid-template-columns:1fr; gap:4px; }
+    .hubMobilePill{ border:0; border-radius:999px; background:linear-gradient(180deg, rgba(242,91,143,.16), rgba(246,186,96,.12)); color:var(--choco); min-height:42px; font-weight:950; font-size:16px; cursor:pointer; white-space:nowrap; }
+    .hubMobileBtn{ width:50px; height:50px; border-radius:999px; border:1px solid rgba(255,255,255,.9); background:linear-gradient(180deg, rgba(255,255,255,.96), rgba(252,247,242,.92)); display:flex; align-items:center; justify-content:center; font-weight:900; font-size:20px; box-shadow:0 10px 18px rgba(64,17,2,.08); cursor:pointer; }
+    @media (max-width: 860px){ .hubGrid{ grid-template-columns:1fr; } }
+    @media (max-width: 720px){
+      .hubTopbar .topbarInner{ justify-content:center; }
+      .hubBrand{ width:100%; justify-content:center; text-align:center; }
+      .hubBrandMeta{ align-items:center; }
+      .hubActions{ display:none !important; }
+      .hubWelcomeTitle{ font-size:clamp(28px,7vw,34px); }
+      .hubLoginShell{ margin:16px auto 0; }
+      .hubLoginCard{ padding:18px; border-radius:22px; }
+      .hubLoginTitle{ font-size:clamp(22px,6.8vw,28px); }
+      .hubLoginLead{ font-size:15px; }
+    }
+  </style>
+</head>
+<body class="hubPage is-login">
+  <header class="hubLoginTopbar" id="hubLoginTopbar">
+    <div class="topbarInner">
+      <div class="amLoginTopbarBrand"><img class="amLoginTopbarLogo" src="assets/Logo-Amared.svg" alt="AMARED"></div>
+    </div>
+  </header>
+
+  <header class="topbar hubTopbar" id="hubTopbar">
+    <div class="topbarInner">
+      <div class="hubBrand">
+        <img class="hubBrandIcon" src="assets/Logo-Isotipo-Amared.svg" alt="AMARED">
+        <div class="hubBrandMeta">
+          <div class="hubBrandTitle">Mi espacio</div>
+          <div class="hubBrandSub">Accesos disponibles según tu perfil</div>
+        </div>
+      </div>
+      <div class="hubActions">
+        <button id="btnHubReload" class="btn secondary" type="button">Actualizar</button>
+        <button id="btnHubLogout" class="btn secondary" type="button">Cerrar sesión</button>
+      </div>
+    </div>
+  </header>
+
+  <main class="container">
+    <section class="hubLoginShell" id="hubLoginView">
+      <div class="hubLoginCard">
+        <h1 class="hubLoginTitle">Acceso a tu espacio</h1>
+        <p class="hubLoginLead">Selecciona tu perfil e ingresa tu contraseña para ver las páginas que tienes habilitadas.</p>
+
+        <div class="field">
+          <label>Perfil</label>
+          <select id="hubProfile" class="input"><option value="">Cargando perfiles…</option></select>
+          <div class="amLoginFieldHint">Solo aparecen perfiles activos con al menos una categoría asignada.</div>
+        </div>
+
+        <div class="field" style="margin-top:12px;">
+          <label>Contraseña</label>
+          <div class="hubPassRow">
+            <input id="hubPassword" class="input" type="password" placeholder="••••••" autocomplete="current-password" />
+            <button id="btnHubTogglePass" class="hubEyeBtn" type="button" aria-label="Mostrar u ocultar contraseña">👁</button>
+          </div>
+        </div>
+
+        <label class="hubRemember">
+          <input id="hubRemember" type="checkbox" />
+          <span>Recuérdame en este dispositivo</span>
+        </label>
+
+        <div class="hubLoginActions">
+          <button id="btnHubLogin" class="btn primary" type="button">Ingresar</button>
+        </div>
+        <div id="hubLoginMsg" class="status" style="margin-top:10px;"></div>
+      </div>
+    </section>
+
+    <section class="hubApp" id="hubAppView">
+      <section class="card hubWelcome">
+        <h1 class="hubWelcomeTitle" id="hubWelcomeTitle">Hola</h1>
+        <p class="hubWelcomeSub">Selecciona una página para entrar sin volver a escribir tu usuario y contraseña.</p>
+        <div class="hubMetaRow">
+          <div class="pill" id="hubProfilePill">Perfil activo</div>
+          <div class="pill" id="hubCountPill">0 páginas</div>
+        </div>
+      </section>
+
+      <section id="hubGrid" class="hubGrid"></section>
+      <section id="hubEmpty" class="card hubEmpty" style="display:none; margin-top:16px;">
+        <h2 class="cardTitle" style="margin:0;">No hay páginas asignadas</h2>
+        <p>Este perfil no tiene módulos habilitados. Revisa la configuración en Gestión de perfiles.</p>
+      </section>
+    </section>
+  </main>
+
+  <div id="hubMobileBar" class="hubMobileBar" aria-label="Acciones del portal">
+    <button id="btnHubMobileRefresh" class="hubMobileBtn" type="button" aria-label="Actualizar">↻</button>
+    <div class="hubMobileCenter">
+      <button id="btnHubMobileLogout" class="hubMobilePill" type="button">Cerrar sesión</button>
+    </div>
+  </div>
+
+  <div id="hubLoading" class="amLoadingOverlay" aria-hidden="true" style="display:none;">
+    <div class="amLoadingCard">
+      <div class="amLoadingRow">
+        <div class="amSpinner"></div>
+        <div>
+          <div class="amLoadingTitle" id="hubLoadingTitle">Cargando…</div>
+          <div class="amLoadingSub" id="hubLoadingMsg">Procesando</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="hub.js"></script>
+</body>
+</html>
