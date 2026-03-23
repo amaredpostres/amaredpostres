@@ -225,6 +225,28 @@
 
   const SS_KEY = "AMARED_KITCHEN_SESSION_V6";
   const LS_KEY = "amared_kitchen_session";
+  const HUB_URL = "hub.html";
+  const HUB_SESSION_KEY = "AMARED_HUB_SESSION_V1";
+  const HUB_REMEMBER_KEY = "AMARED_HUB_REMEMBER_V1";
+  const FROM_HUB = (() => { try { return new URLSearchParams(window.location.search).get("hub") === "1"; } catch { return false; } })();
+  function hasHubAccess_(){
+    try{ return FROM_HUB || !!sessionStorage.getItem(HUB_SESSION_KEY) || !!localStorage.getItem(HUB_REMEMBER_KEY); }catch(_e){ return FROM_HUB; }
+  }
+  function revealHubBoot_(){
+    try{ document.documentElement.classList.remove("hubBoot"); document.documentElement.classList.add("hubReady"); }catch(_e){}
+  }
+  function goHub_(){ window.location.href = HUB_URL; }
+  function ensureHubReturnStyles_(){
+    if(document.getElementById("amHubReturnStyles")) return;
+    const st = document.createElement("style");
+    st.id = "amHubReturnStyles";
+    st.textContent = `
+      .amHubReturnChip{position:fixed; right:14px; bottom:calc(env(safe-area-inset-bottom, 0px) + 84px); z-index:9499; display:none; align-items:center; justify-content:center; min-height:42px; padding:0 16px; border-radius:999px; border:1px solid rgba(255,255,255,.92); background:linear-gradient(180deg, rgba(255,255,255,.96), rgba(252,247,242,.92)); box-shadow:0 12px 24px rgba(64,17,2,.14); font-weight:900; color:var(--choco);}
+      .amHubReturnChip.isVisible{display:inline-flex;}
+      @media (min-width: 721px){ .amHubReturnChip{ display:none !important; } }
+    `;
+    document.head.appendChild(st);
+  }
 
   const LS_TIMER_KEY = "AMARED_KITCHEN_TIMERS_V1";
   const LS_DONE_KEY  = "AMARED_KITCHEN_DONE_V1";
@@ -755,6 +777,32 @@ function startDayRolloverWatch_(){
       || isNodeVisible($("amConfirmOverlay"))
       || isNodeVisible(loading);
   }
+  function ensureKitchenHubReturnUI(){
+    if(!hasHubAccess_()) return null;
+    ensureHubReturnStyles_();
+    const headerBtns = btnRefresh?.parentElement;
+    let btn = document.getElementById("btnKitchenHub");
+    if(headerBtns && !btn){
+      btn = document.createElement("button");
+      btn.id = "btnKitchenHub";
+      btn.type = "button";
+      btn.className = "btn amBtnSoft";
+      btn.textContent = "Mi espacio";
+      btn.addEventListener("click", goHub_);
+      headerBtns.insertBefore(btn, btnLogout || null);
+    }
+    let chip = document.getElementById("kitchenHubChip");
+    if(!chip){
+      chip = document.createElement("button");
+      chip.id = "kitchenHubChip";
+      chip.type = "button";
+      chip.className = "amHubReturnChip";
+      chip.textContent = "Mi espacio";
+      chip.addEventListener("click", goHub_);
+      document.body.appendChild(chip);
+    }
+    return { btn, chip };
+  }
   function syncActionBarsVisibility(){
     const headerBtns = btnRefresh?.parentElement;
     const appVisible = !!(app && app.style.display !== "none");
@@ -764,6 +812,9 @@ function startDayRolloverWatch_(){
     if(headerBtns){
       headerBtns.classList.toggle("isHidden", !appVisible || mobile);
     }
+    const hubUi = ensureKitchenHubReturnUI();
+    if(hubUi?.btn) hubUi.btn.style.display = (appVisible && !mobile) ? "inline-flex" : "none";
+    if(hubUi?.chip) hubUi.chip.classList.toggle("isVisible", appVisible && mobile && !overlayOpen);
     if(mobileActionBar){
       mobileActionBar.classList.toggle("isHidden", !appVisible || !mobile || overlayOpen);
     }
@@ -3189,19 +3240,18 @@ async function finalizePostreFromOverlay(){
     await loadProfilesOnStart();
     hideLoading();
 
-    // 2) sesión previa (manual: Recuérdame)
-    const remembered = loadRememberSession();
+    // 2) sesión previa (Hub o Recuérdame)
+    const hasPortalSession = loadSession();
+    const remembered = hasPortalSession ? state.session : loadRememberSession();
     if(remembered){
-      // Carga perfiles y trata de iniciar automáticamente
       inpPin.value = remembered.pin || "";
-      if(chkRemember) chkRemember.checked = true;
+      if(chkRemember) chkRemember.checked = !hasPortalSession;
       if(state.profilesLoaded){
         renderProfilesSelect(state.profiles, remembered.operatorId);
       }
-      // Validación y entrada automática
       state.session = remembered;
       try{
-        showLoading("Ingresando…","Validando sesión guardada…");
+        showLoading("Ingresando…", hasPortalSession ? "Abriendo Cocina…" : "Validando sesión guardada…");
         const rememberedAuth = await validateProfileBestEffort(remembered.operatorId, remembered.pin);
         const rememberedCats = Array.isArray(rememberedAuth?.categories) ? rememberedAuth.categories.map(v => String(v || "").toLowerCase()) : [];
         if(!(rememberedCats.includes("admin") || rememberedCats.includes("kitchen"))) throw new Error("Perfil sin permisos para cocina.");
@@ -3209,7 +3259,7 @@ async function finalizePostreFromOverlay(){
         await refresh();
         startWidgetTicker();
       }catch(_e){
-        clearRememberSession();
+        if(!hasPortalSession) clearRememberSession();
         clearSession();
         showLogin();
       }finally{
@@ -3240,7 +3290,8 @@ async function finalizePostreFromOverlay(){
     window.addEventListener("orientationchange", syncActionBarsVisibility, { passive:true });
   }
 
-  init().catch(err=>{
+  init().then(()=>{ revealHubBoot_(); syncActionBarsVisibility(); }).catch(err=>{
+    revealHubBoot_();
     console.error(err);
     alert("Error inicializando cocina: " + (err?.message||String(err)));
   });
