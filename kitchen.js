@@ -235,7 +235,17 @@
   function revealHubBoot_(){
     try{ document.documentElement.classList.remove("hubBoot"); document.documentElement.classList.add("hubReady"); }catch(_e){}
   }
-  function goHub_(){ window.location.href = HUB_URL; }
+
+function goHub_(){
+  try{
+    const ref = String(document.referrer || '');
+    if((FROM_HUB || /(^|\/)hub\.html(?:\?|$)/i.test(ref)) && window.history.length > 1){
+      window.history.back();
+      return;
+    }
+  }catch(_e){}
+  window.location.href = HUB_URL;
+}
   function ensureHubReturnStyles_(){
     if(document.getElementById("amHubReturnStyles")) return;
     const st = document.createElement("style");
@@ -777,32 +787,34 @@ function startDayRolloverWatch_(){
       || isNodeVisible($("amConfirmOverlay"))
       || isNodeVisible(loading);
   }
-  function ensureKitchenHubReturnUI(){
-    if(!hasHubAccess_()) return null;
-    ensureHubReturnStyles_();
-    const headerBtns = btnRefresh?.parentElement;
-    let btn = document.getElementById("btnKitchenHub");
-    if(headerBtns && !btn){
-      btn = document.createElement("button");
-      btn.id = "btnKitchenHub";
-      btn.type = "button";
-      btn.className = "btn amBtnSoft";
-      btn.textContent = "Panel";
-      btn.addEventListener("click", goHub_);
-      headerBtns.insertBefore(btn, btnLogout || null);
-    }
-    let chip = document.getElementById("kitchenHubChip");
-    if(!chip){
-      chip = document.createElement("button");
-      chip.id = "kitchenHubChip";
-      chip.type = "button";
-      chip.className = "amHubReturnChip";
-      chip.textContent = "Panel";
-      chip.addEventListener("click", goHub_);
-      document.body.appendChild(chip);
-    }
-    return { btn, chip };
+
+function ensureKitchenHubReturnUI(){
+  if(!hasHubAccess_()) return null;
+  ensureHubReturnStyles_();
+  const headerBtns = btnRefresh?.parentElement;
+  let btn = document.getElementById("btnKitchenHub");
+  if(headerBtns && !btn){
+    btn = document.createElement("button");
+    btn.id = "btnKitchenHub";
+    btn.type = "button";
+    btn.className = "btn amBtnSoft";
+    btn.textContent = "Panel";
+    btn.addEventListener("click", goHub_);
+    headerBtns.insertBefore(btn, btnLogout || null);
   }
+  const chip = document.getElementById("kitchenHubChip");
+  if(chip) chip.remove();
+  return { btn };
+}
+function syncKitchenMobileReturnAction(){
+  if(!mBtnLogout) return;
+  const fromHub = hasHubAccess_();
+  const ico = mBtnLogout.querySelector('.ico');
+  const txt = mBtnLogout.querySelector('.txt');
+  mBtnLogout.setAttribute('aria-label', fromHub ? 'Volver al panel' : 'Salir');
+  if(ico) ico.textContent = fromHub ? '⌂' : '🚪';
+  if(txt) txt.textContent = fromHub ? 'Panel' : 'Salir';
+}
   function syncActionBarsVisibility(){
     const headerBtns = btnRefresh?.parentElement;
     const appVisible = !!(app && app.style.display !== "none");
@@ -814,7 +826,7 @@ function startDayRolloverWatch_(){
     }
     const hubUi = ensureKitchenHubReturnUI();
     if(hubUi?.btn) hubUi.btn.style.display = (appVisible && !mobile) ? "inline-flex" : "none";
-    if(hubUi?.chip) hubUi.chip.classList.toggle("isVisible", appVisible && mobile && !overlayOpen);
+    syncKitchenMobileReturnAction();
     if(mobileActionBar){
       mobileActionBar.classList.toggle("isHidden", !appVisible || !mobile || overlayOpen);
     }
@@ -3070,7 +3082,7 @@ async function finalizePostreFromOverlay(){
 
   function wireMobileActionBar(){
     ensureMobileActionBar();
-    if(mBtnLogout) mBtnLogout.onclick = (e)=>{ e.preventDefault(); onLogout(); };
+    if(mBtnLogout) mBtnLogout.onclick = (e)=>{ e.preventDefault(); if(hasHubAccess_()) goHub_(); else onLogout(); };
     if(mBtnHistory) mBtnHistory.onclick = (e)=>{ e.preventDefault(); openHistoryModal(); };
     if(mBtnCosts) mBtnCosts.onclick = (e)=>{ e.preventDefault(); openCostsModal(); };
     if(mBtnRefresh) mBtnRefresh.onclick = (e)=>{ e.preventDefault(); refresh().catch(err=>alert(err?.message||String(err))); };
