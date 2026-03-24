@@ -253,6 +253,15 @@ function normalizeCatsAny(v){
     .filter(Boolean);
 }
 
+
+function normalizeCategoryAlias(v){
+  return String(v || "")
+    .trim()
+    .toLowerCase()
+    .normalize("NFD").replace(/[̀-ͯ]/g, "")
+    .replace(/[^a-z0-9]/g, "");
+}
+
 function isActiveAny(v){
   const s = String(v ?? "true").trim().toLowerCase();
   return !(s === "false" || s === "0" || s === "no");
@@ -268,16 +277,17 @@ function isOptIn(v){
 
 // Category matching (supports synonyms)
 function hasCategory(profile, wanted){
-  const cats = normalizeCatsAny(profile?.categories);
-  const w = String(wanted||"").toLowerCase();
+  const cats = new Set(normalizeCatsAny(profile?.categories).map(normalizeCategoryAlias).filter(Boolean));
+  const w = normalizeCategoryAlias(wanted);
   const map = {
-    delivery: ["delivery","envios","envíos","envio","envío","envíos","reparto","domicilio"],
-    admin: ["admin","administracion","administración"],
+    delivery: ["delivery","envios","envio","reparto","domicilio"],
+    admin: ["admin","administracion"],
     payments: ["payments","pago","pagos"],
     kitchen: ["kitchen","cocina"],
+    profiles: ["profiles","perfil","perfiles"],
   };
-  const aliases = map[w] || [w];
-  return aliases.some(a => cats.includes(a));
+  const aliases = (map[w] || [w]).map(normalizeCategoryAlias);
+  return aliases.some(a => cats.has(a));
 }
 
 async function api(payload){
@@ -402,8 +412,7 @@ async function doLogin(){
   showLoading("Validando…","Comprobando acceso…");
   try{
     const auth = await api({ action:"profiles_auth", profile_id: id, password_plain: password });
-    const cats = Array.isArray(auth?.profile?.categories) ? auth.profile.categories.map(v => String(v || "").toLowerCase()) : [];
-    const allowed = cats.includes("admin") || cats.includes("delivery");
+    const allowed = hasCategory(auth?.profile || {}, "admin") || hasCategory(auth?.profile || {}, "delivery");
     if(auth.valid !== true || !allowed){
       throw new Error(auth?.error || "Perfil sin permisos para envíos.");
     }
@@ -575,12 +584,12 @@ async function loadOrders(){
   setStatus("");
   showLoading("Cargando pedidos…","Buscando Pagado + Listo + delivery Pendiente…");
   try{
-    let out = await api({ action:"delivery_list", admin_pin: SESSION.pin, hours: 72, view:"pending" });
+    let out = await api({ action:"delivery_list", hours: 72, view:"pending" });
     let orders = out.orders || [];
 
     // fallback: list_orders + client-side filter
     if(orders.length === 0){
-      const out2 = await api({ action:"list_orders", admin_pin: SESSION.pin, payment_status:"Pagado" });
+      const out2 = await api({ action:"list_orders", payment_status:"Pagado" });
       const all = out2.orders || [];
       orders = all.filter(o=>{
         const kit = normStatus(o.kitchen_status);
@@ -672,7 +681,7 @@ async function loadHistory(){
   if(histStatus) histStatus.textContent = "";
   showLoading("Cargando historial…","Buscando pedidos enviados…");
   try{
-    const out = await api({ action:"delivery_list", admin_pin: SESSION.pin, hours: 240, view:"history" });
+    const out = await api({ action:"delivery_list", hours: 240, view:"history" });
     renderHistory(out.orders || []);
   }catch(e){
     if(histStatus) histStatus.textContent = e?.message || "Error cargando historial.";
@@ -886,7 +895,6 @@ async function markSentOnly(){
   try{
     await api({
       action:"delivery_mark_sent",
-      admin_pin: SESSION.pin,
       order_id: SEND_ORDER.order_id,
       eta_minutes: (eta > 0 ? Math.round(eta) : 0),
       sent_by: SESSION?.operator?.label || "DELIVERY",
@@ -948,7 +956,6 @@ async function markSentAndOpenWhatsApp(){
   try{
     await api({
       action:"delivery_mark_sent",
-      admin_pin: SESSION.pin,
       order_id: SEND_ORDER.order_id,
       eta_minutes: Math.round(eta),
       sent_by: SESSION?.operator?.label || "DELIVERY",
