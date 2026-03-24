@@ -2,7 +2,7 @@
 // delivery.js — AMARED Envíos (v4 UX + Historial + Opt-in fix)
 "use strict";
 
-console.log("AMARED delivery v12");
+console.log("AMARED delivery v13");
 
 const API_URL = "https://amared-orders.amaredpostres.workers.dev/";
 const SS_KEY = "AMARED_DELIVERY_SESSION_V4";
@@ -420,6 +420,21 @@ async function doLogin(){
   }
 }
 
+async function validateCurrentSession_(){
+  const id = String(SESSION?.operator?.id || "").trim();
+  const password = String(SESSION?.pin || SESSION?.password || "").trim();
+  if(!id || !password) return false;
+  try{
+    const auth = await api({ action:"profiles_auth", profile_id:id, password_plain:password });
+    const allowed = hasCategory(auth?.profile, "admin") || hasCategory(auth?.profile, "delivery");
+    if(auth?.valid !== true || !allowed) return false;
+    SESSION = { operator:{ id, label: auth?.profile?.label || SESSION?.operator?.label || id }, pin: password };
+    return true;
+  }catch(_e){
+    return false;
+  }
+}
+
 function setDeliveryShellMode(mode){
   try{
     document.body.classList.remove("is-login","is-app");
@@ -446,8 +461,10 @@ function logout(){
   if(inpPin) inpPin.value = "";
   if(selOperator) selOperator.value = "";
   closeHistory();
+  closeSendModal();
+  closeConfirm();
   showLogin();
-  loadProfilesOnStart();
+  loadProfilesOnStart().catch(()=>{});
 }
 
 // ---- Orders ----
@@ -605,8 +622,9 @@ async function loadOrders(){
       loginErr.textContent = "Tu sesión no es válida para Envíos. Inicia sesión nuevamente.";
       loadProfilesOnStart().catch(()=>{});
     }else{
+      showPanel();
       setStatus(msg);
-      if(listEl) listEl.innerHTML = "";
+      if(listEl) listEl.innerHTML = '<div class="muted small">No se pudieron cargar los pedidos. Usa “Recargar” o vuelve a iniciar sesión.</div>';
     }
   }finally{
     hideLoading();
@@ -1087,13 +1105,22 @@ histBack?.addEventListener("click", (ev)=>{ if(ev.target === histBack) closeHist
       if(chkRemember) chkRemember.checked = !!saved.remembered;
       SESSION = Object.assign({}, saved.data, { pin: String(saved?.data?.pin || saved?.data?.password || "") });
       if(inpPin) inpPin.value = String(saved.data.pin || saved.data.password || '');
-      showPanel();
-      await loadOrders();
+      const valid = await validateCurrentSession_();
+      if(valid){
+        showPanel();
+        await loadOrders();
+      }else{
+        clearSavedDeliverySession();
+        SESSION = { operator:null, pin:null };
+        showLogin();
+        await loadProfilesOnStart();
+      }
     }else{
       showLogin();
       await loadProfilesOnStart();
     }
-  }catch{
+  }catch(err){
+    console.error('delivery init error:', err);
     showLogin();
     await loadProfilesOnStart();
   }finally{
