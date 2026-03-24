@@ -314,6 +314,29 @@
       .kitchenPage.is-app .kitchenHeaderActions{ display:none !important; }
     }
 
+
+/* ===== Final header alignment: Kitchen ===== */
+.kitchenPage.is-app .kitchenTopbarInner.amSectionTopbarInner{
+  align-items:center !important;
+}
+@media (min-width: 861px){
+  .kitchenPage.is-app .kitchenTopbarInner.amSectionTopbarInner{
+    justify-content:space-between !important;
+    gap:14px !important;
+  }
+  .kitchenPage.is-app .kitchenTopbarAppBrand.amSectionBrand{
+    width:auto !important;
+    max-width:calc(100% - 200px) !important;
+    margin:0 !important;
+    justify-content:flex-start !important;
+    padding-inline:10px !important;
+  }
+  .kitchenPage.is-app .kitchenTopbarAppBrand .amSectionBrandMeta{
+    align-items:flex-start !important;
+    text-align:left !important;
+  }
+}
+
 </style>
 </head>
 
