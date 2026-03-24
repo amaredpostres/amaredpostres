@@ -685,6 +685,24 @@ async function loadOrders(){
   }
 }
 
+
+function historyTimeValue(order){
+  const raw = order?.delivery_sent_at || order?.sent_at || order?.last_updated_at || order?.created_at || "";
+  const t = raw ? new Date(raw).getTime() : 0;
+  return Number.isFinite(t) ? t : 0;
+}
+
+function normalizeHistoryOrders(rows){
+  return (Array.isArray(rows) ? rows : [])
+    .filter(o => {
+      const pay = normStatus(o?.payment_status);
+      const del = normStatus(o?.delivery_status);
+      const sentAt = String(o?.delivery_sent_at || "").trim();
+      return pay === 'pagado' && (del === 'enviado' || !!sentAt);
+    })
+    .sort((a,b) => historyTimeValue(b) - historyTimeValue(a));
+}
+
 // ---- History ----
 function openHistory(){
   if(!histBack) return;
@@ -755,8 +773,21 @@ async function loadHistory(){
   if(histStatus) histStatus.textContent = "";
   showLoading("Cargando historial…","Buscando pedidos enviados…");
   try{
-    const out = await api({ action:"delivery_list", hours: 240, view:"history" });
-    renderHistory(out.orders || []);
+    let orders = [];
+
+    try{
+      const out = await api({ action:"delivery_list", hours: 240, view:"history" });
+      orders = normalizeHistoryOrders(out.orders || []);
+    }catch(errHistory){
+      console.warn("delivery history fallback:", errHistory);
+    }
+
+    if(!orders.length){
+      const out2 = await api({ action:"list_orders", payment_status:"Pagado" });
+      orders = normalizeHistoryOrders(out2.orders || []);
+    }
+
+    renderHistory(orders);
   }catch(e){
     if(histStatus) histStatus.textContent = e?.message || "Error cargando historial.";
     if(histList) histList.innerHTML = "";
