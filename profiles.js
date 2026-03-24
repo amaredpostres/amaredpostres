@@ -86,8 +86,13 @@ function syncProfilesHubChrome(){
     if(hubMode) btnLogout.disabled = true;
   }
   if(btnMobileBack){
-    btnMobileBack.textContent = hubMode ? "Panel" : "Volver";
+    const backLabel = hubMode ? "Panel" : "Volver";
     btnMobileBack.setAttribute("aria-label", hubMode ? "Volver al panel" : "Volver");
+    const ico = btnMobileBack.querySelector('.ico');
+    const txt = btnMobileBack.querySelector('.txt');
+    if(ico) ico.textContent = hubMode ? '⌂' : '↩';
+    if(txt) txt.textContent = backLabel;
+    if(!txt) btnMobileBack.textContent = backLabel;
   }
   if(btnMobileLock){
     btnMobileLock.style.display = hubMode ? "none" : "";
@@ -666,20 +671,17 @@ inpName?.addEventListener("input", ()=>{
   inpId.value = slugifyNameToId(inpName.value);
 });
 
-async function unlockProfilesAccess_(){
+btnUnlock?.addEventListener("click", async ()=>{
   gateErr.textContent = "";
   const profileId = String(loginProfile?.value || "").trim();
-  const secret = String(inpSecret?.value || "").trim();
-
+  const secret = String(inpSecret.value||"").trim();
   if(!profileId){
     gateErr.textContent = "Selecciona un perfil.";
-    revealHubBoot_();
-    return false;
+    return;
   }
   if(!secret){
     gateErr.textContent = "Ingresa la contraseña.";
-    revealHubBoot_();
-    return false;
+    return;
   }
 
   try{
@@ -699,22 +701,15 @@ async function unlockProfilesAccess_(){
     await loadProfiles();
     listMsg.textContent = "Acceso concedido.";
     gateErr.textContent = "";
-    return true;
   }catch(e){
     PROFILE_SESSION = { id:null, label:null, password:null, categories:[] };
     clearProfilesRemember_();
     setLockedUI(true);
     gateErr.textContent = e?.message || "Contraseña incorrecta o no autorizada.";
     console.error("unlock error:", e, e._raw);
-    return false;
   }finally{
     hideLoading();
-    revealHubBoot_();
   }
-}
-
-btnUnlock?.addEventListener("click", async ()=>{
-  await unlockProfilesAccess_();
 });
 
 btnLogout?.addEventListener("click", ()=>{
@@ -911,7 +906,7 @@ inpSecret?.addEventListener("keydown", (e)=>{ if(e.key === "Enter") btnUnlock?.c
     hideLoading();
     if(!shouldAutoUnlock) revealHubBoot_();
   }
-  if(shouldAutoUnlock) await unlockProfilesAccess_();
+  if(shouldAutoUnlock) btnUnlock?.click();
 })();
 
 syncProfilesHubChrome();
