@@ -36,6 +36,11 @@ const hubLoading = document.getElementById("hubLoading");
 const hubLoadingTitle = document.getElementById("hubLoadingTitle");
 const hubLoadingMsg = document.getElementById("hubLoadingMsg");
 
+function revealHubBoot_(){
+  try{ document.documentElement.classList.remove("hubBoot"); document.documentElement.classList.add("hubReady"); }catch(_e){}
+}
+function wait(ms){ return new Promise(resolve => setTimeout(resolve, Math.max(0, Number(ms||0)))); }
+
 function normalizeCats(v){
   if(Array.isArray(v)) return v.map(x => String(x || "").trim().toLowerCase()).filter(Boolean);
   return String(v || "").split(",").map(s => s.trim().toLowerCase()).filter(Boolean);
@@ -380,12 +385,29 @@ window.addEventListener('pageshow', ()=>{
 
 (async function boot(){
   syncPassToggle();
-  const restored = await restoreSession();
-  if(!restored){
-    await loadProfiles();
-    setShell('login');
-  } else {
-    loadProfiles(true).catch(()=>{});
+  const startedAt = Date.now();
+  let restored = false;
+  try{
+    restored = await restoreSession();
+    await loadProfiles(true);
+    if(!restored){
+      setShell('login');
+    }else{
+      setShell('app');
+      renderModules();
+    }
+  }catch(err){
+    console.error('hub boot error:', err);
+    if(!restored){
+      setShell('login');
+      if(hubLoginMsg && !String(hubLoginMsg.textContent || '').trim()){
+        hubLoginMsg.textContent = 'No se pudieron cargar los perfiles. Intenta recargar.';
+      }
+    }
+  }finally{
+    const elapsed = Date.now() - startedAt;
+    if(elapsed < 500) await wait(500 - elapsed);
+    resetHubBusyState();
+    revealHubBoot_();
   }
-  resetHubBusyState();
 })();
