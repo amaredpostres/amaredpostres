@@ -28,8 +28,14 @@ function revealHubBoot_(){
 
 function goHub_(){
   try{
+    if(hasHubAccess_() && window.history.length > 1){
+      window.history.back();
+      return;
+    }
+  }catch(_e){}
+  try{
     const ref = String(document.referrer || '');
-    if((FROM_HUB || /(^|\/)hub\.html(?:\?|$)/i.test(ref)) && window.history.length > 1){
+    if(/(^|\/)hub\.html(?:\?|$)/i.test(ref) && window.history.length > 1){
       window.history.back();
       return;
     }
