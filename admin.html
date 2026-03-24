@@ -248,10 +248,15 @@
       border:1px solid rgba(255,255,255,.92);
       background: linear-gradient(180deg, rgba(255,255,255,.98), rgba(249,246,242,.94));
       display:flex; align-items:center; justify-content:center;
+      gap:0; padding:0;
       font-weight:950; font-size:16px; color:var(--choco);
       box-shadow: 0 10px 22px rgba(64,17,2,.08), inset 0 1px 0 rgba(255,255,255,.85);
       cursor:pointer;
     }
+    .adminMobileBtn .ico{ font-size:19px; line-height:1; }
+    .adminMobileBtn .txt{ display:none; }
+    .adminMobileBtn.isWarm{ background: linear-gradient(180deg, rgba(246,196,110,.98), rgba(240,183,84,.96)); border-color: rgba(224,160,49,.36); }
+    .adminMobileBtn.isNeutral{ background: linear-gradient(180deg, rgba(252,252,252,.98), rgba(241,239,236,.98)); border-color: rgba(64,17,2,.10); }
     .adminMobileCenter{
       flex:1; min-width:0;
       border-radius:999px;
@@ -448,11 +453,11 @@
   </div>
 
   <div id="adminMobileBar" class="amBottomBar adminMobileBar" aria-label="Acciones de pagos">
-    <button id="btnMobileRefresh" class="amBottomIconBtn adminMobileBtn" type="button" aria-label="Recargar"><span class="ico">↻</span><span class="txt">Recargar</span></button>
+    <button id="btnMobileRefresh" class="amBottomIconBtn adminMobileBtn isWarm" type="button" aria-label="Recargar"><span class="ico">↻</span><span class="txt">Recargar</span></button>
     <div class="amBottomCenter one adminMobileCenter">
       <button id="btnMobileHistory" class="amBottomPill isAccent adminMobilePill" type="button">Historial</button>
     </div>
-    <button id="btnMobileLogout" class="amBottomIconBtn adminMobileBtn" type="button" aria-label="Salir"><span class="ico">⎋</span><span class="txt">Salir</span></button>
+    <button id="btnMobileLogout" class="amBottomIconBtn adminMobileBtn isNeutral" type="button" aria-label="Salir"><span class="ico">⎋</span><span class="txt">Salir</span></button>
   </div>
 
   <!-- Drawer historial -->
