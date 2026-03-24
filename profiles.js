@@ -610,6 +610,10 @@ async function loadProfiles(){
 
 // =================== EVENTS ===================
 
+function goPanelFromProfiles_(){
+  location.href = HUB_URL;
+}
+
 function goBackFromProfiles_(){
   try{
     const ref = String(document.referrer || '');
@@ -626,7 +630,7 @@ function goBackFromProfiles_(){
   else location.href = "index.html";
 }
 
-btnBack?.addEventListener("click", goBackFromProfiles_);
+btnBack?.addEventListener("click", goPanelFromProfiles_);
 btnGateBack?.addEventListener("click", goBackFromProfiles_);
 
 inpName?.addEventListener("input", ()=>{
@@ -675,14 +679,7 @@ btnUnlock?.addEventListener("click", async ()=>{
   }
 });
 
-btnLogout?.addEventListener("click", ()=>{
-  PROFILE_SESSION = { id:null, label:null, password:null, categories:[] };
-  if(inpSecret) inpSecret.value = "";
-  if(loginProfile) loginProfile.value = "";
-  clearProfilesRemember_();
-  clearPortalProfilesSession_();
-  setLockedUI(true);
-});
+btnLogout?.addEventListener("click", goPanelFromProfiles_);
 
 btnReload?.addEventListener("click", async ()=>{
   try{
@@ -872,7 +869,7 @@ inpSecret?.addEventListener("keydown", (e)=>{ if(e.key === "Enter") btnUnlock?.c
 })();
 
 btnMobileReload?.addEventListener("click", ()=> btnReload?.click());
-btnMobileBack?.addEventListener("click", ()=> btnBack?.click());
-btnMobileLock?.addEventListener("click", ()=> btnLogout?.click());
+btnMobileBack?.addEventListener("click", goPanelFromProfiles_);
+btnMobileLock?.addEventListener("click", goPanelFromProfiles_);
 window.addEventListener("resize", syncProfilesMobileBar);
 setTimeout(syncProfilesMobileBar, 0);
