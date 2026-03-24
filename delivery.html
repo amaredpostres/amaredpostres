@@ -60,11 +60,25 @@
 
   <style>
     /* HISTORIAL FIXES */
-    #histBack{ align-items:flex-start; overflow:auto; padding:18px; }
-    #histBack .amModal{ margin:18px auto; max-height: calc(100vh - 36px); overflow:auto; }
-    #histList{ max-height: calc(100vh - 260px); overflow:auto; padding-right: 6px; -webkit-overflow-scrolling: touch; }
-    /* Asegurar capas */
-    #histBack{ z-index: 9998; }
+    #histBack{
+      align-items:center;
+      justify-content:center;
+      overflow:auto;
+      padding:clamp(16px, 3vw, 28px);
+      z-index: 9998;
+    }
+    #histBack .amModal{
+      width:min(980px, calc(100vw - 32px));
+      margin:0 auto;
+      max-height: calc(100vh - 32px);
+      overflow:auto;
+    }
+    #histList{
+      max-height: calc(100vh - 280px);
+      overflow:auto;
+      padding-right: 6px;
+      -webkit-overflow-scrolling: touch;
+    }
     #sendBack{ z-index: 9999; }
     #confirmBack{ z-index: 10000; }
   </style>
@@ -251,6 +265,6 @@
     </div>
   </div>
 
-  <script src="delivery.js?v=20260223-08"></script>
+  <script src="delivery.js?v=20260324-02"></script>
 </body>
 </html>
