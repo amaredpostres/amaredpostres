@@ -332,7 +332,7 @@ async function loadPaymentProfiles() {
 
 
 function ensureAdminHubReturnUI(){
-  if(!hasHubAccess_()) return null;
+  if(!FROM_HUB) return null;
   ensureHubReturnStyles_();
   let btn = document.getElementById("btnHeaderHub");
   if(adminHeaderActions && !btn){
@@ -351,7 +351,7 @@ function ensureAdminHubReturnUI(){
 
 function syncAdminMobileReturnAction(){
   if(!btnMobileLogout) return;
-  const fromHub = hasHubAccess_();
+  const fromHub = FROM_HUB;
   const ico = btnMobileLogout.querySelector('.ico');
   const txt = btnMobileLogout.querySelector('.txt');
   btnMobileLogout.setAttribute('aria-label', fromHub ? 'Volver al panel' : 'Salir');
@@ -376,6 +376,10 @@ function syncAdminActionBars() {
   syncAdminMobileReturnAction();
   if (adminMobileBar) {
     adminMobileBar.classList.toggle("isVisible", panelOpen && mobile && !hasOverlay);
+  }
+  if (btnHeaderLogout) {
+    btnHeaderLogout.style.display = FROM_HUB ? "none" : "inline-flex";
+    btnHeaderLogout.disabled = !!FROM_HUB;
   }
   const hubUi = ensureAdminHubReturnUI();
   if (hubUi?.btn) hubUi.btn.style.display = (panelOpen && !mobile) ? "inline-flex" : "none";
@@ -1279,6 +1283,6 @@ btnCancelConfirm?.addEventListener("click", async () => {
 
 [btnMobileRefresh].forEach(btn => btn?.addEventListener("click", ()=> btnHeaderRefresh?.click()));
 [btnMobileHistory].forEach(btn => btn?.addEventListener("click", ()=> btnHeaderHistory?.click()));
-[btnMobileLogout].forEach(btn => btn?.addEventListener("click", ()=> { if(hasHubAccess_()) goHub_(); else btnHeaderLogout?.click(); }));
+[btnMobileLogout].forEach(btn => btn?.addEventListener("click", ()=> { if(FROM_HUB) goHub_(); else btnHeaderLogout?.click(); }));
 window.addEventListener("resize", syncAdminActionBars);
 setTimeout(syncAdminActionBars, 0);
