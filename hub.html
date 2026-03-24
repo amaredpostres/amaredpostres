@@ -1,11 +1,55 @@
 <!doctype html>
 <html lang="es">
 <head>
+  <script>
+    try {
+      document.documentElement.classList.add("hubBoot");
+    } catch (_e) {
+      document.documentElement.classList.add("hubReady");
+    }
+  </script>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>AMARED · Mi espacio</title>
   <link rel="icon" href="assets/favicon.ico" type="image/x-icon">
   <link rel="stylesheet" href="styles.css" />
+  <style>
+    html.hubBoot body { opacity: 1; overflow: hidden; }
+    html.hubReady body { opacity: 1; transition: opacity .12s ease; }
+    .amHubBootOverlay{
+      position: fixed;
+      inset: 0;
+      z-index: 130000;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+      background: rgba(249,243,236,.84);
+      backdrop-filter: blur(8px);
+    }
+    html.hubBoot .amHubBootOverlay{ display:flex; }
+    html.hubReady .amHubBootOverlay{ display:none; }
+    .amHubBootCard{
+      width: min(360px, 92vw);
+      border-radius: 24px;
+      border: 1px solid rgba(64,17,2,.10);
+      background: rgba(255,255,255,.96);
+      box-shadow: 0 18px 40px rgba(64,17,2,.12);
+      padding: 18px;
+    }
+    .amHubBootRow{ display:flex; align-items:center; gap:12px; }
+    .amHubBootSpinner{
+      width: 22px; height: 22px; border-radius: 999px;
+      border: 3px solid rgba(64,17,2,.10);
+      border-top-color: rgba(242,91,143,.92);
+      border-right-color: rgba(246,186,96,.92);
+      animation: amHubBootSpin .8s linear infinite;
+      flex: 0 0 auto;
+    }
+    .amHubBootTitle{ font-weight: 950; font-size: 18px; line-height: 1.08; color:#401102; }
+    .amHubBootSub{ margin-top: 4px; font-size: 13.5px; font-weight: 800; color: rgba(64,17,2,.72); }
+    @keyframes amHubBootSpin{ to{ transform: rotate(360deg); } }
+  </style>
   <style>
     .hubPage .topbarInner{ justify-content:space-between; }
     .hubLoginTopbar .topbarInner{ justify-content:center; }
@@ -63,6 +107,17 @@
   </style>
 </head>
 <body class="hubPage is-login">
+  <div class="amHubBootOverlay" aria-hidden="true">
+    <div class="amHubBootCard">
+      <div class="amHubBootRow">
+        <div class="amHubBootSpinner"></div>
+        <div>
+          <div class="amHubBootTitle">Cargando página…</div>
+          <div class="amHubBootSub">Estamos preparando los perfiles disponibles.</div>
+        </div>
+      </div>
+    </div>
+  </div>
   <header class="hubLoginTopbar" id="hubLoginTopbar">
     <div class="topbarInner">
       <div class="amLoginTopbarBrand"><img class="amLoginTopbarLogo" src="assets/Logo-Amared.svg" alt="AMARED"></div>
@@ -154,6 +209,6 @@
     </div>
   </div>
 
-  <script src="hub.js"></script>
+  <script src="hub.js?v=20260324-02"></script>
 </body>
 </html>
