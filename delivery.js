@@ -357,6 +357,22 @@ function clearSavedDeliverySession(){
   try{ localStorage.removeItem(LS_KEY); }catch(_e){}
 }
 
+
+function loadHubSessionCandidate(){
+  try{
+    const rawLocal = localStorage.getItem(HUB_REMEMBER_KEY);
+    const sLocal = rawLocal ? JSON.parse(rawLocal) : null;
+    if(sLocal?.id && sLocal?.password) return { data:sLocal, remembered:true };
+  }catch(_e){}
+  try{
+    const raw = sessionStorage.getItem(HUB_SESSION_KEY);
+    const s = raw ? JSON.parse(raw) : null;
+    if(s?.id && s?.password) return { data:s, remembered:false };
+  }catch(_e){}
+  return null;
+}
+
+
 btnTogglePin?.addEventListener('click', ()=>{
   if(!inpPin) return;
   inpPin.type = inpPin.type === 'password' ? 'text' : 'password';
@@ -413,6 +429,7 @@ async function doLogin(){
     saveDeliverySession(!!chkRemember?.checked);
     showPanel();
     await loadOrders();
+    if(loginErr) loginErr.textContent = '';
   }catch(e){
     loginErr.textContent = e?.message || "No se pudo validar.";
   }finally{
@@ -1101,6 +1118,7 @@ histBack?.addEventListener("click", (ev)=>{ if(ev.target === histBack) closeHist
   syncDeliveryActionBars();
   try{
     const saved = loadSavedDeliverySession();
+    const hubSaved = loadHubSessionCandidate();
     if((saved?.data?.pin || saved?.data?.password) && saved?.data?.operator){
       if(chkRemember) chkRemember.checked = !!saved.remembered;
       SESSION = Object.assign({}, saved.data, { pin: String(saved?.data?.pin || saved?.data?.password || "") });
@@ -1112,6 +1130,25 @@ histBack?.addEventListener("click", (ev)=>{ if(ev.target === histBack) closeHist
       }else{
         clearSavedDeliverySession();
         SESSION = { operator:null, pin:null };
+        showLogin();
+        await loadProfilesOnStart();
+      }
+    }else if(hubSaved?.data?.id && hubSaved?.data?.password){
+      const cats = normalizeCatsAny(hubSaved.data.categories || []);
+      const allowed = cats.some(c => hasCategory({categories:[c]}, 'delivery') || hasCategory({categories:[c]}, 'admin'));
+      if(allowed){
+        SESSION = { operator: { id: String(hubSaved.data.id), label: String(hubSaved.data.label || hubSaved.data.id) }, pin: String(hubSaved.data.password) };
+        const valid = await validateCurrentSession_();
+        if(valid){
+          saveDeliverySession(!!hubSaved.remembered);
+          showPanel();
+          await loadOrders();
+        }else{
+          SESSION = { operator:null, pin:null };
+          showLogin();
+          await loadProfilesOnStart();
+        }
+      }else{
         showLogin();
         await loadProfilesOnStart();
       }
