@@ -303,26 +303,6 @@
   display:block;
 }
 body.is-app .costsLoginTopbar{ display:none !important; }
-
-.costsAppTopbar{ display:none; }
-body.is-app .costsAppTopbar{ display:block !important; }
-body.is-login .costsAppTopbar{ display:none !important; }
-body.is-app .costsLoginTopbar{ display:none !important; }
-body.is-login .costsLoginTopbar{ display:block; }
-
-@media (max-width: 560px){
-  .costsPage.is-app .amSectionTopbarInner{
-    justify-content:center !important;
-  }
-  .costsPage.is-app .amSectionBrand{
-    margin:0 auto;
-  }
-  .costsPage.is-app .amSectionBrandMeta{
-    align-items:center;
-    text-align:center;
-  }
-}
-
 .costsLoginModal.amLoginCard{
   width:min(700px, 100%);
   border-radius:26px;
@@ -389,7 +369,24 @@ body.is-login .costsLoginTopbar{ display:block; }
 /* ===== Loading overlay unificado ===== */
 #loadingBack.amLoadingOverlay{ z-index: 120000 !important; }
 #loadingBack.amLoadingOverlay.hidden{ display:none !important; }
-#loadingBack .amLoadingCard{ width:min(520px, 100%); }
+#loadingBack .amLoadingCard{ width:min(380px, 92vw); }
+
+/* ===== Shared header sync: Costs ===== */
+.costsTopbarAppBrand.amSectionBrand{
+  flex:1 1 auto;
+  max-width:100%;
+}
+@media (max-width: 860px){
+  .costsTopbarAppBrand.amSectionBrand{
+    margin:0 auto;
+    justify-content:center !important;
+  }
+  .costsTopbarAppBrand .amSectionBrandMeta{
+    align-items:center;
+    text-align:center;
+  }
+}
+
 </style>
 </head>
 <body class="costsPage is-login">
@@ -414,9 +411,9 @@ body.is-login .costsLoginTopbar{ display:block; }
 
 <!-- APP (solo después de desbloquear) -->
 <div class="page" id="appRoot" style="display:none;">
-<header class="topbar costsAppTopbar" id="costsAppTopbar">
+<header class="topbar">
 <div class="topbarInner amSectionTopbarInner">
-<div class="amSectionBrand">
+<div class="amSectionBrand costsTopbarAppBrand">
 <img alt="AMARED" class="amSectionBrandLogo" src="assets/Logo-Isotipo-Amared.svg"/>
 <div class="amSectionBrandMeta">
   <div class="amSectionTitle">Compras y Recetas</div>
