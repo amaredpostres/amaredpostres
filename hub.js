@@ -5,6 +5,8 @@ const PROFILES_SS_KEY = "AMARED_PROFILES_SESSION_V1";
 const COSTS_SS_KEY = "AMARED_COSTS_SESSION_V1";
 const HUB_PROFILES_CACHE_KEY = "AMARED_HUB_PROFILES_CACHE_V1";
 const HUB_PROFILES_CACHE_TTL = 5 * 60 * 1000;
+const HUB_BOOT_MIN_MS = 850;
+const HUB_REFRESH_MIN_MS = 650;
 
 const MODULES = [
   { key:"kitchen", title:"Cocina", desc:"Gestiona la preparación y el avance de los pedidos.", href:"kitchen.html", icon:"🍰", allow:["kitchen","admin"] },
@@ -131,12 +133,14 @@ function allowedModules(categories){
 
 function renderProfiles(list){
   const rows = Array.isArray(list) ? list : [];
+  const currentValue = String(hubProfile?.value || state.session?.id || "").trim();
   const opts = ['<option value="">Seleccionar…</option>'];
   for(const p of rows){
     const id = String(p.id || p.profile_id || "").trim();
     const label = String(p.label || id).trim();
     if(!id || !label) continue;
-    opts.push(`<option value="${escapeHtml(id)}">${escapeHtml(label)}</option>`);
+    const selected = currentValue && currentValue === id ? ' selected' : '';
+    opts.push(`<option value="${escapeHtml(id)}"${selected}>${escapeHtml(label)}</option>`);
   }
   if(!rows.length) opts.push('<option value="">Sin perfiles disponibles</option>');
   hubProfile.innerHTML = opts.join("");
@@ -166,21 +170,70 @@ function resetHubBusyState(){
   syncMobileBar();
 }
 
-async function loadProfiles(force=false){
+async function loadProfiles(force=false, opts={}){
+  const useOverlay = opts.overlay !== false;
   const cached = !force ? getCachedProfiles() : null;
   if(cached && cached.length){
     state.profiles = cached.filter(p => normalizeCats(p.categories).length > 0);
     renderProfiles(state.profiles);
   }
-  if(cached && !force) return;
-  showLoading("Cargando perfiles…", "Buscando perfiles disponibles.");
+  if(cached && !force) return state.profiles;
+  if(useOverlay) showLoading("Cargando perfiles…", "Buscando perfiles disponibles.");
   try{
     const out = await api({ action:"profiles_public_list" });
     const list = Array.isArray(out.profiles) ? out.profiles : [];
     state.profiles = list.filter(p => normalizeCats(p.categories).length > 0);
     setCachedProfiles(state.profiles);
     renderProfiles(state.profiles);
+    return state.profiles;
   } finally {
+    if(useOverlay) hideLoading();
+  }
+}
+
+function setHubGridBusy(isBusy){
+  try{
+    if(!hubGrid) return;
+    hubGrid.style.pointerEvents = isBusy ? 'none' : '';
+    hubGrid.style.opacity = isBusy ? '.92' : '';
+  }catch(_e){}
+}
+
+async function refreshHubPortal(forceProfiles=false){
+  const startedAt = Date.now();
+  showLoading(forceProfiles ? 'Actualizando…' : 'Cargando…', forceProfiles ? 'Buscando perfiles y módulos disponibles.' : 'Preparando tu espacio.');
+  setHubGridBusy(true);
+  try{
+    await loadProfiles(!!forceProfiles, { overlay:false });
+    if(state.session?.id && state.session?.password){
+      const auth = await api({ action:'profiles_auth', profile_id:state.session.id, password_plain:state.session.password });
+      if(auth.valid !== true) throw new Error(auth?.error || 'Sesión no válida.');
+      state.session = {
+        id: state.session.id,
+        label: auth?.profile?.label || state.session.label || state.session.id,
+        password: state.session.password,
+        categories: normalizeCats(auth?.profile?.categories || state.session.categories || []),
+        remember: !!state.session.remember
+      };
+      saveHubSession(!!state.session.remember);
+      setShell('app');
+      renderModules();
+    } else {
+      setShell('login');
+    }
+  } catch (e) {
+    console.error('hub refresh error:', e);
+    if(state.session?.id){
+      clearHubSession();
+      setShell('login');
+      if(hubLoginMsg) hubLoginMsg.textContent = e?.message || 'No se pudo actualizar el espacio.';
+    } else if(hubLoginMsg) {
+      hubLoginMsg.textContent = e?.message || 'No se pudieron cargar los perfiles.';
+    }
+  } finally {
+    const elapsed = Date.now() - startedAt;
+    if(elapsed < HUB_REFRESH_MIN_MS) await wait(HUB_REFRESH_MIN_MS - elapsed);
+    setHubGridBusy(false);
     hideLoading();
   }
 }
@@ -294,12 +347,7 @@ function openModule(key){
   if(!mod) return;
   setModuleSession(mod);
   showLoading(`Abriendo ${mod.title}…`, 'Preparando acceso a la página seleccionada.');
-  try{
-    if(hubGrid){
-      hubGrid.style.pointerEvents = 'none';
-      hubGrid.style.opacity = '.92';
-    }
-  }catch(_e){}
+  setHubGridBusy(true);
   window.setTimeout(()=>{
     window.location.href = `${mod.href}?hub=1`;
   }, 90);
@@ -366,9 +414,9 @@ btnHubTogglePass?.addEventListener('click', ()=>{
 });
 btnHubLogin?.addEventListener('click', login);
 hubPassword?.addEventListener('keydown', (e)=>{ if(e.key === 'Enter') login(); });
-document.getElementById('btnHubReload')?.addEventListener('click', ()=> renderModules());
+document.getElementById('btnHubReload')?.addEventListener('click', ()=> refreshHubPortal(true));
 document.getElementById('btnHubLogout')?.addEventListener('click', ()=>{ clearHubSession(); if(hubPassword) hubPassword.value = ''; setShell('login'); syncMobileBar(); });
-document.getElementById('btnHubMobileRefresh')?.addEventListener('click', ()=> renderModules());
+document.getElementById('btnHubMobileRefresh')?.addEventListener('click', ()=> refreshHubPortal(true));
 document.getElementById('btnHubMobileLogout')?.addEventListener('click', ()=>{ clearHubSession(); if(hubPassword) hubPassword.value = ''; setShell('login'); syncMobileBar(); });
 hubGrid?.addEventListener('click', (ev)=>{
   const card = ev.target?.closest?.('[data-key]');
@@ -389,7 +437,7 @@ window.addEventListener('pageshow', ()=>{
   let restored = false;
   try{
     restored = await restoreSession();
-    await loadProfiles(true);
+    await loadProfiles(true, { overlay:false });
     if(!restored){
       setShell('login');
     }else{
@@ -406,7 +454,7 @@ window.addEventListener('pageshow', ()=>{
     }
   }finally{
     const elapsed = Date.now() - startedAt;
-    if(elapsed < 500) await wait(500 - elapsed);
+    if(elapsed < HUB_BOOT_MIN_MS) await wait(HUB_BOOT_MIN_MS - elapsed);
     resetHubBusyState();
     revealHubBoot_();
   }
