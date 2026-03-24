@@ -50,35 +50,6 @@ let SEND_CONTEXT = "pending"; // "pending" | "history"
 
 let deliveryMobileBar = null;
 let deliveryBarObserverStarted = false;
-let deliverySyncQueued = false;
-
-function setDisplayIfChanged(el, value){
-  if(!el) return;
-  if(el.style.display !== value) el.style.display = value;
-}
-function setAriaHiddenIfChanged(el, value){
-  if(!el) return;
-  const next = value ? "true" : "false";
-  if(el.getAttribute("aria-hidden") !== next) el.setAttribute("aria-hidden", next);
-}
-function toggleClassIfChanged(el, cls, force){
-  if(!el) return;
-  const has = el.classList.contains(cls);
-  if(has !== !!force) el.classList.toggle(cls, !!force);
-}
-function scheduleDeliveryBarsSync(){
-  if(deliverySyncQueued) return;
-  deliverySyncQueued = true;
-  const run = ()=>{
-    deliverySyncQueued = false;
-    try{ syncDeliveryActionBars(); }catch(_e){}
-  };
-  if(typeof window !== "undefined" && typeof window.requestAnimationFrame === "function"){
-    window.requestAnimationFrame(run);
-  }else{
-    setTimeout(run, 0);
-  }
-}
 
 function isMobileViewport(){
   try{ return window.matchMedia('(max-width: 720px)').matches; }catch(_e){ return window.innerWidth <= 720; }
@@ -149,23 +120,18 @@ function syncDeliveryMobileReturnAction(){
 }
 
 function syncDeliveryActionBars(){
-  if(typeof document === "undefined" || !document.body) return;
   const mobile = isMobileViewport();
   const appVisible = isVisibleEl(panelView);
   const overlay = hasDeliveryOverlayOpen();
-  const desktopDisplay = (appVisible && !mobile) ? 'inline-flex' : 'none';
-
-  setDisplayIfChanged(btnRefreshTop, desktopDisplay);
-  setDisplayIfChanged(btnHistory, desktopDisplay);
-  setDisplayIfChanged(btnLogoutTop, desktopDisplay);
-
+  if(btnRefreshTop) btnRefreshTop.style.display = (appVisible && !mobile) ? 'inline-flex' : 'none';
+  if(btnHistory) btnHistory.style.display = (appVisible && !mobile) ? 'inline-flex' : 'none';
+  if(btnLogoutTop) btnLogoutTop.style.display = (appVisible && !mobile) ? 'inline-flex' : 'none';
   const hubUi = ensureDeliveryHubReturnUI();
-  if(hubUi?.btn) setDisplayIfChanged(hubUi.btn, desktopDisplay);
-
+  if(hubUi?.btn) hubUi.btn.style.display = (appVisible && !mobile) ? 'inline-flex' : 'none';
   const bar = ensureDeliveryMobileBar();
   syncDeliveryMobileReturnAction();
-  toggleClassIfChanged(bar, 'isHidden', !appVisible || !mobile || overlay);
-  toggleClassIfChanged(document.body, 'deliveryOverlayOpen', !!overlay);
+  if(bar) bar.classList.toggle('isHidden', !appVisible || !mobile || overlay);
+  document.body.classList.toggle('deliveryOverlayOpen', !!overlay);
 }
 function wireDeliveryMobileBar(){
   ensureDeliveryMobileBar();
@@ -175,15 +141,14 @@ function wireDeliveryMobileBar(){
   if(bRefresh && !bRefresh.dataset.wired){ bRefresh.dataset.wired='1'; bRefresh.addEventListener('click', ()=> btnRefreshTop?.click()); }
   if(bHistory && !bHistory.dataset.wired){ bHistory.dataset.wired='1'; bHistory.addEventListener('click', ()=> btnHistory?.click()); }
   if(bLogout && !bLogout.dataset.wired){ bLogout.dataset.wired='1'; bLogout.addEventListener('click', ()=> { if(hasHubAccess_()) goHub_(); else btnLogoutTop?.click(); }); }
-  scheduleDeliveryBarsSync();
+  syncDeliveryActionBars();
 }
 function watchDeliveryBarState(){
-  if(deliveryBarObserverStarted) return;
-  const onSync = ()=> scheduleDeliveryBarsSync();
-  window.addEventListener('resize', onSync, { passive:true });
-  window.addEventListener('orientationchange', onSync, { passive:true });
-  window.addEventListener('pageshow', onSync);
-  document.addEventListener('visibilitychange', onSync, { passive:true });
+  if(deliveryBarObserverStarted || !document.body) return;
+  const obs = new MutationObserver(()=> syncDeliveryActionBars());
+  obs.observe(document.body, { subtree:true, childList:true, attributes:true, attributeFilter:['style','class','aria-hidden'] });
+  window.addEventListener('resize', syncDeliveryActionBars, { passive:true });
+  window.addEventListener('orientationchange', syncDeliveryActionBars, { passive:true });
   deliveryBarObserverStarted = true;
 }
 
@@ -251,15 +216,13 @@ function showLoading(t="Cargando…", m="Por favor espera."){
   if(!loading) return;
   if(loadingTitle) loadingTitle.textContent = t;
   if(loadingMsg) loadingMsg.textContent = m;
-  setDisplayIfChanged(loading, "flex");
-  setAriaHiddenIfChanged(loading, false);
-  scheduleDeliveryBarsSync();
+  loading.style.display = "flex";
+  loading.setAttribute("aria-hidden","false");
 }
 function hideLoading(){
   if(!loading) return;
-  setDisplayIfChanged(loading, "none");
-  setAriaHiddenIfChanged(loading, true);
-  scheduleDeliveryBarsSync();
+  loading.style.display = "none";
+  loading.setAttribute("aria-hidden","true");
 }
 function setStatus(msg){ if(statusEl) statusEl.textContent = msg || ""; }
 
@@ -317,7 +280,22 @@ function hasCategory(profile, wanted){
   return aliases.some(a => cats.includes(a));
 }
 
-async function api(payload){
+function wait(ms){
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+function buildDeliveryApiError_(err, timeoutMs){
+  const msg = String(err?.message || err || "");
+  if(err?.name === "AbortError"){
+    return new Error(`Tiempo de espera agotado (${Math.round(Number(timeoutMs || 0)/1000) || 12}s). Revisa el Worker, Apps Script o tu conexión.`);
+  }
+  if(/Failed to fetch|NetworkError|Load failed|fetch/i.test(msg)){
+    return new Error("No se pudo conectar con la API de envíos. Revisa el Worker, CORS o tu conexión.");
+  }
+  return err instanceof Error ? err : new Error(msg || "Error de conexión");
+}
+
+async function api(payload, { timeoutMs = 12000, retries = 1 } = {}){
   const body = Object.assign({}, payload || {});
   const action = String(body.action || "").trim();
   const publicActions = new Set([
@@ -335,14 +313,41 @@ async function api(payload){
     body.auth_page = "delivery";
   }
 
-  const res = await fetch(API_URL, {
-    method:"POST",
-    headers:{ "Content-Type":"application/json" },
-    body: JSON.stringify(body)
-  });
-  const out = await res.json().catch(async()=>({ ok:false, error: await res.text().catch(()=> "") }));
-  if(!out || out.ok === false) throw new Error(out?.error || out?.message || "Error");
-  return out;
+  let lastErr = null;
+  for(let attempt = 0; attempt <= retries; attempt++){
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    try{
+      const res = await fetch(API_URL, {
+        method:"POST",
+        headers:{ "Content-Type":"application/json" },
+        body: JSON.stringify(body),
+        signal: controller.signal
+      });
+
+      const raw = await res.text().catch(()=>"");
+      let out;
+      try{
+        out = raw ? JSON.parse(raw) : { ok:false, error:`HTTP ${res.status}` };
+      }catch(_e){
+        out = { ok:false, error: raw || `HTTP ${res.status}` };
+      }
+
+      if(!res.ok) throw new Error(out?.error || out?.message || `HTTP ${res.status}`);
+      if(!out || out.ok === false) throw new Error(out?.error || out?.message || "Error");
+      return out;
+    }catch(err){
+      lastErr = buildDeliveryApiError_(err, timeoutMs);
+      if(attempt < retries){
+        await wait(350 * (attempt + 1));
+        continue;
+      }
+    }finally{
+      clearTimeout(timer);
+    }
+  }
+
+  throw lastErr || new Error("No se pudo completar la solicitud.");
 }
 
 // ---- Profiles (public list) ----
@@ -498,15 +503,15 @@ function setDeliveryShellMode(mode){
 
 function showPanel(){
   setDeliveryShellMode("app");
-  setDisplayIfChanged(loginView, "none");
-  setDisplayIfChanged(panelView, "block");
-  scheduleDeliveryBarsSync();
+  if(loginView) loginView.style.display = "none";
+  if(panelView) panelView.style.display = "block";
+  syncDeliveryActionBars();
 }
 function showLogin(){
   setDeliveryShellMode("login");
-  setDisplayIfChanged(panelView, "none");
-  setDisplayIfChanged(loginView, "block");
-  scheduleDeliveryBarsSync();
+  if(panelView) panelView.style.display = "none";
+  if(loginView) loginView.style.display = "block";
+  syncDeliveryActionBars();
 }
 
 function logout(){
@@ -689,16 +694,14 @@ async function loadOrders(){
 function openHistory(){
   if(!histBack) return;
   histStatus.textContent = "";
-  setDisplayIfChanged(histBack, "flex");
-  setAriaHiddenIfChanged(histBack, false);
-  scheduleDeliveryBarsSync();
+  histBack.style.display = "flex";
+  histBack.setAttribute("aria-hidden","false");
   loadHistory();
 }
 function closeHistory(){
   if(!histBack) return;
-  setDisplayIfChanged(histBack, "none");
-  setAriaHiddenIfChanged(histBack, true);
-  scheduleDeliveryBarsSync();
+  histBack.style.display = "none";
+  histBack.setAttribute("aria-hidden","true");
 }
 function renderHistory(orders){
   HIST = orders || [];
@@ -818,17 +821,15 @@ if(!canWa){
 
   applyContextButtons(order);
 
-  setDisplayIfChanged(sendBack, "flex");
-  setAriaHiddenIfChanged(sendBack, false);
-  scheduleDeliveryBarsSync();
+  sendBack.style.display = "flex";
+  sendBack.setAttribute("aria-hidden","false");
 }
 
 function closeSendModal(){
   SEND_ORDER = null;
   if(!sendBack) return;
-  setDisplayIfChanged(sendBack, "none");
-  setAriaHiddenIfChanged(sendBack, true);
-  scheduleDeliveryBarsSync();
+  sendBack.style.display = "none";
+  sendBack.setAttribute("aria-hidden","true");
 }
 
 function buildMessage(order, etaMinutes, templateId){
@@ -848,40 +849,38 @@ function applyContextButtons(order){
   const isHist = (SEND_CONTEXT === "history");
 
   if(isHist){
-    setDisplayIfChanged(btnMarkSent, "none");
+    if(btnMarkSent) btnMarkSent.style.display = "none";
     if(btnAskWhatsApp){
-      setDisplayIfChanged(btnAskWhatsApp, "");
+      btnAskWhatsApp.style.display = "";
       btnAskWhatsApp.disabled = false;
       btnAskWhatsApp.style.opacity = "";
       btnAskWhatsApp.title = "Abrir chat (sin mensaje)";
       btnAskWhatsApp.textContent = "Ver chat";
     }
     if(sendErr) sendErr.textContent = "";
-    scheduleDeliveryBarsSync();
     return;
   }
 
   if(canWa){
     if(btnAskWhatsApp){
-      setDisplayIfChanged(btnAskWhatsApp, "");
+      btnAskWhatsApp.style.display = "";
       btnAskWhatsApp.disabled = false;
       btnAskWhatsApp.style.opacity = "";
       btnAskWhatsApp.title = "Abrir WhatsApp (con mensaje)";
       btnAskWhatsApp.textContent = "Abrir WhatsApp";
     }
-    setDisplayIfChanged(btnMarkSent, "none");
+    if(btnMarkSent) btnMarkSent.style.display = "none";
     if(sendErr) sendErr.textContent = "";
   }else{
-    setDisplayIfChanged(btnAskWhatsApp, "none");
+    if(btnAskWhatsApp) btnAskWhatsApp.style.display = "none";
     if(btnMarkSent){
-      setDisplayIfChanged(btnMarkSent, "");
+      btnMarkSent.style.display = "";
       btnMarkSent.disabled = false;
       btnMarkSent.style.opacity = "";
       btnMarkSent.title = "Marcar Enviado";
     }
     if(sendErr) sendErr.textContent = "Este cliente NO autorizó WhatsApp. Usa “Marcar Enviado”.";
   }
-  scheduleDeliveryBarsSync();
 }
 
 
@@ -932,9 +931,8 @@ function openConfirm(orderId, mode){
 
   confirmErr.textContent = "";
   if(!confirmBack) return;
-  setDisplayIfChanged(confirmBack, "flex");
-  setAriaHiddenIfChanged(confirmBack, false);
-  scheduleDeliveryBarsSync();
+  confirmBack.style.display = "flex";
+  confirmBack.setAttribute("aria-hidden","false");
 
   confirmOrder.textContent = orderId || "—";
   CONFIRM_LEFT = 2;
@@ -959,9 +957,8 @@ function closeConfirm(){
   if(CONFIRM_INT) clearInterval(CONFIRM_INT);
   CONFIRM_INT = null;
   if(!confirmBack) return;
-  setDisplayIfChanged(confirmBack, "none");
-  setAriaHiddenIfChanged(confirmBack, true);
-  scheduleDeliveryBarsSync();
+  confirmBack.style.display = "none";
+  confirmBack.setAttribute("aria-hidden","true");
 }
 
 async function markSentOnly(){
@@ -1158,9 +1155,19 @@ histBack?.addEventListener("click", (ev)=>{ if(ev.target === histBack) closeHist
 
 // ---- Init ----
 (async function init(){
+  const bootFailSafe = window.setTimeout(()=>{
+    try{ revealHubBoot_(); }catch(_e){}
+  }, 1200);
+
   wireDeliveryMobileBar();
   watchDeliveryBarState();
+  showLogin();
   syncDeliveryActionBars();
+
+  if(FROM_HUB){
+    showLoading("Preparando envíos…", "Validando acceso a la página.");
+  }
+
   try{
     const saved = loadSavedDeliverySession();
     const hubSaved = loadHubSessionCandidate();
@@ -1204,10 +1211,13 @@ histBack?.addEventListener("click", (ev)=>{ if(ev.target === histBack) closeHist
   }catch(err){
     console.error('delivery init error:', err);
     showLogin();
-    await loadProfilesOnStart();
+    try{
+      await loadProfilesOnStart();
+    }catch(_e){}
   }finally{
+    window.clearTimeout(bootFailSafe);
     hideLoading();
     revealHubBoot_();
-    scheduleDeliveryBarsSync();
+    syncDeliveryActionBars();
   }
 })();
