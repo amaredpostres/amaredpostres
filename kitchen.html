@@ -50,7 +50,50 @@
         .amHubBootTitle{ font-weight:950; font-size:18px; color:var(--choco); }
         .amHubBootSub{ margin-top:4px; color:rgba(64,17,2,.66); font-size:13px; font-weight:750; }
     @keyframes amSpin{ to{ transform: rotate(360deg); } }
-  </style>
+  
+
+/* ===== Header sync hotfix (Apr 2026) ===== */
+.kitchenPage.is-app .kitchenTopbarInner.amSectionTopbarInner{
+  justify-content:space-between !important;
+}
+.kitchenPage.is-app .kitchenTopbarAppBrand.amSectionBrand{
+  flex:1 1 auto;
+  width:auto !important;
+  max-width:100%;
+  margin:0 !important;
+  justify-content:flex-start !important;
+  padding-inline:0 !important;
+}
+.kitchenPage.is-app .kitchenTopbarAppBrand .amSectionBrandMeta{
+  align-items:flex-start !important;
+  text-align:left !important;
+}
+.kitchenPage.is-app .kitchenTopbarAppBrand .amSectionTitle{
+  font-size:clamp(20px, 1.7vw, 22px) !important;
+}
+.kitchenPage.is-app .kitchenTopbarAppBrand .amSectionSubtitle{
+  font-size:12.5px !important;
+}
+@media (max-width: 860px){
+  .kitchenPage.is-app .kitchenTopbarInner.amSectionTopbarInner{
+    justify-content:center !important;
+  }
+  .kitchenPage.is-app .kitchenTopbarAppBrand.amSectionBrand{
+    width:auto !important;
+    margin:0 auto !important;
+    justify-content:center !important;
+    padding-inline:8px !important;
+  }
+  .kitchenPage.is-app .kitchenTopbarAppBrand .amSectionBrandMeta{
+    align-items:center !important;
+    text-align:center !important;
+  }
+  .kitchenPage.is-app .kitchenTopbarAppBrand .amSectionTitle{
+    font-size:clamp(23px, 6vw, 25px) !important;
+  }
+}
+
+</style>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>AMARED · Cocina</title>
