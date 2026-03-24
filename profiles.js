@@ -20,6 +20,16 @@ function hasHubAccess_(){
 function revealHubBoot_(){
   try{ document.documentElement.classList.remove("hubBoot"); document.documentElement.classList.add("hubReady"); }catch(_e){}
 }
+function goHubFromProfiles_(){
+  try{
+    const ref = String(document.referrer || '');
+    if((FROM_HUB || /(^|\/)hub\.html(?:\?|$)/i.test(ref)) && history.length > 1){
+      history.back();
+      return;
+    }
+  }catch(_e){}
+  location.href = HUB_URL;
+}
 
 // =================== DOM ===================
 const btnBack = document.getElementById("btnBack");
@@ -60,6 +70,35 @@ const mgrErr = document.getElementById("mgrErr");
 const loading = document.getElementById("loading");
 const loadingTitle = document.getElementById("loadingTitle");
 const loadingMsg = document.getElementById("loadingMsg");
+
+function syncProfilesHubChrome(){
+  const hubMode = FROM_HUB;
+  try{ document.body.classList.toggle("is-hub-flow", hubMode); }catch(_e){}
+  if(btnBack){
+    btnBack.textContent = hubMode ? "Panel" : "Volver";
+    btnBack.setAttribute("aria-label", hubMode ? "Volver al panel" : "Volver");
+  }
+  if(btnGateBack){
+    btnGateBack.textContent = hubMode ? "Volver al panel" : "Volver atrás";
+  }
+  if(btnLogout){
+    btnLogout.style.display = hubMode ? "none" : "";
+    if(hubMode) btnLogout.disabled = true;
+  }
+  if(btnMobileBack){
+    btnMobileBack.textContent = hubMode ? "Panel" : "Volver";
+    btnMobileBack.setAttribute("aria-label", hubMode ? "Volver al panel" : "Volver");
+  }
+  if(btnMobileLock){
+    btnMobileLock.style.display = hubMode ? "none" : "";
+    btnMobileLock.setAttribute("aria-label", hubMode ? "Volver al panel" : "Salir");
+    const ico = btnMobileLock.querySelector('.ico');
+    const txt = btnMobileLock.querySelector('.txt');
+    if(ico) ico.textContent = hubMode ? '⌂' : '⎋';
+    if(txt) txt.textContent = hubMode ? 'Panel' : 'Salir';
+  }
+  if(profilesMobileBar) profilesMobileBar.classList.toggle("isHubMode", hubMode);
+}
 
 
 // --- Edit modal DOM ---
@@ -293,6 +332,7 @@ function syncProfilesMobileBar(){
   const gateVisible = !!gateCard && gateCard.style.display !== "none";
   const hasOverlay = (editBack && editBack.style.display === "flex") || (loading && loading.style.display === "flex");
   profilesMobileBar.classList.toggle("isVisible", mobile && unlocked && !gateVisible && !hasOverlay);
+  profilesMobileBar.classList.toggle("isHubMode", FROM_HUB);
 }
 
 function setLockedUI(locked){
@@ -309,7 +349,7 @@ function setLockedUI(locked){
     if(profilesHero) profilesHero.classList.add("hidden");
     syncProfilesMobileBar();
   }else{
-    if(btnLogout) btnLogout.disabled = false;
+    if(btnLogout) btnLogout.disabled = !!FROM_HUB;
     if(mgrCard) mgrCard.style.display = "block";
     if(statusCard) statusCard.style.display = "none";
     if(gateCard) gateCard.style.display = "none";
@@ -610,27 +650,16 @@ async function loadProfiles(){
 
 // =================== EVENTS ===================
 
-function goPanelFromProfiles_(){
-  location.href = HUB_URL;
-}
-
 function goBackFromProfiles_(){
-  try{
-    const ref = String(document.referrer || '');
-    if((hasHubAccess_() || /(^|\/)hub\.html(?:\?|$)/i.test(ref)) && history.length > 1){
-      history.back();
-      return;
-    }
-  }catch(_e){}
-  if(hasHubAccess_()){
-    location.href = HUB_URL;
+  if(FROM_HUB){
+    goHubFromProfiles_();
     return;
   }
   if(history.length > 1) history.back();
   else location.href = "index.html";
 }
 
-btnBack?.addEventListener("click", goPanelFromProfiles_);
+btnBack?.addEventListener("click", goBackFromProfiles_);
 btnGateBack?.addEventListener("click", goBackFromProfiles_);
 
 inpName?.addEventListener("input", ()=>{
@@ -675,11 +704,17 @@ btnUnlock?.addEventListener("click", async ()=>{
     console.error("unlock error:", e, e._raw);
   }finally{
     hideLoading();
-    revealHubBoot_();
   }
 });
 
-btnLogout?.addEventListener("click", goPanelFromProfiles_);
+btnLogout?.addEventListener("click", ()=>{
+  PROFILE_SESSION = { id:null, label:null, password:null, categories:[] };
+  if(inpSecret) inpSecret.value = "";
+  if(loginProfile) loginProfile.value = "";
+  clearProfilesRemember_();
+  clearPortalProfilesSession_();
+  setLockedUI(true);
+});
 
 btnReload?.addEventListener("click", async ()=>{
   try{
@@ -824,6 +859,7 @@ btnEditSave?.addEventListener("click", async ()=>{
 
 // init UI locked
 setLockedUI(true);
+syncProfilesHubChrome();
 
 
 btnTogglePin?.addEventListener("click", ()=>{
@@ -868,8 +904,15 @@ inpSecret?.addEventListener("keydown", (e)=>{ if(e.key === "Enter") btnUnlock?.c
   if(shouldAutoUnlock) btnUnlock?.click();
 })();
 
+syncProfilesHubChrome();
 btnMobileReload?.addEventListener("click", ()=> btnReload?.click());
-btnMobileBack?.addEventListener("click", goPanelFromProfiles_);
-btnMobileLock?.addEventListener("click", goPanelFromProfiles_);
-window.addEventListener("resize", syncProfilesMobileBar);
-setTimeout(syncProfilesMobileBar, 0);
+btnMobileBack?.addEventListener("click", ()=> {
+  if(FROM_HUB) goHubFromProfiles_();
+  else btnBack?.click();
+});
+btnMobileLock?.addEventListener("click", ()=> {
+  if(FROM_HUB) goHubFromProfiles_();
+  else btnLogout?.click();
+});
+window.addEventListener("resize", ()=>{ syncProfilesHubChrome(); syncProfilesMobileBar(); });
+setTimeout(()=>{ syncProfilesHubChrome(); syncProfilesMobileBar(); }, 0);
