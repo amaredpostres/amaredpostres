@@ -253,15 +253,6 @@ function normalizeCatsAny(v){
     .filter(Boolean);
 }
 
-
-function normalizeCategoryAlias(v){
-  return String(v || "")
-    .trim()
-    .toLowerCase()
-    .normalize("NFD").replace(/[̀-ͯ]/g, "")
-    .replace(/[^a-z0-9]/g, "");
-}
-
 function isActiveAny(v){
   const s = String(v ?? "true").trim().toLowerCase();
   return !(s === "false" || s === "0" || s === "no");
@@ -277,29 +268,31 @@ function isOptIn(v){
 
 // Category matching (supports synonyms)
 function hasCategory(profile, wanted){
-  const cats = new Set(normalizeCatsAny(profile?.categories).map(normalizeCategoryAlias).filter(Boolean));
-  const w = normalizeCategoryAlias(wanted);
+  const cats = normalizeCatsAny(profile?.categories);
+  const w = String(wanted||"").toLowerCase();
   const map = {
-    delivery: ["delivery","envios","envio","reparto","domicilio"],
-    admin: ["admin","administracion"],
+    delivery: ["delivery","envios","envíos","envio","envío","envíos","reparto","domicilio"],
+    admin: ["admin","administracion","administración"],
     payments: ["payments","pago","pagos"],
     kitchen: ["kitchen","cocina"],
-    profiles: ["profiles","perfil","perfiles"],
   };
-  const aliases = (map[w] || [w]).map(normalizeCategoryAlias);
-  return aliases.some(a => cats.has(a));
+  const aliases = map[w] || [w];
+  return aliases.some(a => cats.includes(a));
 }
 
 async function api(payload){
   const body = Object.assign({}, payload || {});
-  if(
-    SESSION?.operator?.id &&
-    SESSION?.pin &&
-    body.action !== "profiles_auth" &&
-    body.action !== "profiles_public_list" &&
-    body.action !== "validate_admin_pin" &&
-    !body.auth_profile_id
-  ){
+  const action = String(body.action || "").trim();
+  const publicActions = new Set([
+    "profiles_public_list",
+    "profiles_auth",
+    "validate_admin_pin",
+    "validate_profiles_secret",
+    "validate_costs_secret",
+    "recipes_pin_check"
+  ]);
+
+  if(!publicActions.has(action) && SESSION?.operator?.id && SESSION?.pin){
     body.auth_profile_id = String(SESSION.operator.id || "").trim();
     body.auth_profile_password = String(SESSION.pin || "").trim();
     body.auth_page = "delivery";
@@ -412,7 +405,7 @@ async function doLogin(){
   showLoading("Validando…","Comprobando acceso…");
   try{
     const auth = await api({ action:"profiles_auth", profile_id: id, password_plain: password });
-    const allowed = hasCategory(auth?.profile || {}, "admin") || hasCategory(auth?.profile || {}, "delivery");
+    const allowed = hasCategory(auth?.profile, "admin") || hasCategory(auth?.profile, "delivery");
     if(auth.valid !== true || !allowed){
       throw new Error(auth?.error || "Perfil sin permisos para envíos.");
     }
@@ -603,10 +596,17 @@ async function loadOrders(){
   }catch(e){
     console.error("loadOrders error:", e);
     const msg = e?.message || "Error cargando pedidos.";
-    setStatus(msg);
-    if(listEl) listEl.innerHTML = "";
     if(/unauthorized/i.test(String(msg))){
-      loginErr.textContent = "No se pudo validar la sesión para envíos. Revisa el Worker actualizado.";
+      clearSavedDeliverySession();
+      SESSION = { operator:null, pin:null };
+      if(listEl) listEl.innerHTML = "";
+      showLogin();
+      setStatus("");
+      loginErr.textContent = "Tu sesión no es válida para Envíos. Inicia sesión nuevamente.";
+      loadProfilesOnStart().catch(()=>{});
+    }else{
+      setStatus(msg);
+      if(listEl) listEl.innerHTML = "";
     }
   }finally{
     hideLoading();
