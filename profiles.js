@@ -76,6 +76,14 @@ const editErr = document.getElementById("editErr");
 
 let EDITING_ID = null;
 
+function normalizeCategoryAlias(v){
+  return String(v || "")
+    .trim()
+    .toLowerCase()
+    .normalize("NFD").replace(/[̀-ͯ]/g, "")
+    .replace(/[^a-z0-9]/g, "");
+}
+
 function normCatsAny(v){
   if(Array.isArray(v)) return v.map(x=>String(x||"").trim().toLowerCase()).filter(Boolean);
   return String(v||"").split(",").map(s=>s.trim().toLowerCase()).filter(Boolean);
@@ -120,6 +128,17 @@ function getEditSelectedCategories(){
   return checks.filter(c=>c.checked).map(c=>String(c.value||"").trim()).filter(Boolean);
 }
 
+
+function profileHasCategory(profile, wanted){
+  const cats = new Set(normCatsAny(profile?.categories).map(normalizeCategoryAlias).filter(Boolean));
+  const w = normalizeCategoryAlias(wanted);
+  const aliasesMap = {
+    admin: ["admin","administracion"],
+    profiles: ["profiles","perfil","perfiles"],
+  };
+  const aliases = (aliasesMap[w] || [w]).map(normalizeCategoryAlias);
+  return aliases.some(a => cats.has(a));
+}
 
 // =================== HELPERS ===================
 function showLoading(title, msg){
@@ -630,8 +649,7 @@ btnUnlock?.addEventListener("click", async ()=>{
   try{
     showLoading("Validando…", "Comprobando acceso…");
     const auth = await api({ action: "profiles_auth", profile_id: profileId, password_plain: secret });
-    const cats = Array.isArray(auth?.profile?.categories) ? auth.profile.categories.map(v => String(v || "").toLowerCase()) : [];
-    const allowed = cats.includes("admin") || cats.includes("profiles");
+    const allowed = profileHasCategory(auth?.profile || {}, "admin") || profileHasCategory(auth?.profile || {}, "profiles");
     if(auth.valid !== true || !allowed) throw new Error(auth?.error || "Perfil sin permisos para gestionar perfiles.");
 
     PROFILE_SESSION = {
@@ -653,7 +671,6 @@ btnUnlock?.addEventListener("click", async ()=>{
     console.error("unlock error:", e, e._raw);
   }finally{
     hideLoading();
-    revealHubBoot_();
   }
 });
 
