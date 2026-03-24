@@ -366,6 +366,41 @@
       .adminHeaderActions.isVisible{ display:flex; }
     }
 
+
+    /* ===== Fix menú móvil pagos desde hub ===== */
+    @media (max-width:880px){
+      .adminMobileBar{
+        display:none;
+        align-items:center !important;
+        justify-content:space-between;
+        gap:10px;
+        padding:10px;
+        grid-template-columns:none !important;
+      }
+      .adminMobileBar.isVisible{
+        display:flex !important;
+      }
+      .adminMobileBtn{
+        flex:0 0 52px;
+        width:52px;
+        height:52px;
+      }
+      .adminMobileCenter{
+        flex:1 1 auto;
+        min-width:0;
+        display:block;
+        grid-template-columns:none !important;
+      }
+      .adminMobilePill{
+        display:flex;
+        align-items:center;
+        justify-content:center;
+        width:100%;
+        min-width:0;
+        white-space:nowrap;
+      }
+    }
+
   </style>
 </head>
 
