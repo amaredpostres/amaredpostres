@@ -1149,3 +1149,48 @@ body{
   }
 }
 
+
+
+/* ===== Shared section header hardening (Apr 2026) ===== */
+.amSectionTopbarInner{
+  width:100%;
+}
+.amSectionBrand{
+  max-width:100%;
+}
+.amSectionBrandMeta{
+  justify-content:center;
+}
+.amSectionTitle,
+.amSectionSubtitle{
+  word-break:break-word;
+}
+@media (min-width: 861px){
+  .amSectionTopbarInner{
+    justify-content:space-between;
+  }
+  .amSectionBrand{
+    justify-content:flex-start;
+    margin:0;
+  }
+  .amSectionBrandMeta{
+    align-items:flex-start;
+    text-align:left;
+  }
+}
+@media (max-width: 860px){
+  .amSectionTopbarInner{
+    justify-content:center !important;
+  }
+  .amSectionBrand{
+    width:auto;
+    max-width:100%;
+    margin:0 auto;
+    justify-content:center;
+    padding-inline:8px;
+  }
+  .amSectionBrandMeta{
+    align-items:center;
+    text-align:center;
+  }
+}
