@@ -666,17 +666,20 @@ inpName?.addEventListener("input", ()=>{
   inpId.value = slugifyNameToId(inpName.value);
 });
 
-btnUnlock?.addEventListener("click", async ()=>{
+async function unlockProfilesAccess_(){
   gateErr.textContent = "";
   const profileId = String(loginProfile?.value || "").trim();
-  const secret = String(inpSecret.value||"").trim();
+  const secret = String(inpSecret?.value || "").trim();
+
   if(!profileId){
     gateErr.textContent = "Selecciona un perfil.";
-    return;
+    revealHubBoot_();
+    return false;
   }
   if(!secret){
     gateErr.textContent = "Ingresa la contraseña.";
-    return;
+    revealHubBoot_();
+    return false;
   }
 
   try{
@@ -696,15 +699,22 @@ btnUnlock?.addEventListener("click", async ()=>{
     await loadProfiles();
     listMsg.textContent = "Acceso concedido.";
     gateErr.textContent = "";
+    return true;
   }catch(e){
     PROFILE_SESSION = { id:null, label:null, password:null, categories:[] };
     clearProfilesRemember_();
     setLockedUI(true);
     gateErr.textContent = e?.message || "Contraseña incorrecta o no autorizada.";
     console.error("unlock error:", e, e._raw);
+    return false;
   }finally{
     hideLoading();
+    revealHubBoot_();
   }
+}
+
+btnUnlock?.addEventListener("click", async ()=>{
+  await unlockProfilesAccess_();
 });
 
 btnLogout?.addEventListener("click", ()=>{
@@ -901,7 +911,7 @@ inpSecret?.addEventListener("keydown", (e)=>{ if(e.key === "Enter") btnUnlock?.c
     hideLoading();
     if(!shouldAutoUnlock) revealHubBoot_();
   }
-  if(shouldAutoUnlock) btnUnlock?.click();
+  if(shouldAutoUnlock) await unlockProfilesAccess_();
 })();
 
 syncProfilesHubChrome();
