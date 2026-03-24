@@ -280,7 +280,22 @@ function hasCategory(profile, wanted){
   return aliases.some(a => cats.includes(a));
 }
 
-async function api(payload){
+function wait(ms){
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+function buildDeliveryApiError_(err, timeoutMs){
+  const msg = String(err?.message || err || "");
+  if(err?.name === "AbortError"){
+    return new Error(`Tiempo de espera agotado (${Math.round(Number(timeoutMs || 0)/1000) || 12}s). Revisa el Worker, Apps Script o tu conexión.`);
+  }
+  if(/Failed to fetch|NetworkError|Load failed|fetch/i.test(msg)){
+    return new Error("No se pudo conectar con la API de envíos. Revisa el Worker, CORS o tu conexión.");
+  }
+  return err instanceof Error ? err : new Error(msg || "Error de conexión");
+}
+
+async function api(payload, { timeoutMs = 12000, retries = 1 } = {}){
   const body = Object.assign({}, payload || {});
   const action = String(body.action || "").trim();
   const publicActions = new Set([
@@ -298,14 +313,41 @@ async function api(payload){
     body.auth_page = "delivery";
   }
 
-  const res = await fetch(API_URL, {
-    method:"POST",
-    headers:{ "Content-Type":"application/json" },
-    body: JSON.stringify(body)
-  });
-  const out = await res.json().catch(async()=>({ ok:false, error: await res.text().catch(()=> "") }));
-  if(!out || out.ok === false) throw new Error(out?.error || out?.message || "Error");
-  return out;
+  let lastErr = null;
+  for(let attempt = 0; attempt <= retries; attempt++){
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    try{
+      const res = await fetch(API_URL, {
+        method:"POST",
+        headers:{ "Content-Type":"application/json" },
+        body: JSON.stringify(body),
+        signal: controller.signal
+      });
+
+      const raw = await res.text().catch(()=>"");
+      let out;
+      try{
+        out = raw ? JSON.parse(raw) : { ok:false, error:`HTTP ${res.status}` };
+      }catch(_e){
+        out = { ok:false, error: raw || `HTTP ${res.status}` };
+      }
+
+      if(!res.ok) throw new Error(out?.error || out?.message || `HTTP ${res.status}`);
+      if(!out || out.ok === false) throw new Error(out?.error || out?.message || "Error");
+      return out;
+    }catch(err){
+      lastErr = buildDeliveryApiError_(err, timeoutMs);
+      if(attempt < retries){
+        await wait(350 * (attempt + 1));
+        continue;
+      }
+    }finally{
+      clearTimeout(timer);
+    }
+  }
+
+  throw lastErr || new Error("No se pudo completar la solicitud.");
 }
 
 // ---- Profiles (public list) ----
@@ -1113,9 +1155,19 @@ histBack?.addEventListener("click", (ev)=>{ if(ev.target === histBack) closeHist
 
 // ---- Init ----
 (async function init(){
+  const bootFailSafe = window.setTimeout(()=>{
+    try{ revealHubBoot_(); }catch(_e){}
+  }, 1200);
+
   wireDeliveryMobileBar();
   watchDeliveryBarState();
+  showLogin();
   syncDeliveryActionBars();
+
+  if(FROM_HUB){
+    showLoading("Preparando envíos…", "Validando acceso a la página.");
+  }
+
   try{
     const saved = loadSavedDeliverySession();
     const hubSaved = loadHubSessionCandidate();
@@ -1159,8 +1211,11 @@ histBack?.addEventListener("click", (ev)=>{ if(ev.target === histBack) closeHist
   }catch(err){
     console.error('delivery init error:', err);
     showLogin();
-    await loadProfilesOnStart();
+    try{
+      await loadProfilesOnStart();
+    }catch(_e){}
   }finally{
+    window.clearTimeout(bootFailSafe);
     hideLoading();
     revealHubBoot_();
     syncDeliveryActionBars();
