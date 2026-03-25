@@ -49,6 +49,47 @@
     .amHubBootTitle{ font-weight: 950; font-size: 18px; line-height: 1.08; color:#401102; }
     .amHubBootSub{ margin-top: 4px; font-size: 13.5px; font-weight: 800; color: rgba(64,17,2,.72); }
     @keyframes amHubBootSpin{ to{ transform: rotate(360deg); } }
+
+.profilesMobileBtn .ico{
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  font-size:19px;
+  line-height:1;
+  transform: translateY(-1px);
+}
+.profilesMobileBtn .txt{
+  position:absolute;
+  width:1px;
+  height:1px;
+  padding:0;
+  margin:-1px;
+  overflow:hidden;
+  clip:rect(0,0,0,0);
+  white-space:nowrap;
+  border:0;
+}
+.profilesMobilePill .ico{
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  font-size:18px;
+  line-height:1;
+  transform: translateY(-1px);
+  flex:0 0 auto;
+}
+.profilesMobilePill .txt{
+  display:inline-block;
+  font-weight:950;
+  letter-spacing:.1px;
+}
+.profilesMobileBar.isHubMode{
+  grid-template-columns:52px minmax(0,1fr);
+}
+.profilesMobileBar.isHubMode .profilesMobileCenter{
+  grid-column:2;
+}
+
   </style>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
@@ -209,110 +250,63 @@
       display:flex; align-items:center; gap:10px; flex-wrap:wrap;
     }
     .profilesMobileBar{
-      position: fixed;
-      left: 12px; right: 12px;
-      bottom: calc(env(safe-area-inset-bottom, 0px) + 12px);
-      display:none; align-items:center; gap:10px;
-      padding:10px;
-      border-radius:999px;
-      border:1px solid rgba(64,17,2,.10);
-      background: linear-gradient(180deg, rgba(255,252,248,.92), rgba(246,239,231,.88));
-      box-shadow: 0 18px 44px rgba(64,17,2,.14);
-      backdrop-filter: blur(10px);
-      z-index: 9500;
-    }
+  position: fixed;
+  left: 12px; right: 12px;
+  bottom: calc(env(safe-area-inset-bottom, 0px) + 12px);
+  display:none;
+  grid-template-columns:52px minmax(0,1fr) 52px;
+  gap:9px;
+  align-items:center;
+  padding:9px;
+  border-radius:999px;
+  border:1px solid rgba(64,17,2,.10);
+  background: rgba(254,246,239,.84);
+  box-shadow: 0 18px 44px rgba(64,17,2,.14);
+  backdrop-filter: blur(10px);
+  z-index: 9500;
+}
     .profilesMobileBtn{
-      width:52px; height:52px;
-      min-width:52px; min-height:52px;
-      padding:0;
-      overflow:hidden;
-      flex:0 0 52px;
-      border-radius:999px;
-      border:1px solid rgba(255,255,255,.92);
-      background: linear-gradient(180deg, rgba(255,255,255,.98), rgba(249,246,242,.94));
-      display:flex; align-items:center; justify-content:center;
-      font-weight:950; font-size:16px; color:var(--choco);
-      box-shadow: 0 10px 22px rgba(64,17,2,.08), inset 0 1px 0 rgba(255,255,255,.85);
-      cursor:pointer;
-    }
-    .profilesMobileBtn .ico{
-      display:block;
-      font-size:20px;
-      line-height:1;
-      transform: translateY(-1px);
-    }
-    .profilesMobileBtn .txt{
-      display:none !important;
-    }
-    .profilesMobileBar.isHubMode #btnMobileLock{
-      display:none !important;
-    }
+  width:52px; height:52px;
+  min-width:52px; min-height:52px;
+  padding:0;
+  overflow:hidden;
+  border-radius:999px;
+  border:1px solid rgba(255,255,255,.92);
+  background: linear-gradient(180deg, rgba(255,255,255,.98), rgba(249,246,242,.94));
+  display:flex; align-items:center; justify-content:center;
+  font-weight:950; font-size:16px; color:var(--choco);
+  box-shadow: 0 10px 22px rgba(64,17,2,.08), inset 0 1px 0 rgba(255,255,255,.85);
+  cursor:pointer;
+}
     .profilesMobileCenter{
-      flex:1; min-width:0;
-      border-radius:999px;
-      border:1px solid rgba(255,255,255,.92);
-      background: linear-gradient(180deg, rgba(255,255,255,.98), rgba(248,244,239,.94));
-      padding:4px;
-      display:grid;
-      grid-template-columns:1fr;
-      gap:4px;
-      box-shadow: 0 10px 22px rgba(64,17,2,.06), inset 0 1px 0 rgba(255,255,255,.80);
-    }
+  min-width:0;
+  display:grid;
+  grid-template-columns:1fr;
+  gap:6px;
+  padding:4px;
+  border-radius:999px;
+  border:1px solid rgba(255,255,255,.92);
+  background: linear-gradient(180deg, rgba(255,255,255,.96), rgba(248,244,239,.94));
+  box-shadow: 0 10px 22px rgba(64,17,2,.06), inset 0 1px 0 rgba(255,255,255,.80);
+}
     .profilesMobilePill{
-      width:100%;
-      border:0;
-      border-radius:999px;
-      background: transparent;
-      color: var(--choco);
-      min-height:50px;
-      font-weight:950;
-      font-size:14.5px;
-      padding:0 18px;
-      cursor:pointer;
-      white-space:nowrap;
-    }
-    .profilesMobileBtn .txt{
-      position:absolute;
-      width:1px;
-      height:1px;
-      padding:0;
-      margin:-1px;
-      overflow:hidden;
-      clip:rect(0,0,0,0);
-      white-space:nowrap;
-      border:0;
-    }
-    .profilesMobileBtn .ico{
-      font-size: 22px;
-      line-height: 1;
-      display:flex;
-      align-items:center;
-      justify-content:center;
-      transform: translateY(-1px);
-    }
-    .profilesMobilePill{
-      display:flex;
-      align-items:center;
-      justify-content:center;
-      gap:10px;
-    }
-    .profilesMobilePill .ico{
-      font-size:18px;
-      line-height:1;
-      display:flex;
-      align-items:center;
-      justify-content:center;
-      flex:0 0 auto;
-      transform: translateY(-1px);
-    }
-    .profilesMobilePill .txt{
-      display:inline-block;
-      font-weight:950;
-      letter-spacing:.1px;
-    }
-    .profilesMobileBar.isHubMode .profilesMobilePill .ico{
-      font-size:17px;
-    }
+  min-width:0;
+  width:100%;
+  min-height:50px;
+  border:0;
+  border-radius:999px;
+  background: transparent;
+  color: var(--choco);
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  gap:10px;
+  font-weight:950;
+  font-size:14.5px;
+  padding:0 16px;
+  cursor:pointer;
+  white-space:nowrap;
+}
     @media (max-width: 720px){
       .topbarInner{
         justify-content:center;
@@ -335,7 +329,9 @@
         display:none !important;
       }
       .profilesMobileBar.isVisible{
-        display:flex;
+        display:grid;
+        grid-template-columns:52px minmax(0,1fr) 52px;
+        align-items:center;
       }
     }
 
@@ -402,9 +398,6 @@
       background: linear-gradient(180deg, rgba(242,91,143,.18), rgba(246,186,96,.18));
       border: 0;
       box-shadow: inset 0 0 0 1px rgba(64,17,2,.08), 0 8px 18px rgba(64,17,2,.08);
-    }
-    .profilesMobileBar.isHubMode .profilesMobileCenter{
-      grid-template-columns:1fr;
     }
     .profilesMobilePill.logout{
       background: transparent;
@@ -584,7 +577,7 @@
       .profilesMgrCard{ padding-bottom: 96px; }
       .profilesMgrCard #btnReload{ display:none !important; }
       .profilesTopbarHidden{ display:none !important; }
-      .profilesMobileBar.isVisible{ display:grid; }
+      .profilesMobileBar.isVisible{ display:grid; grid-template-columns:52px minmax(0,1fr) 52px; align-items:center; }
     }
     @media (min-width: 721px){
       .profilesMobileBar{ display:none !important; }
@@ -839,20 +832,11 @@
 
 
   <div id="profilesMobileBar" class="amBottomBar profilesMobileBar" aria-label="Acciones de perfiles">
-    <button id="btnMobileReload" class="amBottomIconBtn profilesMobileBtn" type="button" aria-label="Recargar">
-      <span class="ico" aria-hidden="true">↻</span>
-      <span class="txt">Recargar</span>
-    </button>
+    <button id="btnMobileReload" class="amBottomIconBtn profilesMobileBtn" type="button" aria-label="Recargar"><span class="ico">↻</span><span class="txt">Recargar</span></button>
     <div class="amBottomCenter one profilesMobileCenter">
-      <button id="btnMobileBack" class="amBottomPill isAccent profilesMobilePill back" type="button" aria-label="Volver">
-        <span class="ico" aria-hidden="true">↩</span>
-        <span class="txt">Volver</span>
-      </button>
+      <button id="btnMobileBack" class="amBottomPill isAccent profilesMobilePill back" type="button" aria-label="Volver"><span class="ico" aria-hidden="true">↩</span><span class="txt">Volver</span></button>
     </div>
-    <button id="btnMobileLock" class="amBottomIconBtn profilesMobileBtn" type="button" aria-label="Salir">
-      <span class="ico" aria-hidden="true">⎋</span>
-      <span class="txt">Salir</span>
-    </button>
+    <button id="btnMobileLock" class="amBottomIconBtn profilesMobileBtn" type="button" aria-label="Salir"><span class="ico">⎋</span><span class="txt">Salir</span></button>
   </div>
 
   <div id="loading" class="amLoadingOverlay" aria-hidden="true" style="display:none;">
@@ -867,6 +851,6 @@
     </div>
   </div>
 
-  <script src="profiles.js?v=20260324-profiles-mobile-icons-v1"></script>
+  <script src="profiles.js?v=20260324-profiles-mobile-delivery-menu-v2"></script>
 </body>
 </html>
