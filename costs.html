@@ -50,6 +50,73 @@
   }
   .amHubBootTitle{ font-weight:950; font-size:18px; color:var(--choco); }
   .amHubBootSub{ margin-top:4px; color:rgba(64,17,2,.66); font-size:13px; font-weight:750; }
+
+/* ===== Costo unitario móvil (accordion cards) ===== */
+.unitDesktopOnly{ display:block; }
+.unitMobileOnly{ display:none; }
+.unitMobileList{ display:grid; gap:12px; margin-top:10px; }
+.unitMobileCard{
+  border:1px solid rgba(64,17,2,.10);
+  border-radius:18px;
+  background:rgba(255,255,255,.78);
+  overflow:hidden;
+  box-shadow:0 10px 24px rgba(64,17,2,.06);
+}
+.unitMobileCard summary{
+  list-style:none;
+  cursor:pointer;
+  padding:14px;
+  display:flex;
+  align-items:flex-start;
+  justify-content:space-between;
+  gap:12px;
+}
+.unitMobileCard summary::-webkit-details-marker{ display:none; }
+.unitMobileHead{ min-width:0; flex:1; }
+.unitMobileTitle{ font-weight:950; line-height:1.15; }
+.unitMobileSub{ margin-top:5px; color:rgba(64,17,2,.62); font-size:12px; font-weight:850; }
+.unitMobileChevron{
+  flex:0 0 auto;
+  width:30px; height:30px; border-radius:999px;
+  display:flex; align-items:center; justify-content:center;
+  border:1px solid rgba(64,17,2,.10);
+  background:rgba(255,255,255,.92);
+  font-weight:950;
+  color:rgba(64,17,2,.72);
+}
+.unitMobileCard[open] .unitMobileChevron{
+  background:rgba(242,91,143,.12);
+  border-color:rgba(242,91,143,.20);
+}
+.unitMobilePreview{ display:flex; gap:8px; flex-wrap:wrap; margin-top:10px; }
+.unitMobileChip{
+  display:inline-flex; align-items:center; justify-content:center;
+  min-height:34px; padding:0 12px; border-radius:999px;
+  border:1px solid rgba(64,17,2,.10);
+  background:rgba(255,255,255,.86);
+  font-weight:900; font-size:12.5px;
+}
+.unitMobileBody{ padding:0 14px 14px; border-top:1px solid rgba(64,17,2,.08); background:rgba(255,255,255,.92); }
+.unitMetricGrid{ display:grid; grid-template-columns:1fr; gap:8px; margin-top:12px; }
+.unitMetric{ border:1px solid rgba(64,17,2,.08); border-radius:14px; padding:10px 12px; background:rgba(255,248,242,.90); }
+.unitMetricLabel{ font-size:12px; font-weight:850; color:rgba(64,17,2,.62); }
+.unitMetricValue{ margin-top:4px; font-size:16px; font-weight:950; color:var(--choco); }
+.unitIngWrap{ margin-top:12px; }
+.unitIngTitle{ font-weight:950; margin-bottom:8px; }
+.unitIngList{ display:grid; gap:8px; }
+.unitIngItem{
+  display:flex; justify-content:space-between; gap:12px; align-items:flex-start;
+  border:1px solid rgba(64,17,2,.08); border-radius:14px; padding:10px 12px;
+  background:rgba(255,255,255,.88);
+}
+.unitIngName{ font-weight:900; line-height:1.15; }
+.unitIngMeta{ margin-top:3px; font-size:12px; font-weight:800; color:rgba(64,17,2,.62); }
+.unitIngCost{ white-space:nowrap; font-weight:950; }
+@media (max-width: 560px){
+  .unitDesktopOnly{ display:none; }
+  .unitMobileOnly{ display:grid; }
+}
+
 </style>
 <meta charset="utf-8"/>
 <meta content="width=device-width, initial-scale=1" name="viewport"/>
@@ -440,12 +507,13 @@ body.is-app .costsLoginTopbar{ display:none !important; }
 </section>
 <section class="card" style="margin-top:14px;">
 <h2 class="cardTitle">Costo unitario estimado</h2>
-<div class="pMiniTableWrap" style="margin-top:8px;">
+<div class="pMiniTableWrap unitDesktopOnly" style="margin-top:8px;">
 <table class="pMiniTable isWide">
 <thead><tr><th>Postre</th><th class="num">$/u</th><th class="num">Precio 60%</th><th class="num">Lote</th></tr></thead>
 <tbody id="unitCostRows"></tbody>
 </table>
 </div>
+<div id="unitCostMobileList" class="unitMobileOnly unitMobileList" style="margin-top:8px;"></div>
 <div class="pSmallMeta" id="unitCostMeta"></div>
 </section>
 <section class="card" id="summaryCard" style="margin-top:14px;">
@@ -877,7 +945,7 @@ body.is-app .costsLoginTopbar{ display:none !important; }
     </div>
   </div>
 </div>
-<script src="kitchen-costs.js?v=20260307-v17"></script>
-<script src="costs.js?v=20260307-v17"></script>
+<script src="kitchen-costs.js?v=20260325-unit-mobile-v1"></script>
+<script src="costs.js?v=20260325-unit-mobile-v1"></script>
 </body>
 </html>
