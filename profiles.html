@@ -223,6 +223,235 @@
   .profilesAccBody .badge{ margin-right:6px; margin-bottom:6px; }
 }
 
+/* ===== Edit modal visual refresh ===== */
+.editProfileModal{
+  width:min(820px, 100%);
+  padding:0 !important;
+  border-radius:30px !important;
+  background:linear-gradient(180deg, rgba(255,255,255,.98), rgba(255,251,247,.97)) !important;
+  border:1px solid rgba(64,17,2,.10) !important;
+  box-shadow:0 26px 70px rgba(64,17,2,.18) !important;
+  overflow:hidden;
+}
+.editProfileShell{
+  padding:22px 22px 20px;
+}
+.editModalHeader{
+  display:flex;
+  align-items:flex-start;
+  justify-content:space-between;
+  gap:14px;
+  padding-bottom:16px;
+  border-bottom:1px solid rgba(64,17,2,.08);
+}
+.editModalEyebrow{
+  display:inline-flex;
+  align-items:center;
+  gap:8px;
+  margin-bottom:8px;
+  padding:7px 12px;
+  border-radius:999px;
+  background:linear-gradient(180deg, rgba(242,91,143,.12), rgba(246,186,96,.14));
+  border:1px solid rgba(64,17,2,.06);
+  font-size:12px;
+  font-weight:950;
+  color:rgba(64,17,2,.76);
+}
+.editModalEyebrow::before{
+  content:"✎";
+  font-size:12px;
+}
+.editModalTitle{
+  margin:0;
+  font-size:clamp(24px, 2.2vw, 30px);
+  line-height:1.04;
+  letter-spacing:.1px;
+  color:var(--choco);
+}
+.editModalLead{
+  margin-top:8px;
+  max-width:54ch;
+  color:rgba(64,17,2,.68);
+  font-weight:800;
+  line-height:1.45;
+  font-size:13.5px;
+}
+.editModalHeaderText{
+  min-width:0;
+  flex:1 1 auto;
+}
+#btnEditClose{
+  width:46px;
+  height:46px;
+  min-width:46px;
+  border-radius:999px;
+  border:1px solid rgba(64,17,2,.10);
+  background:rgba(255,255,255,.94);
+  color:var(--choco);
+  box-shadow:0 12px 24px rgba(64,17,2,.08);
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  font-size:21px;
+  font-weight:900;
+  cursor:pointer;
+}
+#btnEditClose:hover{
+  transform:translateY(-1px);
+}
+.editModalSections{
+  display:grid;
+  gap:14px;
+  margin-top:16px;
+}
+.editModalCard{
+  border:1px solid rgba(64,17,2,.08);
+  background:linear-gradient(180deg, rgba(255,255,255,.92), rgba(253,248,242,.92));
+  border-radius:24px;
+  padding:16px;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.75);
+}
+.editModalCardTitle{
+  display:flex;
+  align-items:center;
+  gap:8px;
+  margin:0 0 12px;
+  font-size:15px;
+  font-weight:950;
+  color:var(--choco);
+}
+.editModalCardTitle::before{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  width:24px;
+  height:24px;
+  border-radius:999px;
+  font-size:12px;
+  background:linear-gradient(180deg, rgba(242,91,143,.18), rgba(246,186,96,.18));
+  border:1px solid rgba(64,17,2,.06);
+}
+.editModalCard.basic .editModalCardTitle::before{ content:"👤"; }
+.editModalCard.cats .editModalCardTitle::before{ content:"✓"; }
+.editModalCard.security .editModalCardTitle::before{ content:"🔒"; }
+.editGrid{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:14px;
+}
+.editField{
+  display:grid;
+  gap:7px;
+}
+.editField label,
+.editModalCard .field > label{
+  display:block;
+  margin:0;
+  font-size:12.5px;
+  font-weight:950;
+  letter-spacing:.12px;
+  color:rgba(64,17,2,.78);
+}
+.editProfileModal .input{
+  min-height:52px;
+  padding:14px 16px;
+  border-radius:18px;
+  border:1px solid rgba(64,17,2,.10);
+  background:rgba(255,255,255,.96);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.85);
+  font-weight:900;
+  font-size:15px;
+}
+.editProfileModal .input:disabled{
+  background:rgba(247,241,234,.9);
+  color:rgba(64,17,2,.82);
+}
+.editProfileModal .input::placeholder{
+  color:rgba(64,17,2,.42);
+  font-weight:800;
+}
+.editProfileModal .chips{
+  gap:10px;
+}
+.editProfileModal .chip{
+  padding:12px 14px;
+  min-height:48px;
+  background:rgba(255,255,255,.96);
+  border:1px solid rgba(64,17,2,.10);
+  box-shadow:0 6px 14px rgba(64,17,2,.04);
+}
+.editProfileModal .chip input{
+  accent-color:#f25b8f;
+}
+.editProfileModal .chip:has(input:checked){
+  background:linear-gradient(180deg, rgba(242,91,143,.12), rgba(246,186,96,.14));
+  border-color:rgba(242,91,143,.24);
+}
+.editModalHint{
+  margin-top:8px;
+  color:rgba(64,17,2,.6);
+  font-weight:800;
+  line-height:1.42;
+  font-size:12.75px;
+}
+.editModalActions{
+  display:flex;
+  justify-content:flex-end;
+  gap:10px;
+  margin-top:16px;
+  padding-top:16px;
+  border-top:1px solid rgba(64,17,2,.08);
+}
+#btnEditSave{
+  min-width:220px;
+  min-height:52px;
+  border-radius:18px;
+  box-shadow:0 16px 28px rgba(242,91,143,.20);
+}
+#editErr{
+  min-height:18px;
+  font-weight:900;
+  margin-top:10px;
+}
+@media (max-width: 720px){
+  .editProfileModal{
+    border-radius:26px !important;
+  }
+  .editProfileShell{
+    padding:18px 16px 18px;
+  }
+  .editModalHeader{
+    gap:12px;
+    padding-bottom:14px;
+  }
+  .editModalTitle{
+    font-size:30px;
+  }
+  .editModalLead{
+    font-size:13px;
+  }
+  .editGrid{
+    grid-template-columns:1fr;
+  }
+  .editModalCard{
+    padding:14px;
+    border-radius:22px;
+  }
+  .editProfileModal .chips{
+    gap:8px;
+  }
+  .editProfileModal .chip{
+    width:100%;
+    justify-content:flex-start;
+  }
+  .editModalActions{
+    justify-content:stretch;
+  }
+  #btnEditSave{
+    width:100%;
+    min-width:0;
+  }
+}
 
   </style>
   <meta charset="utf-8" />
@@ -902,75 +1131,77 @@
 
   <!-- Edit modal -->
   <div id="editBack" class="loadingOverlay" aria-hidden="true" style="display:none;">
-    <div class="loadingCard" style="width:min(760px, 100%);">
-      <div class="editModalHeader">
-        <div class="editModalHeaderText">
-          <div class="loadingTitle">Editar perfil</div>
-          <div class="muted small" style="margin-top:4px;">
-            Cambia el nombre y/o las categorías. El ID no se cambia para no romper accesos.
+    <div class="loadingCard editProfileModal">
+      <div class="editProfileShell">
+        <div class="editModalHeader">
+          <div class="editModalHeaderText">
+            <div class="editModalEyebrow">Configuración del perfil</div>
+            <h2 class="editModalTitle">Editar perfil</h2>
+            <div class="editModalLead">
+              Actualiza el nombre, los accesos y, si lo necesitas, la contraseña del perfil sin perder su identificador actual.
+            </div>
           </div>
+          <button id="btnEditClose" class="iconBtn" type="button" aria-label="Cerrar" title="Cerrar">✕</button>
         </div>
-        <button id="btnEditClose" class="iconBtn" type="button" aria-label="Cerrar" title="Cerrar">✕</button>
-      </div>
 
-      <div class="grid2" style="margin-top:14px;">
-        <div>
-          <div class="field">
-            <label>Nombre</label>
-            <input id="editName" class="input" type="text" placeholder="Ej: Paola" />
-          </div>
-        </div>
-        <div>
-          <div class="field">
-            <label>ID (fijo)</label>
-            <input id="editId" class="input" type="text" disabled />
-          </div>
-        </div>
-      </div>
+        <div class="editModalSections">
+          <section class="editModalCard basic">
+            <div class="editModalCardTitle">Información principal</div>
+            <div class="editGrid">
+              <div class="editField">
+                <label for="editName">Nombre</label>
+                <input id="editName" class="input" type="text" placeholder="Ej: Paola" />
+              </div>
+              <div class="editField">
+                <label for="editId">ID (fijo)</label>
+                <input id="editId" class="input" type="text" disabled />
+              </div>
+            </div>
+          </section>
 
-      <div class="field" style="margin-top:12px;">
-        <label>Categorías</label>
-        <div class="chips" id="editCats">
-          <label class="chip"><input type="checkbox" value="kitchen"> Cocina</label>
-          <label class="chip"><input type="checkbox" value="payments"> Pagos</label>
-          <label class="chip"><input type="checkbox" value="delivery"> Envíos</label>
-          <label class="chip"><input type="checkbox" value="costs"> Compras / Recetas</label>
-          <label class="chip"><input type="checkbox" value="profiles"> Perfiles</label>
-          <label class="chip"><input type="checkbox" value="admin"> Admin</label>
-        </div>
-        <div class="muted small" style="margin-top:6px;">
-          Puedes asignar varias categorías al mismo perfil.
-        </div>
-      </div>
+          <section class="editModalCard cats">
+            <div class="editModalCardTitle">Accesos asignados</div>
+            <div class="chips" id="editCats">
+              <label class="chip"><input type="checkbox" value="kitchen"> Cocina</label>
+              <label class="chip"><input type="checkbox" value="payments"> Pagos</label>
+              <label class="chip"><input type="checkbox" value="delivery"> Envíos</label>
+              <label class="chip"><input type="checkbox" value="costs"> Compras / Recetas</label>
+              <label class="chip"><input type="checkbox" value="profiles"> Perfiles</label>
+              <label class="chip"><input type="checkbox" value="admin"> Admin</label>
+            </div>
+            <div class="editModalHint">
+              Puedes asignar varias categorías al mismo perfil para centralizar accesos sin salir de esta pantalla.
+            </div>
+          </section>
 
-      <div class="grid2" style="margin-top:12px;">
-        <div>
-          <div class="field">
-            <label>Nueva contraseña (opcional)</label>
-            <input id="editPassword" class="input" type="password" placeholder="Déjalo vacío si no la cambiarás" autocomplete="new-password" />
-          </div>
+          <section class="editModalCard security">
+            <div class="editModalCardTitle">Seguridad</div>
+            <div class="editGrid">
+              <div class="editField">
+                <label for="editPassword">Nueva contraseña (opcional)</label>
+                <input id="editPassword" class="input" type="password" placeholder="Déjala vacía si no la cambiarás" autocomplete="new-password" />
+              </div>
+              <div class="editField">
+                <label for="editPassword2">Confirmar nueva contraseña</label>
+                <input id="editPassword2" class="input" type="password" placeholder="Repite la nueva contraseña" autocomplete="new-password" />
+              </div>
+            </div>
+            <div class="editField" style="margin-top:12px;">
+              <label for="editAdminPinConfirm">Código admin para confirmar cambio de contraseña</label>
+              <input id="editAdminPinConfirm" class="input" type="password" placeholder="Solo si cambiarás la contraseña" autocomplete="current-password" />
+            </div>
+            <div class="editModalHint">
+              Para editar solo el nombre o las categorías no hace falta confirmar con el código admin. Ese paso solo se usa si vas a cambiar la contraseña.
+            </div>
+          </section>
         </div>
-        <div>
-          <div class="field">
-            <label>Confirmar nueva contraseña</label>
-            <input id="editPassword2" class="input" type="password" placeholder="Repite la nueva contraseña" autocomplete="new-password" />
-          </div>
+
+        <div class="editModalActions">
+          <button id="btnEditSave" class="btn primary" type="button">Guardar cambios</button>
         </div>
-      </div>
 
-      <div class="field" style="margin-top:12px;">
-        <label>Código admin para confirmar cambio de contraseña</label>
-        <input id="editAdminPinConfirm" class="input" type="password" placeholder="Solo si cambiarás la contraseña" autocomplete="current-password" />
-        <div class="muted small" style="margin-top:6px;">
-          Para editar solo nombre o categorías no hace falta. Para cambiar contraseña sí debes confirmar con el código admin.
-        </div>
+        <div id="editErr" class="status" style="color:#b00020;"></div>
       </div>
-
-      <div class="row" style="margin-top:14px; justify-content:flex-end;">
-        <button id="btnEditSave" class="btn primary" type="button">Guardar cambios</button>
-      </div>
-
-      <div id="editErr" class="status" style="color:#b00020; margin-top:10px;"></div>
     </div>
   </div>
 
