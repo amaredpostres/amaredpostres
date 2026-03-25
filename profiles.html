@@ -124,6 +124,106 @@
   font-size:18px;
 }
 
+.editModalHeader{
+  display:flex;
+  align-items:flex-start;
+  justify-content:space-between;
+  gap:12px;
+  flex-wrap:nowrap;
+}
+.editModalHeaderText{
+  min-width:0;
+  flex:1 1 auto;
+}
+#btnEditClose{
+  margin-left:auto;
+  align-self:flex-start;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+}
+.profilesMobileList{ display:none; margin-top:14px; }
+.profilesAccCard{
+  border:1px solid rgba(64,17,2,.10);
+  border-radius:20px;
+  background:rgba(255,255,255,.74);
+  box-shadow:0 10px 24px rgba(64,17,2,.05);
+  overflow:hidden;
+}
+.profilesAccCard + .profilesAccCard{ margin-top:12px; }
+.profilesAccCard summary{
+  list-style:none;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:12px;
+  padding:14px 16px;
+  cursor:pointer;
+}
+.profilesAccCard summary::-webkit-details-marker{ display:none; }
+.profilesAccName{
+  font-weight:950;
+  font-size:16px;
+  color:var(--choco);
+  min-width:0;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+}
+.profilesAccMeta{
+  font-size:12px;
+  font-weight:900;
+  color:rgba(64,17,2,.62);
+  margin-top:4px;
+}
+.profilesAccChevron{
+  flex:0 0 auto;
+  width:32px;
+  height:32px;
+  border-radius:999px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  background:rgba(246,186,96,.18);
+  border:1px solid rgba(246,186,96,.34);
+  font-size:14px;
+  color:var(--choco);
+  transition:transform .18s ease;
+}
+.profilesAccCard[open] .profilesAccChevron{ transform:rotate(180deg); }
+.profilesAccBody{
+  border-top:1px solid rgba(64,17,2,.08);
+  padding:12px 16px 14px;
+}
+.profilesAccRow + .profilesAccRow{ margin-top:10px; }
+.profilesAccLabel{
+  font-size:12px;
+  font-weight:900;
+  color:rgba(64,17,2,.62);
+  margin-bottom:4px;
+}
+.profilesAccValue{
+  font-weight:850;
+  color:var(--choco);
+  line-height:1.35;
+}
+.profilesAccActions{
+  display:flex;
+  gap:8px;
+  flex-wrap:wrap;
+  margin-top:12px;
+}
+.profilesAccActions .btn{
+  flex:1 1 140px;
+  min-height:46px;
+}
+@media (max-width: 720px){
+  .profilesTableWrap{ display:none; }
+  .profilesMobileList{ display:block; }
+  .profilesAccBody .badge{ margin-right:6px; margin-bottom:6px; }
+}
+
+
   </style>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
@@ -735,6 +835,8 @@
       </table>
       </div>
 
+      <div id="profilesMobileList" class="profilesMobileList" aria-label="Listado de perfiles"></div>
+
       <div id="listMsg" class="status"></div>
       <div class="profilesHint">Aquí puedes revisar perfiles activos, editar sus rangos y agregar nuevos accesos sin salir de la página.</div>
 
@@ -801,8 +903,8 @@
   <!-- Edit modal -->
   <div id="editBack" class="loadingOverlay" aria-hidden="true" style="display:none;">
     <div class="loadingCard" style="width:min(760px, 100%);">
-      <div class="rowBetween" style="align-items:flex-start;">
-        <div>
+      <div class="editModalHeader">
+        <div class="editModalHeaderText">
           <div class="loadingTitle">Editar perfil</div>
           <div class="muted small" style="margin-top:4px;">
             Cambia el nombre y/o las categorías. El ID no se cambia para no romper accesos.
@@ -893,6 +995,6 @@
     </div>
   </div>
 
-  <script src="profiles.js?v=20260325-profiles-menu-modal-scroll-fix"></script>
+  <script src="profiles.js?v=20260325-profiles-mobile-accordion-v1"></script>
 </body>
 </html>
