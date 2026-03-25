@@ -28,19 +28,15 @@ function revealHubBoot_(){
 
 function goHub_(){
   try{
-    if(hasHubAccess_() && window.history.length > 1){
-      window.history.back();
-      return;
-    }
-  }catch(_e){}
-  try{
     const ref = String(document.referrer || '');
-    if(/(^|\/)hub\.html(?:\?|$)/i.test(ref) && window.history.length > 1){
+    const canBack = window.history.length > 1;
+    const cameFromHubInSameFlow = FROM_HUB || hasHubAccess_() || /(^|\/)hub\.html(?:\?|$)/i.test(ref);
+    if(cameFromHubInSameFlow && canBack){
       window.history.back();
       return;
     }
   }catch(_e){}
-  window.location.href = HUB_URL;
+  window.location.assign(HUB_URL);
 }
 function ensureHubReturnStyles_(){
   if(document.getElementById("amHubReturnStyles")) return;
