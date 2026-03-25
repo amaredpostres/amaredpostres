@@ -677,10 +677,12 @@ btnUnlock?.addEventListener("click", async ()=>{
   const secret = String(inpSecret.value||"").trim();
   if(!profileId){
     gateErr.textContent = "Selecciona un perfil.";
+    revealHubBoot_();
     return;
   }
   if(!secret){
     gateErr.textContent = "Ingresa la contraseña.";
+    revealHubBoot_();
     return;
   }
 
@@ -709,6 +711,7 @@ btnUnlock?.addEventListener("click", async ()=>{
     console.error("unlock error:", e, e._raw);
   }finally{
     hideLoading();
+    revealHubBoot_();
   }
 });
 
@@ -875,6 +878,9 @@ btnTogglePin?.addEventListener("click", ()=>{
 inpSecret?.addEventListener("keydown", (e)=>{ if(e.key === "Enter") btnUnlock?.click(); });
 
 (async function bootProfilesLogin_(){
+  const hubBootFailsafe = setTimeout(()=>{
+    revealHubBoot_();
+  }, 3500);
   let shouldAutoUnlock = false;
   try{
     syncPinToggleState_();
@@ -905,6 +911,7 @@ inpSecret?.addEventListener("keydown", (e)=>{ if(e.key === "Enter") btnUnlock?.c
   }finally{
     hideLoading();
     if(!shouldAutoUnlock) revealHubBoot_();
+    clearTimeout(hubBootFailsafe);
   }
   if(shouldAutoUnlock) btnUnlock?.click();
 })();
