@@ -29,14 +29,12 @@ function revealHubBoot_(){
 function goHub_(){
   try{
     const ref = String(document.referrer || '');
-    const canBack = window.history.length > 1;
-    const cameFromHubInSameFlow = FROM_HUB || hasHubAccess_() || /(^|\/)hub\.html(?:\?|$)/i.test(ref);
-    if(cameFromHubInSameFlow && canBack){
+    if((FROM_HUB || /(^|\/)hub\.html(?:\?|$)/i.test(ref)) && window.history.length > 1){
       window.history.back();
       return;
     }
   }catch(_e){}
-  window.location.assign(HUB_URL);
+  window.location.href = HUB_URL;
 }
 function ensureHubReturnStyles_(){
   if(document.getElementById("amHubReturnStyles")) return;
@@ -1157,6 +1155,62 @@ function unitBreakdownHtml_(b){
   return `<div style="padding:10px 12px;">${header}${list}${total}${lot}${miss}</div>`;
 }
 
+
+
+function unitBreakdownMobileHtml_(row){
+  const b = row.breakdown || { lines: [], missing: [], sum: 0, lotQty: 0, lot: null, source: 'embedded' };
+  const sourceLabel = (b.source === 'sheet') ? 'RECETAS' : 'receta base';
+  const metric = (label, value)=>`<div class="unitMetric"><div class="unitMetricLabel">${label}</div><div class="unitMetricValue">${value}</div></div>`;
+  const metrics = `
+    <div class="unitMetricGrid">
+      ${metric('Costo unitario', row.unit!==null ? moneyCOP2(row.unit) : '$—')}
+      ${metric('Precio 60%', row.unit!==null ? moneyCOP2(row.unit/0.40) : '$—')}
+      ${metric('Costo lote', row.lote!==null ? moneyCOP2(row.lote) : '$—')}
+    </div>`;
+
+  const ingredients = b.lines && b.lines.length ? `
+    <div class="unitIngWrap">
+      <div class="unitIngTitle">Ingredientes por unidad</div>
+      <div class="unitIngList">
+        ${b.lines.map(x=>`
+          <div class="unitIngItem">
+            <div style="min-width:0;">
+              <div class="unitIngName">${escapeHtml(x.ingredient_key)}</div>
+              <div class="unitIngMeta">
+                ${fmtNum(x.qty)} ${escapeHtml(x.unit || '')}${x.note ? ` <span style="opacity:.7;">(≈)</span>` : ''}
+                ${x.cpu ? (` · ${moneyCOP2(x.cpu)}/${escapeHtml(x.cpu_unit || x.unit || '')}`) : ''}
+              </div>
+            </div>
+            <div class="unitIngCost">${moneyCOP2(x.subtotal)}</div>
+          </div>`).join('')}
+      </div>
+    </div>` : `<div class="hint" style="margin-top:12px;">No hay ingredientes registrados para este postre.</div>`;
+
+  const missing = Array.isArray(b.missing) && b.missing.length
+    ? `<div class="hint" style="margin-top:12px; color:#b32020; font-weight:950;">Faltan costos o unidades compatibles para: ${escapeHtml(b.missing.slice(0,10).join(', '))}${b.missing.length>10?'…':''}</div>`
+    : '';
+
+  return `
+    <details class="unitMobileCard">
+      <summary>
+        <div class="unitMobileHead">
+          <div class="unitMobileTitle">${escapeHtml(prettyDessertName(row.id))}</div>
+          <div class="unitMobileSub">${escapeHtml(sourceLabel)} · toca para ver costos e ingredientes</div>
+          <div class="unitMobilePreview">
+            <span class="unitMobileChip">$/u: ${row.unit!==null ? moneyCOP2(row.unit) : '$—'}</span>
+            <span class="unitMobileChip">Lote: ${row.lote!==null ? moneyCOP2(row.lote) : '$—'}</span>
+          </div>
+        </div>
+        <div class="unitMobileChevron" aria-hidden="true">▾</div>
+      </summary>
+      <div class="unitMobileBody">
+        ${metrics}
+        ${ingredients}
+        ${missing}
+      </div>
+    </details>`;
+}
+
 function dessertUnitCost(dessertId){
   const b = dessertUnitBreakdown_(dessertId, 0);
   return { sum: b.sum, missing: b.missing };
@@ -1204,8 +1258,9 @@ function getDessertIdsForUi_(){
 
 function renderUnitCosts(){
   const tbody = el("unitCostRows");
+  const mobileList = el("unitCostMobileList");
   const meta = el("unitCostMeta");
-  if(!tbody) return;
+  if(!tbody && !mobileList) return;
 
   ensurePackagingEntries();
   buildCostAliasMap();
@@ -1222,8 +1277,6 @@ function renderUnitCosts(){
   for(const id of all){
     const qty = Number(by[id]||0)||0;
     const b = dessertUnitBreakdown_(id, qty);
-
-    // si no hay líneas, significa que no hay receta para ese postre
     const hasRecipe = (b.lines && b.lines.length) || (b.source === 'embedded' && (AMARED_RECIPES_PER_UNIT[id]||[]).length);
     if(!hasRecipe) noRecipe.push(prettyDessertName(id));
 
@@ -1235,22 +1288,29 @@ function renderUnitCosts(){
     rows.push({ id, qty, unit, lote, open: !!state.ui.unitOpen[id], breakdown: b, hasRecipe });
   }
 
-  tbody.innerHTML = rows.map(r=>`
-    <tr data-dessert="${escapeHtml(r.id)}" style="cursor:pointer;">
-      <td>${escapeHtml(prettyDessertName(r.id))} <span style="opacity:.55; font-weight:950;">${r.open?"▾":"▸"}</span></td>
-      <td class="num">${r.unit!==null ? moneyCOP2(r.unit) : "$—"}</td>
-      <td class="num">${r.unit!==null ? moneyCOP2(r.unit/0.40) : "$—"}</td>
-      <td class="num">${r.lote!==null ? moneyCOP2(r.lote) : "$—"}</td>
-    </tr>
-    <tr data-detail="${escapeHtml(r.id)}" style="${r.open ? "" : "display:none;"}">
-      <td colspan="4" style="padding:0; background: rgba(255,255,255,.55);">
-        ${unitBreakdownHtml_(r.breakdown)}
-      </td>
-    </tr>
-  `).join("");
+  if(tbody){
+    tbody.innerHTML = rows.map(r=>`
+      <tr data-dessert="${escapeHtml(r.id)}" style="cursor:pointer;">
+        <td>${escapeHtml(prettyDessertName(r.id))} <span style="opacity:.55; font-weight:950;">${r.open?"▾":"▸"}</span></td>
+        <td class="num">${r.unit!==null ? moneyCOP2(r.unit) : "$—"}</td>
+        <td class="num">${r.unit!==null ? moneyCOP2(r.unit/0.40) : "$—"}</td>
+        <td class="num">${r.lote!==null ? moneyCOP2(r.lote) : "$—"}</td>
+      </tr>
+      <tr data-detail="${escapeHtml(r.id)}" style="${r.open ? "" : "display:none;"}">
+        <td colspan="4" style="padding:0; background: rgba(255,255,255,.55);">
+          ${unitBreakdownHtml_(r.breakdown)}
+        </td>
+      </tr>
+    `).join("");
+  }
+
+  if(mobileList){
+    mobileList.innerHTML = rows.length
+      ? rows.map(r => unitBreakdownMobileHtml_(r)).join('')
+      : `<div class="hint">No hay postres disponibles para calcular costos en este momento.</div>`;
+  }
 
   const src = (state.recipesSource === "sheet") ? "RECETAS" : "receta embebida";
-
   const parts = [];
   if(missCosts.size){
     parts.push(`(${src}) Faltan costos de: ` + Array.from(missCosts).slice(0,8).join(", ") + (missCosts.size>8?"…":""));
@@ -1263,7 +1323,6 @@ function renderUnitCosts(){
 
   if(meta) meta.textContent = parts.join(" · ");
 }
-
 
 
 
