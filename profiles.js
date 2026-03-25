@@ -58,6 +58,7 @@ const btnMobileReload = document.getElementById("btnMobileReload");
 const btnMobileBack = document.getElementById("btnMobileBack");
 const btnMobileLock = document.getElementById("btnMobileLock");
 const tbody = document.getElementById("tbody");
+const profilesMobileList = document.getElementById("profilesMobileList");
 const listMsg = document.getElementById("listMsg");
 
 const inpName = document.getElementById("inpName");
@@ -548,6 +549,66 @@ function confirmWithTimer({title, message, okLabel="Eliminar", seconds=2}){
 }
 
 // =================== RENDER ===================
+function categoriesBadgesHtml(profile){
+  return String(profile?.categories || "")
+    .split(",")
+    .map(s=>s.trim())
+    .filter(Boolean)
+    .map(c=>`<span class="badge">${escapeHtml(c)}</span>`)
+    .join(" ");
+}
+
+function passStateHtml(profile){
+  return profile?.has_password
+    ? `<span class="badge" style="background:rgba(246,186,96,.18); border-color:rgba(246,186,96,.35);">Configurada</span>`
+    : `<span class="badge" style="background:rgba(242,91,143,.10); border-color:rgba(242,91,143,.25);">Pendiente</span>`;
+}
+
+function renderMobileProfiles(rows){
+  if(!profilesMobileList) return;
+  const active = (rows||[]).filter(isActive);
+  if(active.length===0){
+    profilesMobileList.innerHTML = `<div class="muted small" style="padding:12px 4px;">Sin datos.</div>`;
+    return;
+  }
+
+  profilesMobileList.innerHTML = active.map((p, idx)=>{
+    const pid = normalizeId(p);
+    const cats = categoriesBadgesHtml(p);
+    const passState = passStateHtml(p);
+    const open = idx === 0 ? ' open' : '';
+    return `
+      <details class="profilesAccCard" data-id="${escapeHtml(pid)}"${open}>
+        <summary>
+          <div style="min-width:0;">
+            <div class="profilesAccName">${escapeHtml(p.label||pid||"Perfil")}</div>
+            <div class="profilesAccMeta">Toca para ver ID, rangos, clave y acciones</div>
+          </div>
+          <div class="profilesAccChevron" aria-hidden="true">▾</div>
+        </summary>
+        <div class="profilesAccBody">
+          <div class="profilesAccRow">
+            <div class="profilesAccLabel">ID</div>
+            <div class="profilesAccValue"><code>${escapeHtml(pid)}</code></div>
+          </div>
+          <div class="profilesAccRow">
+            <div class="profilesAccLabel">Categorías</div>
+            <div class="profilesAccValue">${cats || `<span class="muted small">—</span>`}</div>
+          </div>
+          <div class="profilesAccRow">
+            <div class="profilesAccLabel">Clave</div>
+            <div class="profilesAccValue">${passState}</div>
+          </div>
+          <div class="profilesAccActions">
+            <button class="btn secondary btnEdit" data-id="${escapeHtml(pid)}" type="button">Editar</button>
+            <button class="btn secondary btnDel" data-id="${escapeHtml(pid)}" type="button">Eliminar</button>
+          </div>
+        </div>
+      </details>
+    `;
+  }).join("");
+}
+
 function normalizeId(p){
   return String(p?.profile_id ?? p?.id ?? p?.profileId ?? "").trim();
 }
@@ -561,44 +622,40 @@ function isActive(p){
 }
 
 function renderTable(rows){
-  tbody.innerHTML = "";
+  if(tbody) tbody.innerHTML = "";
+  if(profilesMobileList) profilesMobileList.innerHTML = "";
   const active = (rows||[]).filter(isActive);
-  pillCount.textContent = `${active.length} perfiles`;
+  if(pillCount) pillCount.textContent = `${active.length} perfiles`;
 
   if(active.length===0){
-    tbody.innerHTML = `<tr><td colspan="5" class="muted small">Sin datos.</td></tr>`;
+    if(tbody) tbody.innerHTML = `<tr><td colspan="5" class="muted small">Sin datos.</td></tr>`;
+    if(profilesMobileList) profilesMobileList.innerHTML = `<div class="muted small" style="padding:12px 4px;">Sin datos.</div>`;
     return;
   }
 
   for(const p of active){
     const pid = normalizeId(p);
-    const cats = String(p.categories||"")
-      .split(",")
-      .map(s=>s.trim())
-      .filter(Boolean)
-      .map(c=>`<span class="badge">${escapeHtml(c)}</span>`)
-      .join(" ");
+    const cats = categoriesBadgesHtml(p);
+    const passState = passStateHtml(p);
 
-    const passState = p.has_password
-      ? `<span class="badge" style="background:rgba(246,186,96,.18); border-color:rgba(246,186,96,.35);">Configurada</span>`
-      : `<span class="badge" style="background:rgba(242,91,143,.10); border-color:rgba(242,91,143,.25);">Pendiente</span>`;
-
-    const tr = document.createElement("tr");
-    tr.innerHTML = `
-      <td><code>${escapeHtml(pid)}</code></td>
-      <td>${escapeHtml(p.label||"")}</td>
-      <td>${cats || `<span class="muted small">—</span>`}</td>
-      <td>${passState}</td>
-      <td style="display:flex; gap:8px; flex-wrap:wrap;"><button class="btn secondary btnEdit" data-id="${escapeHtml(pid)}">Editar</button><button class="btn secondary btnDel" data-id="${escapeHtml(pid)}">Eliminar</button></td>
-    `;
-    tbody.appendChild(tr);
+    if(tbody){
+      const tr = document.createElement("tr");
+      tr.innerHTML = `
+        <td><code>${escapeHtml(pid)}</code></td>
+        <td>${escapeHtml(p.label||"")}</td>
+        <td>${cats || `<span class="muted small">—</span>`}</td>
+        <td>${passState}</td>
+        <td style="display:flex; gap:8px; flex-wrap:wrap;"><button class="btn secondary btnEdit" data-id="${escapeHtml(pid)}" type="button">Editar</button><button class="btn secondary btnDel" data-id="${escapeHtml(pid)}" type="button">Eliminar</button></td>
+      `;
+      tbody.appendChild(tr);
+    }
   }
+
+  renderMobileProfiles(active);
 }
 
-// Delegación de eventos: el botón Eliminar siempre funciona aunque la tabla se re-renderice
-
-// Delegación de eventos: Editar / Eliminar (funciona aunque la tabla se re-renderice)
-tbody?.addEventListener("click", async (ev)=>{
+// Delegación de eventos: Editar / Eliminar (tabla y acordeones móviles)
+async function handleProfilesListClick(ev){
   const btnE = ev.target?.closest?.(".btnEdit");
   if(btnE){
     const id = String(btnE.getAttribute("data-id")||"").trim();
@@ -635,7 +692,10 @@ tbody?.addEventListener("click", async (ev)=>{
     hideLoading();
     revealHubBoot_();
   }
-});
+}
+
+tbody?.addEventListener("click", handleProfilesListClick);
+profilesMobileList?.addEventListener("click", handleProfilesListClick);
 
 
 // =================== DATA ===================
