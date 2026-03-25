@@ -86,11 +86,11 @@
     .hubCardBtn{ justify-self:start; min-height:44px; }
     .hubEmpty{ text-align:center; padding:28px 16px; }
     .hubEmpty p{ margin:8px 0 0; color:rgba(64,17,2,.72); font-weight:800; }
-    .hubMobileBar{ position:fixed; left:12px; right:12px; bottom:calc(env(safe-area-inset-bottom, 0px) + 12px); display:none; align-items:center; gap:12px; padding:10px 12px; border-radius:26px; border:1px solid rgba(64,17,2,.10); background:rgba(254,246,239,.84); box-shadow:0 14px 34px rgba(64,17,2,.14); backdrop-filter:blur(10px); z-index:9500; }
-    .hubMobileBar.isVisible{ display:flex; }
-    .hubMobileCenter{ flex:1; min-width:0; border-radius:999px; border:1px solid rgba(64,17,2,.10); background:rgba(255,255,255,.92); padding:4px; display:grid; grid-template-columns:1fr; gap:4px; }
-    .hubMobilePill{ border:0; border-radius:999px; background:linear-gradient(180deg, rgba(242,91,143,.16), rgba(246,186,96,.12)); color:var(--choco); min-height:42px; font-weight:950; font-size:16px; cursor:pointer; white-space:nowrap; }
-    .hubMobileBtn{ width:50px; height:50px; border-radius:999px; border:1px solid rgba(255,255,255,.9); background:linear-gradient(180deg, rgba(255,255,255,.96), rgba(252,247,242,.92)); display:flex; align-items:center; justify-content:center; font-weight:900; font-size:20px; box-shadow:0 10px 18px rgba(64,17,2,.08); cursor:pointer; }
+    .hubMobileBar{ position:fixed; left:12px; right:12px; bottom:calc(env(safe-area-inset-bottom, 0px) + 12px); display:none; align-items:center; grid-template-columns:54px minmax(0,1fr); gap:10px; padding:10px; border-radius:26px; border:1px solid rgba(64,17,2,.10); background:rgba(254,246,239,.84); box-shadow:0 14px 34px rgba(64,17,2,.14); backdrop-filter:blur(10px); z-index:9500; }
+    .hubMobileBar.isVisible{ display:grid; }
+    .hubMobileCenter{ width:100%; min-width:0; border-radius:999px; border:1px solid rgba(64,17,2,.10); background:rgba(255,255,255,.92); padding:4px 5px; display:grid; grid-template-columns:1fr; gap:4px; }
+    .hubMobilePill{ width:100%; border:0; border-radius:999px; background:linear-gradient(180deg, rgba(242,91,143,.16), rgba(246,186,96,.12)); color:var(--choco); min-height:46px; padding:0 18px; font-weight:950; font-size:17px; cursor:pointer; white-space:nowrap; }
+    .hubMobileBtn{ width:54px; height:54px; border-radius:999px; border:1px solid rgba(255,255,255,.9); background:linear-gradient(180deg, rgba(255,255,255,.96), rgba(252,247,242,.92)); display:flex; align-items:center; justify-content:center; font-weight:900; font-size:20px; box-shadow:0 10px 18px rgba(64,17,2,.08); cursor:pointer; }
     .hubPage.is-app main.container{ padding-bottom:116px; }
     @media (min-width: 721px){ .hubPage.is-app main.container{ padding-bottom:24px; } }
     @media (max-width: 860px){ .hubGrid{ grid-template-columns:1fr; } }
