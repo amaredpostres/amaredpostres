@@ -96,6 +96,7 @@ function syncProfilesHubChrome(){
   }
   if(btnMobileLock){
     btnMobileLock.style.display = hubMode ? "none" : "";
+    btnMobileLock.disabled = !!hubMode;
     btnMobileLock.setAttribute("aria-label", hubMode ? "Volver al panel" : "Salir");
     const ico = btnMobileLock.querySelector('.ico');
     const txt = btnMobileLock.querySelector('.txt');
@@ -152,6 +153,7 @@ function openEditModal(profile){
 
   editBack.style.display = "flex";
   editBack.setAttribute("aria-hidden","false");
+  try{ editBack.scrollTop = 0; editBack.querySelector('.loadingCard')?.scrollTo?.({ top: 0, behavior: 'auto' }); }catch(_e){}
   syncProfilesMobileBar();
   setTimeout(()=>{ try{ editName.focus(); }catch(_e){} }, 0);
 }
