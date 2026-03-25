@@ -90,6 +90,36 @@
   grid-column:2;
 }
 
+.profilesMobileBar.isHubMode{
+  gap:12px;
+  padding-left:12px;
+  padding-right:12px;
+}
+.profilesMobileBar.isHubMode .profilesMobileCenter{
+  grid-column:2;
+  padding:0;
+  background:transparent;
+  border:0;
+  box-shadow:none;
+}
+.profilesMobileBar.isHubMode .profilesMobilePill{
+  min-height:52px;
+  padding-left:18px;
+  padding-right:18px;
+}
+#editBack{
+  align-items:flex-start;
+  overflow-y:auto;
+  -webkit-overflow-scrolling:touch;
+  padding: max(16px, env(safe-area-inset-top, 0px) + 12px) 12px calc(16px + env(safe-area-inset-bottom, 0px));
+}
+#editBack .loadingCard{
+  width:min(760px, 100%);
+  max-height:calc(100dvh - 32px);
+  overflow:auto;
+  overscroll-behavior:contain;
+}
+
   </style>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
@@ -578,6 +608,14 @@
       .profilesMgrCard #btnReload{ display:none !important; }
       .profilesTopbarHidden{ display:none !important; }
       .profilesMobileBar.isVisible{ display:grid; grid-template-columns:52px minmax(0,1fr) 52px; align-items:center; }
+      .profilesMobileBar.isHubMode{ grid-template-columns:56px minmax(0,1fr); gap:12px; }
+      .profilesMobileBar.isHubMode .profilesMobileCenter{ padding:0; background:transparent; border:0; box-shadow:none; }
+      .profilesMobileBar.isHubMode .profilesMobilePill{ width:100%; min-height:52px; }
+      #editBack{ padding:12px 12px calc(12px + env(safe-area-inset-bottom, 0px)); }
+      #editBack .loadingCard{ max-height:calc(100dvh - 24px); border-radius:22px; }
+      #editBack .rowBetween{ align-items:flex-start; }
+      #editBack .row[style*="justify-content:flex-end"]{ justify-content:stretch !important; }
+      #editBack #btnEditSave{ width:100%; }
     }
     @media (min-width: 721px){
       .profilesMobileBar{ display:none !important; }
@@ -851,6 +889,6 @@
     </div>
   </div>
 
-  <script src="profiles.js?v=20260324-profiles-mobile-delivery-menu-v2"></script>
+  <script src="profiles.js?v=20260325-profiles-menu-modal-scroll-fix"></script>
 </body>
 </html>
