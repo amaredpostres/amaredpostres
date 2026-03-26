@@ -18,6 +18,7 @@ const SS_COSTS_SESSION_KEY = "AMARED_COSTS_SESSION_V1";
 const HUB_URL = "hub.html";
 const HUB_SESSION_KEY = "AMARED_HUB_SESSION_V1";
 const HUB_REMEMBER_KEY = "AMARED_HUB_REMEMBER_V1";
+const COSTS_PAGE_CACHE_KEY = "AMARED_PAGE_CACHE_COSTS_V1";
 const FROM_HUB = (() => { try { return new URLSearchParams(window.location.search).get("hub") === "1"; } catch { return false; } })();
 function hasHubAccess_(){
   try{ return FROM_HUB || !!sessionStorage.getItem(HUB_SESSION_KEY) || !!localStorage.getItem(HUB_REMEMBER_KEY); }catch(_e){ return FROM_HUB; }
@@ -79,6 +80,74 @@ state.recipesSource = "embedded"; // "sheet" | "embedded"
 state.recipesPinUnlocked = false;
 state.recipesPin = "";
 state.desserts = [];
+
+function getCostsCacheSessionId_(){
+  return String(UNLOCKED_PROFILE?.id || '');
+}
+function clearCostsPageCache_(){
+  try{ sessionStorage.removeItem(COSTS_PAGE_CACHE_KEY); }catch(_e){}
+}
+function getCostsPageCache_(){
+  try{
+    const raw = sessionStorage.getItem(COSTS_PAGE_CACHE_KEY);
+    const data = raw ? JSON.parse(raw) : null;
+    if(!data || data.sessionId !== getCostsCacheSessionId_()) return null;
+    return data;
+  }catch(_e){ return null; }
+}
+function saveCostsPageCache_(){
+  try{
+    const sessionId = getCostsCacheSessionId_();
+    if(!sessionId) return;
+    sessionStorage.setItem(COSTS_PAGE_CACHE_KEY, JSON.stringify({
+      v:1,
+      ts: Date.now(),
+      sessionId,
+      snapshot: {
+        items: Array.isArray(state.items) ? state.items : [],
+        inventory: state.inventory || {},
+        needs: state.needs || {},
+        meta: state.meta || {},
+        ordersByDessert: state.ordersByDessert || {},
+        late: state.late || {},
+        stores: Array.isArray(state.stores) ? state.stores : [],
+        brands: Array.isArray(state.brands) ? state.brands : [],
+        desserts: Array.isArray(state.desserts) ? state.desserts : [],
+        recipesByDessert: state.recipesByDessert || null,
+        recipesSource: state.recipesSource || 'embedded',
+        recipesPinUnlocked: !!state.recipesPinUnlocked,
+        recipesPin: state.recipesPin || ''
+      }
+    }));
+  }catch(_e){}
+}
+function applyCostsPageCache_(data){
+  const cache = data || getCostsPageCache_();
+  const snap = cache?.snapshot;
+  if(!snap) return false;
+  state.inventory = snap.inventory || {};
+  state.needs = snap.needs || {};
+  state.meta = snap.meta || {};
+  state.ordersByDessert = snap.ordersByDessert || {};
+  state.late = snap.late || {};
+  state.items = Array.isArray(snap.items) ? snap.items : [];
+  state.stores = Array.isArray(snap.stores) ? snap.stores : [];
+  state.brands = Array.isArray(snap.brands) ? snap.brands : [];
+  state.desserts = Array.isArray(snap.desserts) ? snap.desserts : [];
+  state.recipesByDessert = snap.recipesByDessert || null;
+  state.recipesSource = snap.recipesSource || 'embedded';
+  state.recipesPinUnlocked = !!snap.recipesPinUnlocked;
+  state.recipesPin = snap.recipesPin || '';
+  indexCosts(state.items);
+  updateMetaLine();
+  renderDesserts();
+  renderUnitCosts();
+  renderLate();
+  renderGroups();
+  renderCostsGroups();
+  refreshBottom();
+  return true;
+}
 
 // ====== Costo unitario por postre (recetas canónicas) ======
 const AMARED_RECIPES_PER_UNIT = {
@@ -547,6 +616,7 @@ function setView(view){
   renderCostsGroups();
   renderUnitCosts();
   refreshBottom();
+  saveCostsPageCache_();
 }
 
 function setCostsMeta(msg){
@@ -1155,62 +1225,6 @@ function unitBreakdownHtml_(b){
   return `<div style="padding:10px 12px;">${header}${list}${total}${lot}${miss}</div>`;
 }
 
-
-
-function unitBreakdownMobileHtml_(row){
-  const b = row.breakdown || { lines: [], missing: [], sum: 0, lotQty: 0, lot: null, source: 'embedded' };
-  const sourceLabel = (b.source === 'sheet') ? 'RECETAS' : 'receta base';
-  const metric = (label, value)=>`<div class="unitMetric"><div class="unitMetricLabel">${label}</div><div class="unitMetricValue">${value}</div></div>`;
-  const metrics = `
-    <div class="unitMetricGrid">
-      ${metric('Costo unitario', row.unit!==null ? moneyCOP2(row.unit) : '$—')}
-      ${metric('Precio 60%', row.unit!==null ? moneyCOP2(row.unit/0.40) : '$—')}
-      ${metric('Costo lote', row.lote!==null ? moneyCOP2(row.lote) : '$—')}
-    </div>`;
-
-  const ingredients = b.lines && b.lines.length ? `
-    <div class="unitIngWrap">
-      <div class="unitIngTitle">Ingredientes por unidad</div>
-      <div class="unitIngList">
-        ${b.lines.map(x=>`
-          <div class="unitIngItem">
-            <div style="min-width:0;">
-              <div class="unitIngName">${escapeHtml(x.ingredient_key)}</div>
-              <div class="unitIngMeta">
-                ${fmtNum(x.qty)} ${escapeHtml(x.unit || '')}${x.note ? ` <span style="opacity:.7;">(≈)</span>` : ''}
-                ${x.cpu ? (` · ${moneyCOP2(x.cpu)}/${escapeHtml(x.cpu_unit || x.unit || '')}`) : ''}
-              </div>
-            </div>
-            <div class="unitIngCost">${moneyCOP2(x.subtotal)}</div>
-          </div>`).join('')}
-      </div>
-    </div>` : `<div class="hint" style="margin-top:12px;">No hay ingredientes registrados para este postre.</div>`;
-
-  const missing = Array.isArray(b.missing) && b.missing.length
-    ? `<div class="hint" style="margin-top:12px; color:#b32020; font-weight:950;">Faltan costos o unidades compatibles para: ${escapeHtml(b.missing.slice(0,10).join(', '))}${b.missing.length>10?'…':''}</div>`
-    : '';
-
-  return `
-    <details class="unitMobileCard">
-      <summary>
-        <div class="unitMobileHead">
-          <div class="unitMobileTitle">${escapeHtml(prettyDessertName(row.id))}</div>
-          <div class="unitMobileSub">${escapeHtml(sourceLabel)} · toca para ver costos e ingredientes</div>
-          <div class="unitMobilePreview">
-            <span class="unitMobileChip">$/u: ${row.unit!==null ? moneyCOP2(row.unit) : '$—'}</span>
-            <span class="unitMobileChip">Lote: ${row.lote!==null ? moneyCOP2(row.lote) : '$—'}</span>
-          </div>
-        </div>
-        <div class="unitMobileChevron" aria-hidden="true">▾</div>
-      </summary>
-      <div class="unitMobileBody">
-        ${metrics}
-        ${ingredients}
-        ${missing}
-      </div>
-    </details>`;
-}
-
 function dessertUnitCost(dessertId){
   const b = dessertUnitBreakdown_(dessertId, 0);
   return { sum: b.sum, missing: b.missing };
@@ -1258,9 +1272,8 @@ function getDessertIdsForUi_(){
 
 function renderUnitCosts(){
   const tbody = el("unitCostRows");
-  const mobileList = el("unitCostMobileList");
   const meta = el("unitCostMeta");
-  if(!tbody && !mobileList) return;
+  if(!tbody) return;
 
   ensurePackagingEntries();
   buildCostAliasMap();
@@ -1277,6 +1290,8 @@ function renderUnitCosts(){
   for(const id of all){
     const qty = Number(by[id]||0)||0;
     const b = dessertUnitBreakdown_(id, qty);
+
+    // si no hay líneas, significa que no hay receta para ese postre
     const hasRecipe = (b.lines && b.lines.length) || (b.source === 'embedded' && (AMARED_RECIPES_PER_UNIT[id]||[]).length);
     if(!hasRecipe) noRecipe.push(prettyDessertName(id));
 
@@ -1288,29 +1303,22 @@ function renderUnitCosts(){
     rows.push({ id, qty, unit, lote, open: !!state.ui.unitOpen[id], breakdown: b, hasRecipe });
   }
 
-  if(tbody){
-    tbody.innerHTML = rows.map(r=>`
-      <tr data-dessert="${escapeHtml(r.id)}" style="cursor:pointer;">
-        <td>${escapeHtml(prettyDessertName(r.id))} <span style="opacity:.55; font-weight:950;">${r.open?"▾":"▸"}</span></td>
-        <td class="num">${r.unit!==null ? moneyCOP2(r.unit) : "$—"}</td>
-        <td class="num">${r.unit!==null ? moneyCOP2(r.unit/0.40) : "$—"}</td>
-        <td class="num">${r.lote!==null ? moneyCOP2(r.lote) : "$—"}</td>
-      </tr>
-      <tr data-detail="${escapeHtml(r.id)}" style="${r.open ? "" : "display:none;"}">
-        <td colspan="4" style="padding:0; background: rgba(255,255,255,.55);">
-          ${unitBreakdownHtml_(r.breakdown)}
-        </td>
-      </tr>
-    `).join("");
-  }
-
-  if(mobileList){
-    mobileList.innerHTML = rows.length
-      ? rows.map(r => unitBreakdownMobileHtml_(r)).join('')
-      : `<div class="hint">No hay postres disponibles para calcular costos en este momento.</div>`;
-  }
+  tbody.innerHTML = rows.map(r=>`
+    <tr data-dessert="${escapeHtml(r.id)}" style="cursor:pointer;">
+      <td>${escapeHtml(prettyDessertName(r.id))} <span style="opacity:.55; font-weight:950;">${r.open?"▾":"▸"}</span></td>
+      <td class="num">${r.unit!==null ? moneyCOP2(r.unit) : "$—"}</td>
+      <td class="num">${r.unit!==null ? moneyCOP2(r.unit/0.40) : "$—"}</td>
+      <td class="num">${r.lote!==null ? moneyCOP2(r.lote) : "$—"}</td>
+    </tr>
+    <tr data-detail="${escapeHtml(r.id)}" style="${r.open ? "" : "display:none;"}">
+      <td colspan="4" style="padding:0; background: rgba(255,255,255,.55);">
+        ${unitBreakdownHtml_(r.breakdown)}
+      </td>
+    </tr>
+  `).join("");
 
   const src = (state.recipesSource === "sheet") ? "RECETAS" : "receta embebida";
+
   const parts = [];
   if(missCosts.size){
     parts.push(`(${src}) Faltan costos de: ` + Array.from(missCosts).slice(0,8).join(", ") + (missCosts.size>8?"…":""));
@@ -1323,6 +1331,7 @@ function renderUnitCosts(){
 
   if(meta) meta.textContent = parts.join(" · ");
 }
+
 
 
 
@@ -2083,7 +2092,7 @@ async function doUnlock(isAuto=false, opts={}){
     show(el("appRoot"));
     show(el("mobileNav"));
     setView("purchases");
-    await loadAll();
+    if(!applyCostsPageCache_()) await loadAll();
   } catch(err){
     UNLOCKED_SECRET = "";
     UNLOCKED_PROFILE = { id:"", label:"", categories:[] };
@@ -2103,6 +2112,7 @@ function logout(){
   UNLOCKED_SECRET = "";
   UNLOCKED_PROFILE = { id:"", label:"", categories:[] };
   try{ resetRecipesAuth_(); }catch(_e){}
+  clearCostsPageCache_();
   try{ localStorage.removeItem(LS_SECRET_KEY); }catch(_e){}
   try{ localStorage.removeItem(LS_PROFILE_KEY); }catch(_e){}
   setRememberDeviceEnabled_(false);
