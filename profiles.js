@@ -13,6 +13,8 @@ let PROFILE_SESSION = { id: null, label: null, password: null, categories: [] };
 const HUB_URL = "hub.html";
 const HUB_SESSION_KEY = "AMARED_HUB_SESSION_V1";
 const HUB_REMEMBER_KEY = "AMARED_HUB_REMEMBER_V1";
+const PROFILES_LOGIN_CACHE_KEY = "AMARED_PAGECACHE_PROFILES_LOGIN_V1";
+const PROFILES_DATA_CACHE_KEY = "AMARED_PAGECACHE_PROFILES_DATA_V1";
 const FROM_HUB = (() => { try { return new URLSearchParams(window.location.search).get("hub") === "1"; } catch { return false; } })();
 function hasHubAccess_(){
   try{ return FROM_HUB || !!sessionStorage.getItem(HUB_SESSION_KEY) || !!localStorage.getItem(HUB_REMEMBER_KEY); }catch(_e){ return FROM_HUB; }
@@ -270,6 +272,44 @@ function loadPortalProfilesSession_(){
 function clearPortalProfilesSession_(){
   try{ sessionStorage.removeItem(SS_PROFILES_SESSION_KEY); }catch(_e){}
 }
+function getProfilesCacheScope_(scope){
+  return String(scope || PROFILE_SESSION?.id || "").trim().toLowerCase();
+}
+function loadProfilesLoginCache_(){
+  try{
+    const raw = sessionStorage.getItem(PROFILES_LOGIN_CACHE_KEY);
+    const data = raw ? JSON.parse(raw) : null;
+    return Array.isArray(data?.items) ? data.items : null;
+  }catch(_e){ return null; }
+}
+function saveProfilesLoginCache_(items){
+  try{ sessionStorage.setItem(PROFILES_LOGIN_CACHE_KEY, JSON.stringify({ items: Array.isArray(items) ? items : [] })); }catch(_e){}
+}
+function loadProfilesDataCache_(scope){
+  try{
+    const raw = sessionStorage.getItem(PROFILES_DATA_CACHE_KEY);
+    const data = raw ? JSON.parse(raw) : null;
+    const wanted = getProfilesCacheScope_(scope);
+    if(!data || !wanted || String(data.scope || "") !== wanted) return null;
+    return data;
+  }catch(_e){ return null; }
+}
+function saveProfilesDataCache_(){
+  try{
+    const scope = getProfilesCacheScope_();
+    if(!scope) return;
+    sessionStorage.setItem(PROFILES_DATA_CACHE_KEY, JSON.stringify({
+      scope,
+      profiles: Array.isArray(PROFILES_CACHE) ? PROFILES_CACHE : [],
+      sessionLabel: String(PROFILE_SESSION?.label || ""),
+      sessionCategories: Array.isArray(PROFILE_SESSION?.categories) ? PROFILE_SESSION.categories : [],
+      ts: Date.now()
+    }));
+  }catch(_e){}
+}
+function clearProfilesDataCache_(){
+  try{ sessionStorage.removeItem(PROFILES_DATA_CACHE_KEY); }catch(_e){}
+}
 
 async function fetchProfilesPublic_(category){
   const out = await api({ action: "profiles_public_list", category });
@@ -291,13 +331,20 @@ function renderLoginProfiles_(rows){
   loginProfile.innerHTML = opts.join("");
 }
 
-async function populateLoginProfiles_(){
+async function populateLoginProfiles_(force = false){
+  const cached = !force ? loadProfilesLoginCache_() : null;
+  if(cached && cached.length){
+    LOGIN_PROFILES = cached;
+    renderLoginProfiles_(LOGIN_PROFILES);
+    return;
+  }
   let rows = [];
   try{ rows = await fetchProfilesPublic_("profiles"); }catch(_e){}
   if(!rows.length){
     try{ rows = await fetchProfilesPublic_("admin"); }catch(_e){}
   }
   LOGIN_PROFILES = Array.isArray(rows) ? rows : [];
+  saveProfilesLoginCache_(LOGIN_PROFILES);
   renderLoginProfiles_(LOGIN_PROFILES);
 }
 
@@ -684,7 +731,7 @@ async function handleProfilesListClick(ev){
       action: "profiles_delete",
       profile_id: id
     });
-    await loadProfiles();
+    await loadProfiles(true);
   }catch(e){
     mgrErr.textContent = e.message || "Error eliminando.";
     console.error("delete error:", e, e._raw);
@@ -699,15 +746,26 @@ profilesMobileList?.addEventListener("click", handleProfilesListClick);
 
 
 // =================== DATA ===================
-async function loadProfiles(){
+async function loadProfiles(force = false){
   if(!PROFILE_SESSION?.id || !PROFILE_SESSION?.password) throw new Error("No autorizado.");
   listMsg.textContent = "";
   mgrErr.textContent = "";
+
+  if(!force){
+    const cached = loadProfilesDataCache_();
+    if(cached){
+      PROFILES_CACHE = Array.isArray(cached.profiles) ? cached.profiles : [];
+      renderTable(PROFILES_CACHE);
+      listMsg.textContent = `Mostrando caché de la sesión (${new Date(Number(cached.ts || Date.now())).toLocaleString("es-CO")})`;
+      return;
+    }
+  }
 
   showLoading("Cargando…", "Leyendo perfiles…");
   try{
     const out = await api({ action: "profiles_list" });
     PROFILES_CACHE = Array.isArray(out.profiles) ? out.profiles : [];
+    saveProfilesDataCache_();
     renderTable(PROFILES_CACHE);
     listMsg.textContent = `Actualizado: ${new Date().toLocaleString("es-CO")}`;
   }finally{
@@ -762,7 +820,7 @@ btnUnlock?.addEventListener("click", async ()=>{
     };
     saveProfilesRemember_();
     setLockedUI(false);
-    await loadProfiles();
+    await loadProfiles(true);
     listMsg.textContent = "Acceso concedido.";
     gateErr.textContent = "";
   }catch(e){
@@ -779,6 +837,7 @@ btnUnlock?.addEventListener("click", async ()=>{
 
 btnLogout?.addEventListener("click", ()=>{
   PROFILE_SESSION = { id:null, label:null, password:null, categories:[] };
+  clearProfilesDataCache_();
   if(inpSecret) inpSecret.value = "";
   if(loginProfile) loginProfile.value = "";
   clearProfilesRemember_();
@@ -788,7 +847,7 @@ btnLogout?.addEventListener("click", ()=>{
 
 btnReload?.addEventListener("click", async ()=>{
   try{
-    await loadProfiles();
+    await loadProfiles(true);
   }catch(e){
     mgrErr.textContent = e.message || "Error cargando perfiles.";
   }
@@ -845,7 +904,7 @@ btnAdd?.addEventListener("click", async ()=>{
     inpId.value = "";
     if(inpPassword) inpPassword.value = "";
     if(inpPassword2) inpPassword2.value = "";
-    await loadProfiles();
+    await loadProfiles(true);
   }catch(e){
     mgrErr.textContent = e.message || "Error agregando perfil.";
     console.error("add error:", e, e._raw);
@@ -917,7 +976,7 @@ btnEditSave?.addEventListener("click", async ()=>{
       updated_by: "PROFILES_UI"
     });
     closeEditModal();
-    await loadProfiles();
+    await loadProfiles(true);
   }catch(e){
     editErr.textContent = e.message || "Error guardando.";
     console.error("edit error:", e, e._raw);
@@ -958,12 +1017,36 @@ inpSecret?.addEventListener("keydown", (e)=>{ if(e.key === "Enter") btnUnlock?.c
       if(chkRememberProfiles) chkRememberProfiles.checked = !!portalSession.remember;
       if(loginProfile) loginProfile.value = String(portalSession.id || "").trim();
       if(inpSecret) inpSecret.value = String(portalSession.password || "").trim();
-      shouldAutoUnlock = true;
+      const fastCache = loadProfilesDataCache_(String(portalSession.id || "").trim());
+      if(fastCache){
+        PROFILE_SESSION = {
+          id: String(portalSession.id || "").trim(),
+          label: String(portalSession.label || fastCache.sessionLabel || portalSession.id || "").trim(),
+          password: String(portalSession.password || "").trim(),
+          categories: Array.isArray(fastCache.sessionCategories) ? fastCache.sessionCategories : []
+        };
+        setLockedUI(false);
+        await loadProfiles(false);
+      }else{
+        shouldAutoUnlock = true;
+      }
     }else if(savedPin && remembered && savedProfile){
       if(chkRememberProfiles) chkRememberProfiles.checked = remembered;
       if(loginProfile) loginProfile.value = savedProfile;
       if(inpSecret) inpSecret.value = savedPin;
-      shouldAutoUnlock = true;
+      const fastCache = loadProfilesDataCache_(savedProfile);
+      if(fastCache){
+        PROFILE_SESSION = {
+          id: savedProfile,
+          label: String(fastCache.sessionLabel || savedProfile),
+          password: savedPin,
+          categories: Array.isArray(fastCache.sessionCategories) ? fastCache.sessionCategories : []
+        };
+        setLockedUI(false);
+        await loadProfiles(false);
+      }else{
+        shouldAutoUnlock = true;
+      }
     }else{
       if(chkRememberProfiles) chkRememberProfiles.checked = false;
       setLockedUI(true);
