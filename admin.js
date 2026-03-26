@@ -33,6 +33,7 @@ const LS_KEY = "AMARED_ADMIN_REMEMBER_V1";
 const HUB_URL = "hub.html";
 const HUB_SESSION_KEY = "AMARED_HUB_SESSION_V1";
 const HUB_REMEMBER_KEY = "AMARED_HUB_REMEMBER_V1";
+const ADMIN_PAGE_CACHE_KEY = "AMARED_PAGE_CACHE_ADMIN_V1";
 const FROM_HUB = (() => { try { return new URLSearchParams(window.location.search).get("hub") === "1"; } catch { return false; } })();
 function hasHubAccess_(){
   try{ return FROM_HUB || !!sessionStorage.getItem(HUB_SESSION_KEY) || !!localStorage.getItem(HUB_REMEMBER_KEY); }catch(_e){ return FROM_HUB; }
@@ -214,6 +215,42 @@ function loadSavedAdminSession() {
 function clearSavedAdminSession() {
   try { sessionStorage.removeItem(SS_KEY); } catch {}
   try { localStorage.removeItem(LS_KEY); } catch {}
+  clearAdminPageCache_();
+}
+
+function getAdminPageCache_(){
+  try{
+    const raw = sessionStorage.getItem(ADMIN_PAGE_CACHE_KEY);
+    const data = raw ? JSON.parse(raw) : null;
+    if(!data || data.sessionId !== String(SESSION?.operatorId || '')) return null;
+    return data;
+  }catch(_e){ return null; }
+}
+function saveAdminPageCache_(){
+  try{
+    if(!SESSION?.operatorId) return;
+    sessionStorage.setItem(ADMIN_PAGE_CACHE_KEY, JSON.stringify({
+      v:1,
+      sessionId: String(SESSION.operatorId || ''),
+      ts: Date.now(),
+      pendingOrders: Array.isArray(pendingOrdersCache) ? pendingOrdersCache : [],
+      histCache: HIST_CACHE || null,
+      histCacheTime: Number(HIST_CACHE_TIME || 0)
+    }));
+  }catch(_e){}
+}
+function clearAdminPageCache_(){
+  try{ sessionStorage.removeItem(ADMIN_PAGE_CACHE_KEY); }catch(_e){}
+}
+function applyAdminPageCache_(data){
+  const cache = data || getAdminPageCache_();
+  if(!cache) return false;
+  pendingOrdersCache = Array.isArray(cache.pendingOrders) ? cache.pendingOrders : [];
+  HIST_CACHE = cache.histCache || null;
+  HIST_CACHE_TIME = Number(cache.histCacheTime || 0);
+  renderOrdersList(listEl, pendingOrdersCache, { mode: "PENDIENTES" });
+  setStatus(`${pendingOrdersCache.length} pedidos pendientes.`);
+  return true;
 }
 
 btnTogglePin?.addEventListener("click", () => {
@@ -332,7 +369,7 @@ async function loadPaymentProfiles() {
 
 
 function ensureAdminHubReturnUI(){
-  if(!FROM_HUB) return null;
+  if(!hasHubAccess_()) return null;
   ensureHubReturnStyles_();
   let btn = document.getElementById("btnHeaderHub");
   if(adminHeaderActions && !btn){
@@ -351,7 +388,7 @@ function ensureAdminHubReturnUI(){
 
 function syncAdminMobileReturnAction(){
   if(!btnMobileLogout) return;
-  const fromHub = FROM_HUB;
+  const fromHub = hasHubAccess_();
   const ico = btnMobileLogout.querySelector('.ico');
   const txt = btnMobileLogout.querySelector('.txt');
   btnMobileLogout.setAttribute('aria-label', fromHub ? 'Volver al panel' : 'Salir');
@@ -376,10 +413,6 @@ function syncAdminActionBars() {
   syncAdminMobileReturnAction();
   if (adminMobileBar) {
     adminMobileBar.classList.toggle("isVisible", panelOpen && mobile && !hasOverlay);
-  }
-  if (btnHeaderLogout) {
-    btnHeaderLogout.style.display = FROM_HUB ? "none" : "inline-flex";
-    btnHeaderLogout.disabled = !!FROM_HUB;
   }
   const hubUi = ensureAdminHubReturnUI();
   if (hubUi?.btn) hubUi.btn.style.display = (panelOpen && !mobile) ? "inline-flex" : "none";
@@ -528,7 +561,7 @@ btnLogin?.addEventListener("click", async () => {
     saveAdminSession(!!loginRemember?.checked);
 
     showPanel();
-    await loadPendientes(false);
+    if(!applyAdminPageCache_()) await loadPendientes(false);
   } catch (e) {
     SESSION = { operator: null, operatorId: null, pin: null };
     clearSavedAdminSession();
@@ -544,6 +577,7 @@ btnLogout?.addEventListener("click", () => {
   clearSavedAdminSession();
   closeDrawer();
   showLogin();
+  if(!LOGIN_PROFILES.length) loadPaymentProfiles().catch(()=>{});
 });
 
 // =================== PENDIENTES ===================
@@ -566,6 +600,7 @@ async function loadPendientes(fromRefresh = false) {
     pendingOrdersCache = out.orders || [];
     renderOrdersList(listEl, pendingOrdersCache, { mode: "PENDIENTES" });
     setStatus(`${pendingOrdersCache.length} pedidos pendientes.`);
+    saveAdminPageCache_();
   } catch (e) {
     setStatus("❌ " + String(e.message || e));
     throw e;
@@ -605,8 +640,15 @@ async function loadHist(forceFetch) {
     setHistStatus("Cargando...");
     if (histListEl) histListEl.innerHTML = "";
 
-    const now = Date.now();
-    const useCache = HIST_CACHE && (now - HIST_CACHE_TIME) < HIST_TTL;
+    if(!forceFetch && !HIST_CACHE){
+      const persisted = getAdminPageCache_();
+      if(persisted?.histCache){
+        HIST_CACHE = persisted.histCache;
+        HIST_CACHE_TIME = Number(persisted.histCacheTime || 0) || Date.now();
+      }
+    }
+
+    const useCache = !!HIST_CACHE;
 
     if (forceFetch || !useCache) {
       const [paid, canceled] = await Promise.all([
@@ -614,7 +656,8 @@ async function loadHist(forceFetch) {
         api({ action: "list_orders", admin_pin: SESSION.pin, payment_status: "Cancelado" }),
       ]);
       HIST_CACHE = { paid: (paid.orders || []), canceled: (canceled.orders || []) };
-      HIST_CACHE_TIME = now;
+      HIST_CACHE_TIME = Date.now();
+      saveAdminPageCache_();
     }
 
     let all = [...(HIST_CACHE.paid || []), ...(HIST_CACHE.canceled || [])];
@@ -626,6 +669,7 @@ async function loadHist(forceFetch) {
 
     renderOrdersList(histListEl, all, { mode: "HIST" });
     setHistStatus(`${all.length} pedidos (filtro: ${histFilter === "ALL" ? "Todos" : histFilter}).`);
+    saveAdminPageCache_();
   } catch (e) {
     const msg = String(e.message || "");
     if (msg.toLowerCase().includes("too many") || msg.includes("429")) {
@@ -956,6 +1000,7 @@ function renderPendingBody(order) {
 
         setStatus("✅ Pedido actualizado (solo permitido si estaba Pendiente).");
         HIST_CACHE = null; HIST_CACHE_TIME = 0;
+    saveAdminPageCache_();
 
         render();
         await softRefreshPendientes();
@@ -1095,6 +1140,7 @@ btnPayConfirm?.addEventListener("click", async () => {
 
     setStatus("✅ Pago confirmado. Removido de Pendientes.");
     HIST_CACHE = null; HIST_CACHE_TIME = 0;
+    saveAdminPageCache_();
 
     await softRefreshPendientes();
   } catch (e) {
@@ -1205,6 +1251,7 @@ btnCancelConfirm?.addEventListener("click", async () => {
     pendingOrdersCache = pendingOrdersCache.filter(o => o.order_id !== orderId);
     renderOrdersList(listEl, pendingOrdersCache, { mode: "PENDIENTES" });
     setStatus("Procesando cancelación...");
+    saveAdminPageCache_();
 
     closeCancelModal();
     showLoading("Cancelando pedido...");
@@ -1219,6 +1266,7 @@ btnCancelConfirm?.addEventListener("click", async () => {
 
     setStatus("✅ Pedido cancelado. Removido de Pendientes.");
     HIST_CACHE = null; HIST_CACHE_TIME = 0;
+    saveAdminPageCache_();
 
     await softRefreshPendientes();
   } catch (e) {
@@ -1237,10 +1285,14 @@ btnCancelConfirm?.addEventListener("click", async () => {
 // =================== INIT ===================
 (async function init() {
   try {
-    await loadPaymentProfiles();
-
     const savedWrap = loadSavedAdminSession();
     const saved = savedWrap?.data || null;
+    const hasFastCache = !!(saved?.operatorId && saved?.pin && (()=>{ try{ const raw = sessionStorage.getItem(ADMIN_PAGE_CACHE_KEY); const data = raw ? JSON.parse(raw) : null; return data && data.sessionId === String(saved.operatorId || ''); }catch(_e){ return false; } })());
+
+    if(!hasFastCache){
+      await loadPaymentProfiles();
+    }
+
     if (saved) {
       try {
         const s = saved;
@@ -1254,7 +1306,7 @@ btnCancelConfirm?.addEventListener("click", async () => {
           if (SESSION.operator && SESSION.pin) {
             showPanel();
             try {
-              await loadPendientes(false);
+              if(!applyAdminPageCache_()) await loadPendientes(false);
             } catch (_e) {
               SESSION = { operator: null, operatorId: null, pin: null };
               clearSavedAdminSession();
@@ -1270,6 +1322,7 @@ btnCancelConfirm?.addEventListener("click", async () => {
         showLogin();
       }
     } else {
+      await loadPaymentProfiles();
       showLogin();
     }
   } finally {
@@ -1283,6 +1336,6 @@ btnCancelConfirm?.addEventListener("click", async () => {
 
 [btnMobileRefresh].forEach(btn => btn?.addEventListener("click", ()=> btnHeaderRefresh?.click()));
 [btnMobileHistory].forEach(btn => btn?.addEventListener("click", ()=> btnHeaderHistory?.click()));
-[btnMobileLogout].forEach(btn => btn?.addEventListener("click", ()=> { if(FROM_HUB) goHub_(); else btnHeaderLogout?.click(); }));
+[btnMobileLogout].forEach(btn => btn?.addEventListener("click", ()=> { if(hasHubAccess_()) goHub_(); else btnHeaderLogout?.click(); }));
 window.addEventListener("resize", syncAdminActionBars);
 setTimeout(syncAdminActionBars, 0);
