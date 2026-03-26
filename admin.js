@@ -33,7 +33,8 @@ const LS_KEY = "AMARED_ADMIN_REMEMBER_V1";
 const HUB_URL = "hub.html";
 const HUB_SESSION_KEY = "AMARED_HUB_SESSION_V1";
 const HUB_REMEMBER_KEY = "AMARED_HUB_REMEMBER_V1";
-const ADMIN_PAGE_CACHE_KEY = "AMARED_PAGE_CACHE_ADMIN_V1";
+const ADMIN_LOGIN_CACHE_KEY = "AMARED_PAGECACHE_ADMIN_LOGIN_V1";
+const ADMIN_DATA_CACHE_KEY = "AMARED_PAGECACHE_ADMIN_DATA_V1";
 const FROM_HUB = (() => { try { return new URLSearchParams(window.location.search).get("hub") === "1"; } catch { return false; } })();
 function hasHubAccess_(){
   try{ return FROM_HUB || !!sessionStorage.getItem(HUB_SESSION_KEY) || !!localStorage.getItem(HUB_REMEMBER_KEY); }catch(_e){ return FROM_HUB; }
@@ -215,42 +216,53 @@ function loadSavedAdminSession() {
 function clearSavedAdminSession() {
   try { sessionStorage.removeItem(SS_KEY); } catch {}
   try { localStorage.removeItem(LS_KEY); } catch {}
-  clearAdminPageCache_();
+  clearAdminDataCache_();
 }
 
-function getAdminPageCache_(){
+function getAdminCacheScope_(){
+  return String(SESSION?.operatorId || SESSION?.operator || "").trim().toLowerCase();
+}
+function loadAdminLoginProfilesCache_(){
   try{
-    const raw = sessionStorage.getItem(ADMIN_PAGE_CACHE_KEY);
+    const raw = sessionStorage.getItem(ADMIN_LOGIN_CACHE_KEY);
     const data = raw ? JSON.parse(raw) : null;
-    if(!data || data.sessionId !== String(SESSION?.operatorId || '')) return null;
+    return Array.isArray(data?.items) ? data.items : null;
+  }catch(_e){ return null; }
+}
+function saveAdminLoginProfilesCache_(items){
+  try{ sessionStorage.setItem(ADMIN_LOGIN_CACHE_KEY, JSON.stringify({ items: Array.isArray(items) ? items : [] })); }catch(_e){}
+}
+function loadAdminDataCache_(){
+  try{
+    const raw = sessionStorage.getItem(ADMIN_DATA_CACHE_KEY);
+    const data = raw ? JSON.parse(raw) : null;
+    const scope = getAdminCacheScope_();
+    if(!data || !scope || String(data.scope || "") !== scope) return null;
     return data;
   }catch(_e){ return null; }
 }
-function saveAdminPageCache_(){
+function saveAdminDataCache_(){
   try{
-    if(!SESSION?.operatorId) return;
-    sessionStorage.setItem(ADMIN_PAGE_CACHE_KEY, JSON.stringify({
-      v:1,
-      sessionId: String(SESSION.operatorId || ''),
-      ts: Date.now(),
-      pendingOrders: Array.isArray(pendingOrdersCache) ? pendingOrdersCache : [],
-      histCache: HIST_CACHE || null,
-      histCacheTime: Number(HIST_CACHE_TIME || 0)
+    const scope = getAdminCacheScope_();
+    if(!scope) return;
+    sessionStorage.setItem(ADMIN_DATA_CACHE_KEY, JSON.stringify({
+      scope,
+      pending: Array.isArray(pendingOrdersCache) ? pendingOrdersCache : [],
+      hist: HIST_CACHE || null,
+      histTime: Number(HIST_CACHE_TIME || 0) || 0,
+      ts: Date.now()
     }));
   }catch(_e){}
 }
-function clearAdminPageCache_(){
-  try{ sessionStorage.removeItem(ADMIN_PAGE_CACHE_KEY); }catch(_e){}
+function clearAdminDataCache_(){
+  try{ sessionStorage.removeItem(ADMIN_DATA_CACHE_KEY); }catch(_e){}
 }
-function applyAdminPageCache_(data){
-  const cache = data || getAdminPageCache_();
-  if(!cache) return false;
-  pendingOrdersCache = Array.isArray(cache.pendingOrders) ? cache.pendingOrders : [];
-  HIST_CACHE = cache.histCache || null;
-  HIST_CACHE_TIME = Number(cache.histCacheTime || 0);
+function hydrateAdminFromCache_(cache){
+  pendingOrdersCache = Array.isArray(cache?.pending) ? cache.pending : [];
+  HIST_CACHE = cache?.hist || null;
+  HIST_CACHE_TIME = Number(cache?.histTime || 0) || 0;
   renderOrdersList(listEl, pendingOrdersCache, { mode: "PENDIENTES" });
-  setStatus(`${pendingOrdersCache.length} pedidos pendientes.`);
-  return true;
+  setStatus(`${pendingOrdersCache.length} pedidos pendientes (caché de la sesión).`);
 }
 
 btnTogglePin?.addEventListener("click", () => {
@@ -334,7 +346,20 @@ function getSelectedProfile() {
   return LOGIN_PROFILES.find(p => p.id === id) || null;
 }
 
-async function loadPaymentProfiles() {
+async function loadPaymentProfiles(force = false) {
+  const cachedProfiles = !force ? loadAdminLoginProfilesCache_() : null;
+  if(cachedProfiles && cachedProfiles.length){
+    LOGIN_PROFILES = cachedProfiles;
+    renderLoginProfiles(LOGIN_PROFILES);
+    const saved = loadSavedAdminSession();
+    if (saved?.data?.operatorId && loginOperator && !loginOperator.value) {
+      loginOperator.value = String(saved.data.operatorId);
+      if (loginPin && !loginPin.value) loginPin.value = String(saved.data.pin || "");
+      if (loginRemember) loginRemember.checked = !!saved.remembered;
+      syncPinToggleState();
+    }
+    return;
+  }
   // Full-screen loading mientras se cargan perfiles
   showLoading("Cargando perfiles...", "Buscando perfiles de pagos/admin.");
   if (loginOperator) loginOperator.disabled = true;
@@ -344,6 +369,7 @@ async function loadPaymentProfiles() {
     // Intento principal: payments. Si viene vacío, intenta "pago".
     LOGIN_PROFILES = await fetchProfilesPublic("payments");
     if (!LOGIN_PROFILES.length) LOGIN_PROFILES = await fetchProfilesPublic("pago");
+    saveAdminLoginProfilesCache_(LOGIN_PROFILES);
     renderLoginProfiles(LOGIN_PROFILES);
     const saved = loadSavedAdminSession();
     if (saved?.data?.operatorId && loginOperator && !loginOperator.value) {
@@ -369,7 +395,7 @@ async function loadPaymentProfiles() {
 
 
 function ensureAdminHubReturnUI(){
-  if(!hasHubAccess_()) return null;
+  if(!FROM_HUB) return null;
   ensureHubReturnStyles_();
   let btn = document.getElementById("btnHeaderHub");
   if(adminHeaderActions && !btn){
@@ -388,7 +414,7 @@ function ensureAdminHubReturnUI(){
 
 function syncAdminMobileReturnAction(){
   if(!btnMobileLogout) return;
-  const fromHub = hasHubAccess_();
+  const fromHub = FROM_HUB;
   const ico = btnMobileLogout.querySelector('.ico');
   const txt = btnMobileLogout.querySelector('.txt');
   btnMobileLogout.setAttribute('aria-label', fromHub ? 'Volver al panel' : 'Salir');
@@ -413,6 +439,10 @@ function syncAdminActionBars() {
   syncAdminMobileReturnAction();
   if (adminMobileBar) {
     adminMobileBar.classList.toggle("isVisible", panelOpen && mobile && !hasOverlay);
+  }
+  if (btnHeaderLogout) {
+    btnHeaderLogout.style.display = FROM_HUB ? "none" : "inline-flex";
+    btnHeaderLogout.disabled = !!FROM_HUB;
   }
   const hubUi = ensureAdminHubReturnUI();
   if (hubUi?.btn) hubUi.btn.style.display = (panelOpen && !mobile) ? "inline-flex" : "none";
@@ -561,7 +591,7 @@ btnLogin?.addEventListener("click", async () => {
     saveAdminSession(!!loginRemember?.checked);
 
     showPanel();
-    if(!applyAdminPageCache_()) await loadPendientes(false);
+    await loadPendientes(false);
   } catch (e) {
     SESSION = { operator: null, operatorId: null, pin: null };
     clearSavedAdminSession();
@@ -577,7 +607,6 @@ btnLogout?.addEventListener("click", () => {
   clearSavedAdminSession();
   closeDrawer();
   showLogin();
-  if(!LOGIN_PROFILES.length) loadPaymentProfiles().catch(()=>{});
 });
 
 // =================== PENDIENTES ===================
@@ -585,6 +614,13 @@ btnRefresh?.addEventListener("click", async () => loadPendientes(true));
 
 async function loadPendientes(fromRefresh = false) {
   if (REQUEST_IN_FLIGHT) return;
+  if (!fromRefresh) {
+    const cached = loadAdminDataCache_();
+    if (cached) {
+      hydrateAdminFromCache_(cached);
+      return;
+    }
+  }
   REQUEST_IN_FLIGHT = true;
 
   try {
@@ -600,7 +636,7 @@ async function loadPendientes(fromRefresh = false) {
     pendingOrdersCache = out.orders || [];
     renderOrdersList(listEl, pendingOrdersCache, { mode: "PENDIENTES" });
     setStatus(`${pendingOrdersCache.length} pedidos pendientes.`);
-    saveAdminPageCache_();
+    saveAdminDataCache_();
   } catch (e) {
     setStatus("❌ " + String(e.message || e));
     throw e;
@@ -635,20 +671,28 @@ chips.forEach(ch => {
 });
 
 async function loadHist(forceFetch) {
+  const now = Date.now();
+  if (!forceFetch) {
+    const persisted = loadAdminDataCache_();
+    if (persisted?.hist) {
+      HIST_CACHE = persisted.hist;
+      HIST_CACHE_TIME = Number(persisted.histTime || now) || now;
+    }
+  }
   try {
+    const useCache = HIST_CACHE && (now - HIST_CACHE_TIME) < HIST_TTL;
+    if(!forceFetch && useCache){
+      let all = [...(HIST_CACHE.paid || []), ...(HIST_CACHE.canceled || [])];
+      all.sort((a, b) => (Date.parse(b.created_at || "") || 0) - (Date.parse(a.created_at || "") || 0));
+      if (histFilter !== "ALL") all = all.filter(o => String(o.payment_status) === histFilter);
+      renderOrdersList(histListEl, all, { mode: "HIST" });
+      setHistStatus(`${all.length} pedidos (filtro: ${histFilter === "ALL" ? "Todos" : histFilter}) · caché de la sesión.`);
+      return;
+    }
+
     showLoading("Cargando historial...");
     setHistStatus("Cargando...");
     if (histListEl) histListEl.innerHTML = "";
-
-    if(!forceFetch && !HIST_CACHE){
-      const persisted = getAdminPageCache_();
-      if(persisted?.histCache){
-        HIST_CACHE = persisted.histCache;
-        HIST_CACHE_TIME = Number(persisted.histCacheTime || 0) || Date.now();
-      }
-    }
-
-    const useCache = !!HIST_CACHE;
 
     if (forceFetch || !useCache) {
       const [paid, canceled] = await Promise.all([
@@ -656,8 +700,8 @@ async function loadHist(forceFetch) {
         api({ action: "list_orders", admin_pin: SESSION.pin, payment_status: "Cancelado" }),
       ]);
       HIST_CACHE = { paid: (paid.orders || []), canceled: (canceled.orders || []) };
-      HIST_CACHE_TIME = Date.now();
-      saveAdminPageCache_();
+      HIST_CACHE_TIME = now;
+      saveAdminDataCache_();
     }
 
     let all = [...(HIST_CACHE.paid || []), ...(HIST_CACHE.canceled || [])];
@@ -669,7 +713,6 @@ async function loadHist(forceFetch) {
 
     renderOrdersList(histListEl, all, { mode: "HIST" });
     setHistStatus(`${all.length} pedidos (filtro: ${histFilter === "ALL" ? "Todos" : histFilter}).`);
-    saveAdminPageCache_();
   } catch (e) {
     const msg = String(e.message || "");
     if (msg.toLowerCase().includes("too many") || msg.includes("429")) {
@@ -1000,7 +1043,6 @@ function renderPendingBody(order) {
 
         setStatus("✅ Pedido actualizado (solo permitido si estaba Pendiente).");
         HIST_CACHE = null; HIST_CACHE_TIME = 0;
-    saveAdminPageCache_();
 
         render();
         await softRefreshPendientes();
@@ -1125,6 +1167,8 @@ btnPayConfirm?.addEventListener("click", async () => {
     pendingOrdersCache = pendingOrdersCache.filter(o => o.order_id !== orderId);
     renderOrdersList(listEl, pendingOrdersCache, { mode: "PENDIENTES" });
     setStatus("Procesando confirmación de pago...");
+    HIST_CACHE = null; HIST_CACHE_TIME = 0;
+    saveAdminDataCache_();
 
     closePayModal();
     showLoading("Confirmando pago...");
@@ -1140,7 +1184,6 @@ btnPayConfirm?.addEventListener("click", async () => {
 
     setStatus("✅ Pago confirmado. Removido de Pendientes.");
     HIST_CACHE = null; HIST_CACHE_TIME = 0;
-    saveAdminPageCache_();
 
     await softRefreshPendientes();
   } catch (e) {
@@ -1251,7 +1294,8 @@ btnCancelConfirm?.addEventListener("click", async () => {
     pendingOrdersCache = pendingOrdersCache.filter(o => o.order_id !== orderId);
     renderOrdersList(listEl, pendingOrdersCache, { mode: "PENDIENTES" });
     setStatus("Procesando cancelación...");
-    saveAdminPageCache_();
+    HIST_CACHE = null; HIST_CACHE_TIME = 0;
+    saveAdminDataCache_();
 
     closeCancelModal();
     showLoading("Cancelando pedido...");
@@ -1266,7 +1310,6 @@ btnCancelConfirm?.addEventListener("click", async () => {
 
     setStatus("✅ Pedido cancelado. Removido de Pendientes.");
     HIST_CACHE = null; HIST_CACHE_TIME = 0;
-    saveAdminPageCache_();
 
     await softRefreshPendientes();
   } catch (e) {
@@ -1285,14 +1328,10 @@ btnCancelConfirm?.addEventListener("click", async () => {
 // =================== INIT ===================
 (async function init() {
   try {
+    await loadPaymentProfiles();
+
     const savedWrap = loadSavedAdminSession();
     const saved = savedWrap?.data || null;
-    const hasFastCache = !!(saved?.operatorId && saved?.pin && (()=>{ try{ const raw = sessionStorage.getItem(ADMIN_PAGE_CACHE_KEY); const data = raw ? JSON.parse(raw) : null; return data && data.sessionId === String(saved.operatorId || ''); }catch(_e){ return false; } })());
-
-    if(!hasFastCache){
-      await loadPaymentProfiles();
-    }
-
     if (saved) {
       try {
         const s = saved;
@@ -1306,7 +1345,7 @@ btnCancelConfirm?.addEventListener("click", async () => {
           if (SESSION.operator && SESSION.pin) {
             showPanel();
             try {
-              if(!applyAdminPageCache_()) await loadPendientes(false);
+              await loadPendientes(false);
             } catch (_e) {
               SESSION = { operator: null, operatorId: null, pin: null };
               clearSavedAdminSession();
@@ -1322,7 +1361,6 @@ btnCancelConfirm?.addEventListener("click", async () => {
         showLogin();
       }
     } else {
-      await loadPaymentProfiles();
       showLogin();
     }
   } finally {
@@ -1336,6 +1374,6 @@ btnCancelConfirm?.addEventListener("click", async () => {
 
 [btnMobileRefresh].forEach(btn => btn?.addEventListener("click", ()=> btnHeaderRefresh?.click()));
 [btnMobileHistory].forEach(btn => btn?.addEventListener("click", ()=> btnHeaderHistory?.click()));
-[btnMobileLogout].forEach(btn => btn?.addEventListener("click", ()=> { if(hasHubAccess_()) goHub_(); else btnHeaderLogout?.click(); }));
+[btnMobileLogout].forEach(btn => btn?.addEventListener("click", ()=> { if(FROM_HUB) goHub_(); else btnHeaderLogout?.click(); }));
 window.addEventListener("resize", syncAdminActionBars);
 setTimeout(syncAdminActionBars, 0);
