@@ -229,6 +229,8 @@
   const HUB_SESSION_KEY = "AMARED_HUB_SESSION_V1";
   const HUB_REMEMBER_KEY = "AMARED_HUB_REMEMBER_V1";
   const FROM_HUB = (() => { try { return new URLSearchParams(window.location.search).get("hub") === "1"; } catch { return false; } })();
+  const KITCHEN_LOGIN_CACHE_KEY = "AMARED_PAGECACHE_KITCHEN_LOGIN_V1";
+  const KITCHEN_DATA_CACHE_KEY = "AMARED_PAGECACHE_KITCHEN_DATA_V1";
   function hasHubAccess_(){
     try{ return FROM_HUB || !!sessionStorage.getItem(HUB_SESSION_KEY) || !!localStorage.getItem(HUB_REMEMBER_KEY); }catch(_e){ return FROM_HUB; }
   }
@@ -473,6 +475,65 @@ tabProdToday?.addEventListener("click", ()=>setProdTab("today"));
     refreshNonce: 0,
     widgetTick: null,
   };
+
+  function getKitchenCacheScope_(){
+    return String(state?.session?.operatorId || "").trim().toLowerCase();
+  }
+  function loadKitchenLoginCache_(){
+    try{
+      const raw = sessionStorage.getItem(KITCHEN_LOGIN_CACHE_KEY);
+      const data = raw ? JSON.parse(raw) : null;
+      return Array.isArray(data?.items) ? data.items : null;
+    }catch(_e){ return null; }
+  }
+  function saveKitchenLoginCache_(items){
+    try{ sessionStorage.setItem(KITCHEN_LOGIN_CACHE_KEY, JSON.stringify({ items: Array.isArray(items) ? items : [] })); }catch(_e){}
+  }
+  function loadKitchenDataCache_(){
+    try{
+      const raw = sessionStorage.getItem(KITCHEN_DATA_CACHE_KEY);
+      const data = raw ? JSON.parse(raw) : null;
+      const scope = getKitchenCacheScope_();
+      if(!data || !scope || String(data.scope || "") !== scope) return null;
+      return data;
+    }catch(_e){ return null; }
+  }
+  function saveKitchenDataCache_(){
+    try{
+      const scope = getKitchenCacheScope_();
+      if(!scope) return;
+      sessionStorage.setItem(KITCHEN_DATA_CACHE_KEY, JSON.stringify({
+        scope,
+        pricesMap: state.pricesMap || {},
+        costsLoaded: !!state.costsLoaded,
+        costsLastUpdated: state.costsLastUpdated || null,
+        recipesIndex: state.recipesIndex || {},
+        recipesLoaded: !!state.recipesLoaded,
+        recipesLastUpdated: state.recipesLastUpdated || null,
+        paidOrders: state.paidOrders || [],
+        todayKey: state.todayKey || null,
+        nextKey: state.nextKey || null,
+        buckets: state.buckets || {},
+        ts: Date.now()
+      }));
+    }catch(_e){}
+  }
+  function clearKitchenDataCache_(){
+    try{ sessionStorage.removeItem(KITCHEN_DATA_CACHE_KEY); }catch(_e){}
+  }
+  function hydrateKitchenDataFromCache_(cache){
+    state.pricesMap = cache?.pricesMap || {};
+    state.costsLoaded = !!cache?.costsLoaded;
+    state.costsLastUpdated = cache?.costsLastUpdated || null;
+    state.recipesIndex = cache?.recipesIndex || {};
+    state.recipesLoaded = !!cache?.recipesLoaded;
+    state.recipesLastUpdated = cache?.recipesLastUpdated || null;
+    state.paidOrders = Array.isArray(cache?.paidOrders) ? cache.paidOrders : [];
+    state.todayKey = cache?.todayKey || getTodayProductionDayKey();
+    state.nextKey = cache?.nextKey || getNextProductionDayKey(state.todayKey);
+    state.buckets = cache?.buckets || { today: [], infoTomorrow: [], inProgress: [], doneDb: [] };
+    renderAll();
+  }
 
 
   function getSessionPin(){
@@ -876,7 +937,7 @@ function syncKitchenMobileReturnAction(){
   function clearRememberSession(){
     try{ localStorage.removeItem(LS_KEY); }catch(_e){}
   }
-  function clearSession(){ sessionStorage.removeItem(SS_KEY); state.session={operatorId:null, operatorLabel:null, pin:null}; }
+  function clearSession(){ sessionStorage.removeItem(SS_KEY); clearKitchenDataCache_(); state.session={operatorId:null, operatorLabel:null, pin:null}; }
 
   async function validateProfileBestEffort(profileId, password){
     const out = await apiTry({action:"profiles_auth", profile_id: profileId, password_plain: password});
@@ -1043,6 +1104,7 @@ function syncKitchenMobileReturnAction(){
     state.buckets.inProgressToday = (inProgDb||[]).filter(o=>String(o.__prod_day||"")===String(state.todayKey||""));
     state.buckets.inProgressOlder = (inProgDb||[]).filter(o=>String(o.__prod_day||"")!==String(state.todayKey||""));
     state.buckets.doneDb=doneDb;
+    saveKitchenDataCache_();
 
     // Pendientes pagados de días anteriores (evita que se olviden)
     const backlog = paid.filter(o=>{
@@ -1586,14 +1648,23 @@ function renderProfilesSelect(list, selectedId){
     if(selectedId) selOperator.value=selectedId;
   }
 
-  async function loadProfilesOnStart(){
+  async function loadProfilesOnStart(force=false){
     state.profilesLoaded=false;
+    const cached = !force ? loadKitchenLoginCache_() : null;
+    if(cached && cached.length){
+      state.profiles = cached;
+      state.profilesLoaded = true;
+      renderProfilesSelect(cached, "");
+      loginErr.textContent = "";
+      return;
+    }
     renderProfilesSelect([], "");
     showLoading("Cargando perfiles…","Buscando perfiles de cocina.");
     loginErr.textContent="";
     try{
       const list = await fetchProfilesPublic();
       state.profiles = list;
+      saveKitchenLoginCache_(list);
       state.profilesLoaded = true;
       renderProfilesSelect(list, "");
       loginErr.textContent="";
@@ -3164,6 +3235,7 @@ async function finalizePostreFromOverlay(){
   function onLogout(){
     state.refreshNonce++;
     clearSession();
+    clearKitchenDataCache_();
     closeRecipe();
     closeCostsModal();
     showLogin();
@@ -3263,13 +3335,20 @@ async function finalizePostreFromOverlay(){
       }
       state.session = remembered;
       try{
-        showLoading("Ingresando…", hasPortalSession ? "Abriendo Cocina…" : "Validando sesión guardada…");
-        const rememberedAuth = await validateProfileBestEffort(remembered.operatorId, remembered.pin);
-        const rememberedCats = Array.isArray(rememberedAuth?.categories) ? rememberedAuth.categories.map(v => String(v || "").toLowerCase()) : [];
-        if(!(rememberedCats.includes("admin") || rememberedCats.includes("kitchen"))) throw new Error("Perfil sin permisos para cocina.");
-        showApp();
-        await refresh();
-        startWidgetTicker();
+        const cachedView = loadKitchenDataCache_();
+        if(cachedView){
+          showApp();
+          hydrateKitchenDataFromCache_(cachedView);
+          startWidgetTicker();
+        }else{
+          showLoading("Ingresando…", hasPortalSession ? "Abriendo Cocina…" : "Validando sesión guardada…");
+          const rememberedAuth = await validateProfileBestEffort(remembered.operatorId, remembered.pin);
+          const rememberedCats = Array.isArray(rememberedAuth?.categories) ? rememberedAuth.categories.map(v => String(v || "").toLowerCase()) : [];
+          if(!(rememberedCats.includes("admin") || rememberedCats.includes("kitchen"))) throw new Error("Perfil sin permisos para cocina.");
+          showApp();
+          await refresh();
+          startWidgetTicker();
+        }
       }catch(_e){
         if(!hasPortalSession) clearRememberSession();
         clearSession();
