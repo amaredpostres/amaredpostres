@@ -10,6 +10,8 @@ const LS_KEY = "AMARED_DELIVERY_REMEMBER_V1";
 const HUB_URL = "hub.html";
 const HUB_SESSION_KEY = "AMARED_HUB_SESSION_V1";
 const HUB_REMEMBER_KEY = "AMARED_HUB_REMEMBER_V1";
+const DELIVERY_LOGIN_CACHE_KEY = "AMARED_PAGECACHE_DELIVERY_LOGIN_V1";
+const DELIVERY_DATA_CACHE_KEY = "AMARED_PAGECACHE_DELIVERY_DATA_V1";
 const FROM_HUB = (() => { try { return new URLSearchParams(window.location.search).get("hub") === "1"; } catch { return false; } })();
 function hasHubAccess_(){
   try{ return FROM_HUB || !!sessionStorage.getItem(HUB_SESSION_KEY) || !!localStorage.getItem(HUB_REMEMBER_KEY); }catch(_e){ return FROM_HUB; }
@@ -392,6 +394,54 @@ function loadSavedDeliverySession(){
 function clearSavedDeliverySession(){
   try{ sessionStorage.removeItem(SS_KEY); }catch(_e){}
   try{ localStorage.removeItem(LS_KEY); }catch(_e){}
+  clearDeliveryDataCache_();
+}
+function getDeliveryCacheScope_(scope){
+  return String(scope || SESSION?.operator?.id || "").trim().toLowerCase();
+}
+function loadDeliveryLoginCache_(){
+  try{
+    const raw = sessionStorage.getItem(DELIVERY_LOGIN_CACHE_KEY);
+    const data = raw ? JSON.parse(raw) : null;
+    return Array.isArray(data?.items) ? data.items : null;
+  }catch(_e){ return null; }
+}
+function saveDeliveryLoginCache_(items){
+  try{ sessionStorage.setItem(DELIVERY_LOGIN_CACHE_KEY, JSON.stringify({ items: Array.isArray(items) ? items : [] })); }catch(_e){}
+}
+function loadDeliveryDataCache_(scope){
+  try{
+    const raw = sessionStorage.getItem(DELIVERY_DATA_CACHE_KEY);
+    const data = raw ? JSON.parse(raw) : null;
+    const wanted = getDeliveryCacheScope_(scope);
+    if(!data || !wanted || String(data.scope || "") !== wanted) return null;
+    return data;
+  }catch(_e){ return null; }
+}
+function saveDeliveryDataCache_(){
+  try{
+    const scope = getDeliveryCacheScope_();
+    if(!scope) return;
+    sessionStorage.setItem(DELIVERY_DATA_CACHE_KEY, JSON.stringify({
+      scope,
+      orders: Array.isArray(ORDERS) ? ORDERS : [],
+      history: Array.isArray(HIST) ? HIST : [],
+      ts: Date.now()
+    }));
+  }catch(_e){}
+}
+function clearDeliveryDataCache_(){
+  try{ sessionStorage.removeItem(DELIVERY_DATA_CACHE_KEY); }catch(_e){}
+}
+function hydrateDeliveryOrdersFromCache_(cache){
+  ORDERS = Array.isArray(cache?.orders) ? cache.orders : [];
+  renderOrders(ORDERS);
+  setStatus(`${ORDERS.length} pedidos listos para envío (caché de la sesión).`);
+}
+function hydrateDeliveryHistoryFromCache_(cache){
+  HIST = Array.isArray(cache?.history) ? cache.history : [];
+  renderHistory(HIST);
+  if(histStatus) histStatus.textContent = HIST.length ? "Mostrando historial guardado en la sesión." : "";
 }
 
 
@@ -417,7 +467,18 @@ btnTogglePin?.addEventListener('click', ()=>{
 });
 syncPinToggleState();
 
-async function loadProfilesOnStart(){
+async function loadProfilesOnStart(force = false){
+  const cachedProfiles = !force ? loadDeliveryLoginCache_() : null;
+  if(cachedProfiles && cachedProfiles.length){
+    renderProfilesSelect(cachedProfiles);
+    const saved = loadSavedDeliverySession();
+    if(saved?.data?.operator?.id && selOperator && !selOperator.value){
+      selOperator.value = String(saved.data.operator.id);
+      if(inpPin && !inpPin.value) inpPin.value = String(saved.data.pin || saved.data.password || '');
+      if(chkRemember) chkRemember.checked = !!saved.remembered;
+    }
+    return;
+  }
   renderProfilesSelect([]);
   showLoading("Cargando perfiles…","Buscando perfiles de envíos/admin.");
   loginErr.textContent = "";
@@ -428,6 +489,7 @@ async function loadProfilesOnStart(){
       .filter(p => isActiveAny(p.is_active ?? p.active ?? true))
       .filter(p => hasCategory(p,"delivery") || hasCategory(p,"admin"));
 
+    saveDeliveryLoginCache_(list);
     renderProfilesSelect(list);
     const saved = loadSavedDeliverySession();
     if(saved?.data?.operator?.id && selOperator && !selOperator.value){
@@ -512,6 +574,7 @@ function showLogin(){
 function logout(){
   SESSION = { operator:null, pin:null };
   clearSavedDeliverySession();
+  clearDeliveryDataCache_();
   if(inpPin) inpPin.value = "";
   if(selOperator) selOperator.value = "";
   closeHistory();
@@ -644,7 +707,14 @@ function renderOrders(orders){
   listEl.innerHTML = html;
 }
 
-async function loadOrders(){
+async function loadOrders(force = false){
+  if(!force){
+    const cached = loadDeliveryDataCache_();
+    if(cached){
+      hydrateDeliveryOrdersFromCache_(cached);
+      return;
+    }
+  }
   setStatus("");
   showLoading("Cargando pedidos…","Buscando Pagado + Listo + delivery Pendiente…");
   try{
@@ -664,6 +734,7 @@ async function loadOrders(){
     }
 
     renderOrders(orders);
+    saveDeliveryDataCache_();
   }catch(e){
     console.error("loadOrders error:", e);
     const msg = e?.message || "Error cargando pedidos.";
@@ -769,7 +840,14 @@ function renderHistory(orders){
   histList.innerHTML = html;
 }
 
-async function loadHistory(){
+async function loadHistory(force = false){
+  if(!force){
+    const cached = loadDeliveryDataCache_();
+    if(cached){
+      hydrateDeliveryHistoryFromCache_(cached);
+      return;
+    }
+  }
   if(histStatus) histStatus.textContent = "";
   showLoading("Cargando historial…","Buscando pedidos enviados…");
   try{
@@ -1014,8 +1092,8 @@ async function markSentOnly(){
 
     closeConfirm();
     closeSendModal();
-    await loadOrders();
-    if(histBack && histBack.style.display === "flex") await loadHistory();
+    await loadOrders(true);
+    if(histBack && histBack.style.display === "flex") await loadHistory(true);
   }catch(e){
     confirmErr.textContent = e?.message || "Error actualizando.";
   }finally{
@@ -1077,8 +1155,8 @@ async function markSentAndOpenWhatsApp(){
     closeConfirm();
     closeSendModal();
     openWhatsAppUrl(waUrl);
-    await loadOrders();
-    if(histBack && histBack.style.display === "flex") await loadHistory();
+    await loadOrders(true);
+    if(histBack && histBack.style.display === "flex") await loadHistory(true);
   }catch(e){
     confirmErr.textContent = e?.message || "Error actualizando.";
   }finally{
@@ -1107,10 +1185,10 @@ async function copyMsg(){
 
 // ---- Events ----
 btnLogin?.addEventListener("click", doLogin);
-btnRefresh?.addEventListener("click", loadOrders);
+btnRefresh?.addEventListener("click", ()=> loadOrders(true));
 btnLogout?.addEventListener("click", logout);
 btnHistory?.addEventListener("click", openHistory);
-btnRefreshTop?.addEventListener("click", loadOrders);
+btnRefreshTop?.addEventListener("click", ()=> loadOrders(true));
 btnLogoutTop?.addEventListener("click", logout);
 
 listEl?.addEventListener("click", (ev)=>{
@@ -1184,7 +1262,7 @@ btnConfirmGo?.addEventListener("click", doConfirmAction);
 
 // History events
 btnHistClose?.addEventListener("click", closeHistory);
-btnHistReload?.addEventListener("click", loadHistory);
+btnHistReload?.addEventListener("click", ()=> loadHistory(true));
 histBack?.addEventListener("click", (ev)=>{ if(ev.target === histBack) closeHistory(); });
 
 // ---- Init ----
@@ -1192,42 +1270,65 @@ histBack?.addEventListener("click", (ev)=>{ if(ev.target === histBack) closeHist
   wireDeliveryMobileBar();
   watchDeliveryBarState();
   syncDeliveryActionBars();
+
   try{
     const saved = loadSavedDeliverySession();
     const hubSaved = loadHubSessionCandidate();
+
     if((saved?.data?.pin || saved?.data?.password) && saved?.data?.operator){
       if(chkRemember) chkRemember.checked = !!saved.remembered;
       SESSION = Object.assign({}, saved.data, { pin: String(saved?.data?.pin || saved?.data?.password || "") });
       if(inpPin) inpPin.value = String(saved.data.pin || saved.data.password || '');
-      const valid = await validateCurrentSession_();
-      if(valid){
+
+      const cached = loadDeliveryDataCache_(String(saved.data.operator?.id || ""));
+      if(cached){
         showPanel();
-        await loadOrders();
+        hydrateDeliveryOrdersFromCache_(cached);
       }else{
-        clearSavedDeliverySession();
-        SESSION = { operator:null, pin:null };
-        showLogin();
-        await loadProfilesOnStart();
-      }
-    }else if(hubSaved?.data?.id && hubSaved?.data?.password){
-      const cats = normalizeCatsAny(hubSaved.data.categories || []);
-      const allowed = cats.some(c => hasCategory({categories:[c]}, 'delivery') || hasCategory({categories:[c]}, 'admin'));
-      if(allowed){
-        SESSION = { operator: { id: String(hubSaved.data.id), label: String(hubSaved.data.label || hubSaved.data.id) }, pin: String(hubSaved.data.password) };
         const valid = await validateCurrentSession_();
         if(valid){
-          saveDeliverySession(!!hubSaved.remembered);
           showPanel();
           await loadOrders();
         }else{
+          clearSavedDeliverySession();
           SESSION = { operator:null, pin:null };
           showLogin();
           await loadProfilesOnStart();
+        }
+      }
+
+    }else if(hubSaved?.data?.id && hubSaved?.data?.password){
+      const cats = normalizeCatsAny(hubSaved.data.categories || []);
+      const allowed = cats.some(c => hasCategory({categories:[c]}, 'delivery') || hasCategory({categories:[c]}, 'admin'));
+
+      if(allowed){
+        SESSION = {
+          operator: { id: String(hubSaved.data.id), label: String(hubSaved.data.label || hubSaved.data.id) },
+          pin: String(hubSaved.data.password)
+        };
+
+        const cached = loadDeliveryDataCache_(String(hubSaved.data.id || ""));
+        if(cached){
+          saveDeliverySession(!!hubSaved.remembered);
+          showPanel();
+          hydrateDeliveryOrdersFromCache_(cached);
+        }else{
+          const valid = await validateCurrentSession_();
+          if(valid){
+            saveDeliverySession(!!hubSaved.remembered);
+            showPanel();
+            await loadOrders();
+          }else{
+            SESSION = { operator:null, pin:null };
+            showLogin();
+            await loadProfilesOnStart();
+          }
         }
       }else{
         showLogin();
         await loadProfilesOnStart();
       }
+
     }else{
       showLogin();
       await loadProfilesOnStart();
