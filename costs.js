@@ -18,7 +18,8 @@ const SS_COSTS_SESSION_KEY = "AMARED_COSTS_SESSION_V1";
 const HUB_URL = "hub.html";
 const HUB_SESSION_KEY = "AMARED_HUB_SESSION_V1";
 const HUB_REMEMBER_KEY = "AMARED_HUB_REMEMBER_V1";
-const COSTS_PAGE_CACHE_KEY = "AMARED_PAGE_CACHE_COSTS_V1";
+const COSTS_LOGIN_CACHE_KEY = "AMARED_PAGECACHE_COSTS_LOGIN_V1";
+const COSTS_DATA_CACHE_KEY = "AMARED_PAGECACHE_COSTS_DATA_V1";
 const FROM_HUB = (() => { try { return new URLSearchParams(window.location.search).get("hub") === "1"; } catch { return false; } })();
 function hasHubAccess_(){
   try{ return FROM_HUB || !!sessionStorage.getItem(HUB_SESSION_KEY) || !!localStorage.getItem(HUB_REMEMBER_KEY); }catch(_e){ return FROM_HUB; }
@@ -81,63 +82,68 @@ state.recipesPinUnlocked = false;
 state.recipesPin = "";
 state.desserts = [];
 
-function getCostsCacheSessionId_(){
-  return String(UNLOCKED_PROFILE?.id || '');
+function getCostsCacheScope_(scope){
+  return String(scope || UNLOCKED_PROFILE?.id || "").trim().toLowerCase();
 }
-function clearCostsPageCache_(){
-  try{ sessionStorage.removeItem(COSTS_PAGE_CACHE_KEY); }catch(_e){}
-}
-function getCostsPageCache_(){
+function loadCostsLoginCache_(){
   try{
-    const raw = sessionStorage.getItem(COSTS_PAGE_CACHE_KEY);
+    const raw = sessionStorage.getItem(COSTS_LOGIN_CACHE_KEY);
     const data = raw ? JSON.parse(raw) : null;
-    if(!data || data.sessionId !== getCostsCacheSessionId_()) return null;
+    return Array.isArray(data?.items) ? data.items : null;
+  }catch(_e){ return null; }
+}
+function saveCostsLoginCache_(items){
+  try{ sessionStorage.setItem(COSTS_LOGIN_CACHE_KEY, JSON.stringify({ items: Array.isArray(items) ? items : [] })); }catch(_e){}
+}
+function loadCostsDataCache_(scope){
+  try{
+    const raw = sessionStorage.getItem(COSTS_DATA_CACHE_KEY);
+    const data = raw ? JSON.parse(raw) : null;
+    const wanted = getCostsCacheScope_(scope);
+    if(!data || !wanted || String(data.scope || "") !== wanted) return null;
     return data;
   }catch(_e){ return null; }
 }
-function saveCostsPageCache_(){
+function saveCostsDataCache_(){
   try{
-    const sessionId = getCostsCacheSessionId_();
-    if(!sessionId) return;
-    sessionStorage.setItem(COSTS_PAGE_CACHE_KEY, JSON.stringify({
-      v:1,
-      ts: Date.now(),
-      sessionId,
-      snapshot: {
-        items: Array.isArray(state.items) ? state.items : [],
-        inventory: state.inventory || {},
-        needs: state.needs || {},
-        meta: state.meta || {},
-        ordersByDessert: state.ordersByDessert || {},
-        late: state.late || {},
-        stores: Array.isArray(state.stores) ? state.stores : [],
-        brands: Array.isArray(state.brands) ? state.brands : [],
-        desserts: Array.isArray(state.desserts) ? state.desserts : [],
-        recipesByDessert: state.recipesByDessert || null,
-        recipesSource: state.recipesSource || 'embedded',
-        recipesPinUnlocked: !!state.recipesPinUnlocked,
-        recipesPin: state.recipesPin || ''
-      }
+    const scope = getCostsCacheScope_();
+    if(!scope) return;
+    sessionStorage.setItem(COSTS_DATA_CACHE_KEY, JSON.stringify({
+      scope,
+      profileLabel: String(UNLOCKED_PROFILE?.label || ""),
+      profileCategories: Array.isArray(UNLOCKED_PROFILE?.categories) ? UNLOCKED_PROFILE.categories : [],
+      inventory: state.inventory || {},
+      needs: state.needs || {},
+      meta: state.meta || {},
+      ordersByDessert: state.ordersByDessert || {},
+      late: state.late || {},
+      items: state.items || [],
+      stores: state.stores || [],
+      brands: state.brands || [],
+      desserts: state.desserts || [],
+      recipesByDessert: state.recipesByDessert || null,
+      recipesSource: state.recipesSource || "embedded",
+      buyPlan: state.buyPlan || {},
+      ts: Date.now()
     }));
   }catch(_e){}
 }
-function applyCostsPageCache_(data){
-  const cache = data || getCostsPageCache_();
-  const snap = cache?.snapshot;
-  if(!snap) return false;
-  state.inventory = snap.inventory || {};
-  state.needs = snap.needs || {};
-  state.meta = snap.meta || {};
-  state.ordersByDessert = snap.ordersByDessert || {};
-  state.late = snap.late || {};
-  state.items = Array.isArray(snap.items) ? snap.items : [];
-  state.stores = Array.isArray(snap.stores) ? snap.stores : [];
-  state.brands = Array.isArray(snap.brands) ? snap.brands : [];
-  state.desserts = Array.isArray(snap.desserts) ? snap.desserts : [];
-  state.recipesByDessert = snap.recipesByDessert || null;
-  state.recipesSource = snap.recipesSource || 'embedded';
-  state.recipesPinUnlocked = !!snap.recipesPinUnlocked;
-  state.recipesPin = snap.recipesPin || '';
+function clearCostsDataCache_(){
+  try{ sessionStorage.removeItem(COSTS_DATA_CACHE_KEY); }catch(_e){}
+}
+function hydrateCostsDataFromCache_(cache){
+  state.inventory = cache?.inventory || {};
+  state.needs = cache?.needs || {};
+  state.meta = cache?.meta || {};
+  state.ordersByDessert = cache?.ordersByDessert || {};
+  state.late = cache?.late || {};
+  state.items = cache?.items || [];
+  state.stores = Array.isArray(cache?.stores) ? cache.stores : [];
+  state.brands = Array.isArray(cache?.brands) ? cache.brands : [];
+  state.desserts = Array.isArray(cache?.desserts) ? cache.desserts : [];
+  state.recipesByDessert = cache?.recipesByDessert || state.recipesByDessert;
+  state.recipesSource = cache?.recipesSource || state.recipesSource;
+  state.buyPlan = cache?.buyPlan || state.buyPlan || {};
   indexCosts(state.items);
   updateMetaLine();
   renderDesserts();
@@ -146,7 +152,7 @@ function applyCostsPageCache_(data){
   renderGroups();
   renderCostsGroups();
   refreshBottom();
-  return true;
+  saveCostsDataCache_();
 }
 
 // ====== Costo unitario por postre (recetas canónicas) ======
@@ -524,7 +530,24 @@ async function fetchProfilesPublic_(category){
   return Array.isArray(out.profiles) ? out.profiles : [];
 }
 
-async function populateLoginProfiles_(){
+async function populateLoginProfiles_(force = false){
+  const cached = !force ? loadCostsLoginCache_() : null;
+  if(cached && cached.length){
+    LOGIN_PROFILES = cached;
+    const sel = el("loginProfile");
+    if(sel){
+      const saved = String(localStorage.getItem(LS_PROFILE_KEY) || "").trim();
+      const opts = ['<option value="">Seleccionar…</option>'];
+      for(const p of LOGIN_PROFILES){
+        const id = String(p.id || p.profile_id || "").trim();
+        const label = String(p.label || id).trim();
+        const selected = saved && saved === id ? ' selected' : '';
+        opts.push(`<option value="${escapeHtmlAttr(id)}"${selected}>${escapeHtml(label)}</option>`);
+      }
+      sel.innerHTML = opts.join("");
+    }
+    return;
+  }
   showLoading("Cargando perfiles…", "Buscando perfiles de compras y recetas.");
   try{
     let rows = [];
@@ -533,6 +556,7 @@ async function populateLoginProfiles_(){
       try{ rows = await fetchProfilesPublic_("admin"); }catch(_e){}
     }
     LOGIN_PROFILES = Array.isArray(rows) ? rows : [];
+    saveCostsLoginCache_(LOGIN_PROFILES);
     const sel = el("loginProfile");
     if(!sel) return;
     const saved = String(localStorage.getItem(LS_PROFILE_KEY) || "").trim();
@@ -616,7 +640,6 @@ function setView(view){
   renderCostsGroups();
   renderUnitCosts();
   refreshBottom();
-  saveCostsPageCache_();
 }
 
 function setCostsMeta(msg){
@@ -1225,6 +1248,62 @@ function unitBreakdownHtml_(b){
   return `<div style="padding:10px 12px;">${header}${list}${total}${lot}${miss}</div>`;
 }
 
+
+
+function unitBreakdownMobileHtml_(row){
+  const b = row.breakdown || { lines: [], missing: [], sum: 0, lotQty: 0, lot: null, source: 'embedded' };
+  const sourceLabel = (b.source === 'sheet') ? 'RECETAS' : 'receta base';
+  const metric = (label, value)=>`<div class="unitMetric"><div class="unitMetricLabel">${label}</div><div class="unitMetricValue">${value}</div></div>`;
+  const metrics = `
+    <div class="unitMetricGrid">
+      ${metric('Costo unitario', row.unit!==null ? moneyCOP2(row.unit) : '$—')}
+      ${metric('Precio 60%', row.unit!==null ? moneyCOP2(row.unit/0.40) : '$—')}
+      ${metric('Costo lote', row.lote!==null ? moneyCOP2(row.lote) : '$—')}
+    </div>`;
+
+  const ingredients = b.lines && b.lines.length ? `
+    <div class="unitIngWrap">
+      <div class="unitIngTitle">Ingredientes por unidad</div>
+      <div class="unitIngList">
+        ${b.lines.map(x=>`
+          <div class="unitIngItem">
+            <div style="min-width:0;">
+              <div class="unitIngName">${escapeHtml(x.ingredient_key)}</div>
+              <div class="unitIngMeta">
+                ${fmtNum(x.qty)} ${escapeHtml(x.unit || '')}${x.note ? ` <span style="opacity:.7;">(≈)</span>` : ''}
+                ${x.cpu ? (` · ${moneyCOP2(x.cpu)}/${escapeHtml(x.cpu_unit || x.unit || '')}`) : ''}
+              </div>
+            </div>
+            <div class="unitIngCost">${moneyCOP2(x.subtotal)}</div>
+          </div>`).join('')}
+      </div>
+    </div>` : `<div class="hint" style="margin-top:12px;">No hay ingredientes registrados para este postre.</div>`;
+
+  const missing = Array.isArray(b.missing) && b.missing.length
+    ? `<div class="hint" style="margin-top:12px; color:#b32020; font-weight:950;">Faltan costos o unidades compatibles para: ${escapeHtml(b.missing.slice(0,10).join(', '))}${b.missing.length>10?'…':''}</div>`
+    : '';
+
+  return `
+    <details class="unitMobileCard">
+      <summary>
+        <div class="unitMobileHead">
+          <div class="unitMobileTitle">${escapeHtml(prettyDessertName(row.id))}</div>
+          <div class="unitMobileSub">${escapeHtml(sourceLabel)} · toca para ver costos e ingredientes</div>
+          <div class="unitMobilePreview">
+            <span class="unitMobileChip">$/u: ${row.unit!==null ? moneyCOP2(row.unit) : '$—'}</span>
+            <span class="unitMobileChip">Lote: ${row.lote!==null ? moneyCOP2(row.lote) : '$—'}</span>
+          </div>
+        </div>
+        <div class="unitMobileChevron" aria-hidden="true">▾</div>
+      </summary>
+      <div class="unitMobileBody">
+        ${metrics}
+        ${ingredients}
+        ${missing}
+      </div>
+    </details>`;
+}
+
 function dessertUnitCost(dessertId){
   const b = dessertUnitBreakdown_(dessertId, 0);
   return { sum: b.sum, missing: b.missing };
@@ -1272,8 +1351,9 @@ function getDessertIdsForUi_(){
 
 function renderUnitCosts(){
   const tbody = el("unitCostRows");
+  const mobileList = el("unitCostMobileList");
   const meta = el("unitCostMeta");
-  if(!tbody) return;
+  if(!tbody && !mobileList) return;
 
   ensurePackagingEntries();
   buildCostAliasMap();
@@ -1290,8 +1370,6 @@ function renderUnitCosts(){
   for(const id of all){
     const qty = Number(by[id]||0)||0;
     const b = dessertUnitBreakdown_(id, qty);
-
-    // si no hay líneas, significa que no hay receta para ese postre
     const hasRecipe = (b.lines && b.lines.length) || (b.source === 'embedded' && (AMARED_RECIPES_PER_UNIT[id]||[]).length);
     if(!hasRecipe) noRecipe.push(prettyDessertName(id));
 
@@ -1303,22 +1381,29 @@ function renderUnitCosts(){
     rows.push({ id, qty, unit, lote, open: !!state.ui.unitOpen[id], breakdown: b, hasRecipe });
   }
 
-  tbody.innerHTML = rows.map(r=>`
-    <tr data-dessert="${escapeHtml(r.id)}" style="cursor:pointer;">
-      <td>${escapeHtml(prettyDessertName(r.id))} <span style="opacity:.55; font-weight:950;">${r.open?"▾":"▸"}</span></td>
-      <td class="num">${r.unit!==null ? moneyCOP2(r.unit) : "$—"}</td>
-      <td class="num">${r.unit!==null ? moneyCOP2(r.unit/0.40) : "$—"}</td>
-      <td class="num">${r.lote!==null ? moneyCOP2(r.lote) : "$—"}</td>
-    </tr>
-    <tr data-detail="${escapeHtml(r.id)}" style="${r.open ? "" : "display:none;"}">
-      <td colspan="4" style="padding:0; background: rgba(255,255,255,.55);">
-        ${unitBreakdownHtml_(r.breakdown)}
-      </td>
-    </tr>
-  `).join("");
+  if(tbody){
+    tbody.innerHTML = rows.map(r=>`
+      <tr data-dessert="${escapeHtml(r.id)}" style="cursor:pointer;">
+        <td>${escapeHtml(prettyDessertName(r.id))} <span style="opacity:.55; font-weight:950;">${r.open?"▾":"▸"}</span></td>
+        <td class="num">${r.unit!==null ? moneyCOP2(r.unit) : "$—"}</td>
+        <td class="num">${r.unit!==null ? moneyCOP2(r.unit/0.40) : "$—"}</td>
+        <td class="num">${r.lote!==null ? moneyCOP2(r.lote) : "$—"}</td>
+      </tr>
+      <tr data-detail="${escapeHtml(r.id)}" style="${r.open ? "" : "display:none;"}">
+        <td colspan="4" style="padding:0; background: rgba(255,255,255,.55);">
+          ${unitBreakdownHtml_(r.breakdown)}
+        </td>
+      </tr>
+    `).join("");
+  }
+
+  if(mobileList){
+    mobileList.innerHTML = rows.length
+      ? rows.map(r => unitBreakdownMobileHtml_(r)).join('')
+      : `<div class="hint">No hay postres disponibles para calcular costos en este momento.</div>`;
+  }
 
   const src = (state.recipesSource === "sheet") ? "RECETAS" : "receta embebida";
-
   const parts = [];
   if(missCosts.size){
     parts.push(`(${src}) Faltan costos de: ` + Array.from(missCosts).slice(0,8).join(", ") + (missCosts.size>8?"…":""));
@@ -1331,7 +1416,6 @@ function renderUnitCosts(){
 
   if(meta) meta.textContent = parts.join(" · ");
 }
-
 
 
 
@@ -1939,6 +2023,7 @@ async function loadAll(){
   renderGroups();
   renderCostsGroups();
   refreshBottom();
+  saveCostsDataCache_();
 }
 
 // =============== Unlock / logout ===============
@@ -2092,7 +2177,7 @@ async function doUnlock(isAuto=false, opts={}){
     show(el("appRoot"));
     show(el("mobileNav"));
     setView("purchases");
-    if(!applyCostsPageCache_()) await loadAll();
+    await loadAll();
   } catch(err){
     UNLOCKED_SECRET = "";
     UNLOCKED_PROFILE = { id:"", label:"", categories:[] };
@@ -2111,8 +2196,8 @@ async function doUnlock(isAuto=false, opts={}){
 function logout(){
   UNLOCKED_SECRET = "";
   UNLOCKED_PROFILE = { id:"", label:"", categories:[] };
+  clearCostsDataCache_();
   try{ resetRecipesAuth_(); }catch(_e){}
-  clearCostsPageCache_();
   try{ localStorage.removeItem(LS_SECRET_KEY); }catch(_e){}
   try{ localStorage.removeItem(LS_PROFILE_KEY); }catch(_e){}
   setRememberDeviceEnabled_(false);
@@ -2535,7 +2620,7 @@ async function deleteCatalogValue(type, value){
 function resetRecipesAuth_(){
   state.recipesPinUnlocked = false;
   state.recipesPin = "";
-state.desserts = [];
+  state.desserts = [];
   // (no se guarda el código entre recargas)
 }
 
@@ -3780,10 +3865,42 @@ el("ingModalBack")?.addEventListener("click", (e)=>{ if(e.target && e.target.id=
       if(el("loginProfile")) el("loginProfile").value = String(portal.id || "").trim();
       if(el("secretInput")) el("secretInput").value = String(portal.password || "").trim();
       if(chk) chk.checked = !!portal.remember;
-      await doUnlock(false, { fromPortal:true, silent:true, remember: !!portal.remember });
+      const fastCache = loadCostsDataCache_(String(portal.id || "").trim());
+      if(fastCache){
+        UNLOCKED_SECRET = String(portal.password || "").trim();
+        UNLOCKED_PROFILE = {
+          id: String(portal.id || "").trim(),
+          label: String(portal.label || fastCache.profileLabel || portal.id || "").trim(),
+          categories: Array.isArray(fastCache.profileCategories) ? fastCache.profileCategories : []
+        };
+        closeUnlock();
+        setCostsShellMode_("app");
+        show(el("appRoot"));
+        show(el("mobileNav"));
+        setView("purchases");
+        hydrateCostsDataFromCache_(fastCache);
+      } else {
+        await doUnlock(false, { fromPortal:true, silent:true, remember: !!portal.remember });
+      }
     } else if(saved && remembered && savedProfile){
       if(el("secretInput")) el("secretInput").value = saved;
-      await doUnlock(true);
+      const fastCache = loadCostsDataCache_(savedProfile);
+      if(fastCache){
+        UNLOCKED_SECRET = saved;
+        UNLOCKED_PROFILE = {
+          id: savedProfile,
+          label: String(fastCache.profileLabel || savedProfile),
+          categories: Array.isArray(fastCache.profileCategories) ? fastCache.profileCategories : []
+        };
+        closeUnlock();
+        setCostsShellMode_("app");
+        show(el("appRoot"));
+        show(el("mobileNav"));
+        setView("purchases");
+        hydrateCostsDataFromCache_(fastCache);
+      } else {
+        await doUnlock(true);
+      }
     } else {
       if(saved && !remembered){
         try{ localStorage.removeItem(LS_SECRET_KEY); }catch(_e){}
