@@ -5,6 +5,8 @@ const PROFILES_SS_KEY = "AMARED_PROFILES_SESSION_V1";
 const COSTS_SS_KEY = "AMARED_COSTS_SESSION_V1";
 const HUB_PROFILES_CACHE_KEY = "AMARED_HUB_PROFILES_CACHE_V1";
 const HUB_PROFILES_CACHE_TTL = 5 * 60 * 1000;
+const HUB_PAGE_CACHE_PREFIX = "AMARED_PAGECACHE_";
+const HUB_PREFETCHED = new Set();
 const HUB_BOOT_MIN_MS = 850;
 const HUB_REFRESH_MIN_MS = 650;
 
@@ -117,6 +119,11 @@ function clearAllPageSessions(){
     try{ sessionStorage.removeItem(key); }catch(_e){}
     try{ localStorage.removeItem(key); }catch(_e){}
   }
+  try{
+    const ssKeys = [];
+    for(let i=0; i<sessionStorage.length; i++) ssKeys.push(sessionStorage.key(i));
+    ssKeys.forEach(key=>{ if(String(key||"").startsWith(HUB_PAGE_CACHE_PREFIX)) sessionStorage.removeItem(key); });
+  }catch(_e){}
 }
 
 function syncPassToggle(){
@@ -131,6 +138,22 @@ function allowedModules(categories){
   return MODULES.filter(mod => mod.allow.some(tag => cats.has(tag)));
 }
 
+function prefetchModuleHref_(href){
+  const clean = String(href || "").trim();
+  if(!clean || HUB_PREFETCHED.has(clean)) return;
+  HUB_PREFETCHED.add(clean);
+  try{
+    const link = document.createElement("link");
+    link.rel = "prefetch";
+    link.as = "document";
+    link.href = clean;
+    document.head.appendChild(link);
+  }catch(_e){}
+}
+function prefetchAllowedModules_(){
+  const mods = allowedModules(state.session?.categories || []);
+  mods.forEach(mod => prefetchModuleHref_(mod.href));
+}
 function renderProfiles(list){
   const rows = Array.isArray(list) ? list : [];
   const currentValue = String(hubProfile?.value || state.session?.id || "").trim();
@@ -285,6 +308,7 @@ function renderModules(){
       <span class="btn primary hubCardBtn">Abrir</span>
     </button>
   `).join("");
+  prefetchAllowedModules_();
 }
 
 function setModuleSession(mod){
