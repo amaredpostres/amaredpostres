@@ -18,7 +18,7 @@ const HUB_SHARED_PREFETCH = [
 const HUB_MODULE_PREFETCH = {
   kitchen: [
     { href:"kitchen.html", as:"document" },
-    { href:"kitchen.js?v=20260302-fix7u", as:"script" },
+    { href:"kitchen.js?v=20260327-hub-kitchen-bgrefresh-v1", as:"script" },
     { href:"kitchen-costs.js?v=20260302-fix7u", as:"script" },
   ],
   payments: [
@@ -43,10 +43,10 @@ const HUB_MODULE_PREFETCH = {
 };
 
 const MODULES = [
-  { key:"kitchen", title:"Cocina", desc:"Gestiona la preparación y el avance de los pedidos.", href:"kitchen.html", icon:"🍰", allow:["kitchen","admin"] },
   { key:"payments", title:"Pagos", desc:"Confirma pagos y revisa pedidos pendientes.", href:"admin.html", icon:"💳", allow:["payments","pago","admin"] },
-  { key:"delivery", title:"Envíos", desc:"Revisa pedidos listos y confirma entregas.", href:"delivery.html", icon:"📦", allow:["delivery","admin"] },
   { key:"costs", title:"Compras y Recetas", desc:"Consulta compras, costos y recetas del día.", href:"costs.html", icon:"🧾", allow:["costs","purchases","admin"] },
+  { key:"kitchen", title:"Cocina", desc:"Gestiona la preparación y el avance de los pedidos.", href:"kitchen.html", icon:"🍰", allow:["kitchen","admin"] },
+  { key:"delivery", title:"Envíos", desc:"Revisa pedidos listos y confirma entregas.", href:"delivery.html", icon:"📦", allow:["delivery","admin"] },
   { key:"profiles", title:"Gestión de perfiles", desc:"Administra perfiles, permisos y contraseñas.", href:"profiles.html", icon:"👤", allow:["profiles","admin"] },
 ];
 
