@@ -640,7 +640,7 @@ function renderMobileProfiles(rows){
     const pid = normalizeId(p);
     const cats = categoriesBadgesHtml(p);
     const passState = passStateHtml(p);
-    const open = idx === 0 ? ' open' : '';
+    const open = '';
     return `
       <details class="profilesAccCard" data-id="${escapeHtml(pid)}"${open}>
         <summary>
