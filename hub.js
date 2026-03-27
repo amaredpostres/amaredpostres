@@ -9,6 +9,38 @@ const HUB_PAGE_CACHE_PREFIX = "AMARED_PAGECACHE_";
 const HUB_PREFETCHED = new Set();
 const HUB_BOOT_MIN_MS = 850;
 const HUB_REFRESH_MIN_MS = 650;
+const HUB_SHARED_PREFETCH = [
+  { href:"styles.css", as:"style" },
+  { href:"assets/Logo-Amared.svg", as:"image" },
+  { href:"assets/Logo-Isotipo-Amared.svg", as:"image" },
+  { href:"assets/favicon.ico", as:"image" },
+];
+const HUB_MODULE_PREFETCH = {
+  kitchen: [
+    { href:"kitchen.html", as:"document" },
+    { href:"kitchen.js?v=20260302-fix7u", as:"script" },
+    { href:"kitchen-costs.js?v=20260302-fix7u", as:"script" },
+  ],
+  payments: [
+    { href:"admin.html", as:"document" },
+    { href:"admin.js?v=20260324-admin-mobile-hub-v2", as:"script" },
+  ],
+  delivery: [
+    { href:"delivery.html", as:"document" },
+    { href:"delivery.css", as:"style" },
+    { href:"delivery.js?v=20260324-02", as:"script" },
+  ],
+  costs: [
+    { href:"costs.html", as:"document" },
+    { href:"costs.css?v=20260307-v17", as:"style" },
+    { href:"kitchen-costs.js?v=20260325-unit-mobile-v1", as:"script" },
+    { href:"costs.js?v=20260325-unit-mobile-v1", as:"script" },
+  ],
+  profiles: [
+    { href:"profiles.html", as:"document" },
+    { href:"profiles.js?v=20260325-profiles-mobile-accordion-v1", as:"script" },
+  ],
+};
 
 const MODULES = [
   { key:"kitchen", title:"Cocina", desc:"Gestiona la preparación y el avance de los pedidos.", href:"kitchen.html", icon:"🍰", allow:["kitchen","admin"] },
@@ -66,6 +98,7 @@ function showLoading(title, msg){
 function hideLoading(){ if(hubLoading) hubLoading.style.display = "none"; syncMobileBar(); }
 
 async function api(payload){
+  try{ ensureHubPreconnect_(); }catch(_e){}
   const res = await fetch(API_URL, {
     method:"POST",
     headers:{"Content-Type":"application/json"},
@@ -138,21 +171,53 @@ function allowedModules(categories){
   return MODULES.filter(mod => mod.allow.some(tag => cats.has(tag)));
 }
 
-function prefetchModuleHref_(href){
-  const clean = String(href || "").trim();
-  if(!clean || HUB_PREFETCHED.has(clean)) return;
-  HUB_PREFETCHED.add(clean);
+function runWhenIdle_(fn, timeout=1200){
   try{
+    if(typeof window.requestIdleCallback === "function"){
+      window.requestIdleCallback(()=>{ try{ fn(); }catch(_e){} }, { timeout });
+      return;
+    }
+  }catch(_e){}
+  window.setTimeout(()=>{ try{ fn(); }catch(_e){} }, Math.min(400, timeout));
+}
+function ensureHubPreconnect_(){
+  try{
+    if(document.getElementById("amHubPreconnectApi")) return;
+    const u = new URL(API_URL);
     const link = document.createElement("link");
-    link.rel = "prefetch";
-    link.as = "document";
-    link.href = clean;
+    link.id = "amHubPreconnectApi";
+    link.rel = "preconnect";
+    link.href = u.origin;
+    link.crossOrigin = "anonymous";
     document.head.appendChild(link);
   }catch(_e){}
 }
+function prefetchResource_(href, as="fetch"){
+  const clean = String(href || "").trim();
+  if(!clean) return;
+  const key = `${as}:${clean}`;
+  if(HUB_PREFETCHED.has(key)) return;
+  HUB_PREFETCHED.add(key);
+  try{
+    const link = document.createElement("link");
+    link.rel = "prefetch";
+    link.as = as || "fetch";
+    link.href = clean;
+    if(as === "fetch") link.crossOrigin = "anonymous";
+    document.head.appendChild(link);
+  }catch(_e){}
+}
+function prefetchModuleBundle_(mod){
+  if(!mod) return;
+  const entries = [...HUB_SHARED_PREFETCH, ...(HUB_MODULE_PREFETCH[mod.key] || [{ href: mod.href, as:"document" }])];
+  entries.forEach(item => prefetchResource_(item.href, item.as));
+}
 function prefetchAllowedModules_(){
   const mods = allowedModules(state.session?.categories || []);
-  mods.forEach(mod => prefetchModuleHref_(mod.href));
+  runWhenIdle_(()=>{
+    ensureHubPreconnect_();
+    mods.forEach(mod => prefetchModuleBundle_(mod));
+  }, 1500);
 }
 function renderProfiles(list){
   const rows = Array.isArray(list) ? list : [];
@@ -308,6 +373,17 @@ function renderModules(){
       <span class="btn primary hubCardBtn">Abrir</span>
     </button>
   `).join("");
+  try{
+    Array.from(hubGrid.querySelectorAll('.hubCard[data-key]')).forEach(btn => {
+      const key = String(btn.getAttribute('data-key') || '').trim();
+      const mod = MODULES.find(m => m.key === key);
+      if(!mod) return;
+      const prefetch = ()=>prefetchModuleBundle_(mod);
+      btn.addEventListener('mouseenter', prefetch, { passive:true });
+      btn.addEventListener('focus', prefetch, { passive:true });
+      btn.addEventListener('touchstart', prefetch, { passive:true, once:true });
+    });
+  }catch(_e){}
   prefetchAllowedModules_();
 }
 
