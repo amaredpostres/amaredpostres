@@ -131,6 +131,20 @@ function loadHubSession(){
   }catch(_e){}
   return null;
 }
+function hydrateHubSessionFromCache_(){
+  const saved = loadHubSession();
+  if(!saved?.session) return false;
+  state.session = {
+    id: saved.session.id,
+    label: saved.session.label || saved.session.id,
+    password: saved.session.password,
+    categories: normalizeCats(saved.session.categories || []),
+    remember: !!saved.remembered
+  };
+  if(hubRemember) hubRemember.checked = !!saved.remembered;
+  return true;
+}
+
 function clearHubSession(){
   try{ sessionStorage.removeItem(HUB_SS_KEY); }catch(_e){}
   try{ localStorage.removeItem(HUB_LS_KEY); }catch(_e){}
@@ -480,10 +494,12 @@ async function login(){
   }
 }
 
-async function restoreSession(){
+async function restoreSession(opts={}){
   const saved = loadHubSession();
   if(!saved?.session) return false;
-  showLoading('Validando…', 'Restaurando tu espacio.');
+  const useOverlay = opts.overlay !== false;
+  const preserveOnFail = opts.preserveOnFail === true;
+  if(useOverlay) showLoading('Validando…', 'Restaurando tu espacio.');
   try{
     const auth = await api({ action:'profiles_auth', profile_id:saved.session.id, password_plain:saved.session.password });
     if(auth.valid !== true) throw new Error(auth?.error || 'Sesión no válida.');
@@ -495,15 +511,18 @@ async function restoreSession(){
       remember: !!saved.remembered
     };
     if(hubRemember) hubRemember.checked = !!saved.remembered;
+    saveHubSession(!!saved.remembered);
     setShell('app');
     renderModules();
     return true;
   } catch(_e){
-    clearHubSession();
-    setShell('login');
+    if(!preserveOnFail){
+      clearHubSession();
+      setShell('login');
+    }
     return false;
   } finally {
-    hideLoading();
+    if(useOverlay) hideLoading();
   }
 }
 
@@ -524,29 +543,46 @@ hubGrid?.addEventListener('click', (ev)=>{
   openModule(String(card.getAttribute('data-key') || '').trim());
 });
 window.addEventListener('resize', syncMobileBar);
-window.addEventListener('pageshow', ()=>{
+window.addEventListener('pageshow', (ev)=>{
   resetHubBusyState();
-  if(state.session){ setShell('app'); renderModules(); }
-  else syncMobileBar();
+  if(state.session){
+    setShell('app');
+    renderModules();
+    prefetchAllowedModules_();
+  } else syncMobileBar();
+  if(ev?.persisted) revealHubBoot_();
 });
 
 
 (async function boot(){
   syncPassToggle();
   const startedAt = Date.now();
-  let restored = false;
+  let hydrated = false;
   try{
-    restored = await restoreSession();
-    await loadProfiles(true, { overlay:false });
-    if(!restored){
-      setShell('login');
-    }else{
+    hydrated = hydrateHubSessionFromCache_();
+    if(hydrated){
       setShell('app');
       renderModules();
+      prefetchAllowedModules_();
+    }
+
+    await loadProfiles(false, { overlay:false });
+
+    if(!hydrated){
+      const restored = await restoreSession({ overlay:false });
+      if(!restored){
+        setShell('login');
+      }else{
+        setShell('app');
+        renderModules();
+        prefetchAllowedModules_();
+      }
+    }else{
+      runWhenIdle_(()=>{ restoreSession({ overlay:false, preserveOnFail:true }).catch(()=>{}); }, 1200);
     }
   }catch(err){
     console.error('hub boot error:', err);
-    if(!restored){
+    if(!hydrated){
       setShell('login');
       if(hubLoginMsg && !String(hubLoginMsg.textContent || '').trim()){
         hubLoginMsg.textContent = 'No se pudieron cargar los perfiles. Intenta recargar.';
