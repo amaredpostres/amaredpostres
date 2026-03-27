@@ -490,6 +490,9 @@ tabProdToday?.addEventListener("click", ()=>setProdTab("today"));
     recipe: { open:false, productId:null, orderIds:[], units:0, stepIdx:0, timerStarted:false },
     refreshNonce: 0,
     widgetTick: null,
+    syncTail: Promise.resolve(),
+    syncPending: 0,
+    syncErrors: 0,
   };
 
   function getKitchenCacheScope_(){
@@ -582,6 +585,96 @@ tabProdToday?.addEventListener("click", ()=>setProdTab("today"));
     loading.style.display="none";
     loading.setAttribute("aria-hidden","true");
     syncActionBarsVisibility();
+  }
+
+  function ensureKitchenSyncBadge_(){
+    let el = document.getElementById("kitchenSyncBadge");
+    if(el) return el;
+    el = document.createElement("div");
+    el.id = "kitchenSyncBadge";
+    el.style.cssText = "position:fixed;right:14px;bottom:calc(env(safe-area-inset-bottom, 0px) + 86px);z-index:9600;display:none;max-width:min(360px, calc(100vw - 28px));padding:10px 14px;border-radius:16px;background:rgba(64,17,2,.92);color:#fff;font-weight:800;font-size:13px;box-shadow:0 16px 34px rgba(0,0,0,.24);";
+    document.body.appendChild(el);
+    return el;
+  }
+  function setKitchenSyncBadge_(message, tone){
+    const el = ensureKitchenSyncBadge_();
+    if(!message){
+      el.style.display = "none";
+      el.textContent = "";
+      return;
+    }
+    el.textContent = String(message || "");
+    el.style.display = "block";
+    el.style.background = tone === "error" ? "rgba(170,36,36,.94)" : "rgba(64,17,2,.92)";
+  }
+  function recomputeKitchenBucketsFromPaidOrders_(){
+    state.todayKey=getTodayProductionDayKey();
+    state.nextKey=getNextProductionDayKey(state.todayKey);
+    const paid = Array.isArray(state.paidOrders) ? state.paidOrders : [];
+    const normStatus = (v)=>String(v||"").trim().toLowerCase();
+    const todayAll = paid.filter(o=>o.__prod_day===state.todayKey);
+    const inProgDb = paid.filter(o=>normStatus(o.kitchen_status)==="en proceso");
+    const doneDb = paid
+      .filter(o=>normStatus(o.kitchen_status)==="listo")
+      .filter(o=>{
+        const raw = String(o.kitchen_done_at || o.kitchen_done || "");
+        if(raw){
+          const d = new Date(raw);
+          if(!Number.isNaN(d.getTime())){
+            const key = getBogotaParts(d).key;
+            return key === state.todayKey;
+          }
+        }
+        return o.__prod_day === state.todayKey;
+      });
+    const pending = todayAll.filter(o=>{ const ks=normStatus(o.kitchen_status); return ks!=="en proceso" && ks!=="listo"; });
+    const infoTomorrow = paid.filter(o=>{
+      const ks=normStatus(o.kitchen_status);
+      if(ks==="en proceso" || ks==="listo") return false;
+      return String(o.__prod_day||"") === String(state.nextKey||"");
+    });
+    const backlog = paid.filter(o=>{
+      const ks=normStatus(o.kitchen_status);
+      if(ks==="en proceso" || ks==="listo") return false;
+      return String(o.__prod_day||"") < String(state.todayKey||"");
+    });
+    state.buckets.today=pending;
+    state.buckets.infoTomorrow=infoTomorrow;
+    state.buckets.inProgress=inProgDb;
+    state.buckets.inProgressAll = inProgDb || [];
+    state.buckets.inProgressToday = (inProgDb||[]).filter(o=>String(o.__prod_day||"")===String(state.todayKey||""));
+    state.buckets.inProgressOlder = (inProgDb||[]).filter(o=>String(o.__prod_day||"")!==String(state.todayKey||""));
+    state.buckets.doneDb=doneDb;
+    state.buckets.backlog = backlog;
+  }
+  function enqueueKitchenSync_(label, task, opts={}){
+    const refreshAfter = opts.refreshAfter !== false;
+    const onError = typeof opts.onError === 'function' ? opts.onError : null;
+    state.syncPending = Number(state.syncPending || 0) + 1;
+    setKitchenSyncBadge_(opts.message || "Sincronizando cambios…");
+    const run = async ()=>{
+      try{
+        const result = await task();
+        return result;
+      }catch(err){
+        state.syncErrors = Number(state.syncErrors || 0) + 1;
+        setKitchenSyncBadge_(String(opts.errorMessage || (err?.message || "No se pudo sincronizar la cocina.")), "error");
+        if(onError) onError(err);
+        throw err;
+      }finally{
+        state.syncPending = Math.max(0, Number(state.syncPending || 0) - 1);
+        if(state.syncPending > 0){
+          setKitchenSyncBadge_("Sincronizando cambios…");
+        }else{
+          if(refreshAfter){
+            window.setTimeout(()=>{ refresh().catch(()=>{}); }, 120);
+          }
+          window.setTimeout(()=>{ if(state.syncPending===0) setKitchenSyncBadge_(""); }, 900);
+        }
+      }
+    };
+    state.syncTail = Promise.resolve(state.syncTail).catch(()=>{}).then(run);
+    return state.syncTail;
   }
 
   // ========= API =========
@@ -1085,51 +1178,8 @@ function syncKitchenMobileReturnAction(){
       .map(o=>{ o.__prod_day=computeProductionDayKeyForOrder(o.created_at) || state.todayKey; return o; });
     state.paidOrders=paid;
 
-    const todayAll = paid.filter(o=>o.__prod_day===state.todayKey);
-    const normStatus = (v)=>String(v||"").trim().toLowerCase();
-    const inProgDb = paid.filter(o=>normStatus(o.kitchen_status)==="en proceso");
-    const doneDb = paid
-      .filter(o=>normStatus(o.kitchen_status)==="listo")
-      .filter(o=>{
-        // ✅ Solo finalizados del día (hora Colombia)
-        const raw = String(o.kitchen_done_at || o.kitchen_done || "");
-        if(raw){
-          const d = new Date(raw);
-          if(!Number.isNaN(d.getTime())){
-            const key = getBogotaParts(d).key;
-            return key === state.todayKey;
-          }
-        }
-        // fallback: si no hay timestamp, usar día de producción
-        return o.__prod_day === state.todayKey;
-      });
-    const pending = todayAll.filter(o=>{ const ks=normStatus(o.kitchen_status); return ks!=="en proceso" && ks!=="listo"; });
-
-    // Informativo (próxima producción): pedidos cuyo día de producción es state.nextKey
-    const infoTomorrow = paid.filter(o=>{
-      const ks=normStatus(o.kitchen_status);
-      if(ks==="en proceso" || ks==="listo") return false;
-      return String(o.__prod_day||"") === String(state.nextKey||"");
-    });
-
-    state.buckets.today=pending;
-    state.buckets.infoTomorrow=infoTomorrow;
-    state.buckets.inProgress=inProgDb;
-    state.buckets.inProgressAll = inProgDb || [];
-
-    // Separación En proceso: del día vs anteriores
-    state.buckets.inProgressToday = (inProgDb||[]).filter(o=>String(o.__prod_day||"")===String(state.todayKey||""));
-    state.buckets.inProgressOlder = (inProgDb||[]).filter(o=>String(o.__prod_day||"")!==String(state.todayKey||""));
-    state.buckets.doneDb=doneDb;
+    recomputeKitchenBucketsFromPaidOrders_();
     saveKitchenDataCache_();
-
-    // Pendientes pagados de días anteriores (evita que se olviden)
-    const backlog = paid.filter(o=>{
-      const ks=normStatus(o.kitchen_status);
-      if(ks==="en proceso" || ks==="listo") return false;
-      return String(o.__prod_day||"") < String(state.todayKey||"");
-    });
-    state.buckets.backlog = backlog;
   }
 
   // ========= UI: estilos extras (cards + móvil + timer widget) =========
@@ -2167,22 +2217,15 @@ function msToMMSS(ms){
   }
 
   async function startBaseTimer(pid){
-// ✅ Guardar trazabilidad en BD (por producto, JSON)
-    try{
-      showLoading("Iniciando temporizador…","Guardando hora de nevera");
-      const ids = (state.recipe?.orderIds && state.recipe.orderIds.length) ? state.recipe.orderIds : getTodayOrderIds();
-      if(ids.length){
-        const r = await kitchenBulkUpdate(ids,{ base_fridge_started_at: JSON.stringify(buildProdStampPayload(pid)) });
-        if(r && r.ok===false){ showAlert("No se pudo guardar la hora de nevera."); }
-      hideLoading();
-
-      }
-    }catch(e){
-      console.warn("No se pudo guardar base_fridge_started_at:", e);
-      hideLoading();
+    const ids = (state.recipe?.orderIds && state.recipe.orderIds.length) ? state.recipe.orderIds : getTodayOrderIds();
+    if(ids.length){
+      enqueueKitchenSync_("base-fridge", ()=> kitchenBulkUpdate(ids,{ base_fridge_started_at: JSON.stringify(buildProdStampPayload(pid)) }), {
+        message:"Guardando hora de nevera…",
+        errorMessage:"No se pudo guardar la hora de nevera.",
+        refreshAfter:false
+      }).catch((e)=>{ console.warn("No se pudo guardar base_fridge_started_at:", e); });
     }
 
-    
     const existing=getTimerEnd(state.todayKey,pid);
     const now=Date.now();
     if(existing && existing>now){
@@ -2280,16 +2323,26 @@ function msToMMSS(ms){
     const ids=getOrderIdsThatContainProduct(orders,pid);
     if(ids.length===0) return;
 
-    showLoading("Iniciando…","Marcando pedidos en proceso…");
-    try{
-      await kitchenBulkUpdate(ids,{ kitchen_status:"En proceso", kitchen_started_at: JSON.stringify(buildProdStampPayload(pid)) });
-      await refresh();
-      openRecipe(pid, ids, units);
-    }catch(e){
-      alert(e?.message||String(e));
-    }finally{
-      hideLoading();
+    const startedStamp = JSON.stringify(buildProdStampPayload(pid));
+    const nowIsoLocal = new Date().toISOString();
+    for(const oid of ids){
+      const order = (state.paidOrders || []).find(o => String(o.order_id || "") === String(oid));
+      if(!order) continue;
+      order.kitchen_status = "En proceso";
+      if(!String(order.kitchen_started_at || "").trim()) order.kitchen_started_at = startedStamp;
+      if(!String(order.last_updated_at || "").trim()) order.last_updated_at = nowIsoLocal;
     }
+    recomputeKitchenBucketsFromPaidOrders_();
+    saveKitchenDataCache_();
+    renderAll();
+    openRecipe(pid, ids, units);
+
+    enqueueKitchenSync_("start-recipe", ()=> kitchenBulkUpdate(ids,{ kitchen_status:"En proceso", kitchen_started_at: startedStamp }), {
+      message:"Guardando inicio de producción…",
+      errorMessage:"No se pudo guardar el inicio en la base de datos.",
+      refreshAfter:true,
+      onError: ()=>{ refresh().catch(()=>{}); }
+    }).catch((e)=>{ console.warn("No se pudo sincronizar inicio de producción:", e); });
   }
 
   // ========= Finalizar postre/lote =========
