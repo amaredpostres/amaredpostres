@@ -165,6 +165,7 @@ function hydrateCostsDataFromCache_(cache){
   state.recipesSource = cache?.recipesSource || state.recipesSource;
   state.recipesLoadedAt = Number(cache?.recipesLoadedAt || 0) || state.recipesLoadedAt || 0;
   state.buyPlan = cache?.buyPlan || state.buyPlan || {};
+  state.needs = mergeLateNeedsInto_(state.needs || {}, state.late || {});
   indexCosts(state.items);
   updateMetaLine();
   renderDesserts();
@@ -1529,6 +1530,53 @@ function renderDesserts(){
 
 
 
+function recipeRowsForNeeds_(dessertId){
+  const did = String(dessertId||"").trim();
+  if(!did) return [];
+
+  const bySheet = Array.isArray(state.recipesByDessert?.[did]) ? state.recipesByDessert[did] : null;
+  if(bySheet && bySheet.length){
+    return bySheet
+      .map(r => ({
+        ingredient_key: String(r?.ingredient_key || "").trim(),
+        qty_per_unit: Number(r?.qty_per_unit || 0) || 0,
+        unit: normRecipeUnit_(r?.unit)
+      }))
+      .filter(r => r.ingredient_key && r.qty_per_unit > 0 && !!r.unit);
+  }
+
+  const embedded = Array.isArray(AMARED_RECIPES_PER_UNIT[did]) ? AMARED_RECIPES_PER_UNIT[did] : [];
+  return embedded
+    .map(pair => ({
+      ingredient_key: String(pair?.[0] || "").trim(),
+      qty_per_unit: Number(pair?.[1] || 0) || 0,
+      unit: ""
+    }))
+    .filter(r => r.ingredient_key && r.qty_per_unit > 0);
+}
+
+function addDessertNeeds_(needsMap, dessertId, qty){
+  const q = Number(qty || 0) || 0;
+  if(!(q > 0)) return;
+  const rows = recipeRowsForNeeds_(dessertId);
+  if(!rows.length) return;
+  for(const row of rows){
+    const key = String(row.ingredient_key || "").trim();
+    const per = Number(row.qty_per_unit || 0) || 0;
+    if(!key || !(per > 0)) continue;
+    needsMap[key] = (Number(needsMap[key] || 0) || 0) + (per * q);
+  }
+}
+
+function mergeLateNeedsInto_(baseNeeds, lateObj){
+  const merged = Object.assign({}, baseNeeds || {});
+  const lateByDessert = lateObj?.orders_by_dessert || lateObj?.ordersByDessert || {};
+  for(const [dessertId, qty] of Object.entries(lateByDessert || {})){
+    addDessertNeeds_(merged, dessertId, qty);
+  }
+  return merged;
+}
+
 function renderLate(){
   const tbody = el("lateRows");
   const meta = el("lateMeta");
@@ -2080,7 +2128,6 @@ async function loadAll(opts={}){
   ]);
 
   state.inventory = invOut.inventory || {};
-  state.needs = needsOut.needs || {};
   state.meta = needsOut.meta || {};
   applyCatalogs(catOut);
 
@@ -2092,6 +2139,7 @@ async function loadAll(opts={}){
 
   state.ordersByDessert = needsOut.orders_by_dessert || needsOut.ordersByDessert || {};
   state.late = needsOut.late || {};
+  state.needs = mergeLateNeedsInto_(needsOut.needs || {}, state.late);
   state.items = costsOut.items || [];
   indexCosts(state.items);
 
