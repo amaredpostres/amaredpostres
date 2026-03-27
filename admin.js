@@ -42,6 +42,22 @@ function hasHubAccess_(){
 function revealHubBoot_(){
   try{ document.documentElement.classList.remove("hubBoot"); document.documentElement.classList.add("hubReady"); }catch(_e){}
 }
+function ensureApiWarmup_(){
+  try{
+    if(document.getElementById("amApiWarmupLink")) return;
+    const u = new URL(API_URL);
+    const pre = document.createElement("link");
+    pre.id = "amApiWarmupLink";
+    pre.rel = "preconnect";
+    pre.href = u.origin;
+    pre.crossOrigin = "anonymous";
+    document.head.appendChild(pre);
+    const dns = document.createElement("link");
+    dns.rel = "dns-prefetch";
+    dns.href = u.origin;
+    document.head.appendChild(dns);
+  }catch(_e){}
+}
 
 function goHub_(){
   try{
@@ -274,6 +290,7 @@ syncPinToggleState();
 
 // =================== API (logs + retry 429) ===================
 async function api(body, retries = 2) {
+  try{ ensureApiWarmup_(); }catch(_e){}
   const payload = Object.assign({}, body || {});
   if (
     SESSION?.operatorId &&
