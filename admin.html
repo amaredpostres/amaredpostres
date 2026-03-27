@@ -148,6 +148,8 @@
       display:flex; justify-content:space-between; align-items:center; gap:10px;
     }
     .drawerTitle{ font-weight:950; margin:0; }
+    .drawerCloseX{ width:36px; height:36px; border-radius:999px; border:1px solid rgba(64,17,2,.12); background:rgba(255,255,255,.92); color:var(--choco); font-size:20px; line-height:1; font-weight:900; display:inline-flex; align-items:center; justify-content:center; cursor:pointer; box-shadow:0 10px 24px rgba(64,17,2,.10); margin-left:auto; flex:0 0 auto; }
+    .drawerCloseX:hover{ transform:translateY(-1px); }
     .drawerBody{ padding:14px; overflow:auto; }
     .drawerControls{
       display:flex; gap:10px; align-items:center; flex-wrap:wrap;
@@ -507,7 +509,7 @@
   <div id="drawer" class="drawer" aria-hidden="true">
     <div class="drawerHeader">
       <h3 class="drawerTitle">Historial</h3>
-      <button id="btnCloseDrawer" class="iconBtn" type="button" aria-label="Cerrar historial" title="Cerrar">✕</button>
+      <button id="btnCloseDrawer" class="drawerCloseX" type="button" aria-label="Cerrar historial">✕</button>
     </div>
     <div class="drawerBody">
       <div class="drawerControls">
