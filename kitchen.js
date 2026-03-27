@@ -667,7 +667,7 @@ tabProdToday?.addEventListener("click", ()=>setProdTab("today"));
           setKitchenSyncBadge_("Sincronizando cambios…");
         }else{
           if(refreshAfter){
-            window.setTimeout(()=>{ refresh().catch(()=>{}); }, 120);
+            window.setTimeout(()=>{ refresh({ silent:true }).catch(()=>{}); }, 120);
           }
           window.setTimeout(()=>{ if(state.syncPending===0) setKitchenSyncBadge_(""); }, 900);
         }
@@ -1160,13 +1160,14 @@ function syncKitchenMobileReturnAction(){
   }
 
   // ========= DATA LOAD =========
-  async function loadData(myNonce){
+  async function loadData(myNonce, opts={}){
+    const silent = !!opts?.silent;
     if(!state.session.pin) throw new Error("Unauthorized admin");
     state.todayKey=getTodayProductionDayKey();
     state.nextKey=getNextProductionDayKey(state.todayKey);
     pruneLocalProgressToDay_(state.todayKey);
 
-    showLoading("Cargando cocina…","Obteniendo pedidos…");
+    if(!silent) showLoading("Cargando cocina…","Obteniendo pedidos…");
     const outPaid = await api({action:"list_orders", payment_status:"Pagado", admin_pin: state.session.pin});
     // Cocina SOLO debe mostrar pedidos confirmados/pagados
     const out = { ok:true, orders: [...(outPaid.orders||[])] };
@@ -3232,17 +3233,18 @@ async function finalizePostreFromOverlay(){
 
 
 // ========= Refresh =========
-  async function refresh(){
+  async function refresh(opts={}){
+    const silent = !!opts?.silent;
     const myNonce=state.refreshNonce;
-    showLoading("Cargando…","Actualizando pedidos…");
+    if(!silent) showLoading("Cargando…","Actualizando pedidos…");
     try{ await fetchRecipesPublic(); }catch(_e){}
     try{ await fetchCostsPublic(); }catch(_e){}
     try{
-      await loadData(myNonce);
+      await loadData(myNonce, { silent });
       if(myNonce!==state.refreshNonce) return;
       renderAll();
     }finally{
-      hideLoading();
+      if(!silent) hideLoading();
     }
   }
 
