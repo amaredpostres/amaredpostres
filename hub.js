@@ -131,20 +131,6 @@ function loadHubSession(){
   }catch(_e){}
   return null;
 }
-function hydrateHubSessionFromCache_(){
-  const saved = loadHubSession();
-  if(!saved?.session) return false;
-  state.session = {
-    id: saved.session.id,
-    label: saved.session.label || saved.session.id,
-    password: saved.session.password,
-    categories: normalizeCats(saved.session.categories || []),
-    remember: !!saved.remembered
-  };
-  if(hubRemember) hubRemember.checked = !!saved.remembered;
-  return true;
-}
-
 function clearHubSession(){
   try{ sessionStorage.removeItem(HUB_SS_KEY); }catch(_e){}
   try{ localStorage.removeItem(HUB_LS_KEY); }catch(_e){}
@@ -270,6 +256,42 @@ function resetHubBusyState(){
     }
   }catch(_e){}
   syncMobileBar();
+}
+
+function hydrateProfilesFromCache_(){
+  const cached = getCachedProfiles();
+  if(!cached || !cached.length) return false;
+  state.profiles = cached.filter(p => normalizeCats(p.categories).length > 0);
+  renderProfiles(state.profiles);
+  return true;
+}
+
+async function validateSessionInBackground_(){
+  const saved = loadHubSession();
+  if(!saved?.session?.id || !saved?.session?.password) return false;
+  try{
+    const auth = await api({ action:'profiles_auth', profile_id:saved.session.id, password_plain:saved.session.password });
+    if(auth.valid !== true) throw new Error(auth?.error || 'Sesión no válida.');
+    state.session = {
+      id: saved.session.id,
+      label: auth?.profile?.label || saved.session.label || saved.session.id,
+      password: saved.session.password,
+      categories: normalizeCats(auth?.profile?.categories || saved.session.categories || []),
+      remember: !!saved.remembered
+    };
+    if(hubRemember) hubRemember.checked = !!saved.remembered;
+    saveHubSession(!!saved.remembered);
+    if(document.visibilityState === 'visible'){
+      renderModules();
+    }
+    return true;
+  } catch(_e){
+    clearHubSession();
+    if(document.visibilityState === 'visible'){
+      setShell('login');
+    }
+    return false;
+  }
 }
 
 async function loadProfiles(force=false, opts={}){
@@ -494,36 +516,21 @@ async function login(){
   }
 }
 
-async function restoreSession(opts={}){
+async function restoreSession(){
   const saved = loadHubSession();
   if(!saved?.session) return false;
-  const useOverlay = opts.overlay !== false;
-  const preserveOnFail = opts.preserveOnFail === true;
-  if(useOverlay) showLoading('Validando…', 'Restaurando tu espacio.');
-  try{
-    const auth = await api({ action:'profiles_auth', profile_id:saved.session.id, password_plain:saved.session.password });
-    if(auth.valid !== true) throw new Error(auth?.error || 'Sesión no válida.');
-    state.session = {
-      id: saved.session.id,
-      label: auth?.profile?.label || saved.session.label || saved.session.id,
-      password: saved.session.password,
-      categories: normalizeCats(auth?.profile?.categories || saved.session.categories || []),
-      remember: !!saved.remembered
-    };
-    if(hubRemember) hubRemember.checked = !!saved.remembered;
-    saveHubSession(!!saved.remembered);
-    setShell('app');
-    renderModules();
-    return true;
-  } catch(_e){
-    if(!preserveOnFail){
-      clearHubSession();
-      setShell('login');
-    }
-    return false;
-  } finally {
-    if(useOverlay) hideLoading();
-  }
+  state.session = {
+    id: saved.session.id,
+    label: saved.session.label || saved.session.id,
+    password: saved.session.password,
+    categories: normalizeCats(saved.session.categories || []),
+    remember: !!saved.remembered
+  };
+  if(hubRemember) hubRemember.checked = !!saved.remembered;
+  setShell('app');
+  renderModules();
+  window.setTimeout(()=>{ validateSessionInBackground_().catch(()=>{}); }, 80);
+  return true;
 }
 
 btnHubTogglePass?.addEventListener('click', ()=>{
@@ -545,53 +552,35 @@ hubGrid?.addEventListener('click', (ev)=>{
 window.addEventListener('resize', syncMobileBar);
 window.addEventListener('pageshow', (ev)=>{
   resetHubBusyState();
-  if(state.session){
-    setShell('app');
-    renderModules();
-    prefetchAllowedModules_();
-  } else syncMobileBar();
-  if(ev?.persisted) revealHubBoot_();
+  hydrateProfilesFromCache_();
+  if(state.session){ setShell('app'); renderModules(); }
+  else syncMobileBar();
+  if(ev?.persisted){ window.setTimeout(()=>{ validateSessionInBackground_().catch(()=>{}); }, 60); }
 });
 
 
 (async function boot(){
   syncPassToggle();
-  const startedAt = Date.now();
-  let hydrated = false;
+  let restored = false;
   try{
-    hydrated = hydrateHubSessionFromCache_();
-    if(hydrated){
+    hydrateProfilesFromCache_();
+    restored = await restoreSession();
+    await loadProfiles(false, { overlay:false });
+    if(!restored){
+      setShell('login');
+    }else{
       setShell('app');
       renderModules();
-      prefetchAllowedModules_();
-    }
-
-    await loadProfiles(false, { overlay:false });
-
-    if(!hydrated){
-      const restored = await restoreSession({ overlay:false });
-      if(!restored){
-        setShell('login');
-      }else{
-        setShell('app');
-        renderModules();
-        prefetchAllowedModules_();
-      }
-    }else{
-      runWhenIdle_(()=>{ restoreSession({ overlay:false, preserveOnFail:true }).catch(()=>{}); }, 1200);
     }
   }catch(err){
     console.error('hub boot error:', err);
-    if(!hydrated){
+    if(!restored){
       setShell('login');
       if(hubLoginMsg && !String(hubLoginMsg.textContent || '').trim()){
         hubLoginMsg.textContent = 'No se pudieron cargar los perfiles. Intenta recargar.';
       }
     }
   }finally{
-    const elapsed = Date.now() - startedAt;
-    if(elapsed < HUB_BOOT_MIN_MS) await wait(HUB_BOOT_MIN_MS - elapsed);
     resetHubBusyState();
-    revealHubBoot_();
   }
 })();
