@@ -194,10 +194,15 @@ function showLoading(text = "Cargando...", desc = "Por favor espera.") {
   if (loadingText) loadingText.textContent = text;
   if (loadingDesc) loadingDesc.textContent = desc;
   if (loadingOverlay) loadingOverlay.classList.add("show");
+  try { syncAdminActionBars(); } catch(_e) {}
 }
 function hideLoading() {
   LOADING_COUNT = Math.max(0, LOADING_COUNT - 1);
   if (LOADING_COUNT === 0 && loadingOverlay) loadingOverlay.classList.remove("show");
+  try {
+    syncAdminActionBars();
+    window.requestAnimationFrame(() => { try { syncAdminActionBars(); } catch(_e){} });
+  } catch(_e) {}
 }
 
 function syncPinToggleState() {
