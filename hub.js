@@ -5,6 +5,42 @@ const PROFILES_SS_KEY = "AMARED_PROFILES_SESSION_V1";
 const COSTS_SS_KEY = "AMARED_COSTS_SESSION_V1";
 const HUB_PROFILES_CACHE_KEY = "AMARED_HUB_PROFILES_CACHE_V1";
 const HUB_PROFILES_CACHE_TTL = 5 * 60 * 1000;
+const HUB_PAGE_CACHE_PREFIX = "AMARED_PAGECACHE_";
+const HUB_PREFETCHED = new Set();
+const HUB_BOOT_MIN_MS = 850;
+const HUB_REFRESH_MIN_MS = 650;
+const HUB_SHARED_PREFETCH = [
+  { href:"styles.css", as:"style" },
+  { href:"assets/Logo-Amared.svg", as:"image" },
+  { href:"assets/Logo-Isotipo-Amared.svg", as:"image" },
+  { href:"assets/favicon.ico", as:"image" },
+];
+const HUB_MODULE_PREFETCH = {
+  kitchen: [
+    { href:"kitchen.html", as:"document" },
+    { href:"kitchen.js?v=20260302-fix7u", as:"script" },
+    { href:"kitchen-costs.js?v=20260302-fix7u", as:"script" },
+  ],
+  payments: [
+    { href:"admin.html", as:"document" },
+    { href:"admin.js?v=20260324-admin-mobile-hub-v2", as:"script" },
+  ],
+  delivery: [
+    { href:"delivery.html", as:"document" },
+    { href:"delivery.css", as:"style" },
+    { href:"delivery.js?v=20260324-02", as:"script" },
+  ],
+  costs: [
+    { href:"costs.html", as:"document" },
+    { href:"costs.css?v=20260307-v17", as:"style" },
+    { href:"kitchen-costs.js?v=20260325-unit-mobile-v1", as:"script" },
+    { href:"costs.js?v=20260325-unit-mobile-v1", as:"script" },
+  ],
+  profiles: [
+    { href:"profiles.html", as:"document" },
+    { href:"profiles.js?v=20260325-profiles-mobile-accordion-v1", as:"script" },
+  ],
+};
 
 const MODULES = [
   { key:"kitchen", title:"Cocina", desc:"Gestiona la preparación y el avance de los pedidos.", href:"kitchen.html", icon:"🍰", allow:["kitchen","admin"] },
@@ -36,6 +72,11 @@ const hubLoading = document.getElementById("hubLoading");
 const hubLoadingTitle = document.getElementById("hubLoadingTitle");
 const hubLoadingMsg = document.getElementById("hubLoadingMsg");
 
+function revealHubBoot_(){
+  try{ document.documentElement.classList.remove("hubBoot"); document.documentElement.classList.add("hubReady"); }catch(_e){}
+}
+function wait(ms){ return new Promise(resolve => setTimeout(resolve, Math.max(0, Number(ms||0)))); }
+
 function normalizeCats(v){
   if(Array.isArray(v)) return v.map(x => String(x || "").trim().toLowerCase()).filter(Boolean);
   return String(v || "").split(",").map(s => s.trim().toLowerCase()).filter(Boolean);
@@ -56,33 +97,18 @@ function showLoading(title, msg){
 }
 function hideLoading(){ if(hubLoading) hubLoading.style.display = "none"; syncMobileBar(); }
 
-async function api(payload, opts={}){
+async function api(payload){
   try{ ensureHubPreconnect_(); }catch(_e){}
-  const timeoutMs = Math.max(2000, Number(opts.timeoutMs || HUB_API_TIMEOUT_MS || 12000));
-  const controller = new AbortController();
-  const timer = window.setTimeout(()=>{ try{ controller.abort(); }catch(_e){} }, timeoutMs);
-  try{
-    const res = await fetch(API_URL, {
-      method:"POST",
-      headers:{"Content-Type":"application/json"},
-      body: JSON.stringify(payload || {}),
-      signal: controller.signal
-    });
-    const raw = await res.text().catch(()=>"");
-    let data = {};
-    try{ data = raw ? JSON.parse(raw) : {}; }catch(_e){ data = {}; }
-    if(!res.ok || data.ok === false){
-      throw new Error(data.error || data.message || `HTTP ${res.status}`);
-    }
-    return data;
-  }catch(err){
-    if(err?.name === 'AbortError'){
-      throw new Error('Tiempo de espera agotado al cargar perfiles.');
-    }
-    throw err;
-  } finally {
-    window.clearTimeout(timer);
+  const res = await fetch(API_URL, {
+    method:"POST",
+    headers:{"Content-Type":"application/json"},
+    body: JSON.stringify(payload || {})
+  });
+  const data = await res.json().catch(()=>({}));
+  if(!res.ok || data.ok === false){
+    throw new Error(data.error || data.message || `HTTP ${res.status}`);
   }
+  return data;
 }
 
 function saveHubSession(remember){
@@ -126,6 +152,11 @@ function clearAllPageSessions(){
     try{ sessionStorage.removeItem(key); }catch(_e){}
     try{ localStorage.removeItem(key); }catch(_e){}
   }
+  try{
+    const ssKeys = [];
+    for(let i=0; i<sessionStorage.length; i++) ssKeys.push(sessionStorage.key(i));
+    ssKeys.forEach(key=>{ if(String(key||"").startsWith(HUB_PAGE_CACHE_PREFIX)) sessionStorage.removeItem(key); });
+  }catch(_e){}
 }
 
 function syncPassToggle(){
@@ -140,14 +171,64 @@ function allowedModules(categories){
   return MODULES.filter(mod => mod.allow.some(tag => cats.has(tag)));
 }
 
+function runWhenIdle_(fn, timeout=1200){
+  try{
+    if(typeof window.requestIdleCallback === "function"){
+      window.requestIdleCallback(()=>{ try{ fn(); }catch(_e){} }, { timeout });
+      return;
+    }
+  }catch(_e){}
+  window.setTimeout(()=>{ try{ fn(); }catch(_e){} }, Math.min(400, timeout));
+}
+function ensureHubPreconnect_(){
+  try{
+    if(document.getElementById("amHubPreconnectApi")) return;
+    const u = new URL(API_URL);
+    const link = document.createElement("link");
+    link.id = "amHubPreconnectApi";
+    link.rel = "preconnect";
+    link.href = u.origin;
+    link.crossOrigin = "anonymous";
+    document.head.appendChild(link);
+  }catch(_e){}
+}
+function prefetchResource_(href, as="fetch"){
+  const clean = String(href || "").trim();
+  if(!clean) return;
+  const key = `${as}:${clean}`;
+  if(HUB_PREFETCHED.has(key)) return;
+  HUB_PREFETCHED.add(key);
+  try{
+    const link = document.createElement("link");
+    link.rel = "prefetch";
+    link.as = as || "fetch";
+    link.href = clean;
+    if(as === "fetch") link.crossOrigin = "anonymous";
+    document.head.appendChild(link);
+  }catch(_e){}
+}
+function prefetchModuleBundle_(mod){
+  if(!mod) return;
+  const entries = [...HUB_SHARED_PREFETCH, ...(HUB_MODULE_PREFETCH[mod.key] || [{ href: mod.href, as:"document" }])];
+  entries.forEach(item => prefetchResource_(item.href, item.as));
+}
+function prefetchAllowedModules_(){
+  const mods = allowedModules(state.session?.categories || []);
+  runWhenIdle_(()=>{
+    ensureHubPreconnect_();
+    mods.forEach(mod => prefetchModuleBundle_(mod));
+  }, 1500);
+}
 function renderProfiles(list){
   const rows = Array.isArray(list) ? list : [];
+  const currentValue = String(hubProfile?.value || state.session?.id || "").trim();
   const opts = ['<option value="">Seleccionar…</option>'];
   for(const p of rows){
     const id = String(p.id || p.profile_id || "").trim();
     const label = String(p.label || id).trim();
     if(!id || !label) continue;
-    opts.push(`<option value="${escapeHtml(id)}">${escapeHtml(label)}</option>`);
+    const selected = currentValue && currentValue === id ? ' selected' : '';
+    opts.push(`<option value="${escapeHtml(id)}"${selected}>${escapeHtml(label)}</option>`);
   }
   if(!rows.length) opts.push('<option value="">Sin perfiles disponibles</option>');
   hubProfile.innerHTML = opts.join("");
@@ -177,42 +258,6 @@ function resetHubBusyState(){
   syncMobileBar();
 }
 
-function hydrateProfilesFromCache_(){
-  const cached = getCachedProfiles();
-  if(!cached || !cached.length) return false;
-  state.profiles = cached.filter(p => normalizeCats(p.categories).length > 0);
-  renderProfiles(state.profiles);
-  return true;
-}
-
-async function validateSessionInBackground_(){
-  const saved = loadHubSession();
-  if(!saved?.session?.id || !saved?.session?.password) return false;
-  try{
-    const auth = await api({ action:'profiles_auth', profile_id:saved.session.id, password_plain:saved.session.password }, { timeoutMs: 8000 });
-    if(auth.valid !== true) throw new Error(auth?.error || 'Sesión no válida.');
-    state.session = {
-      id: saved.session.id,
-      label: auth?.profile?.label || saved.session.label || saved.session.id,
-      password: saved.session.password,
-      categories: normalizeCats(auth?.profile?.categories || saved.session.categories || []),
-      remember: !!saved.remembered
-    };
-    if(hubRemember) hubRemember.checked = !!saved.remembered;
-    saveHubSession(!!saved.remembered);
-    if(document.visibilityState === 'visible'){
-      renderModules();
-    }
-    return true;
-  } catch(_e){
-    clearHubSession();
-    if(document.visibilityState === 'visible'){
-      setShell('login');
-    }
-    return false;
-  }
-}
-
 async function loadProfiles(force=false, opts={}){
   const useOverlay = opts.overlay !== false;
   const cached = !force ? getCachedProfiles() : null;
@@ -223,7 +268,7 @@ async function loadProfiles(force=false, opts={}){
   if(cached && !force) return state.profiles;
   if(useOverlay) showLoading("Cargando perfiles…", "Buscando perfiles disponibles.");
   try{
-    const out = await api({ action:"profiles_public_list" }, { timeoutMs: 10000 });
+    const out = await api({ action:"profiles_public_list" });
     const list = Array.isArray(out.profiles) ? out.profiles : [];
     state.profiles = list.filter(p => normalizeCats(p.categories).length > 0);
     setCachedProfiles(state.profiles);
@@ -249,7 +294,7 @@ async function refreshHubPortal(forceProfiles=false){
   try{
     await loadProfiles(!!forceProfiles, { overlay:false });
     if(state.session?.id && state.session?.password){
-      const auth = await api({ action:'profiles_auth', profile_id:state.session.id, password_plain:state.session.password }, { timeoutMs: 10000 });
+      const auth = await api({ action:'profiles_auth', profile_id:state.session.id, password_plain:state.session.password });
       if(auth.valid !== true) throw new Error(auth?.error || 'Sesión no válida.');
       state.session = {
         id: state.session.id,
@@ -402,12 +447,7 @@ function openModule(key){
   if(!mod) return;
   setModuleSession(mod);
   showLoading(`Abriendo ${mod.title}…`, 'Preparando acceso a la página seleccionada.');
-  try{
-    if(hubGrid){
-      hubGrid.style.pointerEvents = 'none';
-      hubGrid.style.opacity = '.92';
-    }
-  }catch(_e){}
+  setHubGridBusy(true);
   window.setTimeout(()=>{
     window.location.href = `${mod.href}?hub=1`;
   }, 90);
@@ -443,18 +483,28 @@ async function login(){
 async function restoreSession(){
   const saved = loadHubSession();
   if(!saved?.session) return false;
-  state.session = {
-    id: saved.session.id,
-    label: saved.session.label || saved.session.id,
-    password: saved.session.password,
-    categories: normalizeCats(saved.session.categories || []),
-    remember: !!saved.remembered
-  };
-  if(hubRemember) hubRemember.checked = !!saved.remembered;
-  setShell('app');
-  renderModules();
-  window.setTimeout(()=>{ validateSessionInBackground_().catch(()=>{}); }, 80);
-  return true;
+  showLoading('Validando…', 'Restaurando tu espacio.');
+  try{
+    const auth = await api({ action:'profiles_auth', profile_id:saved.session.id, password_plain:saved.session.password });
+    if(auth.valid !== true) throw new Error(auth?.error || 'Sesión no válida.');
+    state.session = {
+      id: saved.session.id,
+      label: auth?.profile?.label || saved.session.label || saved.session.id,
+      password: saved.session.password,
+      categories: normalizeCats(auth?.profile?.categories || saved.session.categories || []),
+      remember: !!saved.remembered
+    };
+    if(hubRemember) hubRemember.checked = !!saved.remembered;
+    setShell('app');
+    renderModules();
+    return true;
+  } catch(_e){
+    clearHubSession();
+    setShell('login');
+    return false;
+  } finally {
+    hideLoading();
+  }
 }
 
 btnHubTogglePass?.addEventListener('click', ()=>{
@@ -464,9 +514,9 @@ btnHubTogglePass?.addEventListener('click', ()=>{
 });
 btnHubLogin?.addEventListener('click', login);
 hubPassword?.addEventListener('keydown', (e)=>{ if(e.key === 'Enter') login(); });
-document.getElementById('btnHubReload')?.addEventListener('click', ()=> renderModules());
+document.getElementById('btnHubReload')?.addEventListener('click', ()=> refreshHubPortal(true));
 document.getElementById('btnHubLogout')?.addEventListener('click', ()=>{ clearHubSession(); if(hubPassword) hubPassword.value = ''; setShell('login'); syncMobileBar(); });
-document.getElementById('btnHubMobileRefresh')?.addEventListener('click', ()=> renderModules());
+document.getElementById('btnHubMobileRefresh')?.addEventListener('click', ()=> refreshHubPortal(true));
 document.getElementById('btnHubMobileLogout')?.addEventListener('click', ()=>{ clearHubSession(); if(hubPassword) hubPassword.value = ''; setShell('login'); syncMobileBar(); });
 hubGrid?.addEventListener('click', (ev)=>{
   const card = ev.target?.closest?.('[data-key]');
@@ -474,27 +524,20 @@ hubGrid?.addEventListener('click', (ev)=>{
   openModule(String(card.getAttribute('data-key') || '').trim());
 });
 window.addEventListener('resize', syncMobileBar);
-window.addEventListener('pageshow', (ev)=>{
+window.addEventListener('pageshow', ()=>{
   resetHubBusyState();
-  revealHubBoot_();
-  hydrateProfilesFromCache_();
   if(state.session){ setShell('app'); renderModules(); }
   else syncMobileBar();
-  if(ev?.persisted){ window.setTimeout(()=>{ validateSessionInBackground_().catch(()=>{}); }, 60); }
 });
+
 
 (async function boot(){
   syncPassToggle();
   const startedAt = Date.now();
   let restored = false;
-  let releaseTimer = 0;
   try{
-    releaseTimer = window.setTimeout(()=>{
-      try{ resetHubBusyState(); revealHubBoot_(); }catch(_e){}
-    }, 3500);
-    hydrateProfilesFromCache_();
     restored = await restoreSession();
-    await loadProfiles(false, { overlay:false });
+    await loadProfiles(true, { overlay:false });
     if(!restored){
       setShell('login');
     }else{
@@ -510,7 +553,6 @@ window.addEventListener('pageshow', (ev)=>{
       }
     }
   }finally{
-    try{ if(releaseTimer) window.clearTimeout(releaseTimer); }catch(_e){}
     const elapsed = Date.now() - startedAt;
     if(elapsed < HUB_BOOT_MIN_MS) await wait(HUB_BOOT_MIN_MS - elapsed);
     resetHubBusyState();
