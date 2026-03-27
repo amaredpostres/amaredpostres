@@ -27,6 +27,22 @@ function hasHubAccess_(){
 function revealHubBoot_(){
   try{ document.documentElement.classList.remove("hubBoot"); document.documentElement.classList.add("hubReady"); }catch(_e){}
 }
+function ensureApiWarmup_(){
+  try{
+    if(document.getElementById("amApiWarmupLink")) return;
+    const u = new URL(API_URL);
+    const pre = document.createElement("link");
+    pre.id = "amApiWarmupLink";
+    pre.rel = "preconnect";
+    pre.href = u.origin;
+    pre.crossOrigin = "anonymous";
+    document.head.appendChild(pre);
+    const dns = document.createElement("link");
+    dns.rel = "dns-prefetch";
+    dns.href = u.origin;
+    document.head.appendChild(dns);
+  }catch(_e){}
+}
 
 function goHub_(){
   try{
@@ -81,6 +97,9 @@ state.recipesSource = "embedded"; // "sheet" | "embedded"
 state.recipesPinUnlocked = false;
 state.recipesPin = "";
 state.desserts = [];
+state.recipesLoadedAt = 0;
+let RECIPES_FETCH_PROMISE = null;
+let RECIPES_WARM_TIMER = 0;
 
 function getCostsCacheScope_(scope){
   return String(scope || UNLOCKED_PROFILE?.id || "").trim().toLowerCase();
@@ -123,6 +142,7 @@ function saveCostsDataCache_(){
       desserts: state.desserts || [],
       recipesByDessert: state.recipesByDessert || null,
       recipesSource: state.recipesSource || "embedded",
+      recipesLoadedAt: Number(state.recipesLoadedAt || 0) || 0,
       buyPlan: state.buyPlan || {},
       ts: Date.now()
     }));
@@ -143,6 +163,7 @@ function hydrateCostsDataFromCache_(cache){
   state.desserts = Array.isArray(cache?.desserts) ? cache.desserts : [];
   state.recipesByDessert = cache?.recipesByDessert || state.recipesByDessert;
   state.recipesSource = cache?.recipesSource || state.recipesSource;
+  state.recipesLoadedAt = Number(cache?.recipesLoadedAt || 0) || state.recipesLoadedAt || 0;
   state.buyPlan = cache?.buyPlan || state.buyPlan || {};
   indexCosts(state.items);
   updateMetaLine();
@@ -150,9 +171,10 @@ function hydrateCostsDataFromCache_(cache){
   renderUnitCosts();
   renderLate();
   renderGroups();
-  renderCostsGroups();
+  renderCostGroupsIfOpen_();
   refreshBottom();
   saveCostsDataCache_();
+  scheduleRecipesWarmup_();
 }
 
 // ====== Costo unitario por postre (recetas canónicas) ======
@@ -631,13 +653,14 @@ function setView(view){
     if(bb) bb.style.display = "none";
     if(tr){ tr.classList.add("isActive"); tr.setAttribute("aria-selected","true"); }
     ensureRecipesUnlocked_();
+    scheduleRecipesWarmup_(true);
     return;
   }
 
   show(vp); hide(vc); hide(vr);
   if(tp){ tp.classList.add("isActive"); tp.setAttribute("aria-selected","true"); }
   renderGroups();
-  renderCostsGroups();
+  renderCostGroupsIfOpen_();
   renderUnitCosts();
   refreshBottom();
 }
@@ -649,6 +672,7 @@ function setCostsMeta(msg){
 
 // =============== API ===============
 async function api(body, {timeoutMs=30000} = {}){
+  try{ ensureApiWarmup_(); }catch(_e){}
   const payload = Object.assign({}, body || {});
   if(payload && payload.costs_secret) delete payload.costs_secret;
   if(
@@ -751,21 +775,78 @@ function buildRecipesIndex_(items){
   return out;
 }
 
-async function loadRecipesFromSheet_(){
-  state.recipesByDessert = null;
-  state.recipesSource = "embedded";
+async function loadRecipesFromSheet_(opts={}){
+  const preserveCurrent = opts.preserveCurrent !== false;
+  const prevRecipes = state.recipesByDessert;
+  const prevSource = state.recipesSource;
+  if(!preserveCurrent){
+    state.recipesByDessert = null;
+    state.recipesSource = "embedded";
+  }
   try{
     const out = await api({ action:"recipes_list", costs_secret: UNLOCKED_SECRET }, {timeoutMs: 45000});
     const idx = buildRecipesIndex_(out.items || []);
     if(Object.keys(idx).length){
       state.recipesByDessert = idx;
       state.recipesSource = "sheet";
+      state.recipesLoadedAt = Date.now();
+      return true;
     }
+    if(!preserveCurrent || !prevRecipes){
+      state.recipesByDessert = null;
+      state.recipesSource = "embedded";
+      state.recipesLoadedAt = 0;
+    }
+    return false;
   }catch(_e){
-    // fallback: embedded (AMARED_RECIPES_PER_UNIT)
-    state.recipesByDessert = null;
-    state.recipesSource = "embedded";
+    if(!preserveCurrent || !prevRecipes){
+      state.recipesByDessert = null;
+      state.recipesSource = "embedded";
+      state.recipesLoadedAt = 0;
+    }else{
+      state.recipesByDessert = prevRecipes;
+      state.recipesSource = prevSource;
+    }
+    return false;
   }
+}
+function renderCostGroupsIfOpen_(){
+  const admin = el("adminListDetails");
+  if(admin && !admin.open) return;
+  renderCostsGroups();
+}
+function afterRecipesRefresh_(){
+  try{
+    if(state.view === "recipes" && state.recipesPinUnlocked) renderRecipesView_();
+    else renderUnitCosts();
+  }catch(_e){}
+  try{ saveCostsDataCache_(); }catch(_e){}
+}
+function scheduleRecipesWarmup_(force=false){
+  if(!UNLOCKED_SECRET) return;
+  if(!force && state.recipesSource === "sheet" && state.recipesByDessert && Object.keys(state.recipesByDessert||{}).length) return;
+  try{ if(RECIPES_WARM_TIMER) window.clearTimeout(RECIPES_WARM_TIMER); }catch(_e){}
+  const runner = ()=>{ ensureRecipesLoaded_({ force, background:true }).catch(()=>{}); };
+  try{
+    if(typeof window.requestIdleCallback === "function"){
+      RECIPES_WARM_TIMER = window.requestIdleCallback(runner, { timeout: 1800 });
+      return;
+    }
+  }catch(_e){}
+  RECIPES_WARM_TIMER = window.setTimeout(runner, 240);
+}
+async function ensureRecipesLoaded_(opts={}){
+  const force = !!opts.force;
+  const background = !!opts.background;
+  if(!UNLOCKED_SECRET) return false;
+  if(!force && state.recipesSource === "sheet" && state.recipesByDessert && Object.keys(state.recipesByDessert||{}).length) return true;
+  if(RECIPES_FETCH_PROMISE) return RECIPES_FETCH_PROMISE;
+  RECIPES_FETCH_PROMISE = (async ()=>{
+    const loaded = await loadRecipesFromSheet_({ preserveCurrent: background || !!state.recipesByDessert });
+    if(loaded) afterRecipesRefresh_();
+    return loaded;
+  })().finally(()=>{ RECIPES_FETCH_PROMISE = null; });
+  return RECIPES_FETCH_PROMISE;
 }
 
 
@@ -1954,7 +2035,7 @@ async function registerPurchases(){
     }, {timeoutMs: 60000});
 
     state.buyPlan = {};
-    await loadAll();
+    await loadAll({ loadRecipesNow:false });
     setMeta("✅ Compras registradas y inventario actualizado.");
   } catch(err){
     setMeta(`❌ Error registrando compras: ${(err && err.message) ? err.message : "Error"}`);
@@ -1984,12 +2065,13 @@ function updateMetaLine(){
 }
 
 // =============== Data load ===============
-async function loadAll(){
+async function loadAll(opts={}){
   if(!UNLOCKED_SECRET) throw new Error("Sin clave.");
+  const loadRecipesNow = !!opts.loadRecipesNow || state.view === "recipes";
 
   updateMetaLine();
 
-    const [invOut, needsOut, costsOut, catOut, dessertsOut] = await Promise.all([
+  const [invOut, needsOut, costsOut, catOut, dessertsOut] = await Promise.all([
     api({ action:"inventory_get", costs_secret: UNLOCKED_SECRET }),
     api({ action:"costs_orders_for_purchases", costs_secret: UNLOCKED_SECRET, window_h: state.window_h }),
     api({ action:"costs_list", costs_secret: UNLOCKED_SECRET }),
@@ -2014,14 +2096,15 @@ async function loadAll(){
   indexCosts(state.items);
 
   // Recetas desde hoja RECETAS (para costo unitario)
-  await loadRecipesFromSheet_();
+  if(loadRecipesNow) await ensureRecipesLoaded_({ force:true, background:false });
+  else scheduleRecipesWarmup_(false);
 
   updateMetaLine();
   renderDesserts();
   renderUnitCosts();
   renderLate();
   renderGroups();
-  renderCostsGroups();
+  renderCostGroupsIfOpen_();
   refreshBottom();
   saveCostsDataCache_();
 }
@@ -3558,7 +3641,7 @@ function bind(){
     }
   });
 
-  el("btnRecipesRefresh")?.addEventListener("click", ()=>{ showLoading("Refrescando…","Leyendo datos."); loadAll().finally(hideLoading); });
+  el("btnRecipesRefresh")?.addEventListener("click", ()=>{ showLoading("Refrescando…","Leyendo datos."); loadAll({ loadRecipesNow:true }).finally(hideLoading); });
 
 
   // Unlock
@@ -3590,9 +3673,11 @@ function bind(){
   el("recipesPinInput")?.addEventListener("keydown", (e)=>{ if(e.key==="Enter") doRecipesUnlock_(false); });
   el("recipesUnlockBack")?.addEventListener("click", (e)=>{ /* ✅ No cerrar al hacer click fuera: solo cancelar */ });
 // Controls
-  el("inpSearch")?.addEventListener("input", (e)=>{ state.ui.q = String(e.target.value||""); state.ui.cost_q = state.ui.q; renderGroups(); renderCostsGroups(); refreshBottom(); updateMetaLine(); });
+  el("inpSearch")?.addEventListener("input", (e)=>{ state.ui.q = String(e.target.value||""); state.ui.cost_q = state.ui.q; renderGroups(); renderCostGroupsIfOpen_(); refreshBottom(); updateMetaLine(); });
   el("chkOnlyMissing")?.addEventListener("change", (e)=>{ state.ui.onlyMissing = !!e.target.checked; renderGroups(); refreshBottom(); updateMetaLine(); });
   el("chkOnlySelected")?.addEventListener("change", (e)=>{ state.ui.onlySelected = !!e.target.checked; renderGroups(); refreshBottom(); updateMetaLine(); });
+
+  el("adminListDetails")?.addEventListener("toggle", ()=>{ if(el("adminListDetails")?.open) renderCostsGroups(); });
 
   // Listado administrativo: interacciones
   el("costGroups")?.addEventListener("click", (e)=>{
