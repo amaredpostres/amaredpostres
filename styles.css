@@ -998,31 +998,38 @@ body{
   align-items:center;
   justify-content:center;
   padding:16px;
-  z-index:9999;
+  z-index:120000;
+  box-sizing:border-box;
 }
 .amLoadingCard{
-  width:min(520px, 100%);
-  background:rgba(255,255,255,.92);
+  width:fit-content;
+  max-width:min(420px, calc(100vw - 32px));
+  background:rgba(255,255,255,.94);
   border:1px solid rgba(64,17,2,.12);
-  border-radius:22px;
-  padding:16px;
+  border-radius:24px;
+  padding:16px 18px;
   box-shadow:0 18px 40px rgba(0,0,0,.18);
+  box-sizing:border-box;
 }
 .amLoadingRow{
-  display:flex;
-  gap:10px;
+  display:grid;
+  grid-template-columns:auto minmax(0,1fr);
+  gap:12px;
   align-items:center;
 }
+.amLoadingRow > div:last-child{ min-width:0; }
 .amLoadingTitle{
   font-weight:950;
   font-size:18px;
+  line-height:1.08;
   color:var(--choco);
 }
 .amLoadingSub{
   margin-top:4px;
-  color:rgba(64,17,2,.66);
+  color:rgba(64,17,2,.72);
   font-size:13px;
-  font-weight:750;
+  line-height:1.3;
+  font-weight:800;
 }
 .amSpinner{
   width:18px;
@@ -1033,6 +1040,15 @@ body{
   animation:amSpin 1s linear infinite;
 }
 @keyframes amSpin{ to{ transform:rotate(360deg); } }
+
+@media (max-width: 560px){
+  .amLoadingCard{
+    max-width: calc(100vw - 28px);
+    padding:14px 16px;
+  }
+  .amLoadingTitle{ font-size:16px; }
+  .amLoadingSub{ font-size:12.5px; }
+}
 
 @media (max-width: 720px){
   .amLoginCard{
