@@ -65,6 +65,7 @@ const modalStatus = document.getElementById("modalStatus");
 // Loading overlay
 const loadingOverlay = document.getElementById("loadingOverlay");
 const loadingText = document.getElementById("loadingText");
+const loadingSub = document.getElementById("loadingSub");
 let _loadingStartTs = 0;
 
 // Ubicación
@@ -692,15 +693,16 @@ updateSummary();
 syncLocationUI();
 
 
-function showLoading(text="Procesando..."){
+function showLoading(text="Procesando...", sub="Por favor espera."){
   try{
     _loadingStartTs = Date.now();
     if(loadingText) loadingText.textContent = text;
+    if(loadingSub) loadingSub.textContent = sub;
     if(loadingOverlay){
       loadingOverlay.classList.remove("hidden");
       loadingOverlay.setAttribute("aria-hidden","false");
       loadingOverlay.style.zIndex = "31000";
-      loadingOverlay.style.display = "grid";
+      loadingOverlay.style.display = "flex";
     }
   }catch(_e){}
 }
