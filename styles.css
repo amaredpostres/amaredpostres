@@ -1210,3 +1210,65 @@ body{
     text-align:center;
   }
 }
+
+
+/* ===== UX fluida: loaders por sección y cierres tipo X ===== */
+.amInlineLoad{
+  display:flex;
+  align-items:center;
+  gap:10px;
+  width:100%;
+  min-height:72px;
+  padding:14px 16px;
+  border-radius:18px;
+  border:1px solid rgba(64,17,2,.10);
+  background:rgba(255,255,255,.78);
+  box-shadow:0 10px 24px rgba(64,17,2,.06);
+}
+.amInlineLoadSpin{
+  width:18px;
+  height:18px;
+  flex:0 0 auto;
+  border-radius:999px;
+  border:2px solid rgba(64,17,2,.18);
+  border-top-color:rgba(64,17,2,.70);
+  animation:amSpin 1s linear infinite;
+}
+.amInlineLoadBody{ min-width:0; }
+.amInlineLoadTitle{
+  font-weight:900;
+  font-size:15px;
+  line-height:1.12;
+  color:var(--choco);
+}
+.amInlineLoadSub{
+  margin-top:4px;
+  font-size:12.5px;
+  font-weight:760;
+  color:rgba(64,17,2,.66);
+  line-height:1.32;
+}
+.amInlineLoad.isSoft{
+  min-height:64px;
+  padding:12px 14px;
+  background:rgba(255,255,255,.66);
+  box-shadow:none;
+}
+.amModalCloseX{
+  width:40px;
+  height:40px;
+  min-width:40px;
+  border-radius:14px;
+  border:1px solid rgba(64,17,2,.12);
+  background:linear-gradient(180deg, rgba(255,255,255,.96), rgba(254,246,239,.92));
+  color:var(--choco);
+  font-size:22px;
+  line-height:1;
+  font-weight:950;
+  box-shadow:0 10px 24px rgba(64,17,2,.08);
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  cursor:pointer;
+}
+.amModalCloseX:hover{ transform:translateY(-1px); }
