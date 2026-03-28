@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>AMARED Postres</title>
   <link rel="icon" href="assets/favicon.ico" type="image/x-icon">
-  <link rel="stylesheet" href="styles.css?v=20260223-11" />
+  <link rel="stylesheet" href="styles.css?v=20260327-loader-unified-v1" />
 </head>
 <body>
   <div class="page">
@@ -298,14 +298,18 @@
     </div>
   </div>
 <!-- LOADING OVERLAY -->
-  <div id="loadingOverlay" class="loadingOverlay hidden" aria-hidden="true">
-    <div class="loadingCard" role="status" aria-live="polite">
-      <div class="spinner" aria-hidden="true"></div>
-      <div id="loadingText" class="loadingTitle">Cargando…</div>
-      <div class="loadingSub muted">Por favor espera.</div>
+  <div id="loadingOverlay" class="amLoadingOverlay hidden" aria-hidden="true" style="display:none;">
+    <div class="amLoadingCard" role="status" aria-live="polite">
+      <div class="amLoadingRow">
+        <div class="amSpinner" aria-hidden="true"></div>
+        <div>
+          <div id="loadingText" class="amLoadingTitle">Cargando…</div>
+          <div id="loadingSub" class="amLoadingSub">Por favor espera.</div>
+        </div>
+      </div>
     </div>
   </div>
-<script src="app.js?v=20260225-29" defer></script>
+<script src="app.js?v=20260327-loader-unified-v1" defer></script>
 
   <!-- MODAL ADMIN OPINIONES -->
   <div id="adminReviewsModal" class="modalOverlay hidden" aria-hidden="true">
