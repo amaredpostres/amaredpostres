@@ -18,27 +18,27 @@ const HUB_SHARED_PREFETCH = [
 const HUB_MODULE_PREFETCH = {
   kitchen: [
     { href:"kitchen.html", as:"document" },
-    { href:"kitchen.js?v=20260327-hub-kitchen-bgrefresh-v1", as:"script" },
+    { href:"kitchen.js?v=20260328-async-shell-v2", as:"script" },
     { href:"kitchen-costs.js?v=20260302-fix7u", as:"script" },
   ],
   payments: [
     { href:"admin.html", as:"document" },
-    { href:"admin.js?v=20260324-admin-mobile-hub-v2", as:"script" },
+    { href:"admin.js?v=20260328-async-shell-v2", as:"script" },
   ],
   delivery: [
     { href:"delivery.html", as:"document" },
     { href:"delivery.css", as:"style" },
-    { href:"delivery.js?v=20260324-02", as:"script" },
+    { href:"delivery.js?v=20260328-async-shell-v2", as:"script" },
   ],
   costs: [
     { href:"costs.html", as:"document" },
     { href:"costs.css?v=20260307-v17", as:"style" },
     { href:"kitchen-costs.js?v=20260325-unit-mobile-v1", as:"script" },
-    { href:"costs.js?v=20260325-unit-mobile-v1", as:"script" },
+    { href:"costs.js?v=20260328-async-shell-v2", as:"script" },
   ],
   profiles: [
     { href:"profiles.html", as:"document" },
-    { href:"profiles.js?v=20260325-profiles-mobile-accordion-v1", as:"script" },
+    { href:"profiles.js?v=20260328-async-shell-v2", as:"script" },
   ],
 };
 
