@@ -768,7 +768,7 @@ async function handleProfilesListClick(ev){
     mgrErr.textContent = e.message || "Error eliminando.";
     console.error("delete error:", e, e._raw);
   }finally{
-    hideLoading();
+    if(!skipOverlay) hideLoading();
     revealHubBoot_();
   }
 }
@@ -778,7 +778,24 @@ profilesMobileList?.addEventListener("click", handleProfilesListClick);
 
 
 // =================== DATA ===================
-async function loadProfiles(force = false){
+function renderProfilesBootLoadingState_(msg){
+  try{
+    if(listMsg) listMsg.textContent = String(msg || "Actualizando perfiles…");
+    if(tbody && !String(tbody.innerHTML||"").trim()) tbody.innerHTML = `<tr><td colspan="5" class="muted small">Cargando perfiles…</td></tr>`;
+    if(profilesMobileList && !String(profilesMobileList.innerHTML||"").trim()) profilesMobileList.innerHTML = `<div class="muted small" style="padding:12px 4px;">Cargando perfiles…</div>`;
+    if(pillCount && !String(pillCount.textContent||"").trim()) pillCount.textContent = "Cargando…";
+  }catch(_e){}
+}
+
+function hydrateProfilesCache_(cached){
+  try{
+    PROFILES_CACHE = Array.isArray(cached?.profiles) ? cached.profiles : [];
+    renderTable(PROFILES_CACHE);
+    if(listMsg) listMsg.textContent = `Mostrando caché de la sesión (${new Date(Number(cached?.ts || Date.now())).toLocaleString("es-CO")})`;
+  }catch(_e){}
+}
+
+async function loadProfiles(force = false, opts = {}){
   if(!PROFILE_SESSION?.id || !PROFILE_SESSION?.password) throw new Error("No autorizado.");
   listMsg.textContent = "";
   mgrErr.textContent = "";
@@ -793,7 +810,7 @@ async function loadProfiles(force = false){
     }
   }
 
-  showLoading("Cargando…", "Leyendo perfiles…");
+  if(!skipOverlay) showLoading("Cargando…", "Leyendo perfiles…");
   try{
     const out = await api({ action: "profiles_list" });
     PROFILES_CACHE = Array.isArray(out.profiles) ? out.profiles : [];
@@ -801,7 +818,7 @@ async function loadProfiles(force = false){
     renderTable(PROFILES_CACHE);
     listMsg.textContent = `Actualizado: ${new Date().toLocaleString("es-CO")}`;
   }finally{
-    hideLoading();
+    if(!skipOverlay) hideLoading();
   }
 }
 
@@ -828,6 +845,8 @@ async function unlockProfilesSession_(profileIdRaw, secretRaw, opts = {}){
   const profileId = String(profileIdRaw || loginProfile?.value || "").trim();
   const secret = String(secretRaw || inpSecret?.value || "").trim();
   const silent = !!opts.silent;
+  const skipOverlay = !!opts.skipOverlay;
+  const backgroundLoad = !!opts.backgroundLoad;
   const profileLabel = String(opts.profileLabel || profileId || "").trim();
 
   if(!profileId){
@@ -842,7 +861,7 @@ async function unlockProfilesSession_(profileIdRaw, secretRaw, opts = {}){
   }
 
   try{
-    showLoading("Validando…", "Comprobando acceso…");
+    if(!skipOverlay) showLoading("Validando…", "Comprobando acceso…");
     const auth = await api({ action: "profiles_auth", profile_id: profileId, password_plain: secret });
     const allowed = profileHasCategory(auth?.profile || {}, "admin") || profileHasCategory(auth?.profile || {}, "profiles");
     if(auth.valid !== true || !allowed) throw new Error(auth?.error || "Perfil sin permisos para gestionar perfiles.");
@@ -855,7 +874,15 @@ async function unlockProfilesSession_(profileIdRaw, secretRaw, opts = {}){
     };
     saveProfilesRemember_();
     setLockedUI(false);
-    await loadProfiles(true);
+    if(backgroundLoad){
+      renderProfilesBootLoadingState_("Actualizando perfiles…");
+      void loadProfiles(true, { skipOverlay:true }).catch(err=>{
+        console.error("profiles background load error:", err);
+        if(!silent) gateErr.textContent = err?.message || "No se pudieron cargar los perfiles.";
+      });
+    }else{
+      await loadProfiles(true);
+    }
     listMsg.textContent = "Acceso concedido.";
     gateErr.textContent = "";
     return true;
@@ -1043,64 +1070,60 @@ inpSecret?.addEventListener("keydown", (e)=>{ if(e.key === "Enter") btnUnlock?.c
   const hubBootFailsafe = setTimeout(()=>{
     revealHubBoot_();
   }, 3500);
-  let shouldAutoUnlock = false;
+  let bootHandled = false;
   try{
     syncPinToggleState_();
-    showLoading("Cargando perfiles…", "Buscando perfiles de perfiles.");
-    await populateLoginProfiles_();
 
     const portalSession = loadPortalProfilesSession_();
     const remembered = localStorage.getItem(LS_PROFILES_REMEMBER_KEY) === "1";
     const savedPin = String(localStorage.getItem(LS_PROFILES_PIN_KEY) || "").trim();
     const savedProfile = String(localStorage.getItem(LS_PROFILES_PROFILE_KEY) || "").trim();
 
-    if(portalSession?.id && portalSession?.password){
-      if(chkRememberProfiles) chkRememberProfiles.checked = !!portalSession.remember;
-      if(loginProfile) ensureProfilesSelectValueOption_(loginProfile, String(portalSession.id || "").trim(), String(portalSession.label || portalSession.id || "").trim());
-      if(inpSecret) inpSecret.value = String(portalSession.password || "").trim();
-      const fastCache = loadProfilesDataCache_(String(portalSession.id || "").trim());
-      if(fastCache){
-        PROFILE_SESSION = {
-          id: String(portalSession.id || "").trim(),
-          label: String(portalSession.label || fastCache.sessionLabel || portalSession.id || "").trim(),
-          password: String(portalSession.password || "").trim(),
-          categories: Array.isArray(fastCache.sessionCategories) ? fastCache.sessionCategories : []
-        };
-        setLockedUI(false);
-        await loadProfiles(false);
-      }else{
-        shouldAutoUnlock = { profileId:String(portalSession.id || "").trim(), profileLabel:String(portalSession.label || portalSession.id || "").trim(), secret:String(portalSession.password || "").trim() };
-      }
-    }else if(savedPin && remembered && savedProfile){
-      if(chkRememberProfiles) chkRememberProfiles.checked = remembered;
-      if(loginProfile) ensureProfilesSelectValueOption_(loginProfile, savedProfile, savedProfile);
-      if(inpSecret) inpSecret.value = savedPin;
-      const fastCache = loadProfilesDataCache_(savedProfile);
-      if(fastCache){
-        PROFILE_SESSION = {
-          id: savedProfile,
-          label: String(fastCache.sessionLabel || savedProfile),
-          password: savedPin,
-          categories: Array.isArray(fastCache.sessionCategories) ? fastCache.sessionCategories : []
-        };
-        setLockedUI(false);
-        await loadProfiles(false);
-      }else{
-        shouldAutoUnlock = { profileId:savedProfile, profileLabel:savedProfile, secret:savedPin };
-      }
-    }else{
-      if(chkRememberProfiles) chkRememberProfiles.checked = false;
-      setLockedUI(true);
+    const bootSession = (portalSession?.id && portalSession?.password)
+      ? { id:String(portalSession.id || "").trim(), label:String(portalSession.label || portalSession.id || "").trim(), secret:String(portalSession.password || "").trim(), remember: !!portalSession.remember }
+      : ((savedPin && remembered && savedProfile)
+          ? { id:savedProfile, label:savedProfile, secret:savedPin, remember:true }
+          : null);
+
+    if(bootSession){
+      if(chkRememberProfiles) chkRememberProfiles.checked = !!bootSession.remember;
+      if(loginProfile) ensureProfilesSelectValueOption_(loginProfile, bootSession.id, bootSession.label || bootSession.id);
+      if(inpSecret) inpSecret.value = bootSession.secret;
+
+      const fastCache = loadProfilesDataCache_(bootSession.id);
+      PROFILE_SESSION = {
+        id: bootSession.id,
+        label: String((fastCache && fastCache.sessionLabel) || bootSession.label || bootSession.id),
+        password: bootSession.secret,
+        categories: Array.isArray(fastCache?.sessionCategories) ? fastCache.sessionCategories : []
+      };
+      setLockedUI(false);
+      if(fastCache) hydrateProfilesCache_(fastCache);
+      else renderProfilesBootLoadingState_("Actualizando perfiles…");
+
+      revealHubBoot_();
+      bootHandled = true;
+
+      void populateLoginProfiles_().catch(_e=>{});
+      void unlockProfilesSession_(bootSession.id, bootSession.secret, {
+        silent:true,
+        profileLabel:bootSession.label,
+        skipOverlay:true,
+        backgroundLoad:true
+      });
+      return;
     }
+
+    showLoading("Cargando perfiles…", "Buscando perfiles de perfiles.");
+    await populateLoginProfiles_();
+    if(chkRememberProfiles) chkRememberProfiles.checked = false;
+    setLockedUI(true);
   }catch(_e){
     setLockedUI(true);
   }finally{
     hideLoading();
-    if(!shouldAutoUnlock) revealHubBoot_();
+    if(!bootHandled) revealHubBoot_();
     clearTimeout(hubBootFailsafe);
-  }
-  if(shouldAutoUnlock){
-    await unlockProfilesSession_(shouldAutoUnlock.profileId, shouldAutoUnlock.secret, { silent:true, profileLabel:shouldAutoUnlock.profileLabel });
   }
 })();
 
