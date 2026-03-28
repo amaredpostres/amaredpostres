@@ -204,6 +204,24 @@ function hideLoading() {
     window.requestAnimationFrame(() => { try { syncAdminActionBars(); } catch(_e){} });
   } catch(_e) {}
 }
+function buildInlineLoadMarkup_(title, sub){
+  return `<div class="amInlineLoad"><div class="amInlineLoadSpin"></div><div class="amInlineLoadBody"><div class="amInlineLoadTitle">${escapeHtml(title || "Cargando…")}</div><div class="amInlineLoadSub">${escapeHtml(sub || "Un momento.")}</div></div></div>`;
+}
+function setInlineLoading_(container, title, sub){
+  if (container) container.innerHTML = buildInlineLoadMarkup_(title, sub);
+}
+function scheduleAdminBackgroundRefresh_(reason){
+  window.setTimeout(()=>{
+    loadPendientes(true, { silent:true, reason: reason || "Actualizando pagos en segundo plano…" }).catch(err=>{
+      const msg = String(err?.message || err || "");
+      if(/unauthorized/i.test(msg)){
+        SESSION = { operator: null, operatorId: null, pin: null };
+        clearSavedAdminSession();
+        showLogin();
+      }
+    });
+  }, 60);
+}
 
 function syncPinToggleState() {
   if (!loginPin || !btnTogglePin) return;
@@ -382,13 +400,11 @@ async function loadPaymentProfiles(force = false) {
     }
     return;
   }
-  // Full-screen loading mientras se cargan perfiles
-  showLoading("Cargando perfiles...", "Buscando perfiles de pagos/admin.");
   if (loginOperator) loginOperator.disabled = true;
   if (loginPin) loginPin.disabled = true;
   if (btnLogin) btnLogin.disabled = true;
+  if (loginError && !force) loginError.textContent = "Cargando perfiles de pagos…";
   try {
-    // Intento principal: payments. Si viene vacío, intenta "pago".
     LOGIN_PROFILES = await fetchProfilesPublic("payments");
     if (!LOGIN_PROFILES.length) LOGIN_PROFILES = await fetchProfilesPublic("pago");
     saveAdminLoginProfilesCache_(LOGIN_PROFILES);
@@ -400,16 +416,15 @@ async function loadPaymentProfiles(force = false) {
       if (loginRemember) loginRemember.checked = !!saved.remembered;
       syncPinToggleState();
     }
+    if (loginError && loginError.textContent === "Cargando perfiles de pagos…") loginError.textContent = "";
   } catch (e) {
     LOGIN_PROFILES = [];
     renderLoginProfiles([]);
-    // Mensaje amigable: el Worker debe habilitar profiles_public_list
     if (loginError) loginError.textContent = `No se pudieron cargar perfiles. ${String(e.message || e)}`;
   } finally {
     if (loginOperator) loginOperator.disabled = false;
     if (loginPin) loginPin.disabled = false;
     if (btnLogin) btnLogin.disabled = false;
-    hideLoading();
   }
 }
 
@@ -613,7 +628,10 @@ btnLogin?.addEventListener("click", async () => {
     saveAdminSession(!!loginRemember?.checked);
 
     showPanel();
-    await loadPendientes(false);
+    const cached = loadAdminDataCache_();
+    if (cached) hydrateAdminFromCache_(cached);
+    else setInlineLoading_(listEl, "Cargando pedidos…", "Estamos trayendo los pedidos pendientes desde la base de datos.");
+    scheduleAdminBackgroundRefresh_("Actualizando pagos en segundo plano…");
   } catch (e) {
     SESSION = { operator: null, operatorId: null, pin: null };
     clearSavedAdminSession();
@@ -634,8 +652,9 @@ btnLogout?.addEventListener("click", () => {
 // =================== PENDIENTES ===================
 btnRefresh?.addEventListener("click", async () => loadPendientes(true));
 
-async function loadPendientes(fromRefresh = false) {
+async function loadPendientes(fromRefresh = false, opts = {}) {
   if (REQUEST_IN_FLIGHT) return;
+  const silent = !!opts.silent;
   if (!fromRefresh) {
     const cached = loadAdminDataCache_();
     if (cached) {
@@ -646,8 +665,13 @@ async function loadPendientes(fromRefresh = false) {
   REQUEST_IN_FLIGHT = true;
 
   try {
-    showLoading(fromRefresh ? "Actualizando pedidos..." : "Cargando pedidos...");
-    setStatus("Cargando pendientes...");
+    if (silent) {
+      setStatus(String(opts.reason || "Actualizando pedidos en segundo plano…"));
+      if (!pendingOrdersCache.length) setInlineLoading_(listEl, "Cargando pedidos…", "Estamos trayendo los pedidos pendientes desde la base de datos.");
+    } else {
+      showLoading(fromRefresh ? "Actualizando pedidos..." : "Cargando pedidos...");
+      setStatus("Cargando pendientes...");
+    }
 
     const out = await api({
       action: "list_orders",
@@ -663,7 +687,7 @@ async function loadPendientes(fromRefresh = false) {
     setStatus("❌ " + String(e.message || e));
     throw e;
   } finally {
-    hideLoading();
+    if (!silent) hideLoading();
     REQUEST_IN_FLIGHT = false;
   }
 }
@@ -676,12 +700,12 @@ async function softRefreshPendientes() {
 // =================== HISTORIAL ===================
 btnHistory?.addEventListener("click", async () => {
   openDrawer();
-  await loadHist(false);
+  await loadHist(false, { silent:true });
 });
 
 drawerOverlay?.addEventListener("click", closeDrawer);
 btnCloseDrawer?.addEventListener("click", closeDrawer);
-btnHistRefresh?.addEventListener("click", async () => loadHist(true));
+btnHistRefresh?.addEventListener("click", async () => loadHist(true, { silent:true }));
 
 chips.forEach(ch => {
   ch.addEventListener("click", async () => {
@@ -692,7 +716,8 @@ chips.forEach(ch => {
   });
 });
 
-async function loadHist(forceFetch) {
+async function loadHist(forceFetch, opts = {}) {
+  const silent = !!opts.silent;
   const now = Date.now();
   if (!forceFetch) {
     const persisted = loadAdminDataCache_();
@@ -712,9 +737,16 @@ async function loadHist(forceFetch) {
       return;
     }
 
-    showLoading("Cargando historial...");
-    setHistStatus("Cargando...");
-    if (histListEl) histListEl.innerHTML = "";
+    if (silent) {
+      setHistStatus("Cargando historial…");
+      if (histListEl && !String(histListEl.innerHTML || "").trim()) {
+        setInlineLoading_(histListEl, "Cargando historial…", "Estamos consultando los pedidos pagados y cancelados.");
+      }
+    } else {
+      showLoading("Cargando historial...");
+      setHistStatus("Cargando...");
+      if (histListEl) histListEl.innerHTML = "";
+    }
 
     if (forceFetch || !useCache) {
       const [paid, canceled] = await Promise.all([
@@ -743,7 +775,7 @@ async function loadHist(forceFetch) {
       setHistStatus("❌ " + msg);
     }
   } finally {
-    hideLoading();
+    if (!silent) hideLoading();
   }
 }
 
@@ -1350,7 +1382,7 @@ btnCancelConfirm?.addEventListener("click", async () => {
 // =================== INIT ===================
 (async function init() {
   try {
-    await loadPaymentProfiles();
+    loadPaymentProfiles().catch(()=>{});
 
     const savedWrap = loadSavedAdminSession();
     const saved = savedWrap?.data || null;
@@ -1366,13 +1398,13 @@ btnCancelConfirm?.addEventListener("click", async () => {
 
           if (SESSION.operator && SESSION.pin) {
             showPanel();
-            try {
-              await loadPendientes(false);
-            } catch (_e) {
-              SESSION = { operator: null, operatorId: null, pin: null };
-              clearSavedAdminSession();
-              showLogin();
+            const cached = loadAdminDataCache_();
+            if (cached) {
+              hydrateAdminFromCache_(cached);
+            } else {
+              setInlineLoading_(listEl, "Cargando pedidos…", "Estamos trayendo los pedidos pendientes desde la base de datos.");
             }
+            scheduleAdminBackgroundRefresh_("Actualizando pagos en segundo plano…");
           } else {
             showLogin();
           }
