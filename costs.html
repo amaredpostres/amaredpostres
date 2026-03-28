@@ -154,7 +154,7 @@
 <link href="assets/favicon.ico" rel="icon" type="image/x-icon"/>
 <link href="assets/favicon.ico" rel="shortcut icon" type="image/x-icon"/>
 <!-- ✅ estilos globales AMARED -->
-<link href="styles.css?v=20260328-async-shell-v2" rel="stylesheet"/>
+<link href="styles.css?v=20260327-loader-unified-v1" rel="stylesheet"/>
 <!-- ✅ estilos de Compras / Recetas -->
 <link href="costs.css?v=20260307-v17" rel="stylesheet"/>
 <style>
@@ -215,6 +215,81 @@
 }
 @media (max-width: 860px){
   #recipeEditor{max-height:none; overflow:visible; padding-right:0;}
+}
+
+
+
+/* ===== Resumen móvil de postres ===== */
+.pSummaryMobile{ display:none; }
+.summaryMobileWrap{ display:grid; gap:12px; }
+.summaryMobileBlock{
+  border:1px solid rgba(64,17,2,.10);
+  border-radius:18px;
+  background:rgba(255,255,255,.86);
+  box-shadow:0 10px 24px rgba(64,17,2,.06);
+  overflow:hidden;
+}
+.summaryMobileBlock.isToday{ border-left:6px solid rgba(246,186,96,.92); }
+.summaryMobileBlock.isLate{ border-left:6px solid rgba(242,91,143,.92); }
+.summaryMobileHead{
+  display:flex; align-items:flex-start; justify-content:space-between; gap:12px;
+  padding:14px 14px 10px;
+}
+.summaryMobileTitle{ font-weight:950; line-height:1.1; }
+.summaryMobileHint{ margin-top:4px; font-size:12px; font-weight:800; color:rgba(64,17,2,.62); }
+.summaryMobileCount{
+  min-width:38px; min-height:38px; padding:0 12px; border-radius:999px;
+  display:inline-flex; align-items:center; justify-content:center;
+  background:rgba(64,17,2,.06); font-weight:950;
+}
+.summaryMobileRows{ display:grid; gap:8px; padding:0 14px 14px; }
+.summaryMobileRow{
+  display:flex; align-items:center; justify-content:space-between; gap:12px;
+  border:1px solid rgba(64,17,2,.08); border-radius:14px; padding:10px 12px;
+  background:rgba(255,250,246,.92); font-weight:900;
+}
+.summaryMobileRow strong{ font-size:15px; }
+.summaryMobileEmpty{
+  border:1px dashed rgba(64,17,2,.12); border-radius:14px; padding:12px;
+  background:rgba(255,255,255,.66); font-size:12.5px; font-weight:800; color:rgba(64,17,2,.62);
+}
+
+/* ===== Compras móvil más compactas ===== */
+@media (max-width: 720px){
+  .pSummaryGrid{ display:none !important; }
+  .pSummaryMobile{ display:block; margin-top:6px; }
+  .pCostsHead{ gap:10px; }
+  .pControls{ gap:8px; }
+  .pGroups{ gap:10px; }
+  .pGroup summary{ padding:12px 12px 12px 8px !important; }
+  .pGroupBody{ padding:10px; }
+  .pItem{ border-radius:16px; }
+  .pItemTop{ gap:10px; align-items:flex-start; }
+  .pName{ font-size:15px; line-height:1.12; }
+  .pSubLine{ font-size:12px; line-height:1.25; }
+  .pRight{ gap:8px; }
+  .pPill{ min-height:28px; padding:0 10px; font-size:11.5px; }
+  .pGear{ width:34px; height:34px; }
+  .pNums{ grid-template-columns:repeat(3, minmax(0,1fr)); gap:8px; }
+  .pNum{ padding:10px 8px; }
+  .pNum .lbl{ font-size:11px; }
+  .pNum .val{ font-size:15px; }
+  .pBuyRow{ gap:10px; }
+  .pSwitch{ min-width:unset; }
+  .pBuyInputs{
+    display:grid !important;
+    grid-template-columns:minmax(0,1fr) auto;
+    gap:8px;
+    align-items:center;
+  }
+  .pBuyInputs .input{ min-width:0; height:40px; }
+  .pTinyBtn{ min-width:70px; height:40px; padding:0 12px; }
+  .pBuyMeta{ gap:6px; }
+  .pBuyMeta .mi{ font-size:11.5px; padding:7px 9px; }
+}
+@media (max-width: 420px){
+  .pBuyInputs{ grid-template-columns:1fr; }
+  .pTinyBtn{ width:100%; }
 }
 
 /* Ingredient row */
@@ -569,6 +644,9 @@ body.is-app .costsLoginTopbar{ display:none !important; }
 <div class="pSmallMeta" id="lateMeta"></div>
 </div>
 </div>
+<div class="pSummaryMobile">
+<div class="summaryMobileWrap" id="summaryMobileList"></div>
+</div>
 </section>
 
 <section class="card" style="margin-top:14px;">
@@ -741,7 +819,7 @@ body.is-app .costsLoginTopbar{ display:none !important; }
 <div class="modalTitle" id="costModalTitle" style="font-weight:950;">Detalle</div>
 <div class="modalSub" id="costModalSub" style="margin-top:4px;">Edita la última presentación guardada (se actualizará en COSTOS_INGREDIENTES).</div>
 </div>
-<button class="iconBtn amModalCloseX" id="cmCancelX" type="button" aria-label="Cerrar" title="Cerrar">✕</button>
+<button class="btn" id="cmCancelX">Cerrar</button>
 </div>
 <div class="modalBody" style="padding:14px;">
 <div class="pFormGrid">
@@ -830,7 +908,7 @@ body.is-app .costsLoginTopbar{ display:none !important; }
 <div class="modalTitle" style="font-weight:950;">🧩 Ingredientes (Productos)</div>
 <div class="modalSub" style="margin-top:4px;">Agrega o elimina ingredientes. Se refleja en <b>COSTOS_INGREDIENTES</b> e <b>INVENTARIO</b>.</div>
 </div>
-<button class="iconBtn amModalCloseX" id="ingCloseX" type="button" aria-label="Cerrar" title="Cerrar">✕</button>
+<button class="btn" id="ingCloseX">Cerrar</button>
 </div>
 <div class="modalBody" style="padding:14px;">
 <div class="pCatGrid ingGrid">
@@ -905,7 +983,7 @@ body.is-app .costsLoginTopbar{ display:none !important; }
 <div class="modalTitle" style="font-weight:950;">⚙️ Tiendas y Marcas</div>
 <div class="modalSub" style="margin-top:4px;">Estas opciones alimentan los selects de Marca/Tienda.</div>
 </div>
-<button class="iconBtn amModalCloseX" id="catCloseX" type="button" aria-label="Cerrar" title="Cerrar">✕</button>
+<button class="btn" id="catCloseX">Cerrar</button>
 </div>
 <div class="modalBody" style="padding:14px;">
 <div class="pCatGrid">
@@ -946,7 +1024,7 @@ body.is-app .costsLoginTopbar{ display:none !important; }
 <div class="modalTitle" style="font-weight:950;">✅ Confirmar compras</div>
 <div class="modalSub" style="margin-top:4px;">Se sumará al inventario usando la última presentación guardada.</div>
 </div>
-<button class="iconBtn amModalCloseX" id="btnConfirmClose" type="button" aria-label="Cerrar" title="Cerrar">✕</button>
+<button class="btn" id="btnConfirmClose">Cerrar</button>
 </div>
 <div class="modalBody" style="padding:14px;">
 <div class="pConfirmTotal">
@@ -973,7 +1051,7 @@ body.is-app .costsLoginTopbar{ display:none !important; }
     </div>
   </div>
 </div>
-<script src="kitchen-costs.js?v=20260325-unit-mobile-v1"></script>
-<script src="costs.js?v=20260328-async-shell-v2"></script>
+<script src="kitchen-costs.js?v=20260328-hub-mobile-fix-v2"></script>
+<script src="costs.js?v=20260328-hub-mobile-fix-v2"></script>
 </body>
 </html>
