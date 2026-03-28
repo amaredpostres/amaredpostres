@@ -608,7 +608,7 @@ async function populateLoginProfiles_(force = false){
     if(!LOGIN_PROFILES.length) opts.push('<option value="">Sin perfiles habilitados</option>');
     sel.innerHTML = opts.join("");
   } finally {
-    hideLoading();
+    if(!skipOverlay) hideLoading();
   }
 }
 
@@ -2221,6 +2221,44 @@ async function loadAll(opts={}){
   saveCostsDataCache_();
 }
 
+function renderCostsBootLoadingState_(msg){
+  try{
+    const meta = el("meta");
+    if(meta) meta.textContent = String(msg || "Cargando información…");
+    const dessertsMeta = el("dessertsMeta");
+    if(dessertsMeta) dessertsMeta.textContent = "Consultando pedidos confirmados…";
+    const lateMeta = el("lateMeta");
+    if(lateMeta) lateMeta.textContent = "Consultando pedidos posteriores al corte…";
+    const unitRows = el("unitCostRows");
+    if(unitRows && !String(unitRows.innerHTML||"").trim()) unitRows.innerHTML = `<tr><td colspan="2" class="muted small">Cargando costos por unidad…</td></tr>`;
+    const dessertRows = el("dessertRows");
+    if(dessertRows && !String(dessertRows.innerHTML||"").trim()) dessertRows.innerHTML = `<tr><td colspan="2" class="muted small">Cargando postres confirmados…</td></tr>`;
+    const lateRows = el("lateRows");
+    if(lateRows && !String(lateRows.innerHTML||"").trim()) lateRows.innerHTML = `<tr><td colspan="2" class="muted small">Cargando pedidos recientes…</td></tr>`;
+    const groups = el("groups");
+    if(groups && !String(groups.innerHTML||"").trim()) groups.innerHTML = `<div class="muted small" style="padding:14px 8px;">Cargando ingredientes para compras…</div>`;
+    const costGroups = el("costGroups");
+    if(costGroups && !String(costGroups.innerHTML||"").trim()) costGroups.innerHTML = `<div class="muted small" style="padding:14px 8px;">Cargando listado administrativo…</div>`;
+  }catch(_e){}
+}
+
+function primeCostsShell_(profile, fastCache){
+  try{
+    UNLOCKED_PROFILE = {
+      id: String(profile?.id || "").trim(),
+      label: String(profile?.label || profile?.id || "").trim(),
+      categories: Array.isArray(profile?.categories) ? profile.categories : []
+    };
+    closeUnlock();
+    setCostsShellMode_("app");
+    show(el("appRoot"));
+    show(el("mobileNav"));
+    setView("purchases");
+    if(fastCache) hydrateCostsDataFromCache_(fastCache);
+    else renderCostsBootLoadingState_("Actualizando información de compras…");
+  }catch(_e){}
+}
+
 // =============== Unlock / logout ===============
 
 function isRememberDeviceEnabled_(){
@@ -2337,6 +2375,9 @@ async function doUnlock(isAuto=false, opts={}){
   const profileLabel = String((opts && opts.profileLabel) || profileId || "").trim();
   const fromPortal = !!opts.fromPortal;
   const silent = !!opts.silent;
+  const skipOverlay = !!opts.skipOverlay;
+  const backgroundLoad = !!opts.backgroundLoad;
+  const skipShell = !!opts.skipShell;
   const rememberOverride = (typeof opts.remember === "boolean") ? opts.remember : null;
 
   if(!profileId){
@@ -2348,7 +2389,7 @@ async function doUnlock(isAuto=false, opts={}){
     return;
   }
 
-  showLoading("Validando…", "Verificando el acceso en el servidor.");
+  if(!skipOverlay) showLoading("Validando…", "Verificando el acceso en el servidor.");
   try{
     const authProfile = await validateSecret(secret, profileId);
     UNLOCKED_SECRET = secret;
@@ -2368,12 +2409,22 @@ async function doUnlock(isAuto=false, opts={}){
       try{ localStorage.removeItem(LS_PROFILE_KEY); }catch(_e){}
       setRememberDeviceEnabled_(false);
     }
-    closeUnlock();
-    setCostsShellMode_("app");
-    show(el("appRoot"));
-    show(el("mobileNav"));
-    setView("purchases");
-    await loadAll();
+    if(!skipShell){
+      closeUnlock();
+      setCostsShellMode_("app");
+      show(el("appRoot"));
+      show(el("mobileNav"));
+      setView("purchases");
+    }
+    if(backgroundLoad){
+      renderCostsBootLoadingState_("Actualizando información de compras…");
+      void loadAll().catch(err=>{
+        console.error("costs background load error:", err);
+        if(!silent && el("unlockMsg")) el("unlockMsg").textContent = (err && err.message) ? err.message : "No se pudieron cargar los datos.";
+      });
+    }else{
+      await loadAll();
+    }
   } catch(err){
     UNLOCKED_SECRET = "";
     UNLOCKED_PROFILE = { id:"", label:"", categories:[] };
@@ -4033,7 +4084,6 @@ el("ingModalBack")?.addEventListener("click", (e)=>{ if(e.target && e.target.id=
   bind();
   loadDeletedDesserts_();
   syncSecretToggleState_();
-  try{ await populateLoginProfiles_(); }catch(_e){}
 
   const saved = String(localStorage.getItem(LS_SECRET_KEY) || "").trim();
   const savedProfile = String(localStorage.getItem(LS_PROFILE_KEY) || "").trim();
@@ -4045,57 +4095,58 @@ el("ingModalBack")?.addEventListener("click", (e)=>{ if(e.target && e.target.id=
 
   if(savedProfile && el("loginProfile")) ensureSelectValueOption_(el("loginProfile"), savedProfile, savedProfile);
 
+  let bootHandled = false;
   try{
-    if(portal?.id && portal?.password){
-      if(el("loginProfile")) ensureSelectValueOption_(el("loginProfile"), String(portal.id || "").trim(), String(portal.label || portal.id || "").trim());
-      if(el("secretInput")) el("secretInput").value = String(portal.password || "").trim();
-      if(chk) chk.checked = !!portal.remember;
-      const fastCache = loadCostsDataCache_(String(portal.id || "").trim());
-      if(fastCache){
-        UNLOCKED_SECRET = String(portal.password || "").trim();
-        UNLOCKED_PROFILE = {
-          id: String(portal.id || "").trim(),
-          label: String(portal.label || fastCache.profileLabel || portal.id || "").trim(),
-          categories: Array.isArray(fastCache.profileCategories) ? fastCache.profileCategories : []
-        };
-        closeUnlock();
-        setCostsShellMode_("app");
-        show(el("appRoot"));
-        show(el("mobileNav"));
-        setView("purchases");
-        hydrateCostsDataFromCache_(fastCache);
-      } else {
-        await doUnlock(false, { fromPortal:true, silent:true, remember: !!portal.remember, profileId:String(portal.id || "").trim(), profileLabel:String(portal.label || portal.id || "").trim(), secret:String(portal.password || "").trim() });
-      }
-    } else if(saved && remembered && savedProfile){
-      if(el("secretInput")) el("secretInput").value = saved;
-      const fastCache = loadCostsDataCache_(savedProfile);
-      if(fastCache){
-        UNLOCKED_SECRET = saved;
-        UNLOCKED_PROFILE = {
-          id: savedProfile,
-          label: String(fastCache.profileLabel || savedProfile),
-          categories: Array.isArray(fastCache.profileCategories) ? fastCache.profileCategories : []
-        };
-        closeUnlock();
-        setCostsShellMode_("app");
-        show(el("appRoot"));
-        show(el("mobileNav"));
-        setView("purchases");
-        hydrateCostsDataFromCache_(fastCache);
-      } else {
-        await doUnlock(true, { profileId:savedProfile, profileLabel:savedProfile, secret:saved });
-      }
-    } else {
-      if(saved && !remembered){
-        try{ localStorage.removeItem(LS_SECRET_KEY); }catch(_e){}
-        try{ localStorage.removeItem(LS_PROFILE_KEY); }catch(_e){}
-      }
-      openUnlock("");
+    const bootSession = (portal?.id && portal?.password)
+      ? { id:String(portal.id || "").trim(), label:String(portal.label || portal.id || "").trim(), secret:String(portal.password || "").trim(), remember: !!portal.remember, fromPortal:true }
+      : ((saved && remembered && savedProfile)
+          ? { id:savedProfile, label:savedProfile, secret:saved, remember:true, fromPortal:false }
+          : null);
+
+    if(bootSession){
+      if(el("loginProfile")) ensureSelectValueOption_(el("loginProfile"), bootSession.id, bootSession.label || bootSession.id);
+      if(el("secretInput")) el("secretInput").value = bootSession.secret;
+      if(chk) chk.checked = !!bootSession.remember;
+
+      const fastCache = loadCostsDataCache_(bootSession.id);
+      UNLOCKED_SECRET = bootSession.secret;
+      primeCostsShell_({
+        id: bootSession.id,
+        label: String((fastCache && fastCache.profileLabel) || bootSession.label || bootSession.id),
+        categories: Array.isArray(fastCache?.profileCategories) ? fastCache.profileCategories : []
+      }, fastCache || null);
+
+      revealHubBoot_();
+      syncMobileNavForViewport_();
+      bootHandled = true;
+
+      void populateLoginProfiles_().catch(_e=>{});
+      void doUnlock(false, {
+        fromPortal: !!bootSession.fromPortal,
+        silent: true,
+        remember: !!bootSession.remember,
+        profileId: bootSession.id,
+        profileLabel: bootSession.label,
+        secret: bootSession.secret,
+        skipOverlay: true,
+        backgroundLoad: true,
+        skipShell: true
+      });
+      return;
     }
+
+    try{ await populateLoginProfiles_(); }catch(_e){}
+
+    if(saved && !remembered){
+      try{ localStorage.removeItem(LS_SECRET_KEY); }catch(_e){}
+      try{ localStorage.removeItem(LS_PROFILE_KEY); }catch(_e){}
+    }
+    openUnlock("");
   } finally {
-    revealHubBoot_();
-    syncMobileNavForViewport_();
+    if(!bootHandled){
+      revealHubBoot_();
+      syncMobileNavForViewport_();
+    }
   }
 })();
 
