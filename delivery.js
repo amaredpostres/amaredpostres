@@ -279,6 +279,22 @@ function hideLoading(){
   setAriaHiddenIfChanged(loading, true);
   scheduleDeliveryBarsSync();
 }
+function buildInlineLoadMarkup_(title, sub){
+  return `<div class="amInlineLoad"><div class="amInlineLoadSpin"></div><div class="amInlineLoadBody"><div class="amInlineLoadTitle">${escapeHtml(title || "Cargando…")}</div><div class="amInlineLoadSub">${escapeHtml(sub || "Un momento.")}</div></div></div>`;
+}
+function setInlineLoading_(container, title, sub){
+  if(container) container.innerHTML = buildInlineLoadMarkup_(title, sub);
+}
+function scheduleDeliveryBackgroundRefresh_(reason){
+  window.setTimeout(()=>{
+    loadOrders(true, { silent:true, reason: reason || "Actualizando envíos en segundo plano…" }).catch(()=>{});
+  }, 60);
+}
+function scheduleDeliveryHistoryRefresh_(){
+  window.setTimeout(()=>{
+    if(histBack && histBack.style.display === "flex") loadHistory(true, { silent:true }).catch(()=>{});
+  }, 120);
+}
 function setStatus(msg){ if(statusEl) statusEl.textContent = msg || ""; }
 
 function escapeHtml(s){
@@ -497,8 +513,7 @@ async function loadProfilesOnStart(force = false){
     return;
   }
   renderProfilesSelect([]);
-  showLoading("Cargando perfiles…","Buscando perfiles de envíos/admin.");
-  loginErr.textContent = "";
+  loginErr.textContent = !force ? "Cargando perfiles de envíos…" : "";
   try{
     const all = await fetchProfilesPublic();
     const list = (all||[])
@@ -516,13 +531,13 @@ async function loadProfilesOnStart(force = false){
     }
     if(list.length === 0){
       loginErr.textContent = "No hay perfiles con categoría delivery/admin. Ve a “Gestionar perfiles” y asigna la categoría.";
+    }else if(loginErr.textContent === "Cargando perfiles de envíos…"){
+      loginErr.textContent = "";
     }
   }catch(e){
     renderProfilesSelect([]);
     loginErr.textContent = (e?.message || "No se pudieron cargar perfiles.")
       + " (Revisa profiles_public_list en Worker)";
-  }finally{
-    hideLoading();
   }
 }
 
@@ -544,12 +559,15 @@ async function doLogin(){
     SESSION = { operator: { id, label: auth?.profile?.label || id }, pin: password };
     saveDeliverySession(!!chkRemember?.checked);
     showPanel();
-    await loadOrders();
+    const cached = loadDeliveryDataCache_(String(id || ""));
+    if(cached) hydrateDeliveryOrdersFromCache_(cached);
+    else setInlineLoading_(listEl, "Cargando pedidos…", "Estamos trayendo los pedidos listos para envío.");
+    scheduleDeliveryBackgroundRefresh_("Actualizando envíos en segundo plano…");
     if(loginErr) loginErr.textContent = '';
   }catch(e){
     loginErr.textContent = e?.message || "No se pudo validar.";
   }finally{
-    hideLoading();
+    if(!silent) hideLoading();
   }
 }
 
@@ -724,7 +742,8 @@ function renderOrders(orders){
   listEl.innerHTML = html;
 }
 
-async function loadOrders(force = false){
+async function loadOrders(force = false, opts = {}){
+  const silent = !!opts.silent;
   if(!force){
     const cached = loadDeliveryDataCache_();
     if(cached){
@@ -733,7 +752,12 @@ async function loadOrders(force = false){
     }
   }
   setStatus("");
-  showLoading("Cargando pedidos…","Buscando Pagado + Listo + delivery Pendiente…");
+  if(silent){
+    setStatus(String(opts.reason || "Actualizando envíos en segundo plano…"));
+    if(listEl && !String(listEl.innerHTML || "").trim()) setInlineLoading_(listEl, "Cargando pedidos…", "Estamos trayendo los pedidos listos para envío.");
+  }else{
+    showLoading("Cargando pedidos…","Buscando Pagado + Listo + delivery Pendiente…");
+  }
   try{
     let out = await api({ action:"delivery_list", hours: 72, view:"pending" });
     let orders = out.orders || [];
@@ -798,7 +822,7 @@ function openHistory(){
   setDisplayIfChanged(histBack, "flex");
   setAriaHiddenIfChanged(histBack, false);
   scheduleDeliveryBarsSync();
-  loadHistory();
+  loadHistory(false, { silent:true });
 }
 function closeHistory(){
   if(!histBack) return;
@@ -857,16 +881,23 @@ function renderHistory(orders){
   histList.innerHTML = html;
 }
 
-async function loadHistory(force = false){
+async function loadHistory(force = false, opts = {}){
+  const silent = !!opts.silent;
   if(!force){
     const cached = loadDeliveryDataCache_();
     if(cached){
       hydrateDeliveryHistoryFromCache_(cached);
+      scheduleDeliveryHistoryRefresh_();
       return;
     }
   }
   if(histStatus) histStatus.textContent = "";
-  showLoading("Cargando historial…","Buscando pedidos enviados…");
+  if(silent){
+    if(histStatus) histStatus.textContent = "Cargando historial…";
+    if(histList && !String(histList.innerHTML || "").trim()) setInlineLoading_(histList, "Cargando historial…", "Estamos buscando los pedidos que ya fueron enviados.");
+  }else{
+    showLoading("Cargando historial…","Buscando pedidos enviados…");
+  }
   try{
     let orders = [];
 
@@ -887,7 +918,7 @@ async function loadHistory(force = false){
     if(histStatus) histStatus.textContent = e?.message || "Error cargando historial.";
     if(histList) histList.innerHTML = "";
   }finally{
-    hideLoading();
+    if(!silent) hideLoading();
   }
 }
 
@@ -1279,7 +1310,7 @@ btnConfirmGo?.addEventListener("click", doConfirmAction);
 
 // History events
 btnHistClose?.addEventListener("click", closeHistory);
-btnHistReload?.addEventListener("click", ()=> loadHistory(true));
+btnHistReload?.addEventListener("click", ()=> loadHistory(true, { silent:true }));
 histBack?.addEventListener("click", (ev)=>{ if(ev.target === histBack) closeHistory(); });
 
 // ---- Init ----
@@ -1291,6 +1322,7 @@ histBack?.addEventListener("click", (ev)=>{ if(ev.target === histBack) closeHist
   try{
     const saved = loadSavedDeliverySession();
     const hubSaved = loadHubSessionCandidate();
+    loadProfilesOnStart().catch(()=>{});
 
     if((saved?.data?.pin || saved?.data?.password) && saved?.data?.operator){
       if(chkRemember) chkRemember.checked = !!saved.remembered;
@@ -1298,21 +1330,13 @@ histBack?.addEventListener("click", (ev)=>{ if(ev.target === histBack) closeHist
       if(inpPin) inpPin.value = String(saved.data.pin || saved.data.password || '');
 
       const cached = loadDeliveryDataCache_(String(saved.data.operator?.id || ""));
+      showPanel();
       if(cached){
-        showPanel();
         hydrateDeliveryOrdersFromCache_(cached);
       }else{
-        const valid = await validateCurrentSession_();
-        if(valid){
-          showPanel();
-          await loadOrders();
-        }else{
-          clearSavedDeliverySession();
-          SESSION = { operator:null, pin:null };
-          showLogin();
-          await loadProfilesOnStart();
-        }
+        setInlineLoading_(listEl, "Cargando pedidos…", "Estamos trayendo los pedidos listos para envío.");
       }
+      scheduleDeliveryBackgroundRefresh_("Actualizando envíos en segundo plano…");
 
     }else if(hubSaved?.data?.id && hubSaved?.data?.password){
       const cats = normalizeCatsAny(hubSaved.data.categories || []);
@@ -1323,37 +1347,26 @@ histBack?.addEventListener("click", (ev)=>{ if(ev.target === histBack) closeHist
           operator: { id: String(hubSaved.data.id), label: String(hubSaved.data.label || hubSaved.data.id) },
           pin: String(hubSaved.data.password)
         };
-
+        saveDeliverySession(!!hubSaved.remembered);
         const cached = loadDeliveryDataCache_(String(hubSaved.data.id || ""));
+        showPanel();
         if(cached){
-          saveDeliverySession(!!hubSaved.remembered);
-          showPanel();
           hydrateDeliveryOrdersFromCache_(cached);
         }else{
-          const valid = await validateCurrentSession_();
-          if(valid){
-            saveDeliverySession(!!hubSaved.remembered);
-            showPanel();
-            await loadOrders();
-          }else{
-            SESSION = { operator:null, pin:null };
-            showLogin();
-            await loadProfilesOnStart();
-          }
+          setInlineLoading_(listEl, "Cargando pedidos…", "Estamos trayendo los pedidos listos para envío.");
         }
+        scheduleDeliveryBackgroundRefresh_("Actualizando envíos en segundo plano…");
       }else{
         showLogin();
-        await loadProfilesOnStart();
       }
 
     }else{
       showLogin();
-      await loadProfilesOnStart();
     }
   }catch(err){
     console.error('delivery init error:', err);
     showLogin();
-    await loadProfilesOnStart();
+    loadProfilesOnStart().catch(()=>{});
   }finally{
     hideLoading();
     revealHubBoot_();
