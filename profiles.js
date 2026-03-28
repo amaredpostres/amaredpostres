@@ -254,6 +254,21 @@ function syncPinToggleState_(){
   btnTogglePin.textContent = hidden ? "👁" : "🙈";
   btnTogglePin.setAttribute("aria-label", hidden ? "Mostrar contraseña" : "Ocultar contraseña");
 }
+function buildInlineLoadMarkup_(title, sub){
+  return `<div class="amInlineLoad"><div class="amInlineLoadSpin"></div><div class="amInlineLoadBody"><div class="amInlineLoadTitle">${escapeHtml(title || "Cargando…")}</div><div class="amInlineLoadSub">${escapeHtml(sub || "Un momento.")}</div></div></div>`;
+}
+function hydrateProfilesDataFromCache_(cache){
+  PROFILES_CACHE = Array.isArray(cache?.profiles) ? cache.profiles : [];
+  renderTable(PROFILES_CACHE);
+  listMsg.textContent = `Mostrando caché de la sesión (${new Date(Number(cache?.ts || Date.now())).toLocaleString("es-CO")})`;
+}
+function scheduleProfilesBackgroundRefresh_(){
+  window.setTimeout(()=>{
+    loadProfiles(true, { silent:true }).catch(err=>{
+      mgrErr.textContent = err?.message || "Error cargando perfiles.";
+    });
+  }, 60);
+}
 
 function saveProfilesRemember_(){
   try{
@@ -763,22 +778,23 @@ profilesMobileList?.addEventListener("click", handleProfilesListClick);
 
 
 // =================== DATA ===================
-async function loadProfiles(force = false){
+async function loadProfiles(force = false, opts = {}){
   if(!PROFILE_SESSION?.id || !PROFILE_SESSION?.password) throw new Error("No autorizado.");
   listMsg.textContent = "";
   mgrErr.textContent = "";
+  const silent = !!opts.silent;
 
   if(!force){
     const cached = loadProfilesDataCache_();
     if(cached){
-      PROFILES_CACHE = Array.isArray(cached.profiles) ? cached.profiles : [];
-      renderTable(PROFILES_CACHE);
-      listMsg.textContent = `Mostrando caché de la sesión (${new Date(Number(cached.ts || Date.now())).toLocaleString("es-CO")})`;
+      hydrateProfilesDataFromCache_(cached);
       return;
     }
   }
 
-  showLoading("Cargando…", "Leyendo perfiles…");
+  if(!silent) showLoading("Cargando…", "Leyendo perfiles…");
+  if (tbody) tbody.innerHTML = `<tr><td colspan="5">${buildInlineLoadMarkup_("Cargando perfiles…", "Estamos trayendo la información más reciente desde la base de datos.")}</td></tr>`;
+  if (profilesMobileList) profilesMobileList.innerHTML = buildInlineLoadMarkup_("Cargando perfiles…", "Estamos trayendo la información más reciente desde la base de datos.");
   try{
     const out = await api({ action: "profiles_list" });
     PROFILES_CACHE = Array.isArray(out.profiles) ? out.profiles : [];
@@ -786,7 +802,7 @@ async function loadProfiles(force = false){
     renderTable(PROFILES_CACHE);
     listMsg.textContent = `Actualizado: ${new Date().toLocaleString("es-CO")}`;
   }finally{
-    hideLoading();
+    if(!silent) hideLoading();
   }
 }
 
@@ -837,9 +853,11 @@ btnUnlock?.addEventListener("click", async ()=>{
     };
     saveProfilesRemember_();
     setLockedUI(false);
-    await loadProfiles(true);
+    if (tbody) tbody.innerHTML = `<tr><td colspan="5">${buildInlineLoadMarkup_("Cargando perfiles…", "Estamos trayendo la información más reciente desde la base de datos.")}</td></tr>`;
+    if (profilesMobileList) profilesMobileList.innerHTML = buildInlineLoadMarkup_("Cargando perfiles…", "Estamos trayendo la información más reciente desde la base de datos.");
     listMsg.textContent = "Acceso concedido.";
     gateErr.textContent = "";
+    scheduleProfilesBackgroundRefresh_();
   }catch(e){
     PROFILE_SESSION = { id:null, label:null, password:null, categories:[] };
     clearProfilesRemember_();
@@ -1022,8 +1040,8 @@ inpSecret?.addEventListener("keydown", (e)=>{ if(e.key === "Enter") btnUnlock?.c
   let shouldAutoUnlock = false;
   try{
     syncPinToggleState_();
-    showLoading("Cargando perfiles…", "Buscando perfiles de perfiles.");
-    await populateLoginProfiles_();
+    gateErr.textContent = "Cargando perfiles…";
+    populateLoginProfiles_().then(()=>{ if(gateErr.textContent === "Cargando perfiles…") gateErr.textContent = ""; }).catch(()=>{});
 
     const portalSession = loadPortalProfilesSession_();
     const remembered = localStorage.getItem(LS_PROFILES_REMEMBER_KEY) === "1";
@@ -1043,7 +1061,8 @@ inpSecret?.addEventListener("keydown", (e)=>{ if(e.key === "Enter") btnUnlock?.c
           categories: Array.isArray(fastCache.sessionCategories) ? fastCache.sessionCategories : []
         };
         setLockedUI(false);
-        await loadProfiles(false);
+        hydrateProfilesDataFromCache_(fastCache);
+        scheduleProfilesBackgroundRefresh_();
       }else{
         shouldAutoUnlock = true;
       }
@@ -1060,7 +1079,8 @@ inpSecret?.addEventListener("keydown", (e)=>{ if(e.key === "Enter") btnUnlock?.c
           categories: Array.isArray(fastCache.sessionCategories) ? fastCache.sessionCategories : []
         };
         setLockedUI(false);
-        await loadProfiles(false);
+        hydrateProfilesDataFromCache_(fastCache);
+        scheduleProfilesBackgroundRefresh_();
       }else{
         shouldAutoUnlock = true;
       }
@@ -1071,7 +1091,6 @@ inpSecret?.addEventListener("keydown", (e)=>{ if(e.key === "Enter") btnUnlock?.c
   }catch(_e){
     setLockedUI(true);
   }finally{
-    hideLoading();
     if(!shouldAutoUnlock) revealHubBoot_();
     clearTimeout(hubBootFailsafe);
   }
