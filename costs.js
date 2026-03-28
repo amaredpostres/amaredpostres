@@ -620,6 +620,41 @@ function hideLoading(){
   }
   hide(lb);
 }
+function buildInlineLoadMarkup_(title, sub){
+  return `<div class="amInlineLoad"><div class="amInlineLoadSpin"></div><div class="amInlineLoadBody"><div class="amInlineLoadTitle">${escapeHtml(title || "Cargando…")}</div><div class="amInlineLoadSub">${escapeHtml(sub || "Un momento.")}</div></div></div>`;
+}
+function setInlineLoading_(container, title, sub){
+  if(container) container.innerHTML = buildInlineLoadMarkup_(title, sub);
+}
+function renderCostsShellLoading_(sub){
+  const msg = sub || "Estamos consultando la información más reciente desde la base de datos.";
+  if(el("meta")) el("meta").textContent = "Cargando compras pendientes…";
+  if(el("unitCostRows")) el("unitCostRows").innerHTML = `<tr><td colspan="4">${buildInlineLoadMarkup_("Cargando costo unitario…", msg)}</td></tr>`;
+  if(el("unitCostMobileList")) setInlineLoading_(el("unitCostMobileList"), "Cargando costo unitario…", msg);
+  if(el("dessertRows")) el("dessertRows").innerHTML = `<tr><td colspan="2">${buildInlineLoadMarkup_("Cargando postres confirmados…", msg)}</td></tr>`;
+  if(el("lateRows")) el("lateRows").innerHTML = `<tr><td colspan="2">${buildInlineLoadMarkup_("Cargando pedidos recientes…", msg)}</td></tr>`;
+  if(el("groups")) setInlineLoading_(el("groups"), "Cargando ingredientes…", msg);
+  if(el("dessertList")) setInlineLoading_(el("dessertList"), "Cargando postres…", msg);
+  if(el("recipeEditor")) setInlineLoading_(el("recipeEditor"), "Cargando receta…", msg);
+  if(el("globalMsg")) el("globalMsg").textContent = "Actualizando información en segundo plano…";
+}
+function scheduleCostsBackgroundRefresh_(opts={}){
+  window.setTimeout(async ()=>{
+    try{
+      await loadAll({ loadRecipesNow: !!opts.loadRecipesNow });
+      if(el("globalMsg")){
+        el("globalMsg").textContent = "Información actualizada.";
+        window.setTimeout(()=>{ if(el("globalMsg")?.textContent === "Información actualizada.") el("globalMsg").textContent = ""; }, 1600);
+      }
+    }catch(err){
+      if(el("globalMsg")){
+        const msg = String(err?.message || "No se pudo actualizar la información.");
+        el("globalMsg").textContent = msg;
+        window.setTimeout(()=>{ if(el("globalMsg")?.textContent === msg) el("globalMsg").textContent = ""; }, 2200);
+      }
+    }
+  }, 60);
+}
 
 // =============== Tabs ===============
 function setView(view){
@@ -2308,7 +2343,8 @@ async function doUnlock(isAuto=false, opts={}){
     show(el("appRoot"));
     show(el("mobileNav"));
     setView("purchases");
-    await loadAll();
+    renderCostsShellLoading_("Estamos trayendo la información inicial de Compras y Recetas.");
+    scheduleCostsBackgroundRefresh_({ loadRecipesNow:false });
   } catch(err){
     UNLOCKED_SECRET = "";
     UNLOCKED_PROFILE = { id:"", label:"", categories:[] };
@@ -3981,7 +4017,7 @@ el("ingModalBack")?.addEventListener("click", (e)=>{ if(e.target && e.target.id=
   bind();
   loadDeletedDesserts_();
   syncSecretToggleState_();
-  try{ await populateLoginProfiles_(); }catch(_e){}
+  try{ populateLoginProfiles_().catch(()=>{}); }catch(_e){}
 
   const saved = String(localStorage.getItem(LS_SECRET_KEY) || "").trim();
   const savedProfile = String(localStorage.getItem(LS_PROFILE_KEY) || "").trim();
@@ -4012,6 +4048,8 @@ el("ingModalBack")?.addEventListener("click", (e)=>{ if(e.target && e.target.id=
         show(el("mobileNav"));
         setView("purchases");
         hydrateCostsDataFromCache_(fastCache);
+        scheduleCostsBackgroundRefresh_({ loadRecipesNow:false });
+        scheduleCostsBackgroundRefresh_({ loadRecipesNow:false });
       } else {
         await doUnlock(false, { fromPortal:true, silent:true, remember: !!portal.remember });
       }
