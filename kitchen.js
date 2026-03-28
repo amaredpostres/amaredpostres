@@ -586,32 +586,6 @@ tabProdToday?.addEventListener("click", ()=>setProdTab("today"));
     loading.setAttribute("aria-hidden","true");
     syncActionBarsVisibility();
   }
-  function buildInlineLoadMarkup_(title, sub){
-    return `<div class="amInlineLoad"><div class="amInlineLoadSpin"></div><div class="amInlineLoadBody"><div class="amInlineLoadTitle">${escapeHtml(title || "Cargando…")}</div><div class="amInlineLoadSub">${escapeHtml(sub || "Un momento.")}</div></div></div>`;
-  }
-  function setInlineLoading_(container, title, sub){
-    if(!container) return;
-    container.innerHTML = buildInlineLoadMarkup_(title, sub);
-  }
-  function hasKitchenRenderableData_(){
-    const buckets = state?.buckets || {};
-    return Object.values(buckets).some(v => Array.isArray(v) && v.length > 0) || (Array.isArray(state?.paidOrders) && state.paidOrders.length > 0);
-  }
-  function showKitchenSectionLoading_(message){
-    const sub = message || "Estamos trayendo la información más reciente desde la base de datos.";
-    setInlineLoading_(todayWrap, "Cargando producción…", sub);
-    setInlineLoading_(backlogWrap, "Cargando pendientes pagados…", sub);
-    setInlineLoading_(tomorrowWrap, "Cargando informativo…", sub);
-    setInlineLoading_(inProgressWrapAll, "Cargando pedidos en proceso…", sub);
-    setInlineLoading_(inProgressWrapToday, "Cargando pedidos del día…", sub);
-    setInlineLoading_(inProgressWrapOlder, "Cargando pedidos anteriores…", sub);
-    setInlineLoading_(doneWrap, "Cargando finalizados…", sub);
-  }
-  function scheduleKitchenBackgroundRefresh_(reason){
-    window.setTimeout(()=>{
-      refresh({ silent:true, reason: reason || "Actualizando cocina en segundo plano…" }).catch(()=>{});
-    }, 60);
-  }
 
   function ensureKitchenSyncBadge_(){
     let el = document.getElementById("kitchenSyncBadge");
@@ -1753,7 +1727,8 @@ function renderProfilesSelect(list, selectedId){
       return;
     }
     renderProfilesSelect([], "");
-    loginErr.textContent = !force ? "Cargando perfiles…" : "";
+    showLoading("Cargando perfiles…","Buscando perfiles de cocina.");
+    loginErr.textContent="";
     try{
       const list = await fetchProfilesPublic();
       state.profiles = list;
@@ -1767,6 +1742,8 @@ function renderProfilesSelect(list, selectedId){
       renderProfilesSelect([], "");
       loginErr.textContent = (e?.message || "No se pudieron cargar perfiles.")
         + " (Necesitas habilitar profiles_public_list en el Worker)";
+    }finally{
+      hideLoading();
     }
   }
 
@@ -1955,6 +1932,11 @@ function renderProfilesSelect(list, selectedId){
                 #amTextCol{ min-height:0; overflow:hidden; }
         #amStepScroll{ min-height:0; padding-bottom:14px; }
         #amNav{ position:sticky; bottom:0; z-index:6; background:rgba(255,255,255,.92); }
+        #amRecipeOverlayV6 .modalBox{ width:min(980px, calc(100vw - 24px)); max-height:min(92dvh, calc(100vh - 24px)); padding:16px; }
+        #amRecipeOverlayV6 .modalBox > div:last-child{ flex:1 1 auto; min-height:0; }
+        #amUnifiedCard{ height:100%; grid-template-rows:minmax(0,1fr) auto !important; align-items:stretch; }
+        #amImgCol{ min-height:0; align-self:center; }
+        #amImgCol img{ display:block; width:100%; height:auto; max-height:min(52dvh, 420px); object-fit:contain; }
 #amUnifiedCard{ min-height:0; }
         #amStepScroll{ -webkit-overflow-scrolling: touch; }
 
@@ -1965,6 +1947,8 @@ function renderProfilesSelect(list, selectedId){
             grid-template-areas: "text" "img" "nav" !important;
             grid-template-rows: minmax(0,1fr) auto auto !important;
           }
+          #amRecipeOverlayV6 .modalBox{ width:min(720px, calc(100vw - 18px)); max-height:min(94dvh, calc(100vh - 18px)); padding:14px; }
+          #amImgCol img{ max-height:min(34dvh, 260px); }
           #amNav{ justify-content:center !important; }
           #amNav .btn{ flex:1; max-width:260px; }
         }
@@ -1984,12 +1968,12 @@ function renderProfilesSelect(list, selectedId){
         @media (max-width: 920px){
           #amNav{ justify-content:space-between; margin:0 auto; max-width:420px; }
           #amNav .btn{ min-width:140px; flex:1; }
-          #amStepScroll{ max-height:45vh; }
+          #amStepScroll{ max-height:none; flex:1 1 auto; }
         }
 </style>
 
       <div id="amRecipeOverlayV6" class="modalOverlay" aria-hidden="true" style="display:none;">
-        <div class="modalBox" style="max-width:980px; max-height:calc(100vh - 32px); overflow:hidden; display:flex; flex-direction:column; position:relative;">
+        <div class="modalBox" style="max-width:980px; max-height:calc(100vh - 32px); overflow:hidden; display:flex; flex-direction:column; position:relative; width:min(980px, calc(100vw - 24px));">
           <div class="rowBetween" style="align-items:flex-start;">
             <div style="min-width:0;">
               <div style="font-weight:950; font-size:18px;" id="amRecipeTitle">Receta</div>
@@ -2003,7 +1987,7 @@ function renderProfilesSelect(list, selectedId){
             <button id="amRecipeClose" class="iconBtn" type="button" aria-label="Cerrar" title="Cerrar" style="position:absolute; top:14px; right:14px; z-index:5;">✕</button>
           </div>
 
-          <div style="margin-top:12px; overflow:hidden; min-height:0;">
+          <div style="margin-top:12px; overflow:hidden; min-height:0; flex:1 1 auto;">
             <!-- Unified section -->
             <div id="amUnifiedCard" class="amCard"
               style="margin:0; overflow:hidden; min-height:0; display:grid; grid-template-columns:1.1fr .9fr; grid-template-areas:'text img' 'nav nav'; grid-template-rows:auto auto; gap:14px;">
@@ -2023,7 +2007,7 @@ function renderProfilesSelect(list, selectedId){
 
               <!-- Image -->
               <div id="amImgCol" style="grid-area:img; min-height:0; display:flex; align-items:center; justify-content:center; overflow:hidden;">
-                <img id="amStepImg" alt="" style="width:100%; max-object-fit:contain; border-radius:16px; border:1px solid rgba(64,17,2,.10); display:none;" />
+                <img id="amStepImg" alt="" style="width:100%; height:auto; object-fit:contain; max-height:min(52dvh, 420px); border-radius:16px; border:1px solid rgba(64,17,2,.10); display:none;" />
 
                 <div id="amFinalActions" style="display:none; margin-top:14px;">
                   <div class="rowBetween">
@@ -2130,13 +2114,13 @@ function msToMMSS(ms){
       if(imgCol) imgCol.style.display = "";
       card.style.gridTemplateColumns = "1.1fr .9fr";
       card.style.gridTemplateAreas = '"text img" "nav nav"';
-      card.style.gridTemplateRows = "auto auto";
+      card.style.gridTemplateRows = "minmax(0,1fr) auto";
     }
     function layoutNoImage(){
       if(imgCol) imgCol.style.display = "none";
       card.style.gridTemplateColumns = "1fr";
       card.style.gridTemplateAreas = '"text" "nav"';
-      card.style.gridTemplateRows = "auto auto";
+      card.style.gridTemplateRows = "minmax(0,1fr) auto";
     }
 
     img.onerror = () => {
@@ -3015,7 +2999,7 @@ async function finalizePostreFromOverlay(){
           </div>
           <div class="row" style="gap:10px;">
             <button id="btnHistRefresh" class="btn secondary" type="button">Refrescar</button>
-            <button id="btnHistClose" class="iconBtn amModalCloseX" type="button" aria-label="Cerrar" title="Cerrar">✕</button>
+            <button id="btnHistClose" class="btn secondary" type="button">Cerrar</button>
           </div>
         </div>
 
@@ -3296,18 +3280,26 @@ async function finalizePostreFromOverlay(){
       if(chkRemember?.checked){ saveRememberSession(); } else { clearRememberSession(); }
 
       showApp();
-      showKitchenSectionLoading_("Estamos trayendo la información inicial de Cocina.");
-      startWidgetTicker();
 
-      // Costos / recetas en segundo plano (si fallan, no bloquean la entrada)
+      // Costos: intentamos cargar al entrar (si falla, igual deja entrar)
       if(!state.costsLoaded){
-        apiTry({action:"costs_public_list"}).then(costs=>{ if(costs.ok===true) fetchCostsPublic().catch(()=>{}); }).catch(()=>{});
-      }
-      if(!state.recipesLoaded){
-        apiTry({action:"recipes_public_list"}).then(rec=>{ if(rec.ok===true) fetchRecipesPublic().catch(()=>{}); }).catch(()=>{});
+        const costs = await apiTry({action:"costs_public_list"});
+        if(costs.ok===true){
+          await fetchCostsPublic();
+        }
       }
 
-      scheduleKitchenBackgroundRefresh_("Actualizando cocina en segundo plano…");
+      // Recetas: cargar cantidades desde la hoja RECETAS (solo lectura)
+      if(!state.recipesLoaded){
+        const rec = await apiTry({action:"recipes_public_list"});
+        if(rec.ok===true){
+          await fetchRecipesPublic();
+        }
+      }
+
+
+      await refresh();
+      startWidgetTicker();
     }catch(e){
       clearSession();
     clearRememberSession();
@@ -3405,8 +3397,11 @@ async function finalizePostreFromOverlay(){
     showLogin();
     renderProfilesSelect([], "");
     loginErr.textContent="Cargando perfiles…";
+    showLoading("Cargando…","Preparando perfiles…");
 
-    const profilesPromise = loadProfilesOnStart().catch(()=>{});
+    // 1) perfiles al iniciar
+    await loadProfilesOnStart();
+    hideLoading();
 
     // 2) sesión previa (Hub o Recuérdame)
     const hasPortalSession = loadSession();
@@ -3424,16 +3419,14 @@ async function finalizePostreFromOverlay(){
           showApp();
           hydrateKitchenDataFromCache_(cachedView);
           startWidgetTicker();
-          scheduleKitchenBackgroundRefresh_("Actualizando cocina en segundo plano…");
         }else{
           showLoading("Ingresando…", hasPortalSession ? "Abriendo Cocina…" : "Validando sesión guardada…");
           const rememberedAuth = await validateProfileBestEffort(remembered.operatorId, remembered.pin);
           const rememberedCats = Array.isArray(rememberedAuth?.categories) ? rememberedAuth.categories.map(v => String(v || "").toLowerCase()) : [];
           if(!(rememberedCats.includes("admin") || rememberedCats.includes("kitchen"))) throw new Error("Perfil sin permisos para cocina.");
           showApp();
-          showKitchenSectionLoading_("Estamos trayendo la información inicial de Cocina.");
+          await refresh();
           startWidgetTicker();
-          scheduleKitchenBackgroundRefresh_("Actualizando cocina en segundo plano…");
         }
       }catch(_e){
         if(!hasPortalSession) clearRememberSession();
