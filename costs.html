@@ -154,7 +154,7 @@
 <link href="assets/favicon.ico" rel="icon" type="image/x-icon"/>
 <link href="assets/favicon.ico" rel="shortcut icon" type="image/x-icon"/>
 <!-- ✅ estilos globales AMARED -->
-<link href="styles.css?v=20260327-loader-unified-v1" rel="stylesheet"/>
+<link href="styles.css?v=20260328-async-shell-v2" rel="stylesheet"/>
 <!-- ✅ estilos de Compras / Recetas -->
 <link href="costs.css?v=20260307-v17" rel="stylesheet"/>
 <style>
@@ -741,7 +741,7 @@ body.is-app .costsLoginTopbar{ display:none !important; }
 <div class="modalTitle" id="costModalTitle" style="font-weight:950;">Detalle</div>
 <div class="modalSub" id="costModalSub" style="margin-top:4px;">Edita la última presentación guardada (se actualizará en COSTOS_INGREDIENTES).</div>
 </div>
-<button class="btn" id="cmCancelX">Cerrar</button>
+<button class="iconBtn amModalCloseX" id="cmCancelX" type="button" aria-label="Cerrar" title="Cerrar">✕</button>
 </div>
 <div class="modalBody" style="padding:14px;">
 <div class="pFormGrid">
@@ -830,7 +830,7 @@ body.is-app .costsLoginTopbar{ display:none !important; }
 <div class="modalTitle" style="font-weight:950;">🧩 Ingredientes (Productos)</div>
 <div class="modalSub" style="margin-top:4px;">Agrega o elimina ingredientes. Se refleja en <b>COSTOS_INGREDIENTES</b> e <b>INVENTARIO</b>.</div>
 </div>
-<button class="btn" id="ingCloseX">Cerrar</button>
+<button class="iconBtn amModalCloseX" id="ingCloseX" type="button" aria-label="Cerrar" title="Cerrar">✕</button>
 </div>
 <div class="modalBody" style="padding:14px;">
 <div class="pCatGrid ingGrid">
@@ -905,7 +905,7 @@ body.is-app .costsLoginTopbar{ display:none !important; }
 <div class="modalTitle" style="font-weight:950;">⚙️ Tiendas y Marcas</div>
 <div class="modalSub" style="margin-top:4px;">Estas opciones alimentan los selects de Marca/Tienda.</div>
 </div>
-<button class="btn" id="catCloseX">Cerrar</button>
+<button class="iconBtn amModalCloseX" id="catCloseX" type="button" aria-label="Cerrar" title="Cerrar">✕</button>
 </div>
 <div class="modalBody" style="padding:14px;">
 <div class="pCatGrid">
@@ -946,7 +946,7 @@ body.is-app .costsLoginTopbar{ display:none !important; }
 <div class="modalTitle" style="font-weight:950;">✅ Confirmar compras</div>
 <div class="modalSub" style="margin-top:4px;">Se sumará al inventario usando la última presentación guardada.</div>
 </div>
-<button class="btn" id="btnConfirmClose">Cerrar</button>
+<button class="iconBtn amModalCloseX" id="btnConfirmClose" type="button" aria-label="Cerrar" title="Cerrar">✕</button>
 </div>
 <div class="modalBody" style="padding:14px;">
 <div class="pConfirmTotal">
@@ -974,6 +974,6 @@ body.is-app .costsLoginTopbar{ display:none !important; }
   </div>
 </div>
 <script src="kitchen-costs.js?v=20260325-unit-mobile-v1"></script>
-<script src="costs.js?v=20260325-unit-mobile-v1"></script>
+<script src="costs.js?v=20260328-async-shell-v2"></script>
 </body>
 </html>
