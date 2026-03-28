@@ -536,6 +536,21 @@ function syncSecretToggleState_(){
   btn.setAttribute("aria-label", hidden ? "Mostrar contraseña" : "Ocultar contraseña");
 }
 
+function ensureSelectValueOption_(sel, value, label){
+  if(!sel) return;
+  const id = String(value || "").trim();
+  if(!id) return;
+  const wanted = id.toLowerCase();
+  const existing = Array.from(sel.options || []).find(opt => String(opt.value || "").trim().toLowerCase() === wanted);
+  if(!existing){
+    const opt = document.createElement("option");
+    opt.value = id;
+    opt.textContent = String(label || id).trim() || id;
+    sel.appendChild(opt);
+  }
+  try{ sel.value = id; }catch(_e){}
+}
+
 function loadPortalCostsSession_(){
   try{
     const raw = sessionStorage.getItem(SS_COSTS_SESSION_KEY);
@@ -619,41 +634,6 @@ function hideLoading(){
     // lb.style.zIndex = "";
   }
   hide(lb);
-}
-function buildInlineLoadMarkup_(title, sub){
-  return `<div class="amInlineLoad"><div class="amInlineLoadSpin"></div><div class="amInlineLoadBody"><div class="amInlineLoadTitle">${escapeHtml(title || "Cargando…")}</div><div class="amInlineLoadSub">${escapeHtml(sub || "Un momento.")}</div></div></div>`;
-}
-function setInlineLoading_(container, title, sub){
-  if(container) container.innerHTML = buildInlineLoadMarkup_(title, sub);
-}
-function renderCostsShellLoading_(sub){
-  const msg = sub || "Estamos consultando la información más reciente desde la base de datos.";
-  if(el("meta")) el("meta").textContent = "Cargando compras pendientes…";
-  if(el("unitCostRows")) el("unitCostRows").innerHTML = `<tr><td colspan="4">${buildInlineLoadMarkup_("Cargando costo unitario…", msg)}</td></tr>`;
-  if(el("unitCostMobileList")) setInlineLoading_(el("unitCostMobileList"), "Cargando costo unitario…", msg);
-  if(el("dessertRows")) el("dessertRows").innerHTML = `<tr><td colspan="2">${buildInlineLoadMarkup_("Cargando postres confirmados…", msg)}</td></tr>`;
-  if(el("lateRows")) el("lateRows").innerHTML = `<tr><td colspan="2">${buildInlineLoadMarkup_("Cargando pedidos recientes…", msg)}</td></tr>`;
-  if(el("groups")) setInlineLoading_(el("groups"), "Cargando ingredientes…", msg);
-  if(el("dessertList")) setInlineLoading_(el("dessertList"), "Cargando postres…", msg);
-  if(el("recipeEditor")) setInlineLoading_(el("recipeEditor"), "Cargando receta…", msg);
-  if(el("globalMsg")) el("globalMsg").textContent = "Actualizando información en segundo plano…";
-}
-function scheduleCostsBackgroundRefresh_(opts={}){
-  window.setTimeout(async ()=>{
-    try{
-      await loadAll({ loadRecipesNow: !!opts.loadRecipesNow });
-      if(el("globalMsg")){
-        el("globalMsg").textContent = "Información actualizada.";
-        window.setTimeout(()=>{ if(el("globalMsg")?.textContent === "Información actualizada.") el("globalMsg").textContent = ""; }, 1600);
-      }
-    }catch(err){
-      if(el("globalMsg")){
-        const msg = String(err?.message || "No se pudo actualizar la información.");
-        el("globalMsg").textContent = msg;
-        window.setTimeout(()=>{ if(el("globalMsg")?.textContent === msg) el("globalMsg").textContent = ""; }, 2200);
-      }
-    }
-  }, 60);
 }
 
 // =============== Tabs ===============
@@ -1561,9 +1541,39 @@ function renderDesserts(){
   const ordersText = lim ? `Pedidos: ${used}/${lim}` : `Pedidos: ${used}`;
   const scopeText = scopeLabel ? ` · ${scopeLabel}` : ((w0&&w1)?(" · Ventana: "+w0+" → "+w1):"");
   if(meta) meta.textContent = `${ordersText}${scopeText}`;
+  renderDessertSummaryMobile_();
 }
 
+function renderDessertSummaryMobile_(){
+  const host = el("summaryMobileList");
+  if(!host) return;
+  const ids = getDessertIdsForUi_();
+  const today = ids
+    .map(id => ({ id, qty: Number((state.ordersByDessert || {})[id] || 0) || 0 }))
+    .filter(r => r.qty > 0);
+  const late = ids
+    .map(id => ({ id, qty: Number((state.late?.orders_by_dessert || state.late?.ordersByDessert || {})[id] || 0) || 0 }))
+    .filter(r => r.qty > 0);
 
+  const blockHtml = (title, hint, rows, tone)=>`
+    <section class="summaryMobileBlock ${tone}">
+      <div class="summaryMobileHead">
+        <div>
+          <div class="summaryMobileTitle">${escapeHtml(title)}</div>
+          <div class="summaryMobileHint">${escapeHtml(hint)}</div>
+        </div>
+        <div class="summaryMobileCount">${fmtNum(rows.reduce((acc, item)=>acc + Number(item.qty||0), 0))}</div>
+      </div>
+      <div class="summaryMobileRows">
+        ${rows.length ? rows.map(r=>`<div class="summaryMobileRow"><span>${escapeHtml(prettyDessertName(r.id))}</span><strong>${fmtNum(r.qty)}</strong></div>`).join("") : `<div class="summaryMobileEmpty">Sin postres en este bloque.</div>`}
+      </div>
+    </section>`;
+
+  host.innerHTML = [
+    blockHtml("Producción prioritaria", "Pedidos confirmados dentro de la ventana principal de producción.", today, "isToday"),
+    blockHtml("Después de las 3:00 p. m.", "Referencia rápida de pedidos recientes posteriores al corte.", late, "isLate")
+  ].join("");
+}
 
 function recipeRowsForNeeds_(dessertId){
   const did = String(dessertId||"").trim();
@@ -1633,8 +1643,8 @@ function renderLate(){
   const w0 = String(state.late?.window_start || state.meta?.late_window_start || "").trim();
   const w1 = String(state.late?.window_end || state.meta?.late_window_end || "").trim();
   if(meta) meta.textContent = `Pedidos: ${used}${(w0&&w1)?(" · Ventana: "+w0+" → "+w1):""}`;
+  renderDessertSummaryMobile_();
 }
-
 
 // =============== Render: ingredients ===============
 function rowPassesFilters(row){
@@ -1911,6 +1921,25 @@ function lastSpecLine(row){
   }
 
   return [parts.join(" · "), packInfo].filter(Boolean).join(" · ") || "Sin detalle de empaque (puedes definirlo con ⚙️)";
+}
+
+
+function applyRecommendedBuyPlan_(key){
+  const row = computeRow(key);
+  const plan = getPlan(key);
+  plan.selected = true;
+  const needBuy = Math.max(0, (row.need - row.invBase));
+  if(row.base.pack_qty > 0){
+    plan.packs = needBuy > 0 ? Math.ceil(needBuy / row.base.pack_qty) : 0;
+    plan.qty_manual = 0;
+  } else {
+    plan.qty_manual = needBuy > 0 ? needBuy : 0;
+    plan.packs = 0;
+  }
+  const bought = (row.base.pack_qty > 0 && plan.packs > 0) ? (plan.packs * row.base.pack_qty) : (plan.qty_manual || 0);
+  const sobra = Math.max(0, bought - needBuy);
+  plan.autoInfo = { bought, sobra, ts: Date.now() };
+  return { row, plan, needBuy, bought, sobra };
 }
 
 function renderItemCard(row){
@@ -2291,7 +2320,7 @@ function openUnlock(msg){
   }
   try{
     const savedProfile = String(localStorage.getItem(LS_PROFILE_KEY) || "").trim();
-    if(savedProfile && el("loginProfile")) el("loginProfile").value = savedProfile;
+    if(savedProfile && el("loginProfile")) ensureSelectValueOption_(el("loginProfile"), savedProfile, savedProfile);
   }catch(_e){}
   syncSecretToggleState_();
   if(el("secretInput")) el("secretInput").focus();
@@ -2303,8 +2332,9 @@ function closeUnlock(){
 }
 
 async function doUnlock(isAuto=false, opts={}){
-  const profileId = String(el("loginProfile")?.value || "").trim();
-  const secret = String(el("secretInput")?.value || "").trim();
+  const profileId = String((opts && opts.profileId) ?? (el("loginProfile")?.value || "")).trim();
+  const secret = String((opts && opts.secret) ?? (el("secretInput")?.value || "")).trim();
+  const profileLabel = String((opts && opts.profileLabel) || profileId || "").trim();
   const fromPortal = !!opts.fromPortal;
   const silent = !!opts.silent;
   const rememberOverride = (typeof opts.remember === "boolean") ? opts.remember : null;
@@ -2324,7 +2354,7 @@ async function doUnlock(isAuto=false, opts={}){
     UNLOCKED_SECRET = secret;
     UNLOCKED_PROFILE = {
       id: String(authProfile?.id || profileId || "").trim(),
-      label: String(authProfile?.label || profileId || "").trim(),
+      label: String(authProfile?.label || profileLabel || profileId || "").trim(),
       categories: Array.isArray(authProfile?.categories) ? authProfile.categories : []
     };
     const chk = getRememberCheckbox_();
@@ -2343,8 +2373,7 @@ async function doUnlock(isAuto=false, opts={}){
     show(el("appRoot"));
     show(el("mobileNav"));
     setView("purchases");
-    renderCostsShellLoading_("Estamos trayendo la información inicial de Compras y Recetas.");
-    scheduleCostsBackgroundRefresh_({ loadRecipesNow:false });
+    await loadAll();
   } catch(err){
     UNLOCKED_SECRET = "";
     UNLOCKED_PROFILE = { id:"", label:"", categories:[] };
@@ -3788,27 +3817,8 @@ function bind(){
       return;
     }
     if(act === "auto"){
-      // Mantener acordeones abiertos
       captureOpenGroupsFromDOM_();
-
-      const r0 = computeRow(key); // estado antes de aplicar auto
-      const p = getPlan(key);
-      p.selected = true;
-
-      const needBuy = Math.max(0, (r0.need - r0.invBase));
-      if(r0.base.pack_qty>0){
-        p.packs = needBuy>0 ? Math.ceil(needBuy / r0.base.pack_qty) : 0;
-        p.qty_manual = 0;
-      } else {
-        p.qty_manual = needBuy>0 ? needBuy : 0;
-        p.packs = 0;
-      }
-
-      // Guardar info para mostrar "comprado" y "sobra"
-      const bought = (r0.base.pack_qty>0 && p.packs>0) ? (p.packs * r0.base.pack_qty) : (p.qty_manual||0);
-      const sobra = Math.max(0, bought - needBuy);
-      p.autoInfo = { bought, sobra, ts: Date.now() };
-
+      applyRecommendedBuyPlan_(key);
       renderGroups();
       refreshBottom();
       updateMetaLine();
@@ -3826,9 +3836,15 @@ function bind(){
 
     if(act === "toggle"){
       captureOpenGroupsFromDOM_();
-      plan.selected = !!e.target.checked;
-      if(!plan.selected){ plan.packs = 0; plan.qty_manual = 0; plan.autoInfo = null; }
-      if(plan.selected){ plan.autoInfo = null; }
+      const isOn = !!e.target.checked;
+      if(isOn){
+        applyRecommendedBuyPlan_(key);
+      }else{
+        plan.selected = false;
+        plan.packs = 0;
+        plan.qty_manual = 0;
+        plan.autoInfo = null;
+      }
       renderGroups();
       refreshBottom();
       updateMetaLine();
@@ -4017,7 +4033,7 @@ el("ingModalBack")?.addEventListener("click", (e)=>{ if(e.target && e.target.id=
   bind();
   loadDeletedDesserts_();
   syncSecretToggleState_();
-  try{ populateLoginProfiles_().catch(()=>{}); }catch(_e){}
+  try{ await populateLoginProfiles_(); }catch(_e){}
 
   const saved = String(localStorage.getItem(LS_SECRET_KEY) || "").trim();
   const savedProfile = String(localStorage.getItem(LS_PROFILE_KEY) || "").trim();
@@ -4027,11 +4043,11 @@ el("ingModalBack")?.addEventListener("click", (e)=>{ if(e.target && e.target.id=
   const chk = getRememberCheckbox_();
   if(chk) chk.checked = !!saved && remembered;
 
-  if(savedProfile && el("loginProfile")) el("loginProfile").value = savedProfile;
+  if(savedProfile && el("loginProfile")) ensureSelectValueOption_(el("loginProfile"), savedProfile, savedProfile);
 
   try{
     if(portal?.id && portal?.password){
-      if(el("loginProfile")) el("loginProfile").value = String(portal.id || "").trim();
+      if(el("loginProfile")) ensureSelectValueOption_(el("loginProfile"), String(portal.id || "").trim(), String(portal.label || portal.id || "").trim());
       if(el("secretInput")) el("secretInput").value = String(portal.password || "").trim();
       if(chk) chk.checked = !!portal.remember;
       const fastCache = loadCostsDataCache_(String(portal.id || "").trim());
@@ -4048,10 +4064,8 @@ el("ingModalBack")?.addEventListener("click", (e)=>{ if(e.target && e.target.id=
         show(el("mobileNav"));
         setView("purchases");
         hydrateCostsDataFromCache_(fastCache);
-        scheduleCostsBackgroundRefresh_({ loadRecipesNow:false });
-        scheduleCostsBackgroundRefresh_({ loadRecipesNow:false });
       } else {
-        await doUnlock(false, { fromPortal:true, silent:true, remember: !!portal.remember });
+        await doUnlock(false, { fromPortal:true, silent:true, remember: !!portal.remember, profileId:String(portal.id || "").trim(), profileLabel:String(portal.label || portal.id || "").trim(), secret:String(portal.password || "").trim() });
       }
     } else if(saved && remembered && savedProfile){
       if(el("secretInput")) el("secretInput").value = saved;
@@ -4070,7 +4084,7 @@ el("ingModalBack")?.addEventListener("click", (e)=>{ if(e.target && e.target.id=
         setView("purchases");
         hydrateCostsDataFromCache_(fastCache);
       } else {
-        await doUnlock(true);
+        await doUnlock(true, { profileId:savedProfile, profileLabel:savedProfile, secret:saved });
       }
     } else {
       if(saved && !remembered){
