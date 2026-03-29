@@ -377,6 +377,36 @@ body{
 
 .mapsBlock{ padding-left: 28px; }
 .waLocBlock{ padding-left: 28px; padding-top: 2px; }
+.pickupBlock{ padding-left: 28px; padding-top: 2px; }
+.pickupBox{
+  border: 1px dashed rgba(64,17,2,.14);
+  border-radius: 14px;
+  background: rgba(246,186,96,.08);
+  padding: 12px;
+  display: grid;
+  gap: 8px;
+}
+.pickupTitle{
+  font-weight: 950;
+  color: var(--choco);
+}
+.pickupLink{
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: fit-content;
+  max-width: 100%;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(242,91,143,.28);
+  background: rgba(242,91,143,.10);
+  color: var(--choco);
+  text-decoration: none;
+  font-weight: 900;
+  box-shadow: 0 8px 18px rgba(64,17,2,.06);
+}
+.pickupLink:hover{ text-decoration: none; filter: brightness(.98); }
+.addressHint{ margin-top: 6px; }
 
 /* Checkbox opt-in */
 .checkRow{
