@@ -81,6 +81,10 @@ const addressInput = document.getElementById("address");
 const mapsInput = document.getElementById("maps");
 const addressLabel = document.getElementById("addressLabel");
 const addressHint = document.getElementById("addressHint");
+const heroCartMeta = document.getElementById("heroCartMeta");
+const deliveryModeTag = document.getElementById("deliveryModeTag");
+const productCountTag = document.getElementById("productCountTag");
+let _loadingSequenceTimer = 0;
 
 // Alerta central
 const alertOverlay = document.getElementById("alertOverlay");
@@ -102,7 +106,23 @@ function money(n) {
   return Math.round(n).toLocaleString("es-CO");
 }
 
+function getLocationMethodLabel(method){
+  if(method === "pickup") return "Recogida presencial";
+  if(method === "whatsapp") return "Ubicación por WhatsApp";
+  return "Entrega a domicilio";
+}
 
+function getSelectedLocationMethod(){
+  const el = document.querySelector('input[name="locMethod"]:checked');
+  return el ? el.value : "maps";
+}
+
+function syncLocationOptionState(){
+  document.querySelectorAll('.deliveryChoice').forEach(choice => {
+    const input = choice.querySelector('input[name="locMethod"]');
+    choice.classList.toggle('isActive', !!input && input.checked);
+  });
+}
 
 function escapeHtml(s){
   return String(s ?? "")
@@ -186,11 +206,6 @@ function setAddressMode(isPickup){
   }
 }
 
-function getSelectedLocationMethod() {
-  const el = document.querySelector('input[name="locMethod"]:checked');
-  return el ? el.value : "maps";
-}
-
 function syncLocationUI() {
   const method = getSelectedLocationMethod();
   const showMaps = method === "maps";
@@ -212,6 +227,8 @@ function syncLocationUI() {
 
   setAddressMode(showPickup);
   syncPickupVideoUI();
+  syncLocationOptionState();
+  updateSummary();
 }
 
 function isMobileUA(){
@@ -352,26 +369,38 @@ function renderProducts() {
 
   for (const p of PRODUCTS) {
     const qty = cart.get(p.id) || 0;
+    const isSelected = qty > 0;
 
     const div = document.createElement("div");
-    div.className = "productCard";
+    div.className = "productCard" + (isSelected ? " isSelected" : "");
 
     div.innerHTML = `
-      <img class="productImg" src="${p.img}" alt="${p.alt || p.name}" loading="lazy" />
+      <div class="productVisual">
+        <img class="productImg" src="${p.img}" alt="${p.alt || p.name}" loading="lazy" />
+        <div class="productGlow"></div>
+        <div class="productBadgeRow">
+          <span class="productBadge">Postre artesanal</span>
+          ${isSelected ? '<span class="productBadge productBadgeSelected">En tu pedido</span>' : '<span class="productBadge productBadgeSoft">Disponible hoy</span>'}
+        </div>
+      </div>
 
       <div class="productInfo">
         <div class="productTop">
-          <div class="name">${p.name}</div>
-          <div class="price">$${money(p.price)} c/u <span class="sizeBadge">6 oz</span></div>
+          <div class="productHeaderRow">
+            <div class="name">${p.name}</div>
+            <div class="priceBox">
+              <div class="price">$${money(p.price)}</div>
+              <div class="priceNote">por unidad · <span class="sizeBadge">6 oz</span></div>
+            </div>
+          </div>
+          <div class="productDesc">${p.desc || ""}</div>
         </div>
 
-        <div class="productDesc">${p.desc || ""}</div>
-
         <div class="productBottom">
-          <div class="stepper">
-            <button type="button" data-action="dec" data-id="${p.id}">−</button>
+          <div class="stepper" aria-label="Cantidad de ${p.name}">
+            <button type="button" data-action="dec" data-id="${p.id}" aria-label="Disminuir ${p.name}">−</button>
             <div class="qty" id="qty_${p.id}">${qty}</div>
-            <button type="button" data-action="inc" data-id="${p.id}">+</button>
+            <button type="button" data-action="inc" data-id="${p.id}" aria-label="Aumentar ${p.name}">+</button>
           </div>
         </div>
       </div>
@@ -391,10 +420,7 @@ function renderProducts() {
     const next = action === "inc" ? current + 1 : Math.max(0, current - 1);
 
     cart.set(id, next);
-
-    const qtyEl = document.getElementById(`qty_${id}`);
-    if (qtyEl) qtyEl.textContent = String(next);
-
+    renderProducts();
     updateSummary();
   };
 }
@@ -409,16 +435,44 @@ function updateSummary() {
   const items = buildCartItems();
   const totalUnits = items.reduce((a, b) => a + b.qty, 0);
   const subtotal = items.reduce((a, b) => a + b.qty * b.price, 0);
+  const locationLabel = getLocationMethodLabel(getSelectedLocationMethod());
 
   elTotalUnits.textContent = String(totalUnits);
   elSubtotal.textContent = money(subtotal);
 
+  if (deliveryModeTag) {
+    deliveryModeTag.textContent = locationLabel;
+  }
+  if (productCountTag) {
+    productCountTag.textContent = totalUnits > 0 ? `${totalUnits} seleccionados` : '0 seleccionados';
+  }
+  if (heroCartMeta) {
+    heroCartMeta.textContent = totalUnits > 0
+      ? `${totalUnits} ${totalUnits === 1 ? "unidad lista" : "unidades listas"} · $${money(subtotal)}`
+      : "Aún no has agregado postres.";
+  }
+
   if (items.length === 0) {
-    elCartSummary.textContent = "Aún no has seleccionado postres.";
+    elCartSummary.innerHTML = `
+      <div class="cartSummaryEmpty">
+        <strong>Tu pedido aparecerá aquí.</strong>
+        <span>Agrega uno o más postres para ver el resumen detallado.</span>
+      </div>
+    `;
   } else {
-    elCartSummary.innerHTML = items
-      .map(it => `<div>• <strong>${it.name}</strong> x${it.qty}</div>`)
-      .join("");
+    elCartSummary.innerHTML = `
+      <div class="cartSummaryList">
+        ${items.map(it => `
+          <div class="cartSummaryItem">
+            <div>
+              <strong>${escapeHtml(it.name)}</strong>
+              <span>${it.qty} ${it.qty === 1 ? "unidad" : "unidades"}</span>
+            </div>
+            <b>$${money(it.qty * it.price)}</b>
+          </div>
+        `).join("")}
+      </div>
+    `;
   }
 }
 
@@ -689,7 +743,11 @@ btnSendWhatsApp?.addEventListener("click", async () => {
   btnSendWhatsApp.disabled = true;
   btnCloseModal.disabled = true;
 
-  showLoading("Registrando pedido...");
+  showLoading("Preparando tu pedido...", "Registrando información.", [
+    { text: "Preparando tu pedido...", sub: "Registrando información." },
+    { text: "Preparando tu pedido...", sub: "Verificando los detalles del pedido." },
+    { text: "Preparando tu pedido...", sub: "Abriendo WhatsApp para continuar la confirmación." }
+  ]);
 
   // ✅ deja que el navegador pinte el loader
   await nextFrame();
@@ -778,13 +836,26 @@ btnWhatsApp?.addEventListener("click", () => {
 renderProducts();
 updateSummary();
 syncLocationUI();
+syncLocationOptionState();
 
 
-function showLoading(text="Procesando...", sub="Por favor espera."){
+function showLoading(text="Procesando...", sub="Por favor espera.", sequence=[]){
   try{
     _loadingStartTs = Date.now();
+    clearInterval(_loadingSequenceTimer);
     if(loadingText) loadingText.textContent = text;
     if(loadingSub) loadingSub.textContent = sub;
+
+    if(Array.isArray(sequence) && sequence.length){
+      let idx = 0;
+      _loadingSequenceTimer = setInterval(() => {
+        idx = (idx + 1) % sequence.length;
+        const step = sequence[idx] || {};
+        if(loadingText && step.text) loadingText.textContent = step.text;
+        if(loadingSub && step.sub) loadingSub.textContent = step.sub;
+      }, 1100);
+    }
+
     if(loadingOverlay){
       loadingOverlay.classList.remove("hidden");
       loadingOverlay.setAttribute("aria-hidden","false");
@@ -795,6 +866,8 @@ function showLoading(text="Procesando...", sub="Por favor espera."){
 }
 function hideLoading(){
   try{
+    clearInterval(_loadingSequenceTimer);
+    _loadingSequenceTimer = 0;
     const elapsed = _loadingStartTs ? (Date.now() - _loadingStartTs) : 9999;
     const doHide = () => {
       if(loadingOverlay){
@@ -803,8 +876,8 @@ function hideLoading(){
         loadingOverlay.style.display = "none";
       }
     };
-    if(elapsed < 650){
-      setTimeout(doHide, 650 - elapsed);
+    if(elapsed < 900){
+      setTimeout(doHide, 900 - elapsed);
     }else{
       doHide();
     }
