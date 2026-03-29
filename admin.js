@@ -1382,10 +1382,16 @@ btnCancelConfirm?.addEventListener("click", async () => {
 // =================== INIT ===================
 (async function init() {
   try {
-    loadPaymentProfiles().catch(()=>{});
-
     const savedWrap = loadSavedAdminSession();
     const saved = savedWrap?.data || null;
+    const shouldShowProfilesBoot = !FROM_HUB && !saved;
+    if (shouldShowProfilesBoot) {
+      showLoading("Cargando perfiles…", "Buscando perfiles de pagos.");
+      await loadPaymentProfiles();
+    } else {
+      loadPaymentProfiles().catch(()=>{});
+    }
+
     if (saved) {
       try {
         const s = saved;
