@@ -18,7 +18,7 @@ const HUB_SHARED_PREFETCH = [
 const HUB_MODULE_PREFETCH = {
   kitchen: [
     { href:"kitchen.html", as:"document" },
-    { href:"kitchen.js?v=20260328-step-modal-fit-v2", as:"script" },
+    { href:"kitchen.js?v=20260329-async-sections-v4", as:"script" },
     { href:"kitchen-costs.js?v=20260302-fix7u", as:"script" },
   ],
   payments: [
@@ -33,12 +33,12 @@ const HUB_MODULE_PREFETCH = {
   costs: [
     { href:"costs.html", as:"document" },
     { href:"costs.css?v=20260307-v17", as:"style" },
-    { href:"kitchen-costs.js?v=20260329-boot-bg-v3", as:"script" },
-    { href:"costs.js?v=20260329-boot-bg-v3", as:"script" },
+    { href:"kitchen-costs.js?v=20260329-async-sections-v4", as:"script" },
+    { href:"costs.js?v=20260329-async-sections-v4", as:"script" },
   ],
   profiles: [
     { href:"profiles.html", as:"document" },
-    { href:"profiles.js?v=20260329-boot-bg-v3", as:"script" },
+    { href:"profiles.js?v=20260329-async-sections-v4", as:"script" },
   ],
 };
 
