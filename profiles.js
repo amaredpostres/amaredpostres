@@ -221,6 +221,9 @@ function hideLoading(){
   loading.setAttribute("aria-hidden","true");
   syncProfilesMobileBar();
 }
+function inlineLoadHtml_(title, sub, soft=false){
+  return `<div class="amInlineLoad${soft ? ' isSoft' : ''}"><div class="amInlineLoadSpin"></div><div class="amInlineLoadBody"><div class="amInlineLoadTitle">${escapeHtml(title || "Cargando…")}</div><div class="amInlineLoadSub">${escapeHtml(sub || "Un momento.")}</div></div></div>`;
+}
 
 function escapeHtml(s){
   return String(s ?? "")
@@ -768,7 +771,7 @@ async function handleProfilesListClick(ev){
     mgrErr.textContent = e.message || "Error eliminando.";
     console.error("delete error:", e, e._raw);
   }finally{
-    if(!skipOverlay) hideLoading();
+    hideLoading();
     revealHubBoot_();
   }
 }
@@ -781,9 +784,10 @@ profilesMobileList?.addEventListener("click", handleProfilesListClick);
 function renderProfilesBootLoadingState_(msg){
   try{
     if(listMsg) listMsg.textContent = String(msg || "Actualizando perfiles…");
-    if(tbody && !String(tbody.innerHTML||"").trim()) tbody.innerHTML = `<tr><td colspan="5" class="muted small">Cargando perfiles…</td></tr>`;
-    if(profilesMobileList && !String(profilesMobileList.innerHTML||"").trim()) profilesMobileList.innerHTML = `<div class="muted small" style="padding:12px 4px;">Cargando perfiles…</div>`;
-    if(pillCount && !String(pillCount.textContent||"").trim()) pillCount.textContent = "Cargando…";
+    const tableLoading = `<tr><td colspan="5">${inlineLoadHtml_("Cargando perfiles…", "Estamos consultando la lista de perfiles y permisos.", true)}</td></tr>`;
+    if(tbody && !String(tbody.innerHTML||"").trim()) tbody.innerHTML = tableLoading;
+    if(profilesMobileList && !String(profilesMobileList.innerHTML||"").trim()) profilesMobileList.innerHTML = inlineLoadHtml_("Cargando perfiles…", "Estamos consultando la lista de perfiles y permisos.", true);
+    if(pillCount) pillCount.textContent = "Cargando…";
   }catch(_e){}
 }
 
@@ -797,6 +801,8 @@ function hydrateProfilesCache_(cached){
 
 async function loadProfiles(force = false, opts = {}){
   if(!PROFILE_SESSION?.id || !PROFILE_SESSION?.password) throw new Error("No autorizado.");
+  const skipOverlay = !!opts.skipOverlay;
+  const preserveState = !!opts.preserveState;
   listMsg.textContent = "";
   mgrErr.textContent = "";
 
@@ -811,6 +817,7 @@ async function loadProfiles(force = false, opts = {}){
   }
 
   if(!skipOverlay) showLoading("Cargando…", "Leyendo perfiles…");
+  else if(!preserveState) renderProfilesBootLoadingState_("Actualizando perfiles…");
   try{
     const out = await api({ action: "profiles_list" });
     PROFILES_CACHE = Array.isArray(out.profiles) ? out.profiles : [];
@@ -876,7 +883,7 @@ async function unlockProfilesSession_(profileIdRaw, secretRaw, opts = {}){
     setLockedUI(false);
     if(backgroundLoad){
       renderProfilesBootLoadingState_("Actualizando perfiles…");
-      void loadProfiles(true, { skipOverlay:true }).catch(err=>{
+      void loadProfiles(true, { skipOverlay:true, preserveState:true }).catch(err=>{
         console.error("profiles background load error:", err);
         if(!silent) gateErr.textContent = err?.message || "No se pudieron cargar los perfiles.";
       });
