@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>AMARED Postres</title>
   <link rel="icon" href="assets/favicon.ico" type="image/x-icon">
-  <link rel="stylesheet" href="styles.css?v=20260327-loader-unified-v1" />
+  <link rel="stylesheet" href="styles.css?v=20260329-index-pickup-v10" />
 </head>
 <body>
   <div class="page">
@@ -42,7 +42,7 @@
             <div class="subtotalBox">
               <div class="summaryLabel">Subtotal</div>
               <div class="subtotalBig">$<span id="subtotal">0</span></div>
-              <div class="muted small">Domicilio: lo cubre el cliente. (Se debe confirmar mediante WhatsApp)</div>
+              <div class="muted small">Entrega: domicilio o recogida presencial, según la opción seleccionada.</div>
             </div>
           </div>
 
@@ -60,13 +60,14 @@
             <label class="label">Número de teléfono <span class="req">*</span></label>
             <input id="phone" class="input" type="tel" placeholder="Ej: 3001234567" />
 
-            <label class="label">Dirección <span class="req">*</span></label>
+            <label id="addressLabel" class="label">Dirección <span class="req">*</span></label>
             <input id="address" class="input" type="text" placeholder="Ej: Calle 10 # 5-20, Apto 301" />
+            <div id="addressHint" class="muted small addressHint hidden">Si eliges recogida presencial, este campo se completa automáticamente.</div>
 
             <div class="miniCard">
-              <div class="miniTitle">Ubicación (recomendado)</div>
+              <div class="miniTitle">Ubicación / entrega (recomendado)</div>
               <div class="muted small">
-                Para el domicilio, es ideal enviar <strong>link de Google Maps</strong> o <strong>ubicación por WhatsApp</strong>.
+                Para el domicilio, es ideal enviar <strong>link de Google Maps</strong> o <strong>ubicación por WhatsApp</strong>. También puedes seleccionar <strong>recogida presencial</strong>.
               </div>
 
               <div class="locationOptions">
@@ -90,6 +91,20 @@
 
                 <div id="waLocBlock" class="waLocBlock muted small">
                   Al abrir WhatsApp, comparte tu ubicación con el botón 📎 → <strong>Ubicación</strong>.
+                </div>
+
+                <label class="radioRow">
+                  <input type="radio" name="locMethod" value="pickup" />
+                  <span>Recoger el pedido de forma presencial</span>
+                </label>
+
+                <div id="pickupBlock" class="pickupBlock hidden">
+                  <div class="pickupBox">
+                    <div class="pickupTitle">Recogida presencial</div>
+                    <div class="muted small">Al elegir esta opción, no será necesario escribir dirección. El pedido quedará marcado como <strong>recogida presencial</strong>.</div>
+                    <a id="pickupVideoLink" class="pickupLink hidden" href="#" target="_blank" rel="noopener noreferrer">Ver video para llegar al punto de recogida</a>
+                    <div id="pickupVideoHint" class="muted small">Aquí puedes agregar el enlace del video para mostrarle al cliente cómo llegar al punto de recogida.</div>
+                  </div>
                 </div>
               </div>
             </div>
@@ -173,7 +188,7 @@
             <span class="muted">Subtotal</span>
             <strong class="modalSubtotal">$<span id="modalSubtotal">0</span></strong>
           </div>
-          <div class="muted small">Domicilio: lo cubre el cliente. (Se debe confirmar mediante WhatsApp)</div>
+          <div class="muted small">Entrega: domicilio o recogida presencial, según la opción seleccionada.</div>
         </div>
       </div>
 
@@ -309,7 +324,7 @@
       </div>
     </div>
   </div>
-<script src="app.js?v=20260327-loader-unified-v1" defer></script>
+<script src="app.js?v=20260329-index-pickup-v10" defer></script>
 
   <!-- MODAL ADMIN OPINIONES -->
   <div id="adminReviewsModal" class="modalOverlay hidden" aria-hidden="true">
