@@ -2230,15 +2230,15 @@ function renderCostsBootLoadingState_(msg){
     const lateMeta = el("lateMeta");
     if(lateMeta) lateMeta.textContent = "Consultando pedidos posteriores al corte…";
     const unitRows = el("unitCostRows");
-    if(unitRows && !String(unitRows.innerHTML||"").trim()) unitRows.innerHTML = `<tr><td colspan="2" class="muted small">Cargando costos por unidad…</td></tr>`;
+    if(unitRows && !String(unitRows.innerHTML||"").trim()) unitRows.innerHTML = `<tr><td colspan="2">${inlineLoadHtml("Cargando costos por unidad…", "Estamos consultando recetas e ingredientes para el cálculo.", true)}</td></tr>`;
     const dessertRows = el("dessertRows");
-    if(dessertRows && !String(dessertRows.innerHTML||"").trim()) dessertRows.innerHTML = `<tr><td colspan="2" class="muted small">Cargando postres confirmados…</td></tr>`;
+    if(dessertRows && !String(dessertRows.innerHTML||"").trim()) dessertRows.innerHTML = `<tr><td colspan="2">${inlineLoadHtml("Cargando postres confirmados…", "Estamos reuniendo los pedidos que entran en la ventana de producción.", true)}</td></tr>`;
     const lateRows = el("lateRows");
-    if(lateRows && !String(lateRows.innerHTML||"").trim()) lateRows.innerHTML = `<tr><td colspan="2" class="muted small">Cargando pedidos recientes…</td></tr>`;
+    if(lateRows && !String(lateRows.innerHTML||"").trim()) lateRows.innerHTML = `<tr><td colspan="2">${inlineLoadHtml("Cargando pedidos recientes…", "Estamos consultando los pedidos posteriores al corte de las 3:00 p. m.", true)}</td></tr>`;
     const groups = el("groups");
-    if(groups && !String(groups.innerHTML||"").trim()) groups.innerHTML = `<div class="muted small" style="padding:14px 8px;">Cargando ingredientes para compras…</div>`;
+    if(groups && !String(groups.innerHTML||"").trim()) groups.innerHTML = inlineLoadHtml("Cargando ingredientes para compras…", "Estamos calculando faltantes, inventario y cantidades mínimas sugeridas.");
     const costGroups = el("costGroups");
-    if(costGroups && !String(costGroups.innerHTML||"").trim()) costGroups.innerHTML = `<div class="muted small" style="padding:14px 8px;">Cargando listado administrativo…</div>`;
+    if(costGroups && !String(costGroups.innerHTML||"").trim()) costGroups.innerHTML = inlineLoadHtml("Cargando listado administrativo…", "Estamos organizando ingredientes, marcas, tiendas y costos unitarios.");
   }catch(_e){}
 }
 
