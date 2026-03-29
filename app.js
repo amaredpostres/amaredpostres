@@ -2,7 +2,7 @@
 const SUCCESS_MSG = "Pedido registrado ✅\n\nAhora falta confirmar el pago por WhatsApp.";
 const PICKUP_ADDRESS_TEXT = "Recogida presencial";
 const PICKUP_MAPS_TEXT = "RECOGIDA_PRESENCIAL";
-const PICKUP_VIDEO_URL = ""; // Agrega aquí el enlace del video para mostrar cómo llegar al punto de recogida.
+const PICKUP_VIDEO_URL = "https://drive.google.com/file/d/198VXUDfeyfouT7UauXBytVwyqbujxCn9/view?usp=sharing";
 
 const WHATSAPP_NUMBER = "573028473086";
 const ORDER_API_URL = "https://amared-orders.amaredpostres.workers.dev/";
@@ -160,7 +160,7 @@ function syncPickupVideoUI(){
     }
   }
   if(pickupVideoHint){
-    pickupVideoHint.classList.toggle("hidden", !!url);
+    pickupVideoHint.classList.remove("hidden");
   }
 }
 
@@ -493,9 +493,7 @@ function buildWhatsAppMessage(data, orderId) {
     lines.push("");
     lines.push(`Recogida: ${PICKUP_ADDRESS_TEXT}.`);
     if (pickupVideoUrl) {
-      lines.push(`Video para llegar al punto de recogida: ${pickupVideoUrl}`);
-    } else {
-      lines.push(`Video para llegar al punto de recogida: pendiente por compartir.`);
+      lines.push(`Guía de recogida presencial: ${pickupVideoUrl}`);
     }
   } else {
     lines.push(`Domicilio: lo cubre el cliente. (Se debe confirmar mediante WhatsApp)`);
