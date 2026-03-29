@@ -608,7 +608,7 @@ async function populateLoginProfiles_(force = false){
     if(!LOGIN_PROFILES.length) opts.push('<option value="">Sin perfiles habilitados</option>');
     sel.innerHTML = opts.join("");
   } finally {
-    if(!skipOverlay) hideLoading();
+    hideLoading();
   }
 }
 
@@ -634,6 +634,36 @@ function hideLoading(){
     // lb.style.zIndex = "";
   }
   hide(lb);
+}
+
+function inlineLoadHtml(title, sub, soft=false){
+  return `<div class="amInlineLoad${soft ? ' isSoft' : ''}"><div class="amInlineLoadSpin"></div><div class="amInlineLoadBody"><div class="amInlineLoadTitle">${escapeHtml(title || "Cargando…")}</div><div class="amInlineLoadSub">${escapeHtml(sub || "Un momento.")}</div></div></div>`;
+}
+
+function ensureCostsSyncBadge_(){
+  let badge = el("costsSyncBadge");
+  if(badge) return badge;
+  badge = document.createElement("div");
+  badge.id = "costsSyncBadge";
+  badge.className = "costsSyncBadge";
+  badge.setAttribute("aria-live", "polite");
+  badge.setAttribute("aria-atomic", "true");
+  badge.innerHTML = `<div class="costsSyncBadgeSpin"></div><div class="costsSyncBadgeBody"><div class="costsSyncBadgeTitle" id="costsSyncBadgeTitle">Cargando información…</div><div class="costsSyncBadgeSub" id="costsSyncBadgeSub">Puedes seguir usando la página mientras actualizamos los datos.</div></div>`;
+  document.body.appendChild(badge);
+  return badge;
+}
+function showCostsSyncBadge_(title, sub){
+  const badge = ensureCostsSyncBadge_();
+  const titleEl = badge.querySelector("#costsSyncBadgeTitle");
+  const subEl = badge.querySelector("#costsSyncBadgeSub");
+  if(titleEl) titleEl.textContent = title || "Cargando información…";
+  if(subEl) subEl.textContent = sub || "Puedes seguir usando la página mientras actualizamos los datos.";
+  badge.classList.add("isVisible");
+}
+function hideCostsSyncBadge_(){
+  const badge = el("costsSyncBadge");
+  if(!badge) return;
+  badge.classList.remove("isVisible");
 }
 
 // =============== Tabs ===============
@@ -2219,10 +2249,12 @@ async function loadAll(opts={}){
   renderCostGroupsIfOpen_();
   refreshBottom();
   saveCostsDataCache_();
+  hideCostsSyncBadge_();
 }
 
 function renderCostsBootLoadingState_(msg){
   try{
+    showCostsSyncBadge_(msg || "Cargando información…", "Puedes seguir usando la página mientras se actualizan las secciones.");
     const meta = el("meta");
     if(meta) meta.textContent = String(msg || "Cargando información…");
     const dessertsMeta = el("dessertsMeta");
@@ -2420,12 +2452,14 @@ async function doUnlock(isAuto=false, opts={}){
       renderCostsBootLoadingState_("Actualizando información de compras…");
       void loadAll().catch(err=>{
         console.error("costs background load error:", err);
+        hideCostsSyncBadge_();
         if(!silent && el("unlockMsg")) el("unlockMsg").textContent = (err && err.message) ? err.message : "No se pudieron cargar los datos.";
       });
     }else{
       await loadAll();
     }
   } catch(err){
+    hideCostsSyncBadge_();
     UNLOCKED_SECRET = "";
     UNLOCKED_PROFILE = { id:"", label:"", categories:[] };
     if(!silent && el("unlockMsg")) el("unlockMsg").textContent = (err && err.message) ? err.message : "No autorizado";
@@ -2441,6 +2475,7 @@ async function doUnlock(isAuto=false, opts={}){
 }
 
 function logout(){
+  hideCostsSyncBadge_();
   UNLOCKED_SECRET = "";
   UNLOCKED_PROFILE = { id:"", label:"", categories:[] };
   clearCostsDataCache_();
