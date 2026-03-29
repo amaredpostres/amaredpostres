@@ -1,5 +1,8 @@
 // =================== CONFIG ===================
 const SUCCESS_MSG = "Pedido registrado ✅\n\nAhora falta confirmar el pago por WhatsApp.";
+const PICKUP_ADDRESS_TEXT = "Recogida presencial";
+const PICKUP_MAPS_TEXT = "RECOGIDA_PRESENCIAL";
+const PICKUP_VIDEO_URL = ""; // Agrega aquí el enlace del video para mostrar cómo llegar al punto de recogida.
 
 const WHATSAPP_NUMBER = "573028473086";
 const ORDER_API_URL = "https://amared-orders.amaredpostres.workers.dev/";
@@ -71,6 +74,13 @@ let _loadingStartTs = 0;
 // Ubicación
 const mapsBlock = document.getElementById("mapsBlock");
 const waLocBlock = document.getElementById("waLocBlock");
+const pickupBlock = document.getElementById("pickupBlock");
+const pickupVideoLink = document.getElementById("pickupVideoLink");
+const pickupVideoHint = document.getElementById("pickupVideoHint");
+const addressInput = document.getElementById("address");
+const mapsInput = document.getElementById("maps");
+const addressLabel = document.getElementById("addressLabel");
+const addressHint = document.getElementById("addressHint");
 
 // Alerta central
 const alertOverlay = document.getElementById("alertOverlay");
@@ -134,6 +144,48 @@ function openGoogleMaps() {
   window.open("https://www.google.com/maps", "_blank", "noopener,noreferrer");
 }
 
+function getPickupVideoUrl(){
+  return String(PICKUP_VIDEO_URL || "").trim();
+}
+
+function syncPickupVideoUI(){
+  const url = getPickupVideoUrl();
+  if(pickupVideoLink){
+    if(url){
+      pickupVideoLink.href = url;
+      pickupVideoLink.classList.remove("hidden");
+    }else{
+      pickupVideoLink.href = "#";
+      pickupVideoLink.classList.add("hidden");
+    }
+  }
+  if(pickupVideoHint){
+    pickupVideoHint.classList.toggle("hidden", !!url);
+  }
+}
+
+function setAddressMode(isPickup){
+  if(!addressInput) return;
+  if(isPickup){
+    if(typeof addressInput.dataset.prevValue === "undefined") addressInput.dataset.prevValue = "";
+    if(addressInput.value !== PICKUP_ADDRESS_TEXT){
+      addressInput.dataset.prevValue = addressInput.value || "";
+    }
+    addressInput.value = PICKUP_ADDRESS_TEXT;
+    addressInput.disabled = true;
+    addressInput.placeholder = PICKUP_ADDRESS_TEXT;
+    if(addressLabel) addressLabel.innerHTML = 'Recogida <span class="req">*</span>';
+    if(addressHint) addressHint.classList.remove("hidden");
+  }else{
+    const prev = addressInput.dataset.prevValue || "";
+    if(addressInput.value === PICKUP_ADDRESS_TEXT) addressInput.value = prev;
+    addressInput.disabled = false;
+    addressInput.placeholder = "Ej: Calle 10 # 5-20, Apto 301";
+    if(addressLabel) addressLabel.innerHTML = 'Dirección <span class="req">*</span>';
+    if(addressHint) addressHint.classList.add("hidden");
+  }
+}
+
 function getSelectedLocationMethod() {
   const el = document.querySelector('input[name="locMethod"]:checked');
   return el ? el.value : "maps";
@@ -142,8 +194,24 @@ function getSelectedLocationMethod() {
 function syncLocationUI() {
   const method = getSelectedLocationMethod();
   const showMaps = method === "maps";
+  const showWhatsApp = method === "whatsapp";
+  const showPickup = method === "pickup";
+
   if (mapsBlock) mapsBlock.style.display = showMaps ? "" : "none";
-  if (waLocBlock) waLocBlock.style.display = showMaps ? "none" : "";
+  if (waLocBlock) waLocBlock.style.display = showWhatsApp ? "" : "none";
+  if (pickupBlock) pickupBlock.classList.toggle("hidden", !showPickup);
+
+  if(mapsInput && !showMaps){
+    if(mapsInput.value && !mapsInput.dataset.prevValue){
+      mapsInput.dataset.prevValue = mapsInput.value;
+    }
+    mapsInput.value = "";
+  }else if(mapsInput && showMaps && !mapsInput.value && mapsInput.dataset.prevValue){
+    mapsInput.value = mapsInput.dataset.prevValue;
+  }
+
+  setAddressMode(showPickup);
+  syncPickupVideoUI();
 }
 
 function isMobileUA(){
@@ -358,8 +426,9 @@ function updateSummary() {
 function getFormData() {
   const customer_name = document.getElementById("name").value.trim();
   const phone = document.getElementById("phone").value.trim();
-  const address_text = document.getElementById("address").value.trim();
-  const maps_link = document.getElementById("maps").value.trim();
+  const location_method = getSelectedLocationMethod(); // "maps" | "whatsapp" | "pickup"
+  const address_text = location_method === "pickup" ? PICKUP_ADDRESS_TEXT : document.getElementById("address").value.trim();
+  const maps_link = location_method === "pickup" ? PICKUP_MAPS_TEXT : document.getElementById("maps").value.trim();
   const notes = document.getElementById("notes").value.trim();
 
   const emailEl = document.getElementById("email");
@@ -367,8 +436,6 @@ function getFormData() {
 
   const waOptEl = document.getElementById("waOptIn");
   const wa_opt_in = waOptEl ? waOptEl.checked : false;
-
-  const location_method = getSelectedLocationMethod(); // "maps" | "whatsapp"
 
   const items = buildCartItems();
   const total_units = items.reduce((a, b) => a + b.qty, 0);
@@ -393,8 +460,9 @@ function validate(data) {
   if (data.items.length === 0) return "Selecciona al menos 1 postre.";
   if (!data.customer_name) return "Escribe tu nombre.";
   if (!data.phone) return "Escribe tu número.";
-  if (!data.address_text) return "Escribe tu dirección.";
   if (!isValidEmail(data.email)) return "El correo no parece válido. Revisa el formato (ej: correo@dominio.com).";
+
+  if (data.location_method !== "pickup" && !data.address_text) return "Escribe tu dirección.";
 
   if (data.location_method === "maps") {
     if (!data.maps_link) return "Pega el link de Google Maps o selecciona “Enviar ubicación desde WhatsApp”.";
@@ -407,6 +475,7 @@ function validate(data) {
 // =================== WHATSAPP MESSAGE ===================
 function buildWhatsAppMessage(data, orderId) {
   const lines = [];
+  const pickupVideoUrl = getPickupVideoUrl();
 
   lines.push(`Hola, mi nombre es ${data.customer_name} y mi número es ${data.phone}.`);
   lines.push("");
@@ -418,14 +487,26 @@ function buildWhatsAppMessage(data, orderId) {
 
   lines.push("");
   lines.push(`Subtotal: $${money(data.subtotal)}`);
-  lines.push(`Domicilio: lo cubre el cliente. (Se debe confirmar mediante WhatsApp)`);
-  lines.push("");
-  lines.push(`Dirección: ${data.address_text}`);
 
-  if (data.location_method === "maps") {
-    lines.push(`Ubicación (Google Maps): ${data.maps_link}`);
+  if (data.location_method === "pickup") {
+    lines.push(`Entrega: Recogida presencial.`);
+    lines.push("");
+    lines.push(`Recogida: ${PICKUP_ADDRESS_TEXT}.`);
+    if (pickupVideoUrl) {
+      lines.push(`Video para llegar al punto de recogida: ${pickupVideoUrl}`);
+    } else {
+      lines.push(`Video para llegar al punto de recogida: pendiente por compartir.`);
+    }
   } else {
-    lines.push(`Ubicación: Te la envío por WhatsApp (ubicación/punto).`);
+    lines.push(`Domicilio: lo cubre el cliente. (Se debe confirmar mediante WhatsApp)`);
+    lines.push("");
+    lines.push(`Dirección: ${data.address_text}`);
+
+    if (data.location_method === "maps") {
+      lines.push(`Ubicación (Google Maps): ${data.maps_link}`);
+    } else {
+      lines.push(`Ubicación: Te la envío por WhatsApp (ubicación/punto).`);
+    }
   }
 
   if (data.notes) lines.push(`Nota: ${data.notes}`);
@@ -526,6 +607,14 @@ function resetAll() {
 
   const rMaps = document.querySelector('input[name="locMethod"][value="maps"]');
   if (rMaps) rMaps.checked = true;
+  if(addressInput){
+    addressInput.disabled = false;
+    addressInput.placeholder = "Ej: Calle 10 # 5-20, Apto 301";
+    delete addressInput.dataset.prevValue;
+  }
+  if(mapsInput){
+    delete mapsInput.dataset.prevValue;
+  }
   syncLocationUI();
 
   pending = null;
