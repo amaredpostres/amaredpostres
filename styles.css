@@ -1272,3 +1272,6 @@ body{
   cursor:pointer;
 }
 .amModalCloseX:hover{ transform:translateY(-1px); }
+
+
+.amInlineLoadWrap{ width:100%; }
