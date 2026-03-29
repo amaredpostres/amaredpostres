@@ -1322,7 +1322,13 @@ histBack?.addEventListener("click", (ev)=>{ if(ev.target === histBack) closeHist
   try{
     const saved = loadSavedDeliverySession();
     const hubSaved = loadHubSessionCandidate();
-    loadProfilesOnStart().catch(()=>{});
+    const shouldShowProfilesBoot = !FROM_HUB && !saved && !(hubSaved?.data?.id && hubSaved?.data?.password);
+    if(shouldShowProfilesBoot){
+      showLoading("Cargando perfiles…","Buscando perfiles de envíos.");
+      await loadProfilesOnStart();
+    }else{
+      loadProfilesOnStart().catch(()=>{});
+    }
 
     if((saved?.data?.pin || saved?.data?.password) && saved?.data?.operator){
       if(chkRemember) chkRemember.checked = !!saved.remembered;
