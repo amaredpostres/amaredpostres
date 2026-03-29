@@ -586,6 +586,23 @@ tabProdToday?.addEventListener("click", ()=>setProdTab("today"));
     loading.setAttribute("aria-hidden","true");
     syncActionBarsVisibility();
   }
+  function inlineLoadHtml_(title, sub, soft=false){
+    return `<div class="amInlineLoad${soft ? ' isSoft' : ''}"><div class="amInlineLoadSpin"></div><div class="amInlineLoadBody"><div class="amInlineLoadTitle">${escapeHtml(title || "Cargando…")}</div><div class="amInlineLoadSub">${escapeHtml(sub || "Un momento.")}</div></div></div>`;
+  }
+  function renderKitchenBootLoadingState_(msg){
+    try{
+      if(todayWrap && !String(todayWrap.innerHTML||"").trim()) todayWrap.innerHTML = inlineLoadHtml_("Cargando producción…", "Estamos consultando los pedidos confirmados que entran en la ventana de hoy.");
+      if(backlogWrap && !String(backlogWrap.innerHTML||"").trim()) backlogWrap.innerHTML = inlineLoadHtml_("Cargando pendientes pagados…", "Estamos consultando los pedidos de días anteriores que aún no inician.", true);
+      if(tomorrowWrap && !String(tomorrowWrap.innerHTML||"").trim()) tomorrowWrap.innerHTML = inlineLoadHtml_("Cargando informativo de mañana…", "Estamos separando los pedidos posteriores al corte de las 3:00 p. m.", true);
+      if(inProgressWrapAll && !String(inProgressWrapAll.innerHTML||"").trim()) inProgressWrapAll.innerHTML = inlineLoadHtml_("Cargando lotes en proceso…", "Estamos consultando los lotes que todavía siguen activos.");
+      if(inProgressWrapToday && !String(inProgressWrapToday.innerHTML||"").trim()) inProgressWrapToday.innerHTML = inlineLoadHtml_("Cargando lotes del día…", "Estamos filtrando los lotes iniciados hoy.", true);
+      if(inProgressWrapOlder && !String(inProgressWrapOlder.innerHTML||"").trim()) inProgressWrapOlder.innerHTML = inlineLoadHtml_("Cargando lotes anteriores…", "Estamos revisando si quedaron lotes abiertos de días anteriores.", true);
+      if(doneWrap && !String(doneWrap.innerHTML||"").trim()){
+        doneWrap.innerHTML = `${inlineLoadHtml_("Cargando finalizados…", "Estamos consultando los pedidos listos en base de datos y el progreso local del operador.")}`;
+      }
+      if(loginErr && msg) loginErr.textContent = String(msg || "");
+    }catch(_e){}
+  }
 
   function ensureKitchenSyncBadge_(){
     let el = document.getElementById("kitchenSyncBadge");
@@ -1716,34 +1733,37 @@ function renderProfilesSelect(list, selectedId){
     if(selectedId) selOperator.value=selectedId;
   }
 
-  async function loadProfilesOnStart(force=false){
+  async function loadProfilesOnStart(force=false, opts={}){
+    const silent = !!opts?.silent;
     state.profilesLoaded=false;
     const cached = !force ? loadKitchenLoginCache_() : null;
     if(cached && cached.length){
       state.profiles = cached;
       state.profilesLoaded = true;
-      renderProfilesSelect(cached, "");
+      renderProfilesSelect(cached, opts?.selectedId || "");
       loginErr.textContent = "";
-      return;
+      return cached;
     }
     renderProfilesSelect([], "");
-    showLoading("Cargando perfiles…","Buscando perfiles de cocina.");
-    loginErr.textContent="";
+    if(!silent) showLoading("Cargando perfiles…","Buscando perfiles de cocina.");
+    else if(loginErr) loginErr.textContent = "Cargando perfiles…";
     try{
       const list = await fetchProfilesPublic();
       state.profiles = list;
       saveKitchenLoginCache_(list);
       state.profilesLoaded = true;
-      renderProfilesSelect(list, "");
+      renderProfilesSelect(list, opts?.selectedId || "");
       loginErr.textContent="";
+      return list;
     }catch(e){
       state.profilesLoaded=false;
       state.profiles=null;
       renderProfilesSelect([], "");
       loginErr.textContent = (e?.message || "No se pudieron cargar perfiles.")
         + " (Necesitas habilitar profiles_public_list en el Worker)";
+      throw e;
     }finally{
-      hideLoading();
+      if(!silent) hideLoading();
     }
   }
 
@@ -1947,8 +1967,8 @@ function renderProfilesSelect(list, selectedId){
             grid-template-areas: "text" "img" "nav" !important;
             grid-template-rows: minmax(0,1fr) auto auto !important;
           }
-          #amRecipeOverlayV6 .modalBox{ width:min(720px, calc(100vw - 18px)); max-height:min(94dvh, calc(100vh - 18px)); padding:14px; }
-          #amImgCol img{ max-height:min(34dvh, 260px); }
+          #amRecipeOverlayV6 .modalBox{ width:min(720px, calc(100vw - 18px)); max-height:min(94dvh, calc(100vh - 18px)); padding:12px; }
+          #amImgCol img{ max-height:min(28dvh, 220px); }
           #amNav{ justify-content:center !important; }
           #amNav .btn{ flex:1; max-width:260px; }
         }
@@ -1967,8 +1987,16 @@ function renderProfilesSelect(list, selectedId){
         /* Móvil: botones centrados (bloque centrado con espacio entre) */
         @media (max-width: 920px){
           #amNav{ justify-content:space-between; margin:0 auto; max-width:420px; }
-          #amNav .btn{ min-width:140px; flex:1; }
-          #amStepScroll{ max-height:none; flex:1 1 auto; }
+          #amNav .btn{ min-width:120px; flex:1; }
+          #amStepScroll{ max-height:none; flex:1 1 auto; padding-bottom:10px; }
+        }
+        @media (max-width: 520px){
+          #amRecipeOverlayV6 .modalBox{ width:calc(100vw - 12px); max-height:calc(100dvh - 12px); padding:10px; }
+          #amUnifiedCard{ gap:10px !important; }
+          #amImgCol img{ max-height:min(24dvh, 180px); border-radius:14px; }
+          #amStepScroll{ padding-right:2px; }
+          #amNav{ gap:8px; max-width:none; }
+          #amNav .btn{ min-width:0; padding-left:10px; padding-right:10px; font-size:13px; }
         }
 </style>
 
@@ -3244,6 +3272,7 @@ async function finalizePostreFromOverlay(){
     const silent = !!opts?.silent;
     const myNonce=state.refreshNonce;
     if(!silent) showLoading("Cargando…","Actualizando pedidos…");
+    else if(opts?.reason) renderKitchenBootLoadingState_(String(opts.reason || "Actualizando cocina…"));
     try{ await fetchRecipesPublic(); }catch(_e){}
     try{ await fetchCostsPublic(); }catch(_e){}
     try{
@@ -3394,47 +3423,48 @@ async function finalizePostreFromOverlay(){
     upgradeCostsModalChrome();
     normalizeDesktopActionOrder();
 
-    showLogin();
-    renderProfilesSelect([], "");
-    loginErr.textContent="Cargando perfiles…";
-    showLoading("Cargando…","Preparando perfiles…");
-
-    // 1) perfiles al iniciar
-    await loadProfilesOnStart();
-    hideLoading();
-
-    // 2) sesión previa (Hub o Recuérdame)
+    // 1) detectar sesión previa antes de bloquear la interfaz
     const hasPortalSession = loadSession();
     const remembered = hasPortalSession ? state.session : loadRememberSession();
+
     if(remembered){
-      inpPin.value = remembered.pin || "";
+      showApp();
+      renderProfilesSelect([], remembered.operatorId || "");
+      renderKitchenBootLoadingState_(hasPortalSession ? "Abriendo Cocina…" : "Validando sesión guardada…");
+      if(inpPin) inpPin.value = remembered.pin || "";
       if(chkRemember) chkRemember.checked = !hasPortalSession;
-      if(state.profilesLoaded){
-        renderProfilesSelect(state.profiles, remembered.operatorId);
-      }
       state.session = remembered;
-      try{
-        const cachedView = loadKitchenDataCache_();
-        if(cachedView){
-          showApp();
-          hydrateKitchenDataFromCache_(cachedView);
-          startWidgetTicker();
-        }else{
-          showLoading("Ingresando…", hasPortalSession ? "Abriendo Cocina…" : "Validando sesión guardada…");
+
+      const cachedView = loadKitchenDataCache_();
+      if(cachedView){
+        hydrateKitchenDataFromCache_(cachedView);
+        startWidgetTicker();
+      }
+
+      void loadProfilesOnStart(false, { silent:true, selectedId: remembered.operatorId }).catch(()=>{});
+      void (async ()=>{
+        try{
           const rememberedAuth = await validateProfileBestEffort(remembered.operatorId, remembered.pin);
           const rememberedCats = Array.isArray(rememberedAuth?.categories) ? rememberedAuth.categories.map(v => String(v || "").toLowerCase()) : [];
           if(!(rememberedCats.includes("admin") || rememberedCats.includes("kitchen"))) throw new Error("Perfil sin permisos para cocina.");
-          showApp();
-          await refresh();
+          await refresh({ silent:true, reason: cachedView ? "Actualizando cocina en segundo plano…" : "Cargando cocina…" });
           startWidgetTicker();
+        }catch(_e){
+          if(!hasPortalSession) clearRememberSession();
+          clearSession();
+          showLogin();
+          renderProfilesSelect([], "");
+          loginErr.textContent = "Ingresa de nuevo para continuar.";
+          try{ await loadProfilesOnStart(false, { silent:true }); }catch(_err){}
         }
-      }catch(_e){
-        if(!hasPortalSession) clearRememberSession();
-        clearSession();
-        showLogin();
-      }finally{
-        hideLoading();
-      }
+      })();
+    }else{
+      showLogin();
+      renderProfilesSelect([], "");
+      loginErr.textContent="Cargando perfiles…";
+      showLoading("Cargando…","Preparando perfiles…");
+      await loadProfilesOnStart();
+      hideLoading();
     }
 
 
