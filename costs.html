@@ -146,6 +146,42 @@
   .unitMobileOnly{ display:grid; }
 }
 
+
+/* ===== Aviso flotante de carga no bloqueante ===== */
+.costsSyncBadge{
+  position:fixed;
+  top:calc(env(safe-area-inset-top, 0px) + 86px);
+  right:14px;
+  z-index:9605;
+  display:flex;
+  align-items:center;
+  gap:12px;
+  max-width:min(380px, calc(100vw - 28px));
+  padding:12px 14px;
+  border-radius:18px;
+  border:1px solid rgba(64,17,2,.10);
+  background:rgba(255,255,255,.96);
+  box-shadow:0 16px 36px rgba(64,17,2,.16);
+  backdrop-filter: blur(10px);
+  pointer-events:none;
+  opacity:0;
+  transform:translateY(-8px);
+  transition:opacity .18s ease, transform .18s ease;
+}
+.costsSyncBadge.isVisible{ opacity:1; transform:translateY(0); }
+.costsSyncBadgeSpin{
+  width:18px; height:18px; border-radius:999px; flex:0 0 auto;
+  border:2px solid rgba(64,17,2,.18);
+  border-top-color:rgba(64,17,2,.70);
+  animation:amHubBootSpin 1s linear infinite;
+}
+.costsSyncBadgeBody{ min-width:0; }
+.costsSyncBadgeTitle{ font-size:13.5px; font-weight:950; line-height:1.15; color:#401102; }
+.costsSyncBadgeSub{ margin-top:4px; font-size:12px; line-height:1.28; font-weight:800; color:rgba(64,17,2,.68); }
+@media (max-width: 720px){
+  .costsSyncBadge{ left:12px; right:12px; top:calc(env(safe-area-inset-top, 0px) + 78px); max-width:none; padding:11px 12px; }
+}
+
 </style>
 <meta charset="utf-8"/>
 <meta content="width=device-width, initial-scale=1" name="viewport"/>
@@ -1051,7 +1087,7 @@ body.is-app .costsLoginTopbar{ display:none !important; }
     </div>
   </div>
 </div>
-<script src="kitchen-costs.js?v=20260329-async-sections-v4"></script>
-<script src="costs.js?v=20260329-async-sections-v4"></script>
+<script src="kitchen-costs.js?v=20260328-costs-loading-badge-v8"></script>
+<script src="costs.js?v=20260328-costs-loading-badge-v8"></script>
 </body>
 </html>
