@@ -3,189 +3,208 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="theme-color" content="#401102" />
   <title>AMARED Postres</title>
   <link rel="icon" href="assets/favicon.ico" type="image/x-icon">
-  <link rel="stylesheet" href="styles.css?v=20260329-index-refresh-v13" />
+  <link rel="preload" href="assets/Logo-Amared.svg" as="image" type="image/svg+xml">
+  <link rel="preload" href="assets/Logo-Isotipo-Amared.svg" as="image" type="image/svg+xml">
+  <link rel="stylesheet" href="styles.css?v=20260329-index-premium-v1" />
 </head>
-<body class="indexPage">
+<body>
   <div class="page">
     <header class="topbar">
       <div class="topbarInner">
-        <div class="brand">
+        <a class="brand brandLink" href="#inicio" aria-label="Ir al inicio AMARED">
           <img class="brandLogo" src="assets/Logo-Amared.svg" alt="AMARED Postres" />
-        </div>
+        </a>
+        <div class="topbarBadge">Pedidos directos</div>
       </div>
     </header>
 
-    <main class="container" id="inicio">
-      <section class="hero heroLite">
-        <div class="heroLiteCopy">
-          <span class="heroEyebrow">Pide en línea</span>
-          <h1 class="heroTitle">Elige tus postres y confirma tu pedido por WhatsApp.</h1>
-        </div>
-        <div class="heroPills" aria-label="Beneficios del pedido">
-          <span class="heroPill">Entrega o recogida</span>
-          <span class="heroPill">Pedido rápido</span>
+    <main class="container amIndex" id="inicio">
+      <section class="hero heroPremium">
+        <div class="heroShell">
+          <div class="heroCopy">
+            <div class="heroEyebrow"><span class="heroDot"></span> Experiencia AMARED</div>
+            <h1 class="heroTitle">Pide tu antojo en minutos.</h1>
+            <p class="heroSubtitle">Una página más limpia, fresca e intuitiva para elegir tus postres, registrar tu pedido y confirmar todo por WhatsApp.</p>
+
+            <div class="heroChips" aria-label="Beneficios del pedido">
+              <span class="heroChip">Pedido rápido</span>
+              <span class="heroChip">Domicilio o recogida</span>
+              <span class="heroChip">Confirmación por WhatsApp</span>
+            </div>
+          </div>
+
+          <aside class="heroSpotlight" aria-hidden="true">
+            <div class="spotlightGlass">
+              <div class="spotlightBadge">Premium • Minimal • Mobile first</div>
+              <div class="spotlightVisual">
+                <img class="spotlightIso" src="assets/Logo-Isotipo-Amared.svg" alt="" />
+              </div>
+              <p class="spotlightText">Menos ruido visual, más foco en elegir, revisar y confirmar el pedido.</p>
+            </div>
+          </aside>
         </div>
       </section>
 
-      <section class="layout orderLayout">
-        <section class="card catalogCard" id="postres">
-          <div class="sectionHead sectionHeadCompact">
+      <section class="layout layoutPremium">
+        <section class="card cardProducts" id="postres">
+          <div class="sectionHead">
             <div>
-              <p class="sectionEyebrow">Catálogo</p>
-              <h2 class="cardTitle">Elige tus favoritos</h2>
+              <div class="sectionKicker">Catálogo</div>
+              <h2 class="cardTitle">Elige tus postres</h2>
             </div>
-            <span class="sectionBadge">6 oz</span>
+            <div class="sectionPill">6 oz</div>
           </div>
           <div id="products" class="products"></div>
         </section>
 
-        <section class="card orderCardShell" id="pedido">
-          <div class="sectionHead sectionHeadCompact">
+        <section class="card cardOrder" id="pedido">
+          <div class="sectionHead orderHead">
             <div>
-              <p class="sectionEyebrow">Pedido</p>
-              <h2 class="cardTitle">Completa tus datos</h2>
+              <div class="sectionKicker">Pedido en tiempo real</div>
+              <h2 class="cardTitle">Tu pedido</h2>
             </div>
+            <div class="sectionPill sectionPillAccent">WhatsApp</div>
           </div>
 
-          <div class="summaryRow summaryRowModern">
-            <div class="summaryBox summaryBoxPrimary">
+          <div class="summaryRow">
+            <div class="summaryBox">
               <div class="summaryLabel">Unidades</div>
               <div id="totalUnits" class="summaryValue">0</div>
             </div>
 
-            <div class="subtotalBox subtotalBoxModern">
+            <div class="subtotalBox">
               <div class="summaryLabel">Subtotal</div>
               <div class="subtotalBig">$<span id="subtotal">0</span></div>
-              <div class="muted small">Entrega según la opción que elijas.</div>
+              <div class="muted small">La entrega se confirma según el método que elijas.</div>
             </div>
           </div>
 
-          <div class="miniCard cartPreviewCard">
-            <div class="miniTitle miniTitleCompact">
+          <div class="miniCard cartMiniCard">
+            <div class="miniCardTop">
               <img class="miniIcon" src="assets/Logo-Isotipo-Amared.svg" alt="AMARED icono" />
-              Resumen del pedido
+              <div class="miniTitle">Resumen del pedido</div>
             </div>
             <div id="cartSummary" class="cartSummary muted">Aún no has seleccionado postres.</div>
           </div>
 
-          <div class="form formMinimal">
-            <div class="hint compactHint">Los campos con <span class="req">*</span> son obligatorios.</div>
+          <div class="form">
+            <div class="hint">Completa solo lo esencial para registrar tu pedido. Los campos con <span class="req">*</span> son obligatorios.</div>
 
-            <div class="formSection">
-              <div class="formSectionTitle">Contacto</div>
-              <div class="fieldGrid fieldGridPrimary">
-                <div class="fieldItem fieldItemFull">
-                  <label class="label">Nombre <span class="req">*</span></label>
-                  <input id="name" class="input" type="text" placeholder="Ej: Cristian" />
-                </div>
-                <div class="fieldItem fieldItemFull">
-                  <label class="label">Número de teléfono <span class="req">*</span></label>
-                  <input id="phone" class="input" type="tel" placeholder="Ej: 3001234567" />
-                </div>
+            <div class="formGrid formGrid2">
+              <div class="field">
+                <label class="label" for="name">Nombre <span class="req">*</span></label>
+                <input id="name" class="input" type="text" placeholder="Ej: Cristian" />
+              </div>
+
+              <div class="field">
+                <label class="label" for="phone">Número de teléfono <span class="req">*</span></label>
+                <input id="phone" class="input" type="tel" placeholder="Ej: 3001234567" />
               </div>
             </div>
 
-            <div class="formSection">
-              <div class="formSectionTitle">Entrega</div>
-              <div class="deliverySelector" role="radiogroup" aria-label="Opciones de entrega">
-                <label class="deliveryOption">
+            <div class="field">
+              <label id="addressLabel" class="label" for="address">Dirección <span class="req">*</span></label>
+              <input id="address" class="input" type="text" placeholder="Ej: Calle 10 # 5-20, Apto 301" />
+              <div id="addressHint" class="muted small addressHint hidden">Si eliges recogida presencial, este campo se completa automáticamente.</div>
+            </div>
+
+            <div class="miniCard deliveryCard">
+              <div class="miniCardTop">
+                <div class="miniTitle">Entrega y ubicación</div>
+              </div>
+              <div class="muted small deliveryIntro">Selecciona la opción que mejor te funcione. Para domicilio recomendamos enviar el enlace de Google Maps.</div>
+
+              <div class="locationOptions deliveryTiles">
+                <label class="radioRow deliveryTile">
                   <input type="radio" name="locMethod" value="maps" checked />
-                  <span class="deliveryOptionBody">
-                    <span class="deliveryOptionTitle">Google Maps</span>
-                    <span class="deliveryOptionText">Comparte el enlace de tu ubicación.</span>
+                  <span class="deliveryTileCopy">
+                    <strong>Enviar link de Google Maps</strong>
+                    <small>La opción más precisa para ubicar tu domicilio.</small>
                   </span>
                 </label>
 
-                <label class="deliveryOption">
+                <div id="mapsBlock" class="mapsBlock tileDetail">
+                  <div class="mapsRow">
+                    <input id="maps" class="input" type="url" placeholder="Pega aquí el link de tu ubicación" />
+                    <button id="btnOpenMaps" class="btn secondary" type="button">Abrir Maps</button>
+                  </div>
+                  <div class="muted small">Abre Google Maps, toca compartir, copia el enlace y pégalo aquí.</div>
+                </div>
+
+                <label class="radioRow deliveryTile">
                   <input type="radio" name="locMethod" value="whatsapp" />
-                  <span class="deliveryOptionBody">
-                    <span class="deliveryOptionTitle">Ubicación por WhatsApp</span>
-                    <span class="deliveryOptionText">La compartes al abrir el chat.</span>
+                  <span class="deliveryTileCopy">
+                    <strong>Enviar ubicación por WhatsApp</strong>
+                    <small>Comparte tu ubicación cuando se abra el chat.</small>
                   </span>
                 </label>
 
-                <label class="deliveryOption">
+                <div id="waLocBlock" class="waLocBlock muted small tileDetail">
+                  Cuando se abra WhatsApp, usa el botón de adjuntar y comparte tu ubicación.
+                </div>
+
+                <label class="radioRow deliveryTile">
                   <input type="radio" name="locMethod" value="pickup" />
-                  <span class="deliveryOptionBody">
-                    <span class="deliveryOptionTitle">Recogida presencial</span>
-                    <span class="deliveryOptionText">Retira tu pedido en el punto indicado.</span>
+                  <span class="deliveryTileCopy">
+                    <strong>Recoger el pedido presencialmente</strong>
+                    <small>Tu pedido quedará marcado como recogida presencial.</small>
                   </span>
                 </label>
-              </div>
 
-              <div class="fieldGrid deliveryFields">
-                <div class="fieldItem fieldItemFull">
-                  <label id="addressLabel" class="label">Dirección <span class="req">*</span></label>
-                  <input id="address" class="input" type="text" placeholder="Ej: Calle 10 # 5-20, Apto 301" />
-                  <div id="addressHint" class="muted small addressHint hidden">Si eliges recogida presencial, este campo se completa automáticamente.</div>
-                </div>
-              </div>
-
-              <div id="mapsBlock" class="mapsBlock surfaceBlock">
-                <div class="mapsRow">
-                  <input id="maps" class="input" type="url" placeholder="Pega aquí tu enlace de Google Maps" />
-                  <button id="btnOpenMaps" class="btn secondary" type="button">Abrir Maps</button>
-                </div>
-                <div class="muted small">Abre Maps, copia el enlace y pégalo aquí.</div>
-              </div>
-
-              <div id="waLocBlock" class="waLocBlock surfaceBlock muted small">
-                Al abrir WhatsApp, comparte tu ubicación con el botón de adjuntar.
-              </div>
-
-              <div id="pickupBlock" class="pickupBlock hidden">
-                <div class="pickupBox surfaceBlock">
-                  <div class="pickupTitle">Recogida presencial</div>
-                  <div id="pickupVideoHint" class="muted small">Aquí encontrarás una guía breve para llegar al punto de entrega.</div>
-                  <a id="pickupVideoLink" class="pickupLink hidden" href="#" target="_blank" rel="noopener noreferrer">Ver guía visual</a>
+                <div id="pickupBlock" class="pickupBlock hidden tileDetail">
+                  <div class="pickupBox">
+                    <div class="pickupTitle">Recogida presencial</div>
+                    <div class="muted small">No será necesario escribir dirección. El pedido se registrará como <strong>recogida presencial</strong>.</div>
+                    <a id="pickupVideoLink" class="pickupLink hidden" href="#" target="_blank" rel="noopener noreferrer">Ver video para llegar al punto de recogida</a>
+                    <div id="pickupVideoHint" class="muted small">Aquí encontrarás una guía breve para llegar y reclamar tu pedido.</div>
+                  </div>
                 </div>
               </div>
             </div>
 
-            <div class="formSection">
-              <div class="formSectionTitle">Opcional</div>
-              <div class="fieldGrid fieldGridSecondary">
-                <div class="fieldItem fieldItemFull">
-                  <label class="label">Correo electrónico</label>
-                  <input id="email" class="input" type="email" placeholder="Ej: correo@dominio.com" />
-                </div>
-                <div class="fieldItem fieldItemFull">
-                  <label class="label">Notas</label>
-                  <textarea id="notes" class="textarea" rows="3" placeholder="Ej: Portería / Torre 2 / Sin canela"></textarea>
-                </div>
-              </div>
+            <div class="field">
+              <label class="label" for="email">Correo electrónico (opcional)</label>
+              <input id="email" class="input" type="email" placeholder="Ej: correo@dominio.com" />
+              <div class="muted small">Podrías recibir notificaciones del pedido o información relacionada con AMARED.</div>
             </div>
 
-            <label class="checkRow checkRowCompact">
+            <label class="checkRow">
               <input id="waOptIn" type="checkbox" />
               <span>Quiero recibir información de AMARED por WhatsApp.</span>
             </label>
 
-            <button id="btnWhatsApp" class="btn primary orderSubmitBtn" type="button">Confirmar pedido</button>
+            <div class="field">
+              <label class="label" for="notes">Notas (opcional)</label>
+              <textarea id="notes" class="textarea" rows="3" placeholder="Ej: Portería / Torre 2 / Sin canela"></textarea>
+            </div>
+
+            <button id="btnWhatsApp" class="btn primary btnOrderMain" type="button">Revisar y confirmar pedido</button>
+
             <div id="status" class="status"></div>
           </div>
         </section>
       </section>
 
-      <section class="card reviewsCardCompact" id="opiniones">
-        <div class="reviewsTop reviewsTopCompact">
+      <section class="card cardReviews" id="opiniones">
+        <div class="sectionHead reviewsHead">
           <div>
-            <p class="sectionEyebrow">Opiniones</p>
-            <h2 class="cardTitle" style="margin:0;">Lo que dicen nuestros clientes</h2>
+            <div class="sectionKicker">Confianza</div>
+            <h2 class="cardTitle">Opiniones</h2>
           </div>
           <button id="btnOpenReviewModal" class="btn secondary" type="button">Dejar mi opinión</button>
         </div>
 
-        <div class="reviewsSummary reviewsSummaryCompact">
-          <div class="reviewsAvg reviewsAvgCompact">
+        <div class="reviewsSummary">
+          <div class="reviewsAvg">
             <div class="avgNum" id="reviewsAvg">—</div>
             <div class="avgStars" id="reviewsAvgStars" aria-hidden="true"></div>
             <div class="muted small"><span id="reviewsCount">0</span> opiniones</div>
           </div>
-          <div class="muted small reviewsHint reviewsHintCompact">
-            Para dejar tu opinión, usa los últimos 4 dígitos del ID que recibiste por WhatsApp.
+          <div class="muted small reviewsHint">
+            Solo se publican opiniones de pedidos <b>entregados</b>. Para dejar tu opinión, revisa el mensaje de WhatsApp del pedido y escribe los <b>últimos 4 dígitos</b> del ID.
           </div>
         </div>
 
@@ -195,7 +214,7 @@
           <div class="muted small">Cargando opiniones...</div>
         </div>
 
-        <div class="row reviewsActionsRow" style="justify-content:flex-end; gap:10px; margin-top:12px; flex-wrap:wrap;">
+        <div class="row" style="justify-content:flex-end; gap:10px; margin-top:12px; flex-wrap:wrap;">
           <button id="btnMoreReviews" class="btn secondary" type="button">Ver más</button>
           <button id="btnAdminReviews" class="btn secondary hidden" type="button">Modo admin</button>
         </div>
@@ -222,7 +241,7 @@
             <span class="muted">Subtotal</span>
             <strong class="modalSubtotal">$<span id="modalSubtotal">0</span></strong>
           </div>
-          <div class="muted small">Entrega: domicilio o recogida presencial, según la opción seleccionada.</div>
+          <div class="muted small">La entrega se confirma según el método que seleccionaste.</div>
         </div>
       </div>
 
@@ -267,8 +286,7 @@
 
       <div class="modalBody">
         <div class="muted small">
-          Para validar tu pedido, revisa el mensaje de WhatsApp donde aparece el ID del pedido y escribe solo los últimos 4 dígitos.
-          Solo se aceptan opiniones de pedidos con estado <b>Enviado</b>.
+          Para validar tu pedido, revisa el mensaje de WhatsApp donde aparece el ID del pedido y escribe solo los <b>últimos 4 dígitos</b> (ej: <b>1234</b>). Solo se aceptan opiniones de pedidos con estado <b>Enviado</b>.
         </div>
 
         <div class="formRow" style="margin-top:12px;">
@@ -341,21 +359,21 @@
     </div>
   </div>
 
-  <div id="loadingOverlay" class="brandLoadingOverlay hidden" aria-hidden="true" style="display:none;">
-    <div class="brandLoadingCard" role="status" aria-live="polite">
-      <div class="brandLoadingMarkWrap" aria-hidden="true">
-        <span class="brandLoadingHalo"></span>
-        <span class="brandLoadingRing"></span>
-        <img class="brandLoadingIcon" src="assets/Logo-Isotipo-Amared.svg" alt="AMARED" />
+  <div id="loadingOverlay" class="amLoadingOverlay hidden" aria-hidden="true" style="display:none;">
+    <div class="amLoadingBackdropFx" aria-hidden="true"></div>
+    <div class="amLoadingCard" role="status" aria-live="polite">
+      <div class="amLoadingVisual" aria-hidden="true">
+        <div class="amLoadingHalo"></div>
+        <div class="amLoadingMark"></div>
       </div>
-      <img class="brandLoadingWordmark" src="assets/Logo-Amared.svg" alt="AMARED Postres" />
-      <div class="brandLoadingTrack" aria-hidden="true"><span class="brandLoadingBar"></span></div>
-      <div id="loadingText" class="brandLoadingTitle">Preparando tu pedido…</div>
-      <div id="loadingSub" class="brandLoadingSub">Estamos organizando todo para continuar.</div>
+      <div class="amLoadingCopy">
+        <div class="amLoadingKicker">AMARED está preparando tu pedido</div>
+        <div id="loadingText" class="amLoadingTitle">Cargando…</div>
+        <div id="loadingSub" class="amLoadingSub">Por favor espera.</div>
+      </div>
+      <div class="amLoadingTrack" aria-hidden="true"><span class="amLoadingBar"></span></div>
     </div>
   </div>
-
-  <script src="app.js?v=20260329-index-refresh-v13" defer></script>
 
   <div id="adminReviewsModal" class="modalOverlay hidden" aria-hidden="true">
     <div class="modal" style="max-width:520px;">
@@ -376,5 +394,7 @@
   </div>
 
   <button id="btnOpinionesTop" class="backToTop hidden" type="button" aria-label="Volver al inicio">↑ Inicio</button>
+
+  <script src="app.js?v=20260329-index-premium-v1" defer></script>
 </body>
 </html>
