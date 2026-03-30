@@ -1162,23 +1162,26 @@ function applyIndexAdminVisibility(){
   const enabled = shouldUseIndexAdminView();
   document.body.classList.toggle("is-index-admin-view", enabled);
   if(indexAdminSection) indexAdminSection.classList.toggle("hidden", !enabled);
-  if(btnAdminReviews && enabled) btnAdminReviews.classList.remove("hidden");
+  if(btnAdminReviews) btnAdminReviews.classList.add("hidden");
   if(orderSection) orderSection.classList.toggle("hidden", enabled);
   if(btnIndexAdminDesktopHub){
     const hasHub = hasHubSession() || /(^|\/)hub\.html(?:\?|$)/i.test(String(document.referrer || ""));
     btnIndexAdminDesktopHub.classList.toggle("hidden", !(enabled && hasHub));
     btnIndexAdminDesktopHub.classList.toggle("isVisible", !!(enabled && hasHub));
   }
+  let shouldRefreshReviews = false;
   if(enabled){
     renderIndexAdminPriceEditor();
     renderProducts();
     updateSummary();
   }
-  if(HUB_INDEX_ADMIN_SESSION?.password){
+  if(enabled && HUB_INDEX_ADMIN_SESSION?.password){
     if(adminPinReviews) adminPinReviews.value = String(HUB_INDEX_ADMIN_SESSION.password || "");
+    if(!_isAdminReviews) shouldRefreshReviews = true;
     _isAdminReviews = true;
   }
   syncIndexAdminMobileBar();
+  if(shouldRefreshReviews) fetchReviews();
 }
 function syncIndexAdminMobileBar(){
   if(!indexAdminMobileBar) return;
@@ -1525,8 +1528,7 @@ const adminReviewsErr = document.getElementById("adminReviewsErr");
 let _isAdminReviews = false;
 
 function showAdminButtonIfNeeded(){
-  const enabled = shouldUseIndexAdminView();
-  if(btnAdminReviews && enabled) btnAdminReviews.classList.remove("hidden");
+  if(btnAdminReviews) btnAdminReviews.classList.add("hidden");
 }
 function showModalEl(el){ if(!el) return; el.classList.remove("hidden"); el.setAttribute("aria-hidden","false"); syncIndexAdminMobileBar(); }
 function hideModalEl(el){ if(!el) return; el.classList.add("hidden"); el.setAttribute("aria-hidden","true"); syncIndexAdminMobileBar(); }
