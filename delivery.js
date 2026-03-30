@@ -172,10 +172,11 @@ function syncDeliveryActionBars(){
   const appVisible = isVisibleEl(panelView);
   const overlay = hasDeliveryOverlayOpen();
   const desktopDisplay = (appVisible && !mobile) ? 'inline-flex' : 'none';
+  const desktopLogoutDisplay = (appVisible && !mobile && !hasHubAccess_()) ? 'inline-flex' : 'none';
 
   setDisplayIfChanged(btnRefreshTop, desktopDisplay);
   setDisplayIfChanged(btnHistory, desktopDisplay);
-  setDisplayIfChanged(btnLogoutTop, desktopDisplay);
+  setDisplayIfChanged(btnLogoutTop, desktopLogoutDisplay);
 
   const hubUi = ensureDeliveryHubReturnUI();
   if(hubUi?.btn) setDisplayIfChanged(hubUi.btn, desktopDisplay);
