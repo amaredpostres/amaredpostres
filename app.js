@@ -1123,6 +1123,7 @@ const indexAdminMobileBar = document.getElementById("indexAdminMobileBar");
 const btnIndexAdminBarHub = document.getElementById("btnIndexAdminBarHub");
 const btnIndexAdminBarOpiniones = document.getElementById("btnIndexAdminBarOpiniones");
 const btnIndexAdminBarTools = document.getElementById("btnIndexAdminBarTools");
+const btnIndexAdminDesktopHub = document.getElementById("btnIndexAdminDesktopHub");
 const orderSection = document.getElementById("pedido");
 
 const reviewModal = document.getElementById("reviewModal");
@@ -1163,6 +1164,11 @@ function applyIndexAdminVisibility(){
   if(indexAdminSection) indexAdminSection.classList.toggle("hidden", !enabled);
   if(btnAdminReviews && enabled) btnAdminReviews.classList.remove("hidden");
   if(orderSection) orderSection.classList.toggle("hidden", enabled);
+  if(btnIndexAdminDesktopHub){
+    const hasHub = hasHubSession() || /(^|\/)hub\.html(?:\?|$)/i.test(String(document.referrer || ""));
+    btnIndexAdminDesktopHub.classList.toggle("hidden", !(enabled && hasHub));
+    btnIndexAdminDesktopHub.classList.toggle("isVisible", !!(enabled && hasHub));
+  }
   if(enabled){
     renderIndexAdminPriceEditor();
     renderProducts();
@@ -1183,10 +1189,12 @@ function syncIndexAdminMobileBar(){
   indexAdminMobileBar.classList.toggle("isVisible", !blocked);
   if(btnIndexAdminBarHub){
     const hasHub = hasHubSession() || /(^|\/)hub\.html(?:\?|$)/i.test(String(document.referrer || ""));
-    btnIndexAdminBarHub.querySelector(".txt").textContent = hasHub ? "Panel" : "Inicio";
-    btnIndexAdminBarHub.querySelector(".ico").textContent = hasHub ? "⌂" : "↑";
+    const ico = btnIndexAdminBarHub.querySelector(".ico");
+    if(ico) ico.textContent = hasHub ? "⌂" : "↑";
     btnIndexAdminBarHub.setAttribute("aria-label", hasHub ? "Volver al panel" : "Volver arriba");
   }
+  btnIndexAdminBarOpiniones?.setAttribute("aria-label", "Ir a opiniones");
+  btnIndexAdminBarTools?.setAttribute("aria-label", "Ir a precios");
 }
 
 function saveIndexAdminPrices(){
@@ -1535,9 +1543,7 @@ function timeAgo(dateStr){
   const hr = Math.floor(min/60);
   if(hr < 24) return `Hace ${hr} hora${hr===1?"":"s"}`;
   const day = Math.floor(hr/24);
-  if(day < 7) return `Hace ${day} día${day===1?"":"s"}`;
-  const wk = Math.floor(day/7);
-  if(wk < 4) return `Hace ${wk} semana${wk===1?"":"s"}`;
+  if(day < 30) return `Hace ${day} día${day===1?"":"s"}`;
   const mo = Math.floor(day/30);
   if(mo < 12) return `Hace ${mo} mes${mo===1?"":"es"}`;
   const yr = Math.floor(day/365);
@@ -1571,6 +1577,7 @@ btnIndexAdminBarHub?.addEventListener("click", ()=>{
   if(hasHub) goHubFromIndexAdmin();
   else window.scrollTo({ top: 0, behavior: "smooth" });
 });
+btnIndexAdminDesktopHub?.addEventListener("click", ()=> goHubFromIndexAdmin());
 btnIndexAdminBarOpiniones?.addEventListener("click", ()=>{ opinionesSection?.scrollIntoView?.({ behavior:"smooth", block:"start" }); });
 btnIndexAdminBarTools?.addEventListener("click", ()=>{ indexAdminSection?.scrollIntoView?.({ behavior:"smooth", block:"start" }); });
 window.addEventListener("resize", syncIndexAdminMobileBar);
