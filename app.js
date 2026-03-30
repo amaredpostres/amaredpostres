@@ -389,7 +389,7 @@ function createProductCard(p) {
 
   div.innerHTML = `
     <div class="productMediaWrap">
-      <img class="productImg" src="${p.img}" alt="${p.alt || p.name}" loading="lazy" decoding="async" />
+      <img class="productImg" src="${p.img}" alt="${p.alt || p.name}" width="1200" height="675" loading="eager" decoding="async" fetchpriority="high" draggable="false" />
     </div>
 
     <div class="productInfo">
