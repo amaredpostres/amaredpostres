@@ -10,7 +10,7 @@ const WHATSAPP_NUMBER = "573028473086";
 const ORDER_API_URL = "https://amared-orders.amaredpostres.workers.dev/";
 
 // 👇 Asegúrate que estos nombres coincidan con tus archivos en /assets/
-const PRODUCTS = [
+const DEFAULT_PRODUCTS = [
   {
     id: "mousse_maracuya",
     name: "Mousse de Maracuyá",
@@ -36,7 +36,60 @@ const PRODUCTS = [
     alt: "Arroz con leche"
   }, Desactivado Temporalmente.*/
 ];
+const PRODUCT_PRICES_STORAGE_KEY = "AMARED_PRODUCT_PRICES_V1";
+const HUB_SESSION_KEY = "AMARED_HUB_SESSION_V1";
+const HUB_REMEMBER_KEY = "AMARED_HUB_REMEMBER_V1";
+const INDEX_ADMIN_ROLE_TAGS = new Set(["index_admin","indexadmin","pedidosweb","weborders","admin"]);
+const PRODUCTS = DEFAULT_PRODUCTS.map(p => ({ ...p }));
 
+function normalizeCats(v){
+  if(Array.isArray(v)) return v.map(x => String(x || "").trim().toLowerCase()).filter(Boolean);
+  return String(v || "").split(",").map(s => s.trim().toLowerCase()).filter(Boolean);
+}
+function safeParseJson(raw){
+  try{ return JSON.parse(raw); }catch(_e){ return null; }
+}
+function loadProductPriceOverrides(){
+  try{
+    const parsed = safeParseJson(localStorage.getItem(PRODUCT_PRICES_STORAGE_KEY));
+    return (parsed && typeof parsed === "object") ? parsed : {};
+  }catch(_e){ return {}; }
+}
+function saveProductPriceOverrides(map){
+  try{ localStorage.setItem(PRODUCT_PRICES_STORAGE_KEY, JSON.stringify(map || {})); }catch(_e){}
+}
+function clearProductPriceOverrides(){
+  try{ localStorage.removeItem(PRODUCT_PRICES_STORAGE_KEY); }catch(_e){}
+}
+function applyStoredProductPrices(){
+  const overrides = loadProductPriceOverrides();
+  PRODUCTS.forEach((product, idx) => {
+    const fallback = Number(DEFAULT_PRODUCTS[idx]?.price || product.price || 0);
+    const next = Number(overrides?.[product.id]);
+    product.price = Number.isFinite(next) && next > 0 ? Math.round(next) : fallback;
+  });
+}
+function loadHubIndexAdminSession(){
+  const candidates = [];
+  try{ candidates.push(sessionStorage.getItem(HUB_SESSION_KEY)); }catch(_e){}
+  try{ candidates.push(localStorage.getItem(HUB_REMEMBER_KEY)); }catch(_e){}
+  for(const raw of candidates){
+    const data = safeParseJson(raw);
+    if(!data?.password) continue;
+    const cats = normalizeCats(data.categories || []);
+    if(cats.some(cat => INDEX_ADMIN_ROLE_TAGS.has(cat))) return data;
+  }
+  return null;
+}
+function isIndexAdminMode(){
+  try{
+    const sp = new URLSearchParams(location.search);
+    return sp.get("admin") === "1";
+  }catch(_e){ return false; }
+}
+
+applyStoredProductPrices();
+const HUB_INDEX_ADMIN_SESSION = loadHubIndexAdminSession();
 const cart = new Map(PRODUCTS.map(p => [p.id, 0]));
 
 // =================== DOM ===================
@@ -68,12 +121,12 @@ const btnOpenChat = document.getElementById("btnOpenChat");
 const modalStatus = document.getElementById("modalStatus");
 
 // Loading overlay
-const loadingOverlay = document.getElementById("loadingOverlay");
-const loadingText = document.getElementById("loadingText");
-const loadingSub = document.getElementById("loadingSub");
-const loadingBar = document.getElementById("loadingBar");
-const loadingPercent = document.getElementById("loadingPercent");
-const loadingStep = document.getElementById("loadingStep");
+const loadingOverlay = document.getElementById("orderLoadingOverlay");
+const loadingText = document.getElementById("orderLoadingText");
+const loadingSub = document.getElementById("orderLoadingSub");
+const loadingBar = document.getElementById("orderLoadingBar");
+const loadingPercent = document.getElementById("orderLoadingPercent");
+const loadingStep = document.getElementById("orderLoadingStep");
 let _loadingStartTs = 0;
 let _loadingTimer = null;
 let _loadingProgress = 0;
@@ -1036,6 +1089,12 @@ const reviewsAvgStarsEl = document.getElementById("reviewsAvgStars");
 const btnOpenReviewModal = document.getElementById("btnOpenReviewModal");
 const opinionesSection = document.getElementById("opiniones");
 const btnOpinionesTop = document.getElementById("btnOpinionesTop");
+const indexAdminSection = document.getElementById("indexAdminSection");
+const indexAdminPriceList = document.getElementById("indexAdminPriceList");
+const btnIndexAdminSavePrices = document.getElementById("btnIndexAdminSavePrices");
+const btnIndexAdminResetPrices = document.getElementById("btnIndexAdminResetPrices");
+const btnIndexAdminGoOpiniones = document.getElementById("btnIndexAdminGoOpiniones");
+const indexAdminStatus = document.getElementById("indexAdminStatus");
 
 const reviewModal = document.getElementById("reviewModal");
 const btnCloseReview = document.getElementById("btnCloseReview");
@@ -1047,6 +1106,69 @@ const reviewCharCount = document.getElementById("reviewCharCount");
 const reviewStarsRow = document.getElementById("reviewStars");
 
 let _reviewRating = 0;
+
+function setIndexAdminStatus(msg, isError=false){
+  if(!indexAdminStatus) return;
+  indexAdminStatus.textContent = String(msg || "");
+  indexAdminStatus.style.color = isError ? "#b00020" : "rgba(64,17,2,.72)";
+}
+
+function renderIndexAdminPriceEditor(){
+  if(!indexAdminPriceList) return;
+  indexAdminPriceList.innerHTML = PRODUCTS.map(product => `
+    <div class="indexAdminPriceRow">
+      <div>
+        <div class="indexAdminPriceName">${escapeHtml(product.name)}</div>
+        <div class="indexAdminPriceHint">Precio visible actualmente: $${money(product.price)}</div>
+      </div>
+      <label class="indexAdminField">
+        <input class="input" type="number" min="0" step="100" data-price-id="${escapeHtml(product.id)}" value="${Number(product.price || 0)}" />
+      </label>
+    </div>
+  `).join("");
+}
+
+function applyIndexAdminVisibility(){
+  const enabled = isIndexAdminMode() || !!HUB_INDEX_ADMIN_SESSION;
+  if(indexAdminSection) indexAdminSection.classList.toggle("hidden", !enabled);
+  if(btnAdminReviews && enabled) btnAdminReviews.classList.remove("hidden");
+  if(enabled) renderIndexAdminPriceEditor();
+  if(HUB_INDEX_ADMIN_SESSION?.password){
+    if(adminPinReviews) adminPinReviews.value = String(HUB_INDEX_ADMIN_SESSION.password || "");
+    _isAdminReviews = true;
+  }
+}
+
+function saveIndexAdminPrices(){
+  if(!indexAdminPriceList) return;
+  const inputs = Array.from(indexAdminPriceList.querySelectorAll("[data-price-id]"));
+  const nextMap = {};
+  for(const input of inputs){
+    const id = String(input.getAttribute("data-price-id") || "").trim();
+    const value = Number(input.value || 0);
+    if(!id || !Number.isFinite(value) || value <= 0){
+      setIndexAdminStatus("Revisa los precios antes de guardar. Todos deben ser mayores a 0.", true);
+      input.focus();
+      return;
+    }
+    nextMap[id] = Math.round(value);
+  }
+  saveProductPriceOverrides(nextMap);
+  applyStoredProductPrices();
+  renderProducts();
+  updateSummary();
+  renderIndexAdminPriceEditor();
+  setIndexAdminStatus("Precios actualizados correctamente.");
+}
+
+function resetIndexAdminPrices(){
+  clearProductPriceOverrides();
+  applyStoredProductPrices();
+  renderProducts();
+  updateSummary();
+  renderIndexAdminPriceEditor();
+  setIndexAdminStatus("Se restablecieron los precios originales.");
+}
 
 function showReviewModal(){
   if(!reviewModal) return;
@@ -1342,14 +1464,9 @@ const adminPinReviews = document.getElementById("adminPinReviews");
 const adminReviewsErr = document.getElementById("adminReviewsErr");
 let _isAdminReviews = false;
 
-function isAdminParam(){
-  try{
-    const sp = new URLSearchParams(location.search);
-    return sp.get("admin") === "1";
-  }catch(_e){ return false; }
-}
 function showAdminButtonIfNeeded(){
-  if(btnAdminReviews && isAdminParam()) btnAdminReviews.classList.remove("hidden");
+  const enabled = isIndexAdminMode() || !!HUB_INDEX_ADMIN_SESSION;
+  if(btnAdminReviews && enabled) btnAdminReviews.classList.remove("hidden");
 }
 function showModalEl(el){ if(!el) return; el.classList.remove("hidden"); el.setAttribute("aria-hidden","false"); }
 function hideModalEl(el){ if(!el) return; el.classList.add("hidden"); el.setAttribute("aria-hidden","true"); }
@@ -1391,14 +1508,29 @@ btnMoreReviews?.addEventListener("click", async () => {
 if(reviewsListEl) fetchReviews();
 
 showAdminButtonIfNeeded();
+applyIndexAdminVisibility();
+
+btnIndexAdminSavePrices?.addEventListener("click", saveIndexAdminPrices);
+btnIndexAdminResetPrices?.addEventListener("click", resetIndexAdminPrices);
+btnIndexAdminGoOpiniones?.addEventListener("click", ()=>{ opinionesSection?.scrollIntoView?.({ behavior:"smooth", block:"start" }); });
 
 btnAdminReviews?.addEventListener("click", () => {
-  if(!isAdminParam()) return;
+  const enabled = isIndexAdminMode() || !!HUB_INDEX_ADMIN_SESSION;
+  if(!enabled) return;
+  if(_isAdminReviews){
+    opinionesSection?.scrollIntoView?.({ behavior:"smooth", block:"start" });
+    return;
+  }
   if(adminReviewsErr) adminReviewsErr.textContent = "";
   showModalEl(adminReviewsModal);
 });
 btnCloseAdminReviewsModal?.addEventListener("click", ()=> hideModalEl(adminReviewsModal));
 adminReviewsModal?.addEventListener("click", (e)=>{ if(e.target===adminReviewsModal) hideModalEl(adminReviewsModal); });
+
+if(HUB_INDEX_ADMIN_SESSION?.password){
+  _isAdminReviews = true;
+  if(adminPinReviews) adminPinReviews.value = String(HUB_INDEX_ADMIN_SESSION.password || "");
+}
 
 btnAdminLoginReviews?.addEventListener("click", async ()=> {
   if(adminReviewsErr) adminReviewsErr.textContent = "";
