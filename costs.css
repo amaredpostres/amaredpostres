@@ -1,8 +1,10 @@
+/* ==============================
+   Fondo unificado de Costs
+   - Usa la misma base visual de las otras páginas AMARED
+   - Elimina cualquier capa extra que genere el “bloque” más oscuro
+   ============================== */
 :root{
   --bg: #fff8f3;
-  --costs-bg-base: linear-gradient(180deg, #fff9f5 0%, #fff6f0 28%, #fff7f2 58%, #fffaf7 100%);
-  --costs-bg-glow-left: radial-gradient(1100px 520px at 18% 5%, rgba(242,91,143,.14), transparent 62%);
-  --costs-bg-glow-right: radial-gradient(1100px 520px at 82% 8%, rgba(246,186,96,.16), transparent 62%);
 }
 
 html,body{ min-height:100%; }
@@ -11,56 +13,51 @@ body.costsPage{
   position: relative;
   overflow-x: hidden;
   color: var(--choco);
+  background: linear-gradient(180deg, #fff9f5 0%, #fff6f0 28%, #fff7f2 58%, #fffaf7 100%) !important;
+}
+
+body.costsPage::before{
+  content: "" !important;
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  display: block !important;
   background:
-    var(--costs-bg-glow-left),
-    var(--costs-bg-glow-right),
-    var(--costs-bg-base) !important;
-  background-repeat: no-repeat !important;
-  background-size: 100% 100%, 100% 100%, 100% 100% !important;
-  background-attachment: scroll, scroll, scroll !important;
+    radial-gradient(52rem 24rem at 8% 6%, rgba(242,91,143,.14), transparent 60%),
+    radial-gradient(48rem 24rem at 94% 8%, rgba(246,186,96,.18), transparent 58%),
+    radial-gradient(40rem 28rem at 50% 92%, rgba(242,91,143,.08), transparent 62%) !important;
 }
 
-body.costsPage::before,
-.costsPage #appRoot::before,
-.costsPage main.container::before{
-  content: none !important;
-  display: none !important;
-  background: none !important;
-}
-
-.costsPage #appRoot,
 .costsPage .page,
+.costsPage .topbar,
+.costsPage #appRoot,
 .costsPage main.container,
 .costsPage .container,
 .costsPage #viewPurchases,
 .costsPage #viewRecipes{
+  position: relative;
+  z-index: 1;
   background: transparent !important;
   background-image: none !important;
   box-shadow: none !important;
 }
 
-.costsPage #appRoot,
-.costsPage main.container,
-.costsPage #viewPurchases,
-.costsPage #viewRecipes{
-  position: relative;
-  isolation: isolate;
+.costsPage main.container::before,
+.costsPage #appRoot::before,
+.costsPage #viewPurchases::before,
+.costsPage #viewRecipes::before{
+  content: none !important;
+  display: none !important;
+  background: none !important;
 }
 
 @media (max-width: 860px){
-  :root{
-    --costs-bg-glow-left: radial-gradient(560px 260px at 14% 4%, rgba(242,91,143,.13), transparent 58%);
-    --costs-bg-glow-right: radial-gradient(560px 260px at 86% 6%, rgba(246,186,96,.15), transparent 56%);
-  }
-
-  body.costsPage{
+  body.costsPage::before{
     background:
-      var(--costs-bg-glow-left),
-      var(--costs-bg-glow-right),
-      var(--costs-bg-base) !important;
-    background-repeat: no-repeat !important;
-    background-size: 100% 100%, 100% 100%, 100% 100% !important;
-    background-attachment: scroll, scroll, scroll !important;
+      radial-gradient(34rem 16rem at 10% 5%, rgba(242,91,143,.13), transparent 58%),
+      radial-gradient(32rem 16rem at 92% 7%, rgba(246,186,96,.15), transparent 56%),
+      radial-gradient(24rem 18rem at 50% 100%, rgba(242,91,143,.07), transparent 62%) !important;
   }
 }
 
