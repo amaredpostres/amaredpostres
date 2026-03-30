@@ -40,10 +40,15 @@ const HUB_MODULE_PREFETCH = {
     { href:"profiles.html", as:"document" },
     { href:"profiles.js?v=20260329-async-sections-v4", as:"script" },
   ],
+  index_admin: [
+    { href:"index.html?admin=1", as:"document" },
+    { href:"app.js?v=20260330-index-admin-v4", as:"script" },
+  ],
 };
 
 const MODULES = [
   { key:"payments", title:"Pagos", desc:"Confirma pagos y revisa pedidos pendientes.", href:"admin.html", icon:"💳", allow:["payments","pago","admin"] },
+  { key:"index_admin", title:"Página de pedidos", desc:"Responde opiniones y ajusta los precios visibles del catálogo web.", href:"index.html?admin=1", icon:"🛍️", allow:["index_admin","indexadmin","pedidosweb","weborders","admin"] },
   { key:"costs", title:"Compras y Recetas", desc:"Consulta compras, costos y recetas del día.", href:"costs.html", icon:"🧾", allow:["costs","purchases","admin"] },
   { key:"kitchen", title:"Cocina", desc:"Gestiona la preparación y el avance de los pedidos.", href:"kitchen.html", icon:"🍰", allow:["kitchen","admin"] },
   { key:"delivery", title:"Envíos", desc:"Revisa pedidos listos y confirma entregas.", href:"delivery.html", icon:"📦", allow:["delivery","admin"] },
@@ -449,7 +454,8 @@ function openModule(key){
   showLoading(`Abriendo ${mod.title}…`, 'Preparando acceso a la página seleccionada.');
   setHubGridBusy(true);
   window.setTimeout(()=>{
-    window.location.href = `${mod.href}?hub=1`;
+    const sep = String(mod.href || '').includes('?') ? '&' : '?';
+    window.location.href = `${mod.href}${sep}hub=1`;
   }, 90);
 }
 
