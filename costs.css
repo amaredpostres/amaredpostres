@@ -2,20 +2,32 @@
   --bg: #fff8f3;
 }
 
-html,body{ min-height:100%; }
+html,body{ min-height:100%; background-color: var(--bg); }
 
 body.costsPage{
-  background-color: #fff8f3;
-  background-image:
-    radial-gradient(1120px 560px at 12% 0%, rgba(242,91,143,.15), transparent 62%),
-    radial-gradient(1080px 560px at 88% 4%, rgba(246,186,96,.17), transparent 60%),
-    radial-gradient(1180px 760px at 16% 54%, rgba(242,91,143,.08), transparent 70%),
-    radial-gradient(1180px 760px at 84% 86%, rgba(246,186,96,.10), transparent 72%),
-    linear-gradient(180deg, #fffaf5 0%, #fef6ef 48%, #fff9f5 100%);
+  position: relative;
+  min-height: 100vh;
+  overflow-x: hidden;
+  background: linear-gradient(180deg, #fff8f3 0%, #fef6ef 42%, #fff8f2 100%);
   background-repeat: no-repeat;
-  background-attachment: scroll;
+  background-attachment: fixed;
   color: var(--choco);
 }
+
+body.costsPage::before{
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: -1;
+  background:
+    radial-gradient(1200px 560px at 10% 2%, rgba(242,91,143,.16), transparent 60%),
+    radial-gradient(1200px 560px at 90% 4%, rgba(246,186,96,.18), transparent 60%),
+    radial-gradient(1100px 620px at 15% 56%, rgba(242,91,143,.10), transparent 68%),
+    radial-gradient(1100px 620px at 85% 78%, rgba(246,186,96,.12), transparent 68%);
+}
+
+body.costsPage > *{ position: relative; z-index: 1; }
 
 /* ==============================
    PURCHASES.CSS - UX Mejorado
@@ -27,15 +39,6 @@ body.costsPage{
 .pTopBtns{ display:flex; gap:10px; flex-wrap:wrap; align-items:center; }
 @media (max-width:560px){
   .pTopBtns .btn{ padding:10px 10px; font-size:14px; }
-}
-
-@media (min-width: 861px){
-  .costsPage .unitDesktopOnly{ display:block !important; }
-  .costsPage .unitMobileOnly{ display:none !important; }
-}
-@media (max-width: 860px){
-  .costsPage .unitDesktopOnly{ display:none !important; }
-  .costsPage .unitMobileOnly{ display:grid !important; }
 }
 
 .pMetaTitle{ font-weight:950; margin-bottom:8px; }
