@@ -2470,3 +2470,106 @@ body::before{
   .amLoadingTitle{ font-size: 22px; }
   .amLoadingSub{ font-size: 14px; }
 }
+
+
+/* =========================
+   INDEX v3: catálogo + reviews desktop
+   ========================= */
+@media (min-width: 981px){
+  .amIndex{
+    display:grid;
+    grid-template-columns: minmax(0, 1.08fr) minmax(360px, .92fr);
+    gap: 18px;
+    align-items:start;
+  }
+
+  .hero{
+    grid-column: 1 / -1;
+  }
+
+  .layoutPremium{
+    display: contents;
+  }
+
+  .cardProducts{
+    grid-column: 1;
+  }
+
+  .cardOrder{
+    grid-column: 2;
+    grid-row: 2 / span 2;
+    align-self: start;
+  }
+
+  .cardReviews{
+    grid-column: 1;
+    margin-top: 0;
+  }
+}
+
+@media (max-width: 980px){
+  .amIndex{
+    display:block;
+  }
+
+  .layoutPremium{
+    display:grid;
+    grid-template-columns: 1fr;
+  }
+
+  .cardReviews{
+    margin-top: 18px;
+  }
+}
+
+/* Imágenes del catálogo: mostrar el postre completo */
+.productCard{
+  grid-template-columns: minmax(220px, 232px) minmax(0, 1fr);
+  align-items: center;
+}
+
+.productMediaWrap{
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  border-radius: 22px;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 50% 50%, rgba(255,255,255,.10), transparent 52%),
+    rgba(64,17,2,.06);
+  box-shadow: inset 0 0 0 1px rgba(64,17,2,.05);
+}
+
+.productImg{
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  object-fit: cover;
+  object-position: center center;
+  backface-visibility: hidden;
+  transform: translateZ(0);
+  will-change: transform;
+}
+
+.productCard:hover .productImg{
+  transform: translateZ(0);
+}
+
+@media (max-width: 720px){
+  .productCard{
+    grid-template-columns: 1fr;
+  }
+
+  .productMediaWrap{
+    aspect-ratio: 16 / 9;
+  }
+
+  .productImg{
+    min-height: 0;
+  }
+}
+
+@media (min-width: 981px){
+  .cardReviews .reviewsList{
+    gap: 12px;
+  }
+}
