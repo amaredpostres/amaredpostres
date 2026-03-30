@@ -2,6 +2,8 @@
 const SUCCESS_MSG = "Pedido registrado ✅\n\nAhora falta confirmar el pago por WhatsApp.";
 const PICKUP_ADDRESS_TEXT = "Recogida presencial";
 const PICKUP_MAPS_TEXT = "RECOGIDA_PRESENCIAL";
+const WHATSAPP_LOCATION_TEXT = "Ubicación por WhatsApp";
+const WHATSAPP_LOCATION_MAPS_TEXT = "UBICACION_POR_WHATSAPP";
 const PICKUP_VIDEO_URL = "https://drive.google.com/file/d/198VXUDfeyfouT7UauXBytVwyqbujxCn9/view?usp=sharing";
 
 const WHATSAPP_NUMBER = "573028473086";
@@ -69,7 +71,12 @@ const modalStatus = document.getElementById("modalStatus");
 const loadingOverlay = document.getElementById("loadingOverlay");
 const loadingText = document.getElementById("loadingText");
 const loadingSub = document.getElementById("loadingSub");
+const loadingBar = document.getElementById("loadingBar");
+const loadingPercent = document.getElementById("loadingPercent");
+const loadingStep = document.getElementById("loadingStep");
 let _loadingStartTs = 0;
+let _loadingTimer = null;
+let _loadingProgress = 0;
 
 // Ubicación
 const mapsBlock = document.getElementById("mapsBlock");
@@ -164,25 +171,52 @@ function syncPickupVideoUI(){
   }
 }
 
-function setAddressMode(isPickup){
+function setAddressMode(mode){
   if(!addressInput) return;
-  if(isPickup){
-    if(typeof addressInput.dataset.prevValue === "undefined") addressInput.dataset.prevValue = "";
-    if(addressInput.value !== PICKUP_ADDRESS_TEXT){
-      addressInput.dataset.prevValue = addressInput.value || "";
-    }
-    addressInput.value = PICKUP_ADDRESS_TEXT;
-    addressInput.disabled = true;
-    addressInput.placeholder = PICKUP_ADDRESS_TEXT;
-    if(addressLabel) addressLabel.innerHTML = 'Recogida <span class="req">*</span>';
-    if(addressHint) addressHint.classList.remove("hidden");
-  }else{
-    const prev = addressInput.dataset.prevValue || "";
-    if(addressInput.value === PICKUP_ADDRESS_TEXT) addressInput.value = prev;
+
+  const isMaps = mode === "maps";
+  const isWhatsApp = mode === "whatsapp";
+  const isPickup = mode === "pickup";
+
+  if(typeof addressInput.dataset.prevManualValue === "undefined"){
+    addressInput.dataset.prevManualValue = "";
+  }
+
+  if(!addressInput.disabled && addressInput.value !== WHATSAPP_LOCATION_TEXT && addressInput.value !== PICKUP_ADDRESS_TEXT){
+    addressInput.dataset.prevManualValue = addressInput.value || "";
+  }
+
+  if(isMaps){
     addressInput.disabled = false;
     addressInput.placeholder = "Ej: Calle 10 # 5-20, Apto 301";
+    addressInput.value = addressInput.dataset.prevManualValue || "";
     if(addressLabel) addressLabel.innerHTML = 'Dirección <span class="req">*</span>';
-    if(addressHint) addressHint.classList.add("hidden");
+    if(addressHint){
+      addressHint.textContent = 'Escribe la dirección donde deseas recibir tu pedido.';
+      addressHint.classList.add("hidden");
+    }
+    return;
+  }
+
+  addressInput.disabled = true;
+
+  if(isWhatsApp){
+    addressInput.value = WHATSAPP_LOCATION_TEXT;
+    addressInput.placeholder = WHATSAPP_LOCATION_TEXT;
+    if(addressLabel) addressLabel.innerHTML = 'Ubicación <span class="req">*</span>';
+    if(addressHint){
+      addressHint.textContent = 'Tu ubicación se compartirá directamente por WhatsApp cuando se abra el chat.';
+      addressHint.classList.remove("hidden");
+    }
+    return;
+  }
+
+  addressInput.value = PICKUP_ADDRESS_TEXT;
+  addressInput.placeholder = PICKUP_ADDRESS_TEXT;
+  if(addressLabel) addressLabel.innerHTML = 'Recogida <span class="req">*</span>';
+  if(addressHint){
+    addressHint.textContent = 'El pedido se registrará como recogida presencial.';
+    addressHint.classList.remove("hidden");
   }
 }
 
@@ -210,7 +244,7 @@ function syncLocationUI() {
     mapsInput.value = mapsInput.dataset.prevValue;
   }
 
-  setAddressMode(showPickup);
+  setAddressMode(method);
   syncPickupVideoUI();
 }
 
@@ -347,59 +381,83 @@ document.addEventListener("visibilitychange", () => {
 
 
 // =================== UI RENDER ===================
+function createProductCard(p) {
+  const qty = cart.get(p.id) || 0;
+  const div = document.createElement("div");
+  div.className = `productCard${qty > 0 ? " is-selected" : ""}`;
+  div.dataset.productId = p.id;
+
+  div.innerHTML = `
+    <div class="productMediaWrap">
+      <img class="productImg" src="${p.img}" alt="${p.alt || p.name}" loading="lazy" decoding="async" />
+    </div>
+
+    <div class="productInfo">
+      <div class="productTop">
+        <div class="productEyebrow">Postre artesanal</div>
+        <div class="name">${p.name}</div>
+        <div class="productMetaRow">
+          <div class="price">$${money(p.price)} c/u</div>
+          <span class="sizeBadge">6 oz</span>
+        </div>
+      </div>
+
+      <div class="productDesc">${p.desc || ""}</div>
+
+      <div class="productBottom">
+        <div class="stepper">
+          <button type="button" data-action="dec" data-id="${p.id}" ${qty <= 0 ? "disabled" : ""}>−</button>
+          <div class="qty" id="qty_${p.id}">${qty}</div>
+          <button type="button" data-action="inc" data-id="${p.id}">+</button>
+        </div>
+      </div>
+    </div>
+  `;
+
+  return div;
+}
+
+function refreshProductCard(id) {
+  const card = elProducts.querySelector(`[data-product-id="${id}"]`);
+  if (!card) return;
+  const qty = cart.get(id) || 0;
+  card.classList.toggle("is-selected", qty > 0);
+
+  const qtyEl = card.querySelector(`#qty_${id}`);
+  if (qtyEl) qtyEl.textContent = String(qty);
+
+  const decBtn = card.querySelector('button[data-action="dec"]');
+  if (decBtn) decBtn.disabled = qty <= 0;
+}
+
+function onProductsClick(e) {
+  const btn = e.target.closest("button[data-action]");
+  if (!btn) return;
+
+  const id = btn.dataset.id;
+  const action = btn.dataset.action;
+  const current = cart.get(id) || 0;
+  const next = action === "inc" ? current + 1 : Math.max(0, current - 1);
+
+  cart.set(id, next);
+  refreshProductCard(id);
+  updateSummary();
+}
+
 function renderProducts() {
   elProducts.innerHTML = "";
+  const frag = document.createDocumentFragment();
 
   for (const p of PRODUCTS) {
-    const qty = cart.get(p.id) || 0;
-
-    const div = document.createElement("div");
-    div.className = `productCard${qty > 0 ? " is-selected" : ""}`;
-
-    div.innerHTML = `
-      <div class="productMediaWrap">
-        <img class="productImg" src="${p.img}" alt="${p.alt || p.name}" loading="lazy" />
-      </div>
-
-      <div class="productInfo">
-        <div class="productTop">
-          <div class="productEyebrow">Postre artesanal</div>
-          <div class="name">${p.name}</div>
-          <div class="productMetaRow">
-            <div class="price">$${money(p.price)} c/u</div>
-            <span class="sizeBadge">6 oz</span>
-          </div>
-        </div>
-
-        <div class="productDesc">${p.desc || ""}</div>
-
-        <div class="productBottom">
-          <div class="stepper">
-            <button type="button" data-action="dec" data-id="${p.id}" ${qty <= 0 ? "disabled" : ""}>−</button>
-            <div class="qty" id="qty_${p.id}">${qty}</div>
-            <button type="button" data-action="inc" data-id="${p.id}">+</button>
-          </div>
-        </div>
-      </div>
-    `;
-
-    elProducts.appendChild(div);
+    frag.appendChild(createProductCard(p));
   }
 
-  elProducts.onclick = (e) => {
-    const btn = e.target.closest("button");
-    if (!btn) return;
+  elProducts.appendChild(frag);
 
-    const id = btn.dataset.id;
-    const action = btn.dataset.action;
-
-    const current = cart.get(id) || 0;
-    const next = action === "inc" ? current + 1 : Math.max(0, current - 1);
-
-    cart.set(id, next);
-    renderProducts();
-    updateSummary();
-  };
+  if (!elProducts.dataset.bound) {
+    elProducts.addEventListener("click", onProductsClick);
+    elProducts.dataset.bound = "1";
+  }
 }
 
 function buildCartItems() {
@@ -440,8 +498,16 @@ function getFormData() {
   const customer_name = document.getElementById("name").value.trim();
   const phone = document.getElementById("phone").value.trim();
   const location_method = getSelectedLocationMethod(); // "maps" | "whatsapp" | "pickup"
-  const address_text = location_method === "pickup" ? PICKUP_ADDRESS_TEXT : document.getElementById("address").value.trim();
-  const maps_link = location_method === "pickup" ? PICKUP_MAPS_TEXT : document.getElementById("maps").value.trim();
+  const address_text = location_method === "pickup"
+    ? PICKUP_ADDRESS_TEXT
+    : location_method === "whatsapp"
+      ? WHATSAPP_LOCATION_TEXT
+      : document.getElementById("address").value.trim();
+  const maps_link = location_method === "pickup"
+    ? PICKUP_MAPS_TEXT
+    : location_method === "whatsapp"
+      ? WHATSAPP_LOCATION_MAPS_TEXT
+      : document.getElementById("maps").value.trim();
   const notes = document.getElementById("notes").value.trim();
 
   const emailEl = document.getElementById("email");
@@ -475,7 +541,7 @@ function validate(data) {
   if (!data.phone) return "Escribe tu número.";
   if (!isValidEmail(data.email)) return "El correo no parece válido. Revisa el formato (ej: correo@dominio.com).";
 
-  if (data.location_method !== "pickup" && !data.address_text) return "Escribe tu dirección.";
+  if (data.location_method === "maps" && !data.address_text) return "Escribe tu dirección.";
 
   if (data.location_method === "maps") {
     if (!data.maps_link) return "Pega el link de Google Maps o selecciona “Enviar ubicación desde WhatsApp”.";
@@ -508,16 +574,15 @@ function buildWhatsAppMessage(data, orderId) {
     if (pickupVideoUrl) {
       lines.push(`Guía de recogida presencial: ${pickupVideoUrl}`);
     }
-  } else {
+  } else if (data.location_method === "maps") {
     lines.push(`Domicilio: lo cubre el cliente. (Se debe confirmar mediante WhatsApp)`);
     lines.push("");
     lines.push(`Dirección: ${data.address_text}`);
-
-    if (data.location_method === "maps") {
-      lines.push(`Ubicación (Google Maps): ${data.maps_link}`);
-    } else {
-      lines.push(`Ubicación: Te la envío por WhatsApp (ubicación/punto).`);
-    }
+    lines.push(`Ubicación (Google Maps): ${data.maps_link}`);
+  } else {
+    lines.push(`Domicilio: lo cubre el cliente. (Se debe confirmar mediante WhatsApp)`);
+    lines.push("");
+    lines.push(`Ubicación: Te la envío por WhatsApp cuando se abra el chat.`);
   }
 
   if (data.notes) lines.push(`Nota: ${data.notes}`);
@@ -621,7 +686,7 @@ function resetAll() {
   if(addressInput){
     addressInput.disabled = false;
     addressInput.placeholder = "Ej: Calle 10 # 5-20, Apto 301";
-    delete addressInput.dataset.prevValue;
+    delete addressInput.dataset.prevManualValue;
   }
   if(mapsInput){
     delete mapsInput.dataset.prevValue;
@@ -712,6 +777,7 @@ btnSendWhatsApp?.addEventListener("click", async () => {
 
     // 1) Guardar primero
     await saveOrder(pending.data);
+    await completeLoadingSuccess();
 
     // 2) Abrir WhatsApp con texto (normal)
     const waUrl = buildWhatsAppUrlWithText(pending.messageNormal);
@@ -793,23 +859,67 @@ updateSummary();
 syncLocationUI();
 
 
+function setLoadingProgress(value){
+  _loadingProgress = Math.max(0, Math.min(100, Math.round(value || 0)));
+  if(loadingPercent) loadingPercent.textContent = `${_loadingProgress}%`;
+  if(loadingBar) loadingBar.style.width = `${_loadingProgress}%`;
+
+  if(loadingStep){
+    if(_loadingProgress < 20) loadingStep.textContent = "Iniciando pedido";
+    else if(_loadingProgress < 45) loadingStep.textContent = "Conectando con AMARED";
+    else if(_loadingProgress < 70) loadingStep.textContent = "Validando información";
+    else if(_loadingProgress < 100) loadingStep.textContent = "Preparando confirmación";
+    else loadingStep.textContent = "Pedido registrado";
+  }
+}
+
+function startLoadingProgressLoop(){
+  clearInterval(_loadingTimer);
+  _loadingTimer = setInterval(() => {
+    const limit = 84;
+    if(_loadingProgress >= limit) return;
+    const step = _loadingProgress < 18 ? 4 : _loadingProgress < 42 ? 3 : _loadingProgress < 68 ? 2 : 1;
+    setLoadingProgress(Math.min(limit, _loadingProgress + step));
+  }, 170);
+}
+
+function animateLoadingTo(target, duration = 420){
+  target = Math.max(0, Math.min(100, Math.round(target || 0)));
+  const start = _loadingProgress;
+  const delta = target - start;
+  if(delta === 0) return Promise.resolve();
+
+  return new Promise(resolve => {
+    const startTs = performance.now();
+    function tick(now){
+      const p = Math.min(1, (now - startTs) / duration);
+      const eased = 1 - Math.pow(1 - p, 3);
+      setLoadingProgress(start + delta * eased);
+      if(p < 1){
+        requestAnimationFrame(tick);
+      }else{
+        setLoadingProgress(target);
+        resolve();
+      }
+    }
+    requestAnimationFrame(tick);
+  });
+}
+
 function showLoading(text="Procesando...", sub=""){
   try{
     _loadingStartTs = Date.now();
+    clearInterval(_loadingTimer);
     const t = String(text || "Procesando...");
     let finalSub = String(sub || "").trim();
     if(!finalSub){
-      const low = t.toLowerCase();
-      if(low.includes("registrando")){
-        finalSub = "Estamos conectando tu pedido con AMARED y preparando la confirmación por WhatsApp.";
-      }else if(low.includes("cargando")){
-        finalSub = "Estamos dejando todo listo para ti.";
-      }else{
-        finalSub = "Un momento, ya casi terminamos.";
-      }
+      finalSub = t.toLowerCase().includes("registrando")
+        ? "Estamos conectando tu pedido con AMARED y preparando la confirmación por WhatsApp."
+        : "Un momento, ya casi terminamos.";
     }
     if(loadingText) loadingText.textContent = t;
     if(loadingSub) loadingSub.textContent = finalSub;
+    setLoadingProgress(0);
     if(loadingOverlay){
       loadingOverlay.classList.remove("hidden");
       loadingOverlay.setAttribute("aria-hidden","false");
@@ -817,10 +927,23 @@ function showLoading(text="Procesando...", sub=""){
       loadingOverlay.style.display = "flex";
     }
     document.body.classList.add("is-loading");
+    startLoadingProgressLoop();
   }catch(_e){}
 }
+
+async function completeLoadingSuccess(){
+  try{
+    clearInterval(_loadingTimer);
+    if(loadingText) loadingText.textContent = "Pedido registrado";
+    if(loadingSub) loadingSub.textContent = "Ahora abriremos WhatsApp para confirmar el pago y los detalles finales.";
+    await animateLoadingTo(100, 520);
+    await new Promise(resolve => setTimeout(resolve, 260));
+  }catch(_e){}
+}
+
 function hideLoading(){
   try{
+    clearInterval(_loadingTimer);
     const elapsed = _loadingStartTs ? (Date.now() - _loadingStartTs) : 9999;
     const doHide = () => {
       if(loadingOverlay){
@@ -830,8 +953,8 @@ function hideLoading(){
       }
       document.body.classList.remove("is-loading");
     };
-    if(elapsed < 900){
-      setTimeout(doHide, 900 - elapsed);
+    if(elapsed < 700){
+      setTimeout(doHide, 700 - elapsed);
     }else{
       doHide();
     }
