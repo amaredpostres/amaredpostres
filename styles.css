@@ -2573,3 +2573,127 @@ body::before{
     gap: 12px;
   }
 }
+
+
+/* ===== Admin de la página de pedidos ===== */
+.indexAdminSection{ margin-top:14px; }
+.indexAdminSection.hidden{ display:none !important; }
+.indexAdminIntro{
+  margin-top:4px;
+  color: rgba(64,17,2,.72);
+  font-weight: 800;
+  line-height: 1.45;
+}
+.indexAdminGrid{
+  display:grid;
+  grid-template-columns: repeat(2, minmax(0,1fr));
+  gap: 12px;
+  margin-top: 14px;
+}
+.indexAdminCard{ gap:12px; }
+.indexAdminPriceList{ display:grid; gap:10px; }
+.indexAdminPriceRow{
+  display:grid;
+  grid-template-columns: minmax(0,1fr) 152px;
+  gap:10px;
+  align-items:end;
+  padding: 10px 12px;
+  border:1px solid var(--border);
+  border-radius: 14px;
+  background: rgba(255,255,255,.72);
+}
+.indexAdminPriceName{ font-weight:950; line-height:1.12; }
+.indexAdminPriceHint{ margin-top:4px; font-size:12.5px; color: rgba(64,17,2,.6); font-weight:700; }
+.indexAdminField .input{ text-align:right; }
+.indexAdminActions{ gap:10px; flex-wrap:wrap; margin-top:4px; }
+.indexAdminStatus{ min-height: 18px; }
+.indexAdminCopy{ line-height:1.45; }
+@media (max-width: 820px){
+  .indexAdminGrid{ grid-template-columns:1fr; }
+}
+@media (max-width: 520px){
+  .indexAdminPriceRow{ grid-template-columns:1fr; }
+  .indexAdminField .input{ text-align:left; }
+}
+
+/* ===== Loader exclusivo del index ===== */
+body.is-loading{ overflow:hidden; }
+#orderLoadingOverlay{ z-index: 31000 !important; }
+.amOrderLoadingOverlay{
+  position: fixed;
+  inset: 0;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  padding:16px;
+  background: rgba(22,10,6,.48);
+  backdrop-filter: blur(12px);
+}
+.amOrderLoadingBackdropFx{
+  position:absolute;
+  inset:0;
+  background:
+    radial-gradient(420px 220px at 18% 18%, rgba(242,91,143,.20), transparent 62%),
+    radial-gradient(440px 220px at 82% 12%, rgba(246,186,96,.22), transparent 62%),
+    radial-gradient(560px 260px at 50% 100%, rgba(255,255,255,.10), transparent 70%);
+  pointer-events:none;
+}
+.amOrderLoadingCard{
+  position:relative;
+  width:min(560px, 94vw);
+  border-radius: 28px;
+  padding: 26px 22px 20px;
+  border:1px solid rgba(255,255,255,.22);
+  background: linear-gradient(180deg, rgba(255,253,252,.96), rgba(255,248,243,.92));
+  box-shadow: 0 26px 80px rgba(0,0,0,.26);
+  display:grid;
+  gap: 14px;
+  justify-items:center;
+  overflow:hidden;
+}
+.amOrderLoadingCard::before{
+  content:"";
+  position:absolute;
+  inset:0;
+  background: linear-gradient(135deg, rgba(255,255,255,.42), transparent 48%, rgba(246,186,96,.10));
+  pointer-events:none;
+}
+.amOrderLoadingBrand{ height:36px; width:auto; display:block; position:relative; z-index:1; }
+.amOrderLoadingVisual{ position:relative; width:138px; height:138px; display:grid; place-items:center; z-index:1; }
+.amOrderLoadingHalo{
+  position:absolute;
+  inset: 6px;
+  border-radius:999px;
+  background: radial-gradient(circle, rgba(246,186,96,.34) 0%, rgba(242,91,143,.16) 48%, rgba(255,255,255,0) 72%);
+  filter: blur(2px);
+  animation: amOrderPulse 1.7s ease-in-out infinite;
+}
+.amOrderLoadingLogoWrap{
+  position:relative;
+  width:88px;
+  height:88px;
+  border-radius:999px;
+  background: linear-gradient(180deg, rgba(255,255,255,.98), rgba(251,239,229,.92));
+  border:1px solid rgba(64,17,2,.08);
+  display:grid;
+  place-items:center;
+  box-shadow: 0 18px 30px rgba(64,17,2,.12);
+}
+.amOrderLoadingIsoImg{ width:52px; height:52px; object-fit:contain; display:block; animation: amOrderFloat 1.7s ease-in-out infinite; }
+.amOrderLoadingCopy{ position:relative; z-index:1; text-align:center; display:grid; gap:6px; }
+.amOrderLoadingKicker{ font-size:12px; text-transform:uppercase; letter-spacing:.14em; font-weight:950; color: rgba(64,17,2,.56); }
+.amOrderLoadingTitle{ font-size:26px; line-height:1.06; font-weight:950; color:var(--choco); }
+.amOrderLoadingSub{ font-size:14px; line-height:1.45; color: rgba(64,17,2,.74); font-weight:750; }
+.amOrderLoadingMeta{ width:100%; display:flex; align-items:center; justify-content:space-between; gap:12px; position:relative; z-index:1; }
+.amOrderLoadingStep{ font-size:13px; font-weight:900; color: rgba(64,17,2,.72); }
+.amOrderLoadingPercent{ font-size:18px; font-weight:950; color:var(--choco); }
+.amOrderLoadingTrack{ width:100%; height:12px; border-radius:999px; background: rgba(64,17,2,.10); overflow:hidden; position:relative; z-index:1; }
+.amOrderLoadingBar{ display:block; width:0%; height:100%; border-radius:inherit; background: linear-gradient(90deg, rgba(242,91,143,.95), rgba(246,186,96,.95)); box-shadow: 0 4px 12px rgba(242,91,143,.25); transition: width .18s ease; }
+@keyframes amOrderPulse{ 0%,100%{ transform:scale(.96); opacity:.82; } 50%{ transform:scale(1.04); opacity:1; } }
+@keyframes amOrderFloat{ 0%,100%{ transform:translateY(0px) scale(1); } 50%{ transform:translateY(-3px) scale(1.03); } }
+@media (max-width: 560px){
+  .amOrderLoadingCard{ padding: 22px 18px 18px; border-radius: 24px; }
+  .amOrderLoadingVisual{ width:124px; height:124px; }
+  .amOrderLoadingTitle{ font-size: 22px; }
+  .amOrderLoadingSub{ font-size: 13px; }
+}
