@@ -8,7 +8,7 @@
   <link rel="icon" href="assets/favicon.ico" type="image/x-icon">
   <link rel="preload" href="assets/Logo-Amared.svg" as="image" type="image/svg+xml">
   <link rel="preload" href="assets/Logo-Isotipo-Amared.svg" as="image" type="image/svg+xml">
-  <link rel="stylesheet" href="styles.css?v=20260330-index-premium-v3" />
+  <link rel="stylesheet" href="styles.css?v=20260330-index-admin-v4" />
 </head>
 <body>
   <div class="page">
@@ -194,6 +194,45 @@
         </section>
       </section>
 
+      <section id="indexAdminSection" class="card indexAdminSection hidden" aria-label="Configuración admin de la página de pedidos">
+        <div class="sectionHead reviewsHead">
+          <div>
+            <div class="sectionKicker">Modo administrador</div>
+            <h2 class="cardTitle">Página de pedidos</h2>
+          </div>
+          <div class="sectionPill sectionPillAccent">Admin</div>
+        </div>
+
+        <div class="indexAdminIntro">Desde aquí puedes actualizar los precios visibles del catálogo y entrar más rápido a la gestión de opiniones.</div>
+
+        <div class="indexAdminGrid">
+          <div class="miniCard indexAdminCard">
+            <div class="miniCardTop">
+              <img class="miniIcon" src="assets/Logo-Isotipo-Amared.svg" alt="AMARED" />
+              <div class="miniTitle">Precios del catálogo</div>
+            </div>
+            <div id="indexAdminPriceList" class="indexAdminPriceList"></div>
+            <div class="row indexAdminActions">
+              <button id="btnIndexAdminSavePrices" class="btn primary" type="button">Guardar precios</button>
+              <button id="btnIndexAdminResetPrices" class="btn secondary" type="button">Restablecer</button>
+            </div>
+            <div id="indexAdminStatus" class="muted small indexAdminStatus"></div>
+          </div>
+
+          <div class="miniCard indexAdminCard">
+            <div class="miniCardTop">
+              <img class="miniIcon" src="assets/Logo-Isotipo-Amared.svg" alt="AMARED" />
+              <div class="miniTitle">Opiniones y mensajes</div>
+            </div>
+            <div class="muted small indexAdminCopy">Puedes responder opiniones publicadas desde esta misma página. Si entraste desde el hub con un perfil autorizado, el modo admin se activa automáticamente.</div>
+            <div class="row indexAdminActions">
+              <button id="btnIndexAdminGoOpiniones" class="btn secondary" type="button">Ir a opiniones</button>
+              <a id="btnIndexAdminPublicView" class="btn secondary btnLinkLike" href="index.html">Ver versión pública</a>
+            </div>
+          </div>
+        </div>
+      </section>
+
       <section class="card cardReviews" id="opiniones">
         <div class="sectionHead reviewsHead">
           <div>
@@ -365,26 +404,26 @@
     </div>
   </div>
 
-  <div id="loadingOverlay" class="amLoadingOverlay hidden" aria-hidden="true" style="display:none;">
-    <div class="amLoadingBackdropFx" aria-hidden="true"></div>
-    <div class="amLoadingCard" role="status" aria-live="polite">
-      <img class="amLoadingBrand" src="assets/Logo-Amared.svg" alt="AMARED" />
-      <div class="amLoadingVisual" aria-hidden="true">
-        <div class="amLoadingHalo"></div>
-        <div class="amLoadingLogoWrap">
-          <img class="amLoadingIsoImg" src="assets/Logo-Isotipo-Amared.svg" alt="" />
+  <div id="orderLoadingOverlay" class="amOrderLoadingOverlay hidden" aria-hidden="true" style="display:none;">
+    <div class="amOrderLoadingBackdropFx" aria-hidden="true"></div>
+    <div class="amOrderLoadingCard" role="status" aria-live="polite">
+      <img class="amOrderLoadingBrand" src="assets/Logo-Amared.svg" alt="AMARED" />
+      <div class="amOrderLoadingVisual" aria-hidden="true">
+        <div class="amOrderLoadingHalo"></div>
+        <div class="amOrderLoadingLogoWrap">
+          <img class="amOrderLoadingIsoImg" src="assets/Logo-Isotipo-Amared.svg" alt="" />
         </div>
       </div>
-      <div class="amLoadingCopy">
-        <div class="amLoadingKicker">AMARED está preparando tu pedido</div>
-        <div id="loadingText" class="amLoadingTitle">Registrando pedido...</div>
-        <div id="loadingSub" class="amLoadingSub">Estamos conectando tu pedido con AMARED.</div>
+      <div class="amOrderLoadingCopy">
+        <div class="amOrderLoadingKicker">AMARED está preparando tu pedido</div>
+        <div id="orderLoadingText" class="amOrderLoadingTitle">Registrando pedido...</div>
+        <div id="orderLoadingSub" class="amOrderLoadingSub">Estamos conectando tu pedido con AMARED.</div>
       </div>
-      <div class="amLoadingMeta">
-        <span id="loadingStep" class="amLoadingStep">Iniciando</span>
-        <strong id="loadingPercent" class="amLoadingPercent">0%</strong>
+      <div class="amOrderLoadingMeta">
+        <span id="orderLoadingStep" class="amOrderLoadingStep">Iniciando</span>
+        <strong id="orderLoadingPercent" class="amOrderLoadingPercent">0%</strong>
       </div>
-      <div class="amLoadingTrack" aria-hidden="true"><span id="loadingBar" class="amLoadingBar"></span></div>
+      <div class="amOrderLoadingTrack" aria-hidden="true"><span id="orderLoadingBar" class="amOrderLoadingBar"></span></div>
     </div>
   </div>
 
@@ -408,6 +447,6 @@
 
   <button id="btnOpinionesTop" class="backToTop hidden" type="button" aria-label="Volver al inicio">↑ Inicio</button>
 
-  <script src="app.js?v=20260330-index-premium-v2" defer></script>
+  <script src="app.js?v=20260330-index-admin-v4" defer></script>
 </body>
 </html>
