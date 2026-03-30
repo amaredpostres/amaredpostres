@@ -375,6 +375,24 @@ function syncCostsMobileReturnAction_(){
   btn.textContent = fromHub ? '⌂' : '⎋';
 }
 
+function syncCostsResponsiveSections_(){
+  const isDesktop = (()=>{ try{ return window.innerWidth >= 861; }catch(_e){ return true; } })();
+  document.querySelectorAll('.unitDesktopOnly').forEach(node=>{
+    node.hidden = !isDesktop;
+    node.setAttribute('aria-hidden', isDesktop ? 'false' : 'true');
+    node.style.display = isDesktop ? '' : 'none';
+  });
+  document.querySelectorAll('.unitMobileOnly').forEach(node=>{
+    node.hidden = isDesktop;
+    node.setAttribute('aria-hidden', isDesktop ? 'true' : 'false');
+    if(isDesktop){
+      node.style.display = 'none';
+    }else{
+      node.style.display = node.classList.contains('unitMobileList') ? 'grid' : '';
+    }
+  });
+}
+
 function setCostsShellMode_(mode){
   const isApp = mode === 'app';
   document.body.classList.remove('is-login','is-app');
@@ -388,6 +406,7 @@ function syncMobileNavForViewport_(){
   const nav = el("mobileNav");
   const app = el("appRoot");
   const unlock = el("unlockBack");
+  syncCostsResponsiveSections_();
   if(!nav) return;
 
   const appVisible = !!app && !app.classList.contains("hidden") && app.hidden !== true && (app.style.display !== "none");
@@ -2390,6 +2409,7 @@ function openUnlock(msg){
     if(savedProfile && el("loginProfile")) ensureSelectValueOption_(el("loginProfile"), savedProfile, savedProfile);
   }catch(_e){}
   syncSecretToggleState_();
+  syncMobileNavForViewport_();
   if(el("secretInput")) el("secretInput").focus();
 }
 
@@ -2444,6 +2464,7 @@ async function doUnlock(isAuto=false, opts={}){
       show(el("appRoot"));
       show(el("mobileNav"));
       setView("purchases");
+      syncMobileNavForViewport_();
     }
     if(backgroundLoad){
       renderCostsBootLoadingState_("Actualizando información de compras…");
@@ -2455,6 +2476,7 @@ async function doUnlock(isAuto=false, opts={}){
     }else{
       await loadAll();
     }
+    syncMobileNavForViewport_();
   } catch(err){
     hideCostsSyncBadge_();
     UNLOCKED_SECRET = "";
