@@ -8,7 +8,7 @@
   <link rel="icon" href="assets/favicon.ico" type="image/x-icon">
   <link rel="preload" href="assets/Logo-Amared.svg" as="image" type="image/svg+xml">
   <link rel="preload" href="assets/Logo-Isotipo-Amared.svg" as="image" type="image/svg+xml">
-  <link rel="stylesheet" href="styles.css?v=20260329-index-premium-v1" />
+  <link rel="stylesheet" href="styles.css?v=20260330-index-premium-v2" />
 </head>
 <body>
   <div class="page">
@@ -25,24 +25,30 @@
       <section class="hero heroPremium">
         <div class="heroShell">
           <div class="heroCopy">
-            <div class="heroEyebrow"><span class="heroDot"></span> Experiencia AMARED</div>
+            <div class="heroEyebrow"><span class="heroDot"></span> Haz tu pedido</div>
             <h1 class="heroTitle">Pide tu antojo en minutos.</h1>
-            <p class="heroSubtitle">Una página más limpia, fresca e intuitiva para elegir tus postres, registrar tu pedido y confirmar todo por WhatsApp.</p>
+            <p class="heroSubtitle">Elige tus postres, registra tu pedido y confirma todo por WhatsApp. Allí te compartimos el pago y los detalles finales de entrega.</p>
 
             <div class="heroChips" aria-label="Beneficios del pedido">
               <span class="heroChip">Pedido rápido</span>
-              <span class="heroChip">Domicilio o recogida</span>
               <span class="heroChip">Confirmación por WhatsApp</span>
+              <span class="heroChip">Domicilio o recogida</span>
             </div>
           </div>
 
-          <aside class="heroSpotlight" aria-hidden="true">
-            <div class="spotlightGlass">
-              <div class="spotlightBadge">Premium • Minimal • Mobile first</div>
-              <div class="spotlightVisual">
-                <img class="spotlightIso" src="assets/Logo-Isotipo-Amared.svg" alt="" />
+          <aside class="heroSpotlight" aria-label="Así funciona el pedido en AMARED">
+            <div class="spotlightGlass spotlightOrderFlow">
+              <div class="spotlightMiniTop">
+                <img class="spotlightMiniIso" src="assets/Logo-Isotipo-Amared.svg" alt="AMARED" />
+                <span class="spotlightMiniLabel">Confirmación por WhatsApp</span>
               </div>
-              <p class="spotlightText">Menos ruido visual, más foco en elegir, revisar y confirmar el pedido.</p>
+              <h2 class="spotlightHeading">Tu pedido se confirma por WhatsApp.</h2>
+              <p class="spotlightText">Cuando termines tu pedido, se abrirá el chat de AMARED para validar el pago, la entrega y cualquier detalle final.</p>
+              <div class="spotlightSteps">
+                <div class="spotlightStep"><span>1</span> Elige tus postres</div>
+                <div class="spotlightStep"><span>2</span> Registra tu pedido</div>
+                <div class="spotlightStep"><span>3</span> Confirma por WhatsApp</div>
+              </div>
             </div>
           </aside>
         </div>
@@ -108,7 +114,7 @@
             <div class="field">
               <label id="addressLabel" class="label" for="address">Dirección <span class="req">*</span></label>
               <input id="address" class="input" type="text" placeholder="Ej: Calle 10 # 5-20, Apto 301" />
-              <div id="addressHint" class="muted small addressHint hidden">Si eliges recogida presencial, este campo se completa automáticamente.</div>
+              <div id="addressHint" class="muted small addressHint hidden">Este campo cambia según el tipo de entrega que elijas.</div>
             </div>
 
             <div class="miniCard deliveryCard">
@@ -362,16 +368,23 @@
   <div id="loadingOverlay" class="amLoadingOverlay hidden" aria-hidden="true" style="display:none;">
     <div class="amLoadingBackdropFx" aria-hidden="true"></div>
     <div class="amLoadingCard" role="status" aria-live="polite">
+      <img class="amLoadingBrand" src="assets/Logo-Amared.svg" alt="AMARED" />
       <div class="amLoadingVisual" aria-hidden="true">
         <div class="amLoadingHalo"></div>
-        <div class="amLoadingMark"></div>
+        <div class="amLoadingLogoWrap">
+          <img class="amLoadingIsoImg" src="assets/Logo-Isotipo-Amared.svg" alt="" />
+        </div>
       </div>
       <div class="amLoadingCopy">
         <div class="amLoadingKicker">AMARED está preparando tu pedido</div>
-        <div id="loadingText" class="amLoadingTitle">Cargando…</div>
-        <div id="loadingSub" class="amLoadingSub">Por favor espera.</div>
+        <div id="loadingText" class="amLoadingTitle">Registrando pedido...</div>
+        <div id="loadingSub" class="amLoadingSub">Estamos conectando tu pedido con AMARED.</div>
       </div>
-      <div class="amLoadingTrack" aria-hidden="true"><span class="amLoadingBar"></span></div>
+      <div class="amLoadingMeta">
+        <span id="loadingStep" class="amLoadingStep">Iniciando</span>
+        <strong id="loadingPercent" class="amLoadingPercent">0%</strong>
+      </div>
+      <div class="amLoadingTrack" aria-hidden="true"><span id="loadingBar" class="amLoadingBar"></span></div>
     </div>
   </div>
 
@@ -395,6 +408,6 @@
 
   <button id="btnOpinionesTop" class="backToTop hidden" type="button" aria-label="Volver al inicio">↑ Inicio</button>
 
-  <script src="app.js?v=20260329-index-premium-v1" defer></script>
+  <script src="app.js?v=20260330-index-premium-v2" defer></script>
 </body>
 </html>
