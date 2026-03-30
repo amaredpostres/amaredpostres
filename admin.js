@@ -6,6 +6,26 @@ const PRODUCT_CATALOG = [
   { id: "mousse_maracuya", name: "Mousse de Maracuyá", unit_price: 10000 },
   { id: "cheesecake_cafe_panela", name: "Cheesecake de café con panela", unit_price: 12500 },
 ];
+const PRODUCT_PRICES_STORAGE_KEY = "AMARED_PRODUCT_PRICES_V1";
+const DEFAULT_PRODUCT_CATALOG = PRODUCT_CATALOG.map(item => ({ ...item }));
+function readProductPriceOverrides_(){
+  try{ return JSON.parse(localStorage.getItem(PRODUCT_PRICES_STORAGE_KEY) || "{}") || {}; }catch(_e){ return {}; }
+}
+function writeProductPriceOverrides_(map){
+  try{ localStorage.setItem(PRODUCT_PRICES_STORAGE_KEY, JSON.stringify(map || {})); }catch(_e){}
+}
+function clearProductPriceOverrides_(){
+  try{ localStorage.removeItem(PRODUCT_PRICES_STORAGE_KEY); }catch(_e){}
+}
+function applyProductPriceOverrides_(){
+  const map = readProductPriceOverrides_();
+  PRODUCT_CATALOG.forEach((item, idx)=>{
+    const fallback = Number(DEFAULT_PRODUCT_CATALOG[idx]?.unit_price || item.unit_price || 0);
+    const next = Number(map?.[item.id]);
+    item.unit_price = Number.isFinite(next) && next > 0 ? Math.round(next) : fallback;
+  });
+}
+applyProductPriceOverrides_();
 
 // =================== SESSION / STATE ===================
 let SESSION = { operator: null, operatorId: null, pin: null };
@@ -110,6 +130,11 @@ const btnHistory = btnHeaderHistory;
 
 const statusEl = document.getElementById("status");
 const listEl = document.getElementById("list");
+const adminIndexPriceRows = document.getElementById("adminIndexPriceRows");
+const btnAdminIndexSavePrices = document.getElementById("btnAdminIndexSavePrices");
+const btnAdminIndexResetPrices = document.getElementById("btnAdminIndexResetPrices");
+const btnAdminOpenIndexPage = document.getElementById("btnAdminOpenIndexPage");
+const adminIndexToolsStatus = document.getElementById("adminIndexToolsStatus");
 
 // Drawer historial
 const drawerOverlay = document.getElementById("drawerOverlay");
@@ -187,6 +212,54 @@ function formatDate(v) {
   }).format(d);
 }
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+function setAdminIndexStatus(msg, isError=false){
+  if(!adminIndexToolsStatus) return;
+  adminIndexToolsStatus.textContent = String(msg || "");
+  adminIndexToolsStatus.style.color = isError ? "#b00020" : "rgba(64,17,2,.72)";
+}
+function renderAdminIndexTools(){
+  applyProductPriceOverrides_();
+  if(btnAdminOpenIndexPage){
+    btnAdminOpenIndexPage.href = FROM_HUB ? "index.html?admin=1&hub=1" : "index.html?admin=1";
+  }
+  if(!adminIndexPriceRows) return;
+  adminIndexPriceRows.innerHTML = PRODUCT_CATALOG.map(item => `
+    <div class="adminIndexPriceRow">
+      <div>
+        <div class="adminIndexPriceName">${escapeHtml(item.name)}</div>
+        <div class="adminIndexPriceHint">Precio visible actualmente: $${money(item.unit_price)}</div>
+      </div>
+      <label>
+        <input class="input" type="number" min="0" step="100" data-admin-price-id="${escapeHtml(item.id)}" value="${Number(item.unit_price || 0)}" />
+      </label>
+    </div>
+  `).join("");
+}
+function saveAdminIndexPrices(){
+  if(!adminIndexPriceRows) return;
+  const inputs = Array.from(adminIndexPriceRows.querySelectorAll("[data-admin-price-id]"));
+  const map = {};
+  for(const input of inputs){
+    const id = String(input.getAttribute("data-admin-price-id") || "").trim();
+    const value = Number(input.value || 0);
+    if(!id || !Number.isFinite(value) || value <= 0){
+      setAdminIndexStatus("Todos los precios deben ser mayores a 0.", true);
+      input.focus();
+      return;
+    }
+    map[id] = Math.round(value);
+  }
+  writeProductPriceOverrides_(map);
+  applyProductPriceOverrides_();
+  renderAdminIndexTools();
+  setAdminIndexStatus("Precios guardados correctamente.");
+}
+function resetAdminIndexPrices(){
+  clearProductPriceOverrides_();
+  applyProductPriceOverrides_();
+  renderAdminIndexTools();
+  setAdminIndexStatus("Se restablecieron los precios originales.");
+}
 
 // =================== LOADING (UX) ===================
 function showLoading(text = "Cargando...", desc = "Por favor espera.") {
@@ -369,7 +442,7 @@ function renderLoginProfiles(profiles) {
   loginOperator.innerHTML = "";
   const opt0 = document.createElement("option");
   opt0.value = "";
-  opt0.textContent = profiles.length ? "Seleccionar..." : "No hay perfiles activos (Pagos)";
+  opt0.textContent = profiles.length ? "Seleccionar..." : "No hay perfiles activos para esta página";
   loginOperator.appendChild(opt0);
 
   for (const p of profiles) {
@@ -407,6 +480,8 @@ async function loadPaymentProfiles(force = false) {
   try {
     LOGIN_PROFILES = await fetchProfilesPublic("payments");
     if (!LOGIN_PROFILES.length) LOGIN_PROFILES = await fetchProfilesPublic("pago");
+    if (!LOGIN_PROFILES.length) LOGIN_PROFILES = await fetchProfilesPublic("index_admin");
+    if (!LOGIN_PROFILES.length) LOGIN_PROFILES = await fetchProfilesPublic("pedidosweb");
     saveAdminLoginProfilesCache_(LOGIN_PROFILES);
     renderLoginProfiles(LOGIN_PROFILES);
     const saved = loadSavedAdminSession();
@@ -495,6 +570,7 @@ function showPanel() {
   if (topbar) topbar.classList.remove("hidden");
   if (panelView) panelView.classList.remove("hidden");
   if (operatorName) operatorName.textContent = SESSION.operator || "";
+  renderAdminIndexTools();
   syncAdminActionBars();
 }
 function showLogin() {
@@ -619,9 +695,9 @@ btnLogin?.addEventListener("click", async () => {
       password_plain: password
     });
     const cats = Array.isArray(auth?.profile?.categories) ? auth.profile.categories.map(v => String(v || "").toLowerCase()) : [];
-    const allowed = cats.includes("admin") || cats.includes("payments") || cats.includes("pago");
+    const allowed = cats.includes("admin") || cats.includes("payments") || cats.includes("pago") || cats.includes("index_admin") || cats.includes("indexadmin") || cats.includes("pedidosweb");
     if (auth.valid !== true || !allowed) {
-      throw new Error(auth?.error || "Perfil sin permisos para pagos.");
+      throw new Error(auth?.error || "Perfil sin permisos para esta página.");
     }
 
     SESSION = { operator: auth.profile.label || prof.label, operatorId: prof.id, pin: password };
@@ -1435,5 +1511,8 @@ btnCancelConfirm?.addEventListener("click", async () => {
 [btnMobileRefresh].forEach(btn => btn?.addEventListener("click", ()=> btnHeaderRefresh?.click()));
 [btnMobileHistory].forEach(btn => btn?.addEventListener("click", ()=> btnHeaderHistory?.click()));
 [btnMobileLogout].forEach(btn => btn?.addEventListener("click", ()=> { if(FROM_HUB) goHub_(); else btnHeaderLogout?.click(); }));
+btnAdminIndexSavePrices?.addEventListener("click", saveAdminIndexPrices);
+btnAdminIndexResetPrices?.addEventListener("click", resetAdminIndexPrices);
+btnAdminOpenIndexPage?.addEventListener("click", ()=>{ try{ setAdminIndexStatus(""); }catch(_e){} });
 window.addEventListener("resize", syncAdminActionBars);
 setTimeout(syncAdminActionBars, 0);
