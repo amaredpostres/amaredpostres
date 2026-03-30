@@ -2590,16 +2590,21 @@ body::before{
 .indexAdminDesktopOpinions{ min-height:42px; }
 .indexAdminTopbarAction{
   display:none;
-  min-height:42px;
+  min-height:46px;
   padding:0 16px;
-  border-radius:999px;
-  border:1px solid rgba(242,91,143,.20);
+  border-radius:18px;
+  border:1px solid rgba(242,91,143,.18);
   background:linear-gradient(180deg, rgba(251,240,244,.98), rgba(247,232,237,.98));
   color:var(--choco);
-  font-size:13px;
+  font-size:14px;
   font-weight:900;
-  box-shadow:0 10px 24px rgba(64,17,2,.08);
+  box-shadow:0 10px 22px rgba(64,17,2,.06);
   cursor:pointer;
+  align-items:center;
+  justify-content:center;
+}
+.indexAdminTopbarAction:hover{
+  transform: translateY(-1px);
 }
 body.is-index-admin-view .indexAdminTopbarAction.isVisible{
   display:inline-flex;
