@@ -25,8 +25,8 @@
       align-items: center;
       justify-content: center;
       padding: 16px;
-      background: rgba(64,17,2,.25);
-      backdrop-filter: blur(6px);
+      background: rgba(255,245,238,.68);
+      backdrop-filter: blur(10px);
       box-sizing: border-box;
     }
     html.hubBoot .amHubBootOverlay{ display:flex; }
@@ -34,11 +34,11 @@
     .amHubBootCard{
       width: fit-content;
       max-width: min(420px, calc(100vw - 32px));
-      background: rgba(255,255,255,.94);
-      border: 1px solid rgba(64,17,2,.12);
+      background: linear-gradient(180deg, rgba(255,252,249,.98), rgba(255,244,236,.95));
+      border: 1px solid rgba(255,255,255,.84);
       border-radius: 24px;
       padding: 16px 18px;
-      box-shadow: 0 18px 40px rgba(0,0,0,.18);
+      box-shadow: 0 18px 40px rgba(64,17,2,.12);
       box-sizing: border-box;
     }
     .amHubBootRow{
@@ -52,8 +52,8 @@
       width: 18px;
       height: 18px;
       border-radius: 999px;
-      border: 2px solid rgba(64,17,2,.18);
-      border-top-color: rgba(64,17,2,.70);
+      border: 2px solid rgba(64,17,2,.12);
+      border-top-color: rgba(242,91,143,.82);
       animation: amHubBootSpin 1s linear infinite;
       flex: 0 0 auto;
     }
@@ -242,7 +242,7 @@
   z-index:3;
   padding:10px 0;
   background:linear-gradient(180deg, rgba(255,248,242,.98), rgba(255,248,242,.75));
-  backdrop-filter: blur(6px);
+  backdrop-filter: blur(10px);
 }
 #recipeEditor{
   max-height: 62vh;
@@ -1077,6 +1077,7 @@ body.is-app .costsLoginTopbar{ display:none !important; }
 </div>
 <!-- LOADING overlay (pantalla completa) -->
 <div id="loadingBack" class="amLoadingOverlay hidden" aria-hidden="true">
+  <div class="amLoadingBackdropFx" aria-hidden="true"></div>
   <div class="amLoadingCard">
     <div class="amLoadingRow">
       <div class="amSpinner"></div>
@@ -1087,7 +1088,7 @@ body.is-app .costsLoginTopbar{ display:none !important; }
     </div>
   </div>
 </div>
-<script src="kitchen-costs.js?v=20260328-costs-loading-badge-v8"></script>
-<script src="costs.js?v=20260328-costs-loading-badge-v8"></script>
+<script src="kitchen-costs.js?v=20260330-costs-hub-exit-v9"></script>
+<script src="costs.js?v=20260330-costs-hub-exit-v9"></script>
 </body>
 </html>
