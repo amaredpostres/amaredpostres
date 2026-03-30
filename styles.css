@@ -2585,6 +2585,23 @@ body::before{
   font-weight: 800;
   line-height: 1.45;
 }
+.sectionHeadActions{ display:flex; align-items:center; gap:10px; flex-wrap:wrap; justify-content:flex-end; }
+.indexAdminGrid.isSingle{ grid-template-columns: minmax(0,1fr); }
+.indexAdminDesktopOpinions{ min-height:42px; }
+.indexAdminTopbarAction{
+  display:none;
+  border:1px solid rgba(64,17,2,.12);
+  background:linear-gradient(180deg, rgba(255,248,242,.96), rgba(248,235,224,.94));
+  color:var(--choco);
+  cursor:pointer;
+}
+body.is-index-admin-view .indexAdminTopbarAction.isVisible{
+  display:inline-flex;
+}
+@media (max-width: 720px){
+  .indexAdminTopbarAction{ display:none !important; }
+  .indexAdminDesktopOpinions{ display:none !important; }
+}
 .indexAdminGrid{
   display:grid;
   grid-template-columns: repeat(2, minmax(0,1fr));
@@ -2703,7 +2720,7 @@ body.is-loading{ overflow:hidden; }
 /* ===== Vista admin de la página de pedidos ===== */
 body.is-index-admin-view .cardOrder,
 body.is-index-admin-view .btnOrderMain,
-body.is-index-admin-view .topbarBadge,
+body.is-index-admin-view .topbarBadge:not(.indexAdminTopbarAction),
 body.is-index-admin-view #btnOpenReviewModal{
   display: none !important;
 }
@@ -2779,19 +2796,62 @@ body.is-index-admin-view .layoutPremium{
   border:1px solid rgba(255,255,255,.92);
   background:linear-gradient(180deg, rgba(255,255,255,.96), rgba(252,247,242,.92));
   display:flex;
-  flex-direction:column;
   align-items:center;
   justify-content:center;
-  gap:2px;
   box-shadow:0 10px 18px rgba(64,17,2,.08);
   color:var(--choco);
   cursor:pointer;
 }
-.indexAdminMobileBtn .ico{ font-size:18px; line-height:1; }
-.indexAdminMobileBtn .txt{ font-size:10px; font-weight:900; line-height:1; }
+.indexAdminMobileBtn .ico{ font-size:20px; line-height:1; }
+.indexAdminMobileBtn .txt{ display:none; }
+.indexAdminMobileBtn.isIconOnly{ padding:0; }
 @media (min-width: 721px){
   .indexAdminMobileBar{ display:none !important; }
 }
 body.is-index-admin-view .page{
   padding-bottom:108px;
+}
+
+
+/* ===== Paleta consistente para acciones compartidas ===== */
+#btnHeaderHub,
+#btnDeliveryHub,
+#btnKitchenHub,
+#btnCostsHub,
+#btnBack,
+#btnIndexAdminDesktopHub{
+  border-color: rgba(242,91,143,.20) !important;
+  background: linear-gradient(180deg, rgba(251,240,244,.98), rgba(247,232,237,.98)) !important;
+  color: var(--choco) !important;
+}
+#btnHubReload,
+#btnHeaderRefresh,
+#btnRefreshTop,
+#btnRefresh,
+#btnReload{
+  border-color: rgba(224,160,49,.55) !important;
+  background: linear-gradient(180deg, rgba(246,196,110,.96), rgba(240,183,84,.96)) !important;
+  color: #401102 !important;
+}
+#btnHeaderHistory,
+#btnHistory{
+  border-color: rgba(64,17,2,.10) !important;
+  background: linear-gradient(180deg, rgba(255,255,255,.98), rgba(247,239,232,.98)) !important;
+  color: var(--choco) !important;
+}
+#btnHeaderHub:hover,
+#btnDeliveryHub:hover,
+#btnKitchenHub:hover,
+#btnCostsHub:hover,
+#btnBack:hover,
+#btnIndexAdminDesktopHub:hover,
+#btnHubReload:hover,
+#btnHeaderRefresh:hover,
+#btnRefreshTop:hover,
+#btnRefresh:hover,
+#btnReload:hover,
+#btnHeaderHistory:hover,
+#btnHistory:hover{
+  transform: translateY(-1px);
+  box-shadow: 0 14px 28px rgba(64,17,2,.10) !important;
 }
