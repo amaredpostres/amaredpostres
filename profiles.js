@@ -200,6 +200,7 @@ function profileHasCategory(profile, wanted){
   const aliasesMap = {
     admin: ["admin","administracion"],
     profiles: ["profiles","perfil","perfiles"],
+    indexadmin: ["indexadmin","index_admin","pedidosweb","weborders","pagina_de_pedidos","paginadepedidos"],
   };
   const aliases = (aliasesMap[w] || [w]).map(normalizeCategoryAlias);
   return aliases.some(a => cats.has(a));
