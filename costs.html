@@ -141,13 +141,9 @@
 .unitIngName{ font-weight:900; line-height:1.15; }
 .unitIngMeta{ margin-top:3px; font-size:12px; font-weight:800; color:rgba(64,17,2,.62); }
 .unitIngCost{ white-space:nowrap; font-weight:950; }
-@media (max-width: 860px){
-  .unitDesktopOnly{ display:none !important; }
-  .unitMobileOnly{ display:grid !important; }
-}
-@media (min-width: 861px){
-  .unitDesktopOnly{ display:block !important; }
-  .unitMobileOnly{ display:none !important; }
+@media (max-width: 560px){
+  .unitDesktopOnly{ display:none; }
+  .unitMobileOnly{ display:grid; }
 }
 
 
@@ -194,9 +190,9 @@
 <link href="assets/favicon.ico" rel="icon" type="image/x-icon"/>
 <link href="assets/favicon.ico" rel="shortcut icon" type="image/x-icon"/>
 <!-- ✅ estilos globales AMARED -->
-<link href="styles.css?v=20260330-index-admin-v7" rel="stylesheet"/>
+<link href="styles.css?v=20260330-payments-clean-v1" rel="stylesheet"/>
 <!-- ✅ estilos de Compras / Recetas -->
-<link href="costs.css?v=20260330-v19" rel="stylesheet"/>
+<link href="costs.css?v=20260330-gradient-fix-v1" rel="stylesheet"/>
 <style>
 /* ===== Ingredientes modal responsive ===== */
 #ingModalBack .pCatGrid.ingGrid{grid-template-columns: 1fr 1fr;}
