@@ -478,10 +478,23 @@ async function loadPaymentProfiles(force = false) {
   if (btnLogin) btnLogin.disabled = true;
   if (loginError && !force) loginError.textContent = "Cargando perfiles de pagos…";
   try {
-    LOGIN_PROFILES = await fetchProfilesPublic("payments");
-    if (!LOGIN_PROFILES.length) LOGIN_PROFILES = await fetchProfilesPublic("pago");
-    if (!LOGIN_PROFILES.length) LOGIN_PROFILES = await fetchProfilesPublic("index_admin");
-    if (!LOGIN_PROFILES.length) LOGIN_PROFILES = await fetchProfilesPublic("pedidosweb");
+    const buckets = await Promise.allSettled([
+      fetchProfilesPublic("payments"),
+      fetchProfilesPublic("pago"),
+      fetchProfilesPublic("admin"),
+    ]);
+    const merged = [];
+    const seen = new Set();
+    for (const bucket of buckets) {
+      const items = bucket?.status === "fulfilled" && Array.isArray(bucket.value) ? bucket.value : [];
+      items.forEach(item => {
+        const key = String(item?.id || "");
+        if (!key || seen.has(key)) return;
+        seen.add(key);
+        merged.push(item);
+      });
+    }
+    LOGIN_PROFILES = merged;
     saveAdminLoginProfilesCache_(LOGIN_PROFILES);
     renderLoginProfiles(LOGIN_PROFILES);
     const saved = loadSavedAdminSession();
@@ -695,7 +708,7 @@ btnLogin?.addEventListener("click", async () => {
       password_plain: password
     });
     const cats = Array.isArray(auth?.profile?.categories) ? auth.profile.categories.map(v => String(v || "").toLowerCase()) : [];
-    const allowed = cats.includes("admin") || cats.includes("payments") || cats.includes("pago") || cats.includes("index_admin") || cats.includes("indexadmin") || cats.includes("pedidosweb");
+    const allowed = cats.includes("admin") || cats.includes("payments") || cats.includes("pago");
     if (auth.valid !== true || !allowed) {
       throw new Error(auth?.error || "Perfil sin permisos para esta página.");
     }
