@@ -451,7 +451,7 @@ function openModule(key){
   const mod = MODULES.find(m => m.key === key);
   if(!mod) return;
   setModuleSession(mod);
-  showLoading(`Abriendo ${mod.title}…`, 'Preparando acceso a la página seleccionada.');
+  showLoading('Abriendo página…', `${mod.title}`);
   setHubGridBusy(true);
   window.setTimeout(()=>{
     const sep = String(mod.href || '').includes('?') ? '&' : '?';
