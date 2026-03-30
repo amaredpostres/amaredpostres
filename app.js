@@ -87,6 +87,22 @@ function isIndexAdminMode(){
     return sp.get("admin") === "1";
   }catch(_e){ return false; }
 }
+function hasHubSession(){
+  try{ return !!sessionStorage.getItem(HUB_SESSION_KEY) || !!localStorage.getItem(HUB_REMEMBER_KEY); }catch(_e){ return false; }
+}
+function shouldUseIndexAdminView(){
+  return isIndexAdminMode() || !!HUB_INDEX_ADMIN_SESSION;
+}
+function goHubFromIndexAdmin(){
+  try{
+    const ref = String(document.referrer || "");
+    if((/(^|\/)hub\.html(?:\?|$)/i.test(ref) || hasHubSession()) && window.history.length > 1){
+      window.history.back();
+      return;
+    }
+  }catch(_e){}
+  window.location.href = "hub.html";
+}
 
 applyStoredProductPrices();
 const HUB_INDEX_ADMIN_SESSION = loadHubIndexAdminSession();
@@ -360,6 +376,7 @@ function showAlert(message) {
   }catch(_e){}
   alertOverlay.classList.remove("hidden");
   alertOverlay.setAttribute("aria-hidden", "false");
+  syncIndexAdminMobileBar();
   clearAlertHelp();
 }
 
@@ -368,6 +385,7 @@ function hideAlert() {
   alertOverlay.classList.add("hidden");
   alertOverlay.setAttribute("aria-hidden", "true");
   try{ alertOverlay.style.display = "none"; }catch(_e){}
+  syncIndexAdminMobileBar();
   clearAlertHelp();
 }
 
@@ -458,11 +476,12 @@ function createProductCard(p) {
       <div class="productDesc">${p.desc || ""}</div>
 
       <div class="productBottom">
+        ${shouldUseIndexAdminView() ? `<div class="productAdminNote">Solo visualización en esta página admin</div>` : `
         <div class="stepper">
           <button type="button" data-action="dec" data-id="${p.id}" ${qty <= 0 ? "disabled" : ""}>−</button>
           <div class="qty" id="qty_${p.id}">${qty}</div>
           <button type="button" data-action="inc" data-id="${p.id}">+</button>
-        </div>
+        </div>`}
       </div>
     </div>
   `;
@@ -484,6 +503,7 @@ function refreshProductCard(id) {
 }
 
 function onProductsClick(e) {
+  if (shouldUseIndexAdminView()) return;
   const btn = e.target.closest("button[data-action]");
   if (!btn) return;
 
@@ -681,11 +701,13 @@ async function saveOrder(data) {
 function showModal() {
   modal.classList.remove("hidden");
   modal.setAttribute("aria-hidden", "false");
+  syncIndexAdminMobileBar();
 }
 
 function hideModal() {
   modal.classList.add("hidden");
   modal.setAttribute("aria-hidden", "true");
+  syncIndexAdminMobileBar();
 }
 
 function fillModal(data, orderId) {
@@ -980,6 +1002,7 @@ function showLoading(text="Procesando...", sub=""){
       loadingOverlay.style.display = "flex";
     }
     document.body.classList.add("is-loading");
+    syncIndexAdminMobileBar();
     startLoadingProgressLoop();
   }catch(_e){}
 }
@@ -1005,6 +1028,7 @@ function hideLoading(){
         loadingOverlay.style.display = "none";
       }
       document.body.classList.remove("is-loading");
+      syncIndexAdminMobileBar();
     };
     if(elapsed < 700){
       setTimeout(doHide, 700 - elapsed);
@@ -1095,6 +1119,11 @@ const btnIndexAdminSavePrices = document.getElementById("btnIndexAdminSavePrices
 const btnIndexAdminResetPrices = document.getElementById("btnIndexAdminResetPrices");
 const btnIndexAdminGoOpiniones = document.getElementById("btnIndexAdminGoOpiniones");
 const indexAdminStatus = document.getElementById("indexAdminStatus");
+const indexAdminMobileBar = document.getElementById("indexAdminMobileBar");
+const btnIndexAdminBarHub = document.getElementById("btnIndexAdminBarHub");
+const btnIndexAdminBarOpiniones = document.getElementById("btnIndexAdminBarOpiniones");
+const btnIndexAdminBarTools = document.getElementById("btnIndexAdminBarTools");
+const orderSection = document.getElementById("pedido");
 
 const reviewModal = document.getElementById("reviewModal");
 const btnCloseReview = document.getElementById("btnCloseReview");
@@ -1129,13 +1158,34 @@ function renderIndexAdminPriceEditor(){
 }
 
 function applyIndexAdminVisibility(){
-  const enabled = isIndexAdminMode() || !!HUB_INDEX_ADMIN_SESSION;
+  const enabled = shouldUseIndexAdminView();
+  document.body.classList.toggle("is-index-admin-view", enabled);
   if(indexAdminSection) indexAdminSection.classList.toggle("hidden", !enabled);
   if(btnAdminReviews && enabled) btnAdminReviews.classList.remove("hidden");
-  if(enabled) renderIndexAdminPriceEditor();
+  if(orderSection) orderSection.classList.toggle("hidden", enabled);
+  if(enabled){
+    renderIndexAdminPriceEditor();
+    renderProducts();
+    updateSummary();
+  }
   if(HUB_INDEX_ADMIN_SESSION?.password){
     if(adminPinReviews) adminPinReviews.value = String(HUB_INDEX_ADMIN_SESSION.password || "");
     _isAdminReviews = true;
+  }
+  syncIndexAdminMobileBar();
+}
+function syncIndexAdminMobileBar(){
+  if(!indexAdminMobileBar) return;
+  const enabled = shouldUseIndexAdminView();
+  const mobile = window.matchMedia("(max-width: 720px)").matches;
+  const blocked = !enabled || !mobile || document.body.classList.contains("is-loading") || !alertOverlay?.classList.contains("hidden") || !modal?.classList.contains("hidden") || !reviewModal?.classList.contains("hidden") || !adminReviewsModal?.classList.contains("hidden");
+  indexAdminMobileBar.classList.toggle("hidden", blocked);
+  indexAdminMobileBar.classList.toggle("isVisible", !blocked);
+  if(btnIndexAdminBarHub){
+    const hasHub = hasHubSession() || /(^|\/)hub\.html(?:\?|$)/i.test(String(document.referrer || ""));
+    btnIndexAdminBarHub.querySelector(".txt").textContent = hasHub ? "Panel" : "Inicio";
+    btnIndexAdminBarHub.querySelector(".ico").textContent = hasHub ? "⌂" : "↑";
+    btnIndexAdminBarHub.setAttribute("aria-label", hasHub ? "Volver al panel" : "Volver arriba");
   }
 }
 
@@ -1174,12 +1224,14 @@ function showReviewModal(){
   if(!reviewModal) return;
   reviewModal.classList.remove("hidden");
   reviewModal.setAttribute("aria-hidden","false");
+  syncIndexAdminMobileBar();
 }
 
 function hideReviewModal(){
   if(!reviewModal) return;
   reviewModal.classList.add("hidden");
   reviewModal.setAttribute("aria-hidden","true");
+  syncIndexAdminMobileBar();
 }
 
 function setStarsUI(val){
@@ -1465,11 +1517,11 @@ const adminReviewsErr = document.getElementById("adminReviewsErr");
 let _isAdminReviews = false;
 
 function showAdminButtonIfNeeded(){
-  const enabled = isIndexAdminMode() || !!HUB_INDEX_ADMIN_SESSION;
+  const enabled = shouldUseIndexAdminView();
   if(btnAdminReviews && enabled) btnAdminReviews.classList.remove("hidden");
 }
-function showModalEl(el){ if(!el) return; el.classList.remove("hidden"); el.setAttribute("aria-hidden","false"); }
-function hideModalEl(el){ if(!el) return; el.classList.add("hidden"); el.setAttribute("aria-hidden","true"); }
+function showModalEl(el){ if(!el) return; el.classList.remove("hidden"); el.setAttribute("aria-hidden","false"); syncIndexAdminMobileBar(); }
+function hideModalEl(el){ if(!el) return; el.classList.add("hidden"); el.setAttribute("aria-hidden","true"); syncIndexAdminMobileBar(); }
 
 
 function timeAgo(dateStr){
@@ -1509,13 +1561,22 @@ if(reviewsListEl) fetchReviews();
 
 showAdminButtonIfNeeded();
 applyIndexAdminVisibility();
+syncIndexAdminMobileBar();
 
 btnIndexAdminSavePrices?.addEventListener("click", saveIndexAdminPrices);
 btnIndexAdminResetPrices?.addEventListener("click", resetIndexAdminPrices);
 btnIndexAdminGoOpiniones?.addEventListener("click", ()=>{ opinionesSection?.scrollIntoView?.({ behavior:"smooth", block:"start" }); });
+btnIndexAdminBarHub?.addEventListener("click", ()=>{
+  const hasHub = hasHubSession() || /(^|\/)hub\.html(?:\?|$)/i.test(String(document.referrer || ""));
+  if(hasHub) goHubFromIndexAdmin();
+  else window.scrollTo({ top: 0, behavior: "smooth" });
+});
+btnIndexAdminBarOpiniones?.addEventListener("click", ()=>{ opinionesSection?.scrollIntoView?.({ behavior:"smooth", block:"start" }); });
+btnIndexAdminBarTools?.addEventListener("click", ()=>{ indexAdminSection?.scrollIntoView?.({ behavior:"smooth", block:"start" }); });
+window.addEventListener("resize", syncIndexAdminMobileBar);
 
 btnAdminReviews?.addEventListener("click", () => {
-  const enabled = isIndexAdminMode() || !!HUB_INDEX_ADMIN_SESSION;
+  const enabled = shouldUseIndexAdminView();
   if(!enabled) return;
   if(_isAdminReviews){
     opinionesSection?.scrollIntoView?.({ behavior:"smooth", block:"start" });
