@@ -22,7 +22,7 @@ const COSTS_LOGIN_CACHE_KEY = "AMARED_PAGECACHE_COSTS_LOGIN_V1";
 const COSTS_DATA_CACHE_KEY = "AMARED_PAGECACHE_COSTS_DATA_V1";
 const FROM_HUB = (() => { try { return new URLSearchParams(window.location.search).get("hub") === "1"; } catch { return false; } })();
 function hasHubAccess_(){
-  try{ return FROM_HUB || !!sessionStorage.getItem(HUB_SESSION_KEY) || !!localStorage.getItem(HUB_REMEMBER_KEY); }catch(_e){ return FROM_HUB; }
+  return FROM_HUB;
 }
 function revealHubBoot_(){
   try{ document.documentElement.classList.remove("hubBoot"); document.documentElement.classList.add("hubReady"); }catch(_e){}
@@ -1512,16 +1512,11 @@ function renderUnitCosts(){
 
   if(tbody){
     tbody.innerHTML = rows.map(r=>`
-      <tr data-dessert="${escapeHtml(r.id)}" style="cursor:pointer;">
-        <td>${escapeHtml(prettyDessertName(r.id))} <span style="opacity:.55; font-weight:950;">${r.open?"▾":"▸"}</span></td>
+      <tr>
+        <td>${escapeHtml(prettyDessertName(r.id))}</td>
         <td class="num">${r.unit!==null ? moneyCOP2(r.unit) : "$—"}</td>
         <td class="num">${r.unit!==null ? moneyCOP2(r.unit/0.40) : "$—"}</td>
         <td class="num">${r.lote!==null ? moneyCOP2(r.lote) : "$—"}</td>
-      </tr>
-      <tr data-detail="${escapeHtml(r.id)}" style="${r.open ? "" : "display:none;"}">
-        <td colspan="4" style="padding:0; background: rgba(255,255,255,.55);">
-          ${unitBreakdownHtml_(r.breakdown)}
-        </td>
       </tr>
     `).join("");
   }
@@ -3716,16 +3711,8 @@ function bind(){
     }
   }finally{ hideLoading(); }
 });
-// Unit-cost breakdown (toggle)
-  el("unitCostRows")?.addEventListener("click", (ev)=>{
-    const tr = ev.target && ev.target.closest ? ev.target.closest("tr[data-dessert]") : null;
-    if(!tr) return;
-    const id = tr.getAttribute("data-dessert");
-    if(!id) return;
-    state.ui.unitOpen = state.ui.unitOpen || {};
-    state.ui.unitOpen[id] = !state.ui.unitOpen[id];
-    renderUnitCosts();
-  });
+// Unit-cost breakdown (toggle solo móvil; en escritorio se mantiene tabla limpia)
+  el("unitCostRows")?.addEventListener("click", (_ev)=>{});
 
   // Tabs
   el("btnTabPurchases")?.addEventListener("click", ()=> setView("purchases"));

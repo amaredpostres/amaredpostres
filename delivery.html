@@ -24,8 +24,8 @@
       align-items: center;
       justify-content: center;
       padding: 16px;
-      background: rgba(64,17,2,.25);
-      backdrop-filter: blur(6px);
+      background: rgba(255,245,238,.68);
+      backdrop-filter: blur(10px);
       box-sizing: border-box;
     }
     html.hubBoot .amHubBootOverlay{ display:flex; }
@@ -33,11 +33,11 @@
     .amHubBootCard{
       width: fit-content;
       max-width: min(420px, calc(100vw - 32px));
-      background: rgba(255,255,255,.94);
-      border: 1px solid rgba(64,17,2,.12);
+      background: linear-gradient(180deg, rgba(255,252,249,.98), rgba(255,244,236,.95));
+      border: 1px solid rgba(255,255,255,.84);
       border-radius: 24px;
       padding: 16px 18px;
-      box-shadow: 0 18px 40px rgba(0,0,0,.18);
+      box-shadow: 0 18px 40px rgba(64,17,2,.12);
       box-sizing: border-box;
     }
     .amHubBootRow{
@@ -51,8 +51,8 @@
       width: 18px;
       height: 18px;
       border-radius: 999px;
-      border: 2px solid rgba(64,17,2,.18);
-      border-top-color: rgba(64,17,2,.70);
+      border: 2px solid rgba(64,17,2,.12);
+      border-top-color: rgba(242,91,143,.82);
       animation: amHubBootSpin 1s linear infinite;
       flex: 0 0 auto;
     }
@@ -84,7 +84,7 @@
   <title>AMARED · Envíos</title>
 
   <link rel="icon" href="assets/favicon.ico" type="image/x-icon">
-  <link rel="stylesheet" href="styles.css?v=20260328-async-shell-v2" />
+  <link rel="stylesheet" href="styles.css?v=20260330-project-v8" />
   <link rel="stylesheet" href="delivery.css?v=20260327-loader-unified-v1" />
 
   <style>
@@ -283,6 +283,7 @@
 
   <!-- LOADING OVERLAY -->
   <div id="loading" class="amLoadingOverlay" aria-hidden="true" style="display:none;">
+    <div class="amLoadingBackdropFx" aria-hidden="true"></div>
     <div class="amLoadingCard">
       <div class="amLoadingRow">
         <div class="amSpinner"></div>
