@@ -1822,7 +1822,7 @@ function activeDesserts_(){
       name: String(d.dessert_name || d.name || d.label || "").trim(),
       active: normActiveFlag_(d.active)
     }))
-    .filter(d => d.id && d.active);
+    .filter(d => d.id && d.active && !isDessertHardDisabled_(d.id));
 }
 function dessertNameById_(){
   const m = {};
@@ -3113,8 +3113,9 @@ async function loadDessertsFromSheet_(){
 
     // Lista para UI: SOLO activos
     state.desserts = (state.dessertsRaw||[]).filter(d=>{
+      const id = String(d.dessert_id || d.id || "").trim();
       const a = String(d.active ?? "1").trim().toLowerCase();
-      return !(a === "0" || a === "false");
+      return !(a === "0" || a === "false") && !isDessertHardDisabled_(id);
     });
 
     // Cache set de inactivos para filtrar "extras" (p.ej. postres viejos en pedidos)
@@ -3125,7 +3126,7 @@ async function loadDessertsFromSheet_(){
         if(!id0) continue;
         const a0 = String(d.active ?? "1").trim().toLowerCase();
         const isActive0 = !(a0 === "0" || a0 === "false");
-        if(!isActive0) s.add(id0);
+        if(!isActive0 || isDessertHardDisabled_(id0)) s.add(id0);
       }
       state.inactiveDessertsSet = s;
     }catch(_e){

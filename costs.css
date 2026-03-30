@@ -38,7 +38,13 @@ body.costsPage::before{
   isolation: isolate;
 }
 
-.costsPage #appRoot::before{
+
+/* Fondo expandido de Costs: evita el recorte lateral debajo del topbar */
+.costsPage main.container{
+  position: relative;
+  isolation: isolate;
+}
+.costsPage main.container::before{
   content: "";
   position: absolute;
   z-index: -1;
@@ -53,6 +59,29 @@ body.costsPage::before{
     var(--costs-bg-glow-right),
     var(--costs-bg-base);
   background-repeat: no-repeat;
+
+}
+@media (max-width: 860px){
+  .costsPage main.container::before{
+    background:
+      var(--costs-bg-glow-left),
+      var(--costs-bg-glow-right),
+      var(--costs-bg-base);
+    background-repeat: no-repeat;
+  }
+}
+
+.costsPage #appRoot::before{
+  content: none;
+  position: absolute;
+  z-index: -1;
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  width: 100vw;
+  transform: translateX(-50%);
+  pointer-events: none;
+  display: none;
 }
 
 @media (max-width: 860px){
@@ -70,13 +99,6 @@ body.costsPage::before{
     background-attachment: scroll, scroll, scroll !important;
   }
 
-  .costsPage #appRoot::before{
-    background:
-      var(--costs-bg-glow-left),
-      var(--costs-bg-glow-right),
-      var(--costs-bg-base);
-    background-repeat: no-repeat;
-  }
 }
 
 @media (min-width: 861px){
