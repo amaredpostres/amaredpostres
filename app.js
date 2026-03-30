@@ -354,23 +354,28 @@ function renderProducts() {
     const qty = cart.get(p.id) || 0;
 
     const div = document.createElement("div");
-    div.className = `productCard${qty > 0 ? " isSelected" : ""}`;
-    div.dataset.id = p.id;
+    div.className = `productCard${qty > 0 ? " is-selected" : ""}`;
 
     div.innerHTML = `
-      <img class="productImg" src="${p.img}" alt="${p.alt || p.name}" loading="lazy" />
+      <div class="productMediaWrap">
+        <img class="productImg" src="${p.img}" alt="${p.alt || p.name}" loading="lazy" />
+      </div>
 
       <div class="productInfo">
         <div class="productTop">
+          <div class="productEyebrow">Postre artesanal</div>
           <div class="name">${p.name}</div>
-          <div class="price">$${money(p.price)} c/u <span class="sizeBadge">6 oz</span></div>
+          <div class="productMetaRow">
+            <div class="price">$${money(p.price)} c/u</div>
+            <span class="sizeBadge">6 oz</span>
+          </div>
         </div>
 
         <div class="productDesc">${p.desc || ""}</div>
 
         <div class="productBottom">
           <div class="stepper">
-            <button type="button" data-action="dec" data-id="${p.id}">−</button>
+            <button type="button" data-action="dec" data-id="${p.id}" ${qty <= 0 ? "disabled" : ""}>−</button>
             <div class="qty" id="qty_${p.id}">${qty}</div>
             <button type="button" data-action="inc" data-id="${p.id}">+</button>
           </div>
@@ -392,13 +397,7 @@ function renderProducts() {
     const next = action === "inc" ? current + 1 : Math.max(0, current - 1);
 
     cart.set(id, next);
-
-    const qtyEl = document.getElementById(`qty_${id}`);
-    if (qtyEl) qtyEl.textContent = String(next);
-
-    const cardEl = elProducts.querySelector(`.productCard[data-id="${CSS.escape(id)}"]`);
-    if (cardEl) cardEl.classList.toggle("isSelected", next > 0);
-
+    renderProducts();
     updateSummary();
   };
 }
@@ -418,10 +417,20 @@ function updateSummary() {
   elSubtotal.textContent = money(subtotal);
 
   if (items.length === 0) {
-    elCartSummary.textContent = "Aún no has seleccionado postres.";
+    elCartSummary.innerHTML = `
+      <div class="cartEmptyState">
+        <strong>Tu pedido está vacío.</strong>
+        <span>Selecciona tus postres favoritos para comenzar.</span>
+      </div>
+    `;
   } else {
     elCartSummary.innerHTML = items
-      .map(it => `<span class="cartTag"><strong>${escapeHtml(it.name)}</strong> x${it.qty}</span>`)
+      .map(it => `
+        <div class="cartLine">
+          <span class="cartLineName">${escapeHtml(it.name)}</span>
+          <span class="cartLineMeta">x${it.qty}</span>
+        </div>
+      `)
       .join("");
   }
 }
@@ -693,7 +702,7 @@ btnSendWhatsApp?.addEventListener("click", async () => {
   btnSendWhatsApp.disabled = true;
   btnCloseModal.disabled = true;
 
-  showLoading("Preparando tu pedido...", "Estamos registrando tu información.");
+  showLoading("Registrando pedido...");
 
   // ✅ deja que el navegador pinte el loader
   await nextFrame();
@@ -784,17 +793,30 @@ updateSummary();
 syncLocationUI();
 
 
-function showLoading(text="Procesando...", sub="Por favor espera."){
+function showLoading(text="Procesando...", sub=""){
   try{
     _loadingStartTs = Date.now();
-    if(loadingText) loadingText.textContent = text;
-    if(loadingSub) loadingSub.textContent = sub;
+    const t = String(text || "Procesando...");
+    let finalSub = String(sub || "").trim();
+    if(!finalSub){
+      const low = t.toLowerCase();
+      if(low.includes("registrando")){
+        finalSub = "Estamos conectando tu pedido con AMARED y preparando la confirmación por WhatsApp.";
+      }else if(low.includes("cargando")){
+        finalSub = "Estamos dejando todo listo para ti.";
+      }else{
+        finalSub = "Un momento, ya casi terminamos.";
+      }
+    }
+    if(loadingText) loadingText.textContent = t;
+    if(loadingSub) loadingSub.textContent = finalSub;
     if(loadingOverlay){
       loadingOverlay.classList.remove("hidden");
       loadingOverlay.setAttribute("aria-hidden","false");
       loadingOverlay.style.zIndex = "31000";
       loadingOverlay.style.display = "flex";
     }
+    document.body.classList.add("is-loading");
   }catch(_e){}
 }
 function hideLoading(){
@@ -806,9 +828,10 @@ function hideLoading(){
         loadingOverlay.setAttribute("aria-hidden","true");
         loadingOverlay.style.display = "none";
       }
+      document.body.classList.remove("is-loading");
     };
-    if(elapsed < 650){
-      setTimeout(doHide, 650 - elapsed);
+    if(elapsed < 900){
+      setTimeout(doHide, 900 - elapsed);
     }else{
       doHide();
     }
@@ -1041,7 +1064,7 @@ if(!reviewsListEl) return;
         const pin = (adminPinReviews && adminPinReviews.value) ? adminPinReviews.value.trim() : "";
         if(!replyText) return showAlert("Escribe una respuesta.");
         if(!pin) return showAlert("Ingresa el PIN en Modo admin.");
-        showLoading("Enviando respuesta...", "Estamos guardando tu respuesta.");
+        showLoading("Enviando respuesta...");
         try{
           const res = await fetch(ORDER_API_URL, {
             method:"POST",
@@ -1148,7 +1171,7 @@ async function submitReview(){
     return;
   }
 
-  showLoading("Enviando opinión...", "Estamos registrando tu comentario.");
+  showLoading("Enviando opinión...");
   await nextFrame();
   try{
     const res = await fetch(ORDER_API_URL, {
@@ -1261,7 +1284,7 @@ btnAdminLoginReviews?.addEventListener("click", async ()=> {
     if(adminReviewsErr) adminReviewsErr.textContent = "Ingresa el PIN.";
     return;
   }
-  showLoading("Validando...", "Estamos comprobando la información.");
+  showLoading("Validando...");
   try{
     const res = await fetch(ORDER_API_URL, {
       method:"POST",
