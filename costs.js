@@ -396,6 +396,8 @@ function syncMobileNavForViewport_(){
 
   const hubUi = ensureCostsHubReturnUI();
   if(hubUi?.btn) hubUi.btn.style.display = (appVisible && !isMobile) ? "inline-flex" : "none";
+  const btnExit = el("btnExit");
+  if(btnExit) btnExit.style.display = (appVisible && !isMobile && !hasHubAccess_()) ? "inline-flex" : "none";
   syncCostsMobileReturnAction_();
 
   if(isMobile && appVisible && !unlockVisible){
