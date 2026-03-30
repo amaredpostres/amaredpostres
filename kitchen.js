@@ -1014,6 +1014,7 @@ function syncKitchenMobileReturnAction(){
     }
     const hubUi = ensureKitchenHubReturnUI();
     if(hubUi?.btn) hubUi.btn.style.display = (appVisible && !mobile) ? "inline-flex" : "none";
+    if(btnLogout) btnLogout.style.display = (appVisible && !mobile && !hasHubAccess_()) ? "inline-flex" : "none";
     syncKitchenMobileReturnAction();
     if(mobileActionBar){
       mobileActionBar.classList.toggle("isHidden", !appVisible || !mobile || overlayOpen);
@@ -1034,7 +1035,7 @@ function syncKitchenMobileReturnAction(){
     setKitchenShellMode("app");
     if(loginBox) loginBox.style.display="none";
     if(app) app.style.display="block";
-    if(btnLogout) btnLogout.style.display="inline-flex";
+    if(btnLogout) btnLogout.style.display = hasHubAccess_() ? "none" : "inline-flex";
     if(btnRefresh) btnRefresh.style.display="inline-flex";
     if(btnShopping) btnShopping.style.display="none";
     if(btnCosts) btnCosts.style.display="inline-flex";
