@@ -1189,6 +1189,13 @@ function prettyDessertName(id){
   return map[did] || did.replaceAll("_"," ");
 }
 
+const HARD_DISABLED_DESSERT_IDS_ = new Set(["arroz_con_leche"]);
+
+function isDessertHardDisabled_(id){
+  const key = String(id||"").trim().toLowerCase();
+  return !!key && HARD_DISABLED_DESSERT_IDS_.has(key);
+}
+
 function isDessertInactive_(id){
   const key = String(id||"").trim().toLowerCase();
   if(!key) return false;
@@ -1481,12 +1488,13 @@ function getDessertIdsForUi_(){
   }catch(_e){}
 
   // 4) Base conocida (compat)
-  ['mousse_maracuya','cheesecake_cafe_panela','arroz_con_leche'].forEach(id=>set.add(id));
+  ['mousse_maracuya','cheesecake_cafe_panela'].forEach(id=>set.add(id));
 
   const out = [];
   for(const id0 of set){
     const id = String(id0||'').trim();
     if(!id) continue;
+    if(isDessertHardDisabled_(id)) continue;
     if(isDessertInactive_(id)) continue;
     if(isDessertLocallyDeleted_(id)) continue;
     out.push(id);
@@ -2324,7 +2332,7 @@ function getRememberCheckbox_(){
 
 
 // ===== Deleted desserts (hide from Recetas) =====
-const KNOWN_BASE_DESSERT_IDS_ = new Set(["mousse_maracuya","cheesecake_cafe_panela","arroz_con_leche"]);
+const KNOWN_BASE_DESSERT_IDS_ = new Set(["mousse_maracuya","cheesecake_cafe_panela"]);
 
 function loadDeletedDesserts_(){
   // Tombstones de postres eliminados para ocultarlos aunque existan en pedidos viejos.
