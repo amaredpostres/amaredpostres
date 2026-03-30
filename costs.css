@@ -1,3 +1,21 @@
+:root{
+  --bg: #fff8f3;
+}
+
+html,body{ min-height:100%; }
+
+body.costsPage{
+  background:
+    radial-gradient(940px 460px at 14% 2%, rgba(242,91,143,.14), transparent 60%),
+    radial-gradient(940px 460px at 86% 5%, rgba(246,186,96,.16), transparent 60%),
+    radial-gradient(980px 560px at 18% 55%, rgba(242,91,143,.08), transparent 68%),
+    radial-gradient(980px 560px at 82% 78%, rgba(246,186,96,.10), transparent 68%),
+    linear-gradient(180deg, #fff8f3 0%, #fef6ef 42%, #fff8f2 100%);
+  background-repeat:no-repeat;
+  background-attachment:fixed;
+  color: var(--choco);
+}
+
 /* ==============================
    PURCHASES.CSS - UX Mejorado
    Usa paleta AMARED desde styles.css
