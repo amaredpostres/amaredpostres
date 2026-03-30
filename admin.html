@@ -127,6 +127,17 @@
 
     .list{ display:grid; gap:10px; }
 
+    .adminIndexToolsCard{ margin-top:14px; }
+    .adminIndexToolsLead{ color:rgba(64,17,2,.72); font-weight:800; line-height:1.45; margin:0 0 12px; }
+    .adminIndexToolsRows{ display:grid; gap:10px; }
+    .adminIndexPriceRow{ display:grid; grid-template-columns:minmax(0,1fr) 150px; gap:10px; align-items:end; padding:10px 12px; border:1px solid rgba(64,17,2,.10); border-radius:14px; background:rgba(255,255,255,.7); }
+    .adminIndexPriceName{ font-weight:950; line-height:1.12; }
+    .adminIndexPriceHint{ margin-top:4px; font-size:12.5px; color:rgba(64,17,2,.6); font-weight:700; }
+    .adminIndexActions{ display:flex; gap:10px; flex-wrap:wrap; margin-top:12px; }
+    .adminIndexStatus{ min-height:18px; margin-top:8px; }
+    @media (max-width: 720px){ .adminIndexPriceRow{ grid-template-columns:1fr; } }
+
+
     .orderItem{
       border:1px solid var(--border); background:var(--paper);
       border-radius:18px; box-shadow:0 12px 30px rgba(64,17,2,.08);
@@ -522,6 +533,18 @@
         <div id="status" class="mutedSmall"></div>
         <div id="list" class="list"></div>
       </div>
+
+      <div class="card adminIndexToolsCard">
+        <h2 class="cardTitle">Página de pedidos</h2>
+        <p class="adminIndexToolsLead">Aquí puedes actualizar los precios visibles del catálogo del index y abrir la gestión de opiniones de la página web.</p>
+        <div id="adminIndexPriceRows" class="adminIndexToolsRows"></div>
+        <div class="adminIndexActions">
+          <button id="btnAdminIndexSavePrices" class="btn primary" type="button">Guardar precios</button>
+          <button id="btnAdminIndexResetPrices" class="btn secondary" type="button">Restablecer</button>
+          <a id="btnAdminOpenIndexPage" class="btn secondary btnLinkLike" href="index.html?admin=1">Abrir página de pedidos</a>
+        </div>
+        <div id="adminIndexToolsStatus" class="mutedSmall adminIndexStatus"></div>
+      </div>
     </div>
   </div>
 
@@ -635,7 +658,7 @@
     </div>
   </div>
 
-  <script src="admin.js?v=20260329-standalone-profiles-loader-v1"></script>
+  <script src="admin.js?v=20260330-index-tools-v2"></script>
 </body>
 </html>
 
