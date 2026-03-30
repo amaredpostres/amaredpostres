@@ -18,6 +18,7 @@
           <img class="brandLogo" src="assets/Logo-Amared.svg" alt="AMARED Postres" />
         </a>
         <div class="topbarBadge">Pedidos directos</div>
+        <button id="btnIndexAdminDesktopHub" class="topbarBadge indexAdminTopbarAction hidden" type="button" aria-label="Volver al panel">Panel</button>
       </div>
     </header>
 
@@ -200,12 +201,15 @@
             <div class="sectionKicker">Modo administrador</div>
             <h2 class="cardTitle">Página de pedidos</h2>
           </div>
-          <div class="sectionPill sectionPillAccent">Admin</div>
+          <div class="sectionHeadActions">
+            <button id="btnIndexAdminGoOpiniones" class="btn secondary indexAdminDesktopOpinions" type="button">Opiniones</button>
+            <div class="sectionPill sectionPillAccent">Admin</div>
+          </div>
         </div>
 
-        <div class="indexAdminIntro">Desde aquí puedes actualizar los precios visibles del catálogo y entrar más rápido a la gestión de opiniones.</div>
+        <div class="indexAdminIntro">Desde aquí puedes actualizar los precios visibles del catálogo. Las respuestas a opiniones se gestionan en el bloque de opiniones que aparece más abajo.</div>
 
-        <div class="indexAdminGrid">
+        <div class="indexAdminGrid isSingle">
           <div class="miniCard indexAdminCard">
             <div class="miniCardTop">
               <img class="miniIcon" src="assets/Logo-Isotipo-Amared.svg" alt="AMARED" />
@@ -217,18 +221,6 @@
               <button id="btnIndexAdminResetPrices" class="btn secondary" type="button">Restablecer</button>
             </div>
             <div id="indexAdminStatus" class="muted small indexAdminStatus"></div>
-          </div>
-
-          <div class="miniCard indexAdminCard">
-            <div class="miniCardTop">
-              <img class="miniIcon" src="assets/Logo-Isotipo-Amared.svg" alt="AMARED" />
-              <div class="miniTitle">Opiniones y mensajes</div>
-            </div>
-            <div class="muted small indexAdminCopy">Puedes responder opiniones publicadas desde esta misma página. Si entraste desde el hub con un perfil autorizado, el modo admin se activa automáticamente.</div>
-            <div class="row indexAdminActions">
-              <button id="btnIndexAdminGoOpiniones" class="btn secondary" type="button">Ir a opiniones</button>
-              <a id="btnIndexAdminPublicView" class="btn secondary btnLinkLike" href="index.html">Ver versión pública</a>
-            </div>
           </div>
         </div>
       </section>
@@ -448,11 +440,11 @@
   <button id="btnOpinionesTop" class="backToTop hidden" type="button" aria-label="Volver al inicio">↑ Inicio</button>
 
   <div id="indexAdminMobileBar" class="indexAdminMobileBar hidden" aria-label="Acciones de la página de pedidos admin">
-    <button id="btnIndexAdminBarHub" class="indexAdminMobileBtn" type="button" aria-label="Volver al panel"><span class="ico">⌂</span><span class="txt">Panel</span></button>
+    <button id="btnIndexAdminBarOpiniones" class="indexAdminMobileBtn isIconOnly" type="button" aria-label="Ir a opiniones"><span class="ico">💬</span></button>
     <div class="indexAdminMobileCenter">
-      <button id="btnIndexAdminBarOpiniones" class="indexAdminMobilePill" type="button">Opiniones</button>
+      <button id="btnIndexAdminBarTools" class="indexAdminMobilePill" type="button">Precios</button>
     </div>
-    <button id="btnIndexAdminBarTools" class="indexAdminMobileBtn" type="button" aria-label="Ir a precios"><span class="ico">✎</span><span class="txt">Precios</span></button>
+    <button id="btnIndexAdminBarHub" class="indexAdminMobileBtn isIconOnly" type="button" aria-label="Volver al panel"><span class="ico">⌂</span></button>
   </div>
 
   <script src="app.js?v=20260330-index-admin-v4" defer></script>
