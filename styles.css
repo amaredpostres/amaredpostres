@@ -3111,6 +3111,8 @@ body.is-index-admin-view .page{
   display: grid;
   place-items: initial;
   flex: 1 1 auto;
+  background: transparent !important;
+  box-shadow: none !important;
 }
 .heroOrderIntro .spotlightStepCopy strong,
 .heroOrderIntro .spotlightStepCopy small{
@@ -3131,6 +3133,12 @@ body.is-index-admin-view .page{
   line-height: 1.35;
   font-weight: 700;
   color: rgba(64,17,2,.64);
+}
+
+.heroOrderIntro .spotlightStepCopy strong,
+.heroOrderIntro .spotlightStepCopy small{
+  background: transparent !important;
+  box-shadow: none !important;
 }
 
 @media (max-width: 980px){
