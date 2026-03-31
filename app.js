@@ -41,6 +41,8 @@ const HUB_SESSION_KEY = "AMARED_HUB_SESSION_V1";
 const HUB_REMEMBER_KEY = "AMARED_HUB_REMEMBER_V1";
 const INDEX_ADMIN_ROLE_TAGS = new Set(["index_admin","indexadmin","pedidosweb","weborders","admin"]);
 const PRODUCTS = DEFAULT_PRODUCTS.map(p => ({ ...p }));
+let _catalogSyncInFlight = null;
+let _catalogLastSyncTs = 0;
 
 function normalizeCats(v){
   if(Array.isArray(v)) return v.map(x => String(x || "").trim().toLowerCase()).filter(Boolean);
@@ -68,6 +70,72 @@ function applyStoredProductPrices(){
     const next = Number(overrides?.[product.id]);
     product.price = Number.isFinite(next) && next > 0 ? Math.round(next) : fallback;
   });
+}
+function buildProductPriceMapFromItems(items){
+  const map = {};
+  (Array.isArray(items) ? items : []).forEach(item => {
+    const id = String(item?.id || item?.dessert_id || item?.product_id || "").trim();
+    const price = Number(item?.price ?? item?.public_price ?? item?.unit_price ?? 0);
+    if(id && Number.isFinite(price) && price > 0) map[id] = Math.round(price);
+  });
+  return map;
+}
+function applyProductPriceMap(map){
+  PRODUCTS.forEach((product, idx) => {
+    const fallback = Number(DEFAULT_PRODUCTS[idx]?.price || product.price || 0);
+    const next = Number(map?.[product.id]);
+    product.price = Number.isFinite(next) && next > 0 ? Math.round(next) : fallback;
+  });
+}
+async function syncProductsCatalogFromBackend(force = false){
+  const now = Date.now();
+  if(!force && _catalogSyncInFlight) return _catalogSyncInFlight;
+  if(!force && _catalogLastSyncTs && (now - _catalogLastSyncTs) < 60 * 1000) return Promise.resolve();
+
+  _catalogSyncInFlight = (async ()=>{
+    try{
+      const res = await fetch(ORDER_API_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "products_catalog_public" })
+      });
+      const out = await res.json();
+      if(!out?.ok) throw new Error(out?.error || "No se pudo cargar el catálogo público.");
+      const items = Array.isArray(out.items) ? out.items : [];
+      const priceMap = buildProductPriceMapFromItems(items);
+      if(Object.keys(priceMap).length){
+        saveProductPriceOverrides(priceMap);
+        applyProductPriceMap(priceMap);
+      }else{
+        applyStoredProductPrices();
+      }
+      _catalogLastSyncTs = Date.now();
+      try{
+        renderProducts();
+        updateSummary();
+        renderIndexAdminPriceEditor();
+      }catch(_e){}
+    }catch(_e){
+      // Fallback silencioso al catálogo local ya aplicado
+    }finally{
+      _catalogSyncInFlight = null;
+    }
+  })();
+
+  return _catalogSyncInFlight;
+}
+function buildIndexCatalogAuthPayload(base){
+  const payload = Object.assign({}, base || {});
+  if(HUB_INDEX_ADMIN_SESSION?.id && HUB_INDEX_ADMIN_SESSION?.password){
+    payload.auth_profile_id = String(HUB_INDEX_ADMIN_SESSION.id || "").trim();
+    payload.auth_profile_password = String(HUB_INDEX_ADMIN_SESSION.password || "").trim();
+    payload.auth_page = "index";
+    return payload;
+  }
+  const pin = window.prompt("Ingresa el PIN de administrador para guardar los precios globales:", "");
+  if(!pin || !String(pin).trim()) return null;
+  payload.admin_pin = String(pin).trim();
+  return payload;
 }
 function loadHubIndexAdminSession(){
   const candidates = [];
@@ -932,6 +1000,7 @@ btnWhatsApp?.addEventListener("click", () => {
 renderProducts();
 updateSummary();
 syncLocationUI();
+syncProductsCatalogFromBackend().catch(()=>{});
 
 
 function setLoadingProgress(value){
@@ -1176,9 +1245,9 @@ function applyIndexAdminVisibility(){
     updateSummary();
   }
   if(enabled && HUB_INDEX_ADMIN_SESSION?.password){
-    if(adminPinReviews) adminPinReviews.value = String(HUB_INDEX_ADMIN_SESSION.password || "");
     if(!_isAdminReviews) shouldRefreshReviews = true;
     _isAdminReviews = true;
+    if(adminReviewsErr) adminReviewsErr.textContent = "Modo administrador habilitado desde el Hub.";
   }
   syncIndexAdminMobileBar();
   if(shouldRefreshReviews) fetchReviews();
@@ -1200,10 +1269,11 @@ function syncIndexAdminMobileBar(){
   btnIndexAdminBarTools?.setAttribute("aria-label", "Ir a precios");
 }
 
-function saveIndexAdminPrices(){
+async function saveIndexAdminPrices(){
   if(!indexAdminPriceList) return;
   const inputs = Array.from(indexAdminPriceList.querySelectorAll("[data-price-id]"));
   const nextMap = {};
+  const items = [];
   for(const input of inputs){
     const id = String(input.getAttribute("data-price-id") || "").trim();
     const value = Number(input.value || 0);
@@ -1213,22 +1283,80 @@ function saveIndexAdminPrices(){
       return;
     }
     nextMap[id] = Math.round(value);
+    const product = PRODUCTS.find(p => p.id === id) || DEFAULT_PRODUCTS.find(p => p.id === id) || {};
+    items.push({ dessert_id: id, dessert_name: String(product.name || "").trim(), public_price: Math.round(value) });
   }
-  saveProductPriceOverrides(nextMap);
-  applyStoredProductPrices();
-  renderProducts();
-  updateSummary();
-  renderIndexAdminPriceEditor();
-  setIndexAdminStatus("Precios actualizados correctamente.");
+
+  const payload = buildIndexCatalogAuthPayload({ action: "products_catalog_save", items });
+  if(!payload){
+    setIndexAdminStatus("Se necesita el PIN de administrador para guardar los precios globales.", true);
+    return;
+  }
+
+  showLoading("Guardando precios...", "Actualizando el catálogo visible para todos los clientes.");
+  try{
+    const res = await fetch(ORDER_API_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload)
+    });
+    const out = await res.json();
+    hideLoading();
+    if(!out?.ok){
+      setIndexAdminStatus(out?.error || "No se pudieron guardar los precios.", true);
+      return;
+    }
+    saveProductPriceOverrides(nextMap);
+    applyProductPriceMap(nextMap);
+    renderProducts();
+    updateSummary();
+    renderIndexAdminPriceEditor();
+    setIndexAdminStatus("Precios globales actualizados correctamente.");
+    window.dispatchEvent(new CustomEvent("amared:catalog-updated", { detail: { source: "index" } }));
+  }catch(e){
+    hideLoading();
+    setIndexAdminStatus(String(e?.message || e || "No se pudieron guardar los precios."), true);
+  }
 }
 
-function resetIndexAdminPrices(){
-  clearProductPriceOverrides();
-  applyStoredProductPrices();
-  renderProducts();
-  updateSummary();
-  renderIndexAdminPriceEditor();
-  setIndexAdminStatus("Se restablecieron los precios originales.");
+async function resetIndexAdminPrices(){
+  const defaults = {};
+  const items = DEFAULT_PRODUCTS.map(product => {
+    const price = Math.round(Number(product.price || 0));
+    defaults[product.id] = price;
+    return { dessert_id: product.id, dessert_name: String(product.name || "").trim(), public_price: price };
+  });
+
+  const payload = buildIndexCatalogAuthPayload({ action: "products_catalog_save", items });
+  if(!payload){
+    setIndexAdminStatus("Se necesita el PIN de administrador para restablecer los precios globales.", true);
+    return;
+  }
+
+  showLoading("Restableciendo precios...", "Volviendo a los precios base del catálogo.");
+  try{
+    const res = await fetch(ORDER_API_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload)
+    });
+    const out = await res.json();
+    hideLoading();
+    if(!out?.ok){
+      setIndexAdminStatus(out?.error || "No se pudieron restablecer los precios.", true);
+      return;
+    }
+    saveProductPriceOverrides(defaults);
+    applyProductPriceMap(defaults);
+    renderProducts();
+    updateSummary();
+    renderIndexAdminPriceEditor();
+    setIndexAdminStatus("Se restablecieron los precios globales.");
+    window.dispatchEvent(new CustomEvent("amared:catalog-updated", { detail: { source: "index" } }));
+  }catch(e){
+    hideLoading();
+    setIndexAdminStatus(String(e?.message || e || "No se pudieron restablecer los precios."), true);
+  }
 }
 
 function showReviewModal(){
@@ -1371,13 +1499,21 @@ if(!reviewsListEl) return;
         const replyText = input ? input.value.trim() : "";
         const pin = (adminPinReviews && adminPinReviews.value) ? adminPinReviews.value.trim() : "";
         if(!replyText) return showAlert("Escribe una respuesta.");
-        if(!pin) return showAlert("Ingresa el PIN en Modo admin.");
+        const payload = { action:"reviews_reply", order_id: orderId, reply: replyText };
+        if(HUB_INDEX_ADMIN_SESSION?.id && HUB_INDEX_ADMIN_SESSION?.password){
+          payload.auth_profile_id = String(HUB_INDEX_ADMIN_SESSION.id || "").trim();
+          payload.auth_profile_password = String(HUB_INDEX_ADMIN_SESSION.password || "").trim();
+          payload.auth_page = "index";
+        }else{
+          if(!pin) return showAlert("Ingresa el PIN en Modo admin.");
+          payload.admin_pin = pin;
+        }
         showLoading("Enviando respuesta...");
         try{
           const res = await fetch(ORDER_API_URL, {
             method:"POST",
             headers:{ "Content-Type":"application/json" },
-            body: JSON.stringify({ action:"reviews_reply", admin_pin: pin, order_id: orderId, reply: replyText })
+            body: JSON.stringify(payload)
           });
           const out = await res.json();
           hideLoading();
@@ -1599,7 +1735,8 @@ adminReviewsModal?.addEventListener("click", (e)=>{ if(e.target===adminReviewsMo
 
 if(HUB_INDEX_ADMIN_SESSION?.password){
   _isAdminReviews = true;
-  if(adminPinReviews) adminPinReviews.value = String(HUB_INDEX_ADMIN_SESSION.password || "");
+  if(adminReviewsErr) adminReviewsErr.textContent = "Modo administrador habilitado desde el Hub.";
+  fetchReviews().catch(()=>{});
 }
 
 btnAdminLoginReviews?.addEventListener("click", async ()=> {
@@ -1655,3 +1792,7 @@ window.addEventListener("scroll", updateOpinionesTopVisibility);
 btnOpinionesTop?.addEventListener("click", ()=>{
   window.scrollTo({ top: 0, behavior: "smooth" });
 });
+
+window.addEventListener("focus", ()=>{ syncProductsCatalogFromBackend(true).catch(()=>{}); });
+document.addEventListener("visibilitychange", ()=>{ if(!document.hidden) syncProductsCatalogFromBackend(true).catch(()=>{}); });
+window.addEventListener("amared:catalog-updated", ()=>{ syncProductsCatalogFromBackend(true).catch(()=>{}); });
