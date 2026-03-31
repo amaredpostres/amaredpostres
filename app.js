@@ -289,6 +289,26 @@ function escapeHtml(s){
     .replaceAll('"',"&quot;")
     .replaceAll("'","&#039;");
 }
+
+function setupSpotlightQuickActions(){
+  document.querySelectorAll('.spotlightStepAction[data-scroll-target]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const targetSel = String(btn.getAttribute('data-scroll-target') || '').trim();
+      const focusSel = String(btn.getAttribute('data-focus-target') || '').trim();
+      const targetEl = targetSel ? document.querySelector(targetSel) : null;
+      if(targetEl){
+        targetEl.scrollIntoView({ behavior:'smooth', block:'start' });
+      }
+      if(!focusSel) return;
+      window.setTimeout(() => {
+        const focusEl = document.querySelector(focusSel);
+        if(!focusEl) return;
+        try{ focusEl.focus({ preventScroll:true }); }catch(_e){ try{ focusEl.focus(); }catch(_e2){} }
+      }, 420);
+    });
+  });
+}
+
 function generateClientOrderId() {
   const now = new Date();
   const y = now.getFullYear();
@@ -1866,6 +1886,8 @@ btnMoreReviews?.addEventListener("click", async () => {
 
 // ✅ Cargar las 3 últimas opiniones al abrir la página
 if(reviewsListEl) fetchReviews();
+
+setupSpotlightQuickActions();
 
 showAdminButtonIfNeeded();
 applyIndexAdminVisibility();
