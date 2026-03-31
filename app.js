@@ -600,6 +600,79 @@ function ensureCatalogLoadingInlineStyles(){
   document.head.appendChild(style);
 }
 
+function warmProductImages(){
+  try{
+    PRODUCTS.forEach(product => {
+      const src = String(product?.img || "").trim();
+      if(!src) return;
+      const img = new Image();
+      img.decoding = "async";
+      img.src = src;
+    });
+  }catch(_e){}
+}
+
+function renderProductPriceHtml(product){
+  if(_catalogReady) return `$${money(product.price)} c/u`;
+  return '<span class="priceLoadingText" aria-live="polite"><span class="priceLoadingDots" aria-hidden="true"><span class="priceLoadingDot"></span><span class="priceLoadingDot"></span><span class="priceLoadingDot"></span></span><span class="priceLoadingLabel">Cargando precio…</span></span>';
+}
+
+function renderProductBottomHtml(product, qty){
+  if(shouldUseIndexAdminView()){
+    return `<div class="productAdminNote">Solo visualización en esta página admin</div>`;
+  }
+  if(!_catalogReady){
+    return `<div class="productAdminNote">Espera un momento mientras cargamos el precio actualizado.</div>`;
+  }
+  return `
+        <div class="stepper">
+          <button type="button" data-action="dec" data-id="${product.id}" ${qty <= 0 ? "disabled" : ""}>−</button>
+          <div class="qty" id="qty_${product.id}">${qty}</div>
+          <button type="button" data-action="inc" data-id="${product.id}">+</button>
+        </div>`;
+}
+
+function updateProductCard(card, product){
+  if(!card || !product) return;
+  const qty = cart.get(product.id) || 0;
+  card.className = `productCard${qty > 0 ? " is-selected" : ""}`;
+  card.dataset.productId = product.id;
+
+  const img = card.querySelector(".productImg");
+  if(img){
+    const nextSrc = String(product.img || "");
+    if(img.getAttribute("src") !== nextSrc) img.setAttribute("src", nextSrc);
+    const nextAlt = String(product.alt || product.name || "");
+    if(img.getAttribute("alt") !== nextAlt) img.setAttribute("alt", nextAlt);
+  }
+
+  const nameEl = card.querySelector(".productTop .name");
+  if(nameEl && nameEl.textContent !== String(product.name || "")) nameEl.textContent = String(product.name || "");
+
+  const descEl = card.querySelector(".productDesc");
+  if(descEl && descEl.textContent !== String(product.desc || "")) descEl.textContent = String(product.desc || "");
+
+  const priceEl = card.querySelector(".price");
+  if(priceEl){
+    const nextPriceHtml = renderProductPriceHtml(product);
+    const nextClass = `price${_catalogReady ? '' : ' muted priceLoading'}`;
+    if(priceEl.className !== nextClass) priceEl.className = nextClass;
+    if(priceEl.innerHTML != nextPriceHtml) priceEl.innerHTML = nextPriceHtml;
+  }
+
+  const bottomEl = card.querySelector(".productBottom");
+  if(bottomEl){
+    const nextBottomHtml = renderProductBottomHtml(product, qty);
+    if(bottomEl.innerHTML != nextBottomHtml) bottomEl.innerHTML = nextBottomHtml;
+  }
+
+  const qtyEl = card.querySelector(`#qty_${product.id}`);
+  if(qtyEl) qtyEl.textContent = String(qty);
+
+  const decBtn = card.querySelector('button[data-action="dec"]');
+  if(decBtn) decBtn.disabled = qty <= 0;
+}
+
 function createProductCard(p) {
   const qty = cart.get(p.id) || 0;
   const div = document.createElement("div");
@@ -616,21 +689,14 @@ function createProductCard(p) {
         <div class="productEyebrow">Postre artesanal</div>
         <div class="name">${p.name}</div>
         <div class="productMetaRow">
-          <div class="price${_catalogReady ? '' : ' muted priceLoading'}">${_catalogReady ? `$${money(p.price)} c/u` : '<span class="priceLoadingText" aria-live="polite"><span class="priceLoadingDots" aria-hidden="true"><span class="priceLoadingDot"></span><span class="priceLoadingDot"></span><span class="priceLoadingDot"></span></span><span class="priceLoadingLabel">Cargando precio…</span></span>'}</div>
+          <div class="price${_catalogReady ? '' : ' muted priceLoading'}">${renderProductPriceHtml(p)}</div>
           <span class="sizeBadge">6 oz</span>
         </div>
       </div>
 
       <div class="productDesc">${p.desc || ""}</div>
 
-      <div class="productBottom">
-        ${shouldUseIndexAdminView() ? `<div class="productAdminNote">Solo visualización en esta página admin</div>` : (!_catalogReady ? `<div class="productAdminNote">Espera un momento mientras cargamos el precio actualizado.</div>` : `
-        <div class="stepper">
-          <button type="button" data-action="dec" data-id="${p.id}" ${qty <= 0 ? "disabled" : ""}>−</button>
-          <div class="qty" id="qty_${p.id}">${qty}</div>
-          <button type="button" data-action="inc" data-id="${p.id}">+</button>
-        </div>`)}
-      </div>
+      <div class="productBottom">${renderProductBottomHtml(p, qty)}</div>
     </div>
   `;
 
@@ -665,16 +731,26 @@ function onProductsClick(e) {
   updateSummary();
 }
 
-function renderProducts() {
+function renderProducts(forceRebuild = false) {
   ensureCatalogLoadingInlineStyles();
-  elProducts.innerHTML = "";
-  const frag = document.createDocumentFragment();
 
-  for (const p of PRODUCTS) {
-    frag.appendChild(createProductCard(p));
+  const targetIds = PRODUCTS.map(p => p.id);
+  const cards = Array.from(elProducts.querySelectorAll("[data-product-id]"));
+  const currentIds = cards.map(card => card.dataset.productId);
+  const sameStructure = !forceRebuild && cards.length === targetIds.length && currentIds.every((id, idx) => id === targetIds[idx]);
+
+  if(!sameStructure){
+    elProducts.innerHTML = "";
+    const frag = document.createDocumentFragment();
+    for (const p of PRODUCTS) {
+      frag.appendChild(createProductCard(p));
+    }
+    elProducts.appendChild(frag);
+  }else{
+    PRODUCTS.forEach((product, idx) => {
+      updateProductCard(cards[idx], product);
+    });
   }
-
-  elProducts.appendChild(frag);
 
   if (!elProducts.dataset.bound) {
     elProducts.addEventListener("click", onProductsClick);
@@ -1084,7 +1160,8 @@ btnWhatsApp?.addEventListener("click", () => {
   showModal();
 });// =================== INIT ===================
 setCatalogLoadingState(true);
-renderProducts();
+warmProductImages();
+renderProducts(true);
 updateSummary();
 syncLocationUI();
 bootProductsCatalog().catch(()=>{});
