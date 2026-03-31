@@ -8,7 +8,7 @@
   <link rel="icon" href="assets/favicon.ico" type="image/x-icon">
   <link rel="preload" href="assets/Logo-Amared.svg" as="image" type="image/svg+xml">
   <link rel="preload" href="assets/Logo-Isotipo-Amared.svg" as="image" type="image/svg+xml">
-  <link rel="stylesheet" href="styles.css?v=20260331-index-nav-v1" />
+  <link rel="stylesheet" href="styles.css?v=20260331-project-v10" />
 </head>
 <body>
   <div class="page">
@@ -24,35 +24,38 @@
 
     <main class="container amIndex" id="inicio">
       <section class="hero heroPremium">
-        <div class="heroShell">
+        <div class="heroShell heroOrderIntro">
           <div class="heroCopy">
             <div class="heroEyebrow"><span class="heroDot"></span> Haz tu pedido</div>
             <h1 class="heroTitle">Pide tu antojo en minutos.</h1>
             <p class="heroSubtitle">Elige tus postres, registra tu pedido y confirma todo por WhatsApp. Allí te compartimos el pago y los detalles finales de entrega.</p>
-
-            <div class="heroQuickHint">Selecciona una opción y te llevamos a la sección correspondiente del pedido.</div>
           </div>
 
           <aside class="heroSpotlight" aria-label="Así funciona el pedido en AMARED">
             <div class="spotlightGlass spotlightOrderFlow">
-              <div class="spotlightMiniTop">
-                <img class="spotlightMiniIso" src="assets/Logo-Isotipo-Amared.svg" alt="AMARED" />
-                <span class="spotlightMiniLabel">Confirmación por WhatsApp</span>
-              </div>
               <h2 class="spotlightHeading">Tu pedido se confirma por WhatsApp.</h2>
               <p class="spotlightText">Cuando termines tu pedido, se abrirá el chat de AMARED para validar el pago, la entrega y cualquier detalle final.</p>
-              <div class="spotlightSteps">
-                <button class="spotlightStep spotlightStepAction" type="button" data-scroll-target="#postres">
-                  <span>1</span>
-                  <span class="spotlightStepText">Elige tus postres</span>
+              <div class="spotlightSteps" role="navigation" aria-label="Accesos rápidos del pedido">
+                <button class="spotlightStep" type="button" data-scroll-target="postres">
+                  <span class="spotlightStepNum">1</span>
+                  <span class="spotlightStepCopy">
+                    <strong>Elige tus postres</strong>
+                    <small>Ve directo al catálogo y selecciona la cantidad que deseas.</small>
+                  </span>
                 </button>
-                <button class="spotlightStep spotlightStepAction" type="button" data-scroll-target="#pedido" data-focus-target="#name">
-                  <span>2</span>
-                  <span class="spotlightStepText">Revisa y registra tu pedido</span>
+                <button class="spotlightStep" type="button" data-scroll-target="pedido">
+                  <span class="spotlightStepNum">2</span>
+                  <span class="spotlightStepCopy">
+                    <strong>Revisa y registra tu pedido</strong>
+                    <small>Completa tus datos y revisa el resumen antes de continuar.</small>
+                  </span>
                 </button>
-                <button class="spotlightStep spotlightStepAction" type="button" data-scroll-target="#pedido" data-focus-target="#btnWhatsApp">
-                  <span>3</span>
-                  <span class="spotlightStepText">Confirma por WhatsApp</span>
+                <button class="spotlightStep" type="button" data-scroll-target="whatsapp">
+                  <span class="spotlightStepNum">3</span>
+                  <span class="spotlightStepCopy">
+                    <strong>Confirma por WhatsApp</strong>
+                    <small>Te llevamos a la sección para finalizar la confirmación.</small>
+                  </span>
                 </button>
               </div>
             </div>
@@ -451,6 +454,6 @@
     <button id="btnIndexAdminBarHub" class="indexAdminMobileBtn isIconOnly" type="button" aria-label="Volver al panel"><span class="ico">⌂</span></button>
   </div>
 
-  <script src="app.js?v=20260331-index-nav-v1" defer></script>
+  <script src="app.js?v=20260330-index-admin-v5" defer></script>
 </body>
 </html>

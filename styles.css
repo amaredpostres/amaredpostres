@@ -2245,49 +2245,6 @@ body::before{
   display: grid;
   gap: 10px;
 }
-
-.heroQuickHint{
-  margin-top: 16px;
-  color: rgba(64,17,2,.66);
-  font-size: 14px;
-  font-weight: 800;
-}
-
-.spotlightStepAction{
-  width: 100%;
-  text-align: left;
-  cursor: pointer;
-  transition: transform .18s ease, box-shadow .18s ease, border-color .18s ease, background .18s ease;
-  appearance: none;
-  -webkit-appearance: none;
-  color: inherit;
-}
-.spotlightStepAction:hover{
-  transform: translateY(-1px);
-  border-color: rgba(64,17,2,.16);
-  box-shadow: 0 10px 22px rgba(64,17,2,.08);
-  background: rgba(255,255,255,.92);
-}
-.spotlightStepAction:focus-visible{
-  outline: 3px solid rgba(242,91,143,.22);
-  outline-offset: 2px;
-  border-color: rgba(242,91,143,.32);
-}
-.spotlightStepText{
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-}
-.spotlightStepText::after{
-  content: "→";
-  font-size: 15px;
-  opacity: .72;
-}
-
-@media (max-width: 640px){
-  .heroQuickHint{ font-size: 13px; }
-  .spotlightStepAction{ padding: 13px 14px; }
-}
 .spotlightStep{
   display: flex;
   align-items: center;
@@ -3021,5 +2978,197 @@ body.is-index-admin-view .page{
   .productMediaWrap{
     aspect-ratio: 16 / 9;
     min-height: 0;
+  }
+}
+
+
+/* =========================
+   INDEX hero + pasos rápidos refinados
+   ========================= */
+.heroOrderIntro{
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1.08fr) minmax(320px, .92fr);
+  gap: 0;
+  overflow: hidden;
+  border-radius: 30px;
+  border: 1px solid rgba(64,17,2,.10);
+  background:
+    linear-gradient(180deg, rgba(255,255,255,.88), rgba(255,250,245,.78)),
+    linear-gradient(135deg, rgba(242,91,143,.07), rgba(246,186,96,.10));
+  box-shadow: 0 22px 44px rgba(64,17,2,.08);
+}
+.heroOrderIntro::before{
+  content:"";
+  position:absolute;
+  inset:0;
+  background:
+    radial-gradient(42rem 20rem at 8% 8%, rgba(242,91,143,.10), transparent 58%),
+    radial-gradient(30rem 16rem at 92% 14%, rgba(246,186,96,.12), transparent 58%);
+  pointer-events:none;
+}
+.heroOrderIntro .heroCopy,
+.heroOrderIntro .spotlightGlass{
+  position: relative;
+  z-index: 1;
+  min-height: 100%;
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+}
+.heroOrderIntro .heroCopy::after,
+.heroOrderIntro .spotlightGlass::after{
+  display:none;
+}
+.heroOrderIntro .heroCopy{
+  padding: clamp(26px, 3vw, 38px);
+  display:grid;
+  align-content:center;
+  gap: 14px;
+  text-align:center;
+}
+.heroOrderIntro .heroEyebrow{
+  justify-self: center;
+}
+.heroOrderIntro .heroTitle{
+  margin: 0;
+  font-size: clamp(38px, 4.6vw, 62px);
+}
+.heroOrderIntro .heroSubtitle{
+  max-width: 650px;
+  margin: 0 auto;
+}
+.heroOrderIntro .spotlightGlass{
+  padding: clamp(24px, 3vw, 34px);
+  border-left: 1px solid rgba(64,17,2,.08);
+  display:grid;
+  align-content:center;
+  gap: 16px;
+}
+.heroOrderIntro .spotlightHeading{
+  margin: 0;
+  font-size: clamp(30px, 2.5vw, 42px);
+  line-height: 1.02;
+}
+.heroOrderIntro .spotlightText{
+  margin: 0;
+  font-size: clamp(15px, 1.25vw, 18px);
+}
+.heroOrderIntro .spotlightSteps{
+  display:grid;
+  gap: 12px;
+  margin-top: 2px;
+}
+.heroOrderIntro .spotlightStep{
+  width: 100%;
+  border: 1px solid rgba(64,17,2,.08);
+  border-radius: 20px;
+  background: rgba(255,255,255,.84);
+  box-shadow: 0 10px 24px rgba(64,17,2,.05);
+  display:grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items:center;
+  gap: 14px;
+  padding: 14px 16px;
+  text-align:left;
+  cursor:pointer;
+  transition: transform .18s ease, box-shadow .18s ease, border-color .18s ease, background .18s ease;
+}
+.heroOrderIntro .spotlightStep:hover,
+.heroOrderIntro .spotlightStep:focus-visible{
+  transform: translateY(-1px);
+  border-color: rgba(242,91,143,.28);
+  box-shadow: 0 14px 28px rgba(64,17,2,.08);
+  outline: none;
+}
+.heroOrderIntro .spotlightStepNum{
+  width: 38px;
+  height: 38px;
+  border-radius: 999px;
+  display:grid;
+  place-items:center;
+  flex: 0 0 auto;
+  font-size: 16px;
+  font-weight: 950;
+  color: #5a1803;
+  background: linear-gradient(180deg, rgba(242,91,143,.18), rgba(246,186,96,.16));
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.55);
+}
+.heroOrderIntro .spotlightStepCopy{
+  min-width: 0;
+  display:grid;
+  gap: 3px;
+}
+.heroOrderIntro .spotlightStepCopy strong{
+  display:block;
+  font-size: 16px;
+  line-height: 1.18;
+  font-weight: 900;
+  color: #401102;
+}
+.heroOrderIntro .spotlightStepCopy small{
+  display:block;
+  font-size: 13px;
+  line-height: 1.35;
+  font-weight: 700;
+  color: rgba(64,17,2,.64);
+}
+
+@media (max-width: 980px){
+  .heroOrderIntro{
+    grid-template-columns: 1fr;
+    gap: 14px;
+    padding: 0;
+    background: transparent;
+    border: 0;
+    box-shadow: none;
+    overflow: visible;
+  }
+  .heroOrderIntro::before{ display:none; }
+  .heroOrderIntro .heroCopy,
+  .heroOrderIntro .spotlightGlass{
+    border-radius: 26px;
+    border: 1px solid rgba(64,17,2,.10);
+    background: linear-gradient(180deg, rgba(255,255,255,.92), rgba(255,250,245,.82));
+    box-shadow: 0 18px 34px rgba(64,17,2,.08);
+  }
+  .heroOrderIntro .spotlightGlass{
+    border-left: 1px solid rgba(64,17,2,.10);
+  }
+}
+
+@media (max-width: 640px){
+  .heroOrderIntro .heroCopy,
+  .heroOrderIntro .spotlightGlass{
+    padding: 22px 18px;
+    border-radius: 22px;
+  }
+  .heroOrderIntro .heroTitle{
+    font-size: clamp(28px, 9vw, 42px);
+  }
+  .heroOrderIntro .spotlightHeading{
+    font-size: clamp(24px, 8vw, 34px);
+    text-align: center;
+  }
+  .heroOrderIntro .spotlightText{
+    text-align: center;
+  }
+  .heroOrderIntro .spotlightStep{
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: start;
+    gap: 12px;
+    padding: 12px 14px;
+    border-radius: 18px;
+  }
+  .heroOrderIntro .spotlightStepNum{
+    width: 34px;
+    height: 34px;
+    font-size: 15px;
+  }
+  .heroOrderIntro .spotlightStepCopy strong{
+    font-size: 15px;
+  }
+  .heroOrderIntro .spotlightStepCopy small{
+    font-size: 12px;
   }
 }

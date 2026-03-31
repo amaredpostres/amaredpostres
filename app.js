@@ -289,26 +289,6 @@ function escapeHtml(s){
     .replaceAll('"',"&quot;")
     .replaceAll("'","&#039;");
 }
-
-function setupSpotlightQuickActions(){
-  document.querySelectorAll('.spotlightStepAction[data-scroll-target]').forEach(btn => {
-    btn.addEventListener('click', () => {
-      const targetSel = String(btn.getAttribute('data-scroll-target') || '').trim();
-      const focusSel = String(btn.getAttribute('data-focus-target') || '').trim();
-      const targetEl = targetSel ? document.querySelector(targetSel) : null;
-      if(targetEl){
-        targetEl.scrollIntoView({ behavior:'smooth', block:'start' });
-      }
-      if(!focusSel) return;
-      window.setTimeout(() => {
-        const focusEl = document.querySelector(focusSel);
-        if(!focusEl) return;
-        try{ focusEl.focus({ preventScroll:true }); }catch(_e){ try{ focusEl.focus(); }catch(_e2){} }
-      }, 420);
-    });
-  });
-}
-
 function generateClientOrderId() {
   const now = new Date();
   const y = now.getFullYear();
@@ -1378,6 +1358,32 @@ const btnIndexAdminBarOpiniones = document.getElementById("btnIndexAdminBarOpini
 const btnIndexAdminBarTools = document.getElementById("btnIndexAdminBarTools");
 const btnIndexAdminDesktopHub = document.getElementById("btnIndexAdminDesktopHub");
 const orderSection = document.getElementById("pedido");
+const productsSection = document.getElementById("postres");
+const quickOrderSteps = Array.from(document.querySelectorAll("[data-scroll-target]"));
+const orderNameField = document.getElementById("name");
+const btnWhatsAppReview = document.getElementById("btnWhatsApp");
+
+function scrollToSectionWithOffset(targetEl){
+  if(!targetEl) return;
+  const topbar = document.querySelector(".topbar");
+  const topbarHeight = topbar ? topbar.getBoundingClientRect().height : 0;
+  const y = window.scrollY + targetEl.getBoundingClientRect().top - topbarHeight - 16;
+  window.scrollTo({ top: Math.max(0, y), behavior: "smooth" });
+}
+
+function handleQuickOrderStep(target){
+  if(target === "postres") {
+    scrollToSectionWithOffset(productsSection);
+    return;
+  }
+  scrollToSectionWithOffset(orderSection);
+  const focusTarget = target === "whatsapp" ? btnWhatsAppReview : orderNameField;
+  if(focusTarget){
+    window.setTimeout(() => {
+      try{ focusTarget.focus({ preventScroll:true }); }catch(_){ focusTarget.focus?.(); }
+    }, 420);
+  }
+}
 
 const reviewModal = document.getElementById("reviewModal");
 const btnCloseReview = document.getElementById("btnCloseReview");
@@ -1887,11 +1893,13 @@ btnMoreReviews?.addEventListener("click", async () => {
 // ✅ Cargar las 3 últimas opiniones al abrir la página
 if(reviewsListEl) fetchReviews();
 
-setupSpotlightQuickActions();
-
 showAdminButtonIfNeeded();
 applyIndexAdminVisibility();
 syncIndexAdminMobileBar();
+
+quickOrderSteps.forEach((stepBtn) => {
+  stepBtn.addEventListener("click", () => handleQuickOrderStep(String(stepBtn.dataset.scrollTarget || "")));
+});
 
 btnIndexAdminSavePrices?.addEventListener("click", saveIndexAdminPrices);
 btnIndexAdminResetPrices?.addEventListener("click", resetIndexAdminPrices);
