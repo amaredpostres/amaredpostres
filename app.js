@@ -224,6 +224,8 @@ const modal = document.getElementById("confirmModal");
 const btnCloseModal = document.getElementById("btnCloseModal");
 const btnCopyMessage = document.getElementById("btnCopyMessage");
 const btnSendWhatsApp = document.getElementById("btnSendWhatsApp");
+const waOptIn = document.getElementById("waOptIn");
+const waOptHint = document.getElementById("waOptHint");
 
 const elModalItems = document.getElementById("modalItems");
 const elModalUnits = document.getElementById("modalUnits");
@@ -412,6 +414,13 @@ function syncLocationUI() {
     mapsInput.value = "";
   }else if(mapsInput && showMaps && !mapsInput.value && mapsInput.dataset.prevValue){
     mapsInput.value = mapsInput.dataset.prevValue;
+  }
+
+  if(showPickup && waOptIn){
+    waOptIn.checked = true;
+  }
+  if(waOptHint){
+    waOptHint.classList.toggle("hidden", !showPickup);
   }
 
   setAddressMode(method);

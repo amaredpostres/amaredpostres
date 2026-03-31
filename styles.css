@@ -426,6 +426,17 @@ body{
 }
 .checkRow input{ margin-top: 2px; }
 
+.waOptWrap{
+  display:grid;
+  gap:8px;
+}
+.waOptHint{
+  padding: 0 12px 2px 12px;
+  font-size: 13px;
+  line-height: 1.45;
+  color: rgba(64,17,2,.70);
+}
+
 /* Buttons */
 .btn{
   border-radius: 16px;
