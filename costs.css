@@ -1,55 +1,113 @@
-/* ===== Fondo global alineado con las demás páginas ===== */
+:root{
+  --bg: #fff8f3;
+  --costs-bg-base: linear-gradient(180deg, #fff9f5 0%, #fff6f0 28%, #fff7f2 58%, #fffaf7 100%);
+  --costs-bg-glow-left: radial-gradient(1100px 520px at 18% 5%, rgba(242,91,143,.14), transparent 62%);
+  --costs-bg-glow-right: radial-gradient(1100px 520px at 82% 8%, rgba(246,186,96,.16), transparent 62%);
+}
+
 html,body{ min-height:100%; }
 
 body.costsPage{
   position: relative;
   overflow-x: hidden;
   color: var(--choco);
-  background: linear-gradient(180deg, #fff9f5 0%, #fff6f0 28%, #fff7f2 58%, #fffaf7 100%) !important;
+  background:
+    var(--costs-bg-glow-left),
+    var(--costs-bg-glow-right),
+    var(--costs-bg-base) !important;
   background-repeat: no-repeat !important;
-  background-attachment: scroll !important;
+  background-attachment: fixed, fixed, fixed !important;
 }
 
 body.costsPage::before{
-  content: "" !important;
-  position: fixed !important;
-  inset: 0 !important;
-  pointer-events: none !important;
-  z-index: 0 !important;
-  display: block !important;
-  background:
-    radial-gradient(52rem 24rem at 8% 6%, rgba(242,91,143,.14), transparent 60%),
-    radial-gradient(48rem 24rem at 94% 8%, rgba(246,186,96,.18), transparent 58%),
-    radial-gradient(40rem 28rem at 50% 92%, rgba(242,91,143,.08), transparent 62%) !important;
+  content: none !important;
+  display: none !important;
 }
 
-body.costsPage > *{
-  position: relative;
-  z-index: 1;
-}
-
-.costsPage .page,
 .costsPage #appRoot,
+.costsPage .page,
 .costsPage main.container,
-.costsPage .container,
-.costsPage #viewPurchases,
-.costsPage #viewRecipes{
+.costsPage .container{
   background: transparent !important;
-  background-color: transparent !important;
   background-image: none !important;
   box-shadow: none !important;
 }
 
-.costsPage #appRoot::before,
-.costsPage #appRoot::after,
-.costsPage main.container::before,
-.costsPage main.container::after,
-.costsPage #viewPurchases::before,
-.costsPage #viewPurchases::after,
-.costsPage #viewRecipes::before,
-.costsPage #viewRecipes::after{
-  content: none !important;
-  display: none !important;
+.costsPage #appRoot{
+  position: relative;
+  isolation: isolate;
+}
+
+
+/* Fondo expandido de Costs: evita el recorte lateral debajo del topbar */
+.costsPage main.container{
+  position: relative;
+  isolation: isolate;
+}
+.costsPage main.container::before{
+  content: "";
+  position: absolute;
+  z-index: -1;
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  width: 100vw;
+  transform: translateX(-50%);
+  pointer-events: none;
+  background:
+    var(--costs-bg-glow-left),
+    var(--costs-bg-glow-right),
+    var(--costs-bg-base);
+  background-repeat: no-repeat;
+
+}
+@media (max-width: 860px){
+  .costsPage main.container::before{
+    background:
+      var(--costs-bg-glow-left),
+      var(--costs-bg-glow-right),
+      var(--costs-bg-base);
+    background-repeat: no-repeat;
+  }
+}
+
+.costsPage #appRoot::before{
+  content: none;
+  position: absolute;
+  z-index: -1;
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  width: 100vw;
+  transform: translateX(-50%);
+  pointer-events: none;
+  display: none;
+}
+
+@media (max-width: 860px){
+  :root{
+    --costs-bg-glow-left: radial-gradient(560px 260px at 14% 4%, rgba(242,91,143,.13), transparent 58%);
+    --costs-bg-glow-right: radial-gradient(560px 260px at 86% 6%, rgba(246,186,96,.15), transparent 56%);
+  }
+
+  body.costsPage{
+    background:
+      var(--costs-bg-glow-left),
+      var(--costs-bg-glow-right),
+      var(--costs-bg-base) !important;
+    background-repeat: no-repeat !important;
+    background-attachment: scroll, scroll, scroll !important;
+  }
+
+}
+
+@media (min-width: 861px){
+  .costsPage .unitDesktopOnly{ display:block !important; }
+  .costsPage .unitMobileOnly{ display:none !important; }
+}
+@media (max-width: 860px){
+  .costsPage .unitDesktopOnly{ display:none !important; }
+  .costsPage .unitMobileOnly{ display:grid !important; }
 }
 
 /* ==============================
@@ -1111,46 +1169,58 @@ select.input{
 }
 
 
-/* ===== Hard reset final del fondo de Costs ===== */
-html body.costsPage,
-html body.costsPage.is-login,
-html body.costsPage.is-app{
+/* ==============================
+   FIX DEFINITIVO · fondo continuo de Costs
+   - usa el mismo fondo global del proyecto
+   - elimina cualquier capa interna del <main class="container">
+   - evita el bloque más oscuro detrás del contenido
+   ============================== */
+body.costsPage{
   background: linear-gradient(180deg, #fff9f5 0%, #fff6f0 28%, #fff7f2 58%, #fffaf7 100%) !important;
+  background-attachment: scroll !important;
+  background-repeat: no-repeat !important;
 }
 
-html body.costsPage::before{
+body.costsPage::before{
   content: "" !important;
+  display: block !important;
   position: fixed !important;
   inset: 0 !important;
   pointer-events: none !important;
   z-index: 0 !important;
-  display: block !important;
   background:
     radial-gradient(52rem 24rem at 8% 6%, rgba(242,91,143,.14), transparent 60%),
     radial-gradient(48rem 24rem at 94% 8%, rgba(246,186,96,.18), transparent 58%),
     radial-gradient(40rem 28rem at 50% 92%, rgba(242,91,143,.08), transparent 62%) !important;
 }
 
-html body.costsPage .page,
-html body.costsPage #appRoot,
-html body.costsPage main.container,
-html body.costsPage #viewPurchases,
-html body.costsPage #viewRecipes{
+.costsPage .page,
+.costsPage #appRoot,
+.costsPage main.container,
+.costsPage #viewPurchases,
+.costsPage #viewRecipes{
   background: transparent !important;
-  background-color: transparent !important;
   background-image: none !important;
+  box-shadow: none !important;
 }
 
-html body.costsPage .page::before,
-html body.costsPage .page::after,
-html body.costsPage #appRoot::before,
-html body.costsPage #appRoot::after,
-html body.costsPage main.container::before,
-html body.costsPage main.container::after,
-html body.costsPage #viewPurchases::before,
-html body.costsPage #viewPurchases::after,
-html body.costsPage #viewRecipes::before,
-html body.costsPage #viewRecipes::after{
+.costsPage #appRoot,
+.costsPage main.container{
+  position: relative;
+  isolation: auto !important;
+}
+
+.costsPage #appRoot::before,
+.costsPage #appRoot::after,
+.costsPage main.container::before,
+.costsPage main.container::after,
+.costsPage #viewPurchases::before,
+.costsPage #viewPurchases::after,
+.costsPage #viewRecipes::before,
+.costsPage #viewRecipes::after{
   content: none !important;
   display: none !important;
+  background: none !important;
+  background-image: none !important;
+  box-shadow: none !important;
 }
