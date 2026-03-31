@@ -43,6 +43,8 @@ const INDEX_ADMIN_ROLE_TAGS = new Set(["index_admin","indexadmin","pedidosweb","
 const PRODUCTS = DEFAULT_PRODUCTS.map(p => ({ ...p }));
 let _catalogSyncInFlight = null;
 let _catalogLastSyncTs = 0;
+let _catalogReady = false;
+let _catalogLoading = false;
 
 function normalizeCats(v){
   if(Array.isArray(v)) return v.map(x => String(x || "").trim().toLowerCase()).filter(Boolean);
@@ -87,6 +89,41 @@ function applyProductPriceMap(map){
     product.price = Number.isFinite(next) && next > 0 ? Math.round(next) : fallback;
   });
 }
+function setCatalogLoadingState(isLoading){
+  _catalogLoading = !!isLoading;
+  if(elProducts){
+    elProducts.setAttribute('aria-busy', _catalogLoading ? 'true' : 'false');
+    elProducts.dataset.loading = _catalogLoading ? '1' : '0';
+  }
+  if(btnWhatsApp && !shouldUseIndexAdminView()){
+    btnWhatsApp.disabled = _catalogLoading;
+  }
+}
+function renderProductsLoading(message = 'Actualizando catálogo…'){
+  if(!elProducts) return;
+  elProducts.innerHTML = `
+    <div class="miniCard" style="padding:18px; border-radius:22px;">
+      <div class="miniCardTop">
+        <img class="miniIcon" src="assets/Logo-Isotipo-Amared.svg" alt="AMARED" />
+        <div class="miniTitle">Cargando catálogo</div>
+      </div>
+      <div class="muted small" style="margin-top:8px;">${escapeHtml(message)}</div>
+    </div>
+  `;
+}
+async function bootProductsCatalog(){
+  setCatalogLoadingState(true);
+  renderProductsLoading('Estamos consultando los precios actualizados de los postres.');
+  try{
+    await syncProductsCatalogFromBackend(true);
+  }finally{
+    _catalogReady = true;
+    setCatalogLoadingState(false);
+    renderProducts();
+    updateSummary();
+    try{ renderIndexAdminPriceEditor(); }catch(_e){}
+  }
+}
 async function syncProductsCatalogFromBackend(force = false){
   const now = Date.now();
   if(!force && _catalogSyncInFlight) return _catalogSyncInFlight;
@@ -110,13 +147,22 @@ async function syncProductsCatalogFromBackend(force = false){
         applyStoredProductPrices();
       }
       _catalogLastSyncTs = Date.now();
-      try{
-        renderProducts();
-        updateSummary();
-        renderIndexAdminPriceEditor();
-      }catch(_e){}
+      if(_catalogReady){
+        try{
+          renderProducts();
+          updateSummary();
+          renderIndexAdminPriceEditor();
+        }catch(_e){}
+      }
     }catch(_e){
-      // Fallback silencioso al catálogo local ya aplicado
+      applyStoredProductPrices();
+      if(_catalogReady){
+        try{
+          renderProducts();
+          updateSummary();
+          renderIndexAdminPriceEditor();
+        }catch(_e){}
+      }
     }finally{
       _catalogSyncInFlight = null;
     }
@@ -536,7 +582,7 @@ function createProductCard(p) {
         <div class="productEyebrow">Postre artesanal</div>
         <div class="name">${p.name}</div>
         <div class="productMetaRow">
-          <div class="price">$${money(p.price)} c/u</div>
+          <div class="price${_catalogReady ? '' : ' muted'}">${_catalogReady ? `$${money(p.price)} c/u` : 'Actualizando precio…'}</div>
           <span class="sizeBadge">6 oz</span>
         </div>
       </div>
@@ -544,12 +590,12 @@ function createProductCard(p) {
       <div class="productDesc">${p.desc || ""}</div>
 
       <div class="productBottom">
-        ${shouldUseIndexAdminView() ? `<div class="productAdminNote">Solo visualización en esta página admin</div>` : `
+        ${shouldUseIndexAdminView() ? `<div class="productAdminNote">Solo visualización en esta página admin</div>` : (!_catalogReady ? `<div class="productAdminNote">Espera un momento mientras cargamos el precio actualizado.</div>` : `
         <div class="stepper">
           <button type="button" data-action="dec" data-id="${p.id}" ${qty <= 0 ? "disabled" : ""}>−</button>
           <div class="qty" id="qty_${p.id}">${qty}</div>
           <button type="button" data-action="inc" data-id="${p.id}">+</button>
-        </div>`}
+        </div>`)}
       </div>
     </div>
   `;
@@ -571,7 +617,7 @@ function refreshProductCard(id) {
 }
 
 function onProductsClick(e) {
-  if (shouldUseIndexAdminView()) return;
+  if (shouldUseIndexAdminView() || !_catalogReady || _catalogLoading) return;
   const btn = e.target.closest("button[data-action]");
   if (!btn) return;
 
@@ -978,6 +1024,11 @@ btnWhatsApp?.addEventListener("click", () => {
   elStatus.textContent = "";
   hideAlert();
 
+  if(!_catalogReady || _catalogLoading){
+    showAlert("Estamos cargando el catálogo actualizado. Espera un momento e inténtalo de nuevo.");
+    return;
+  }
+
   const data = getFormData();
   const err = validate(data);
   if (err) {
@@ -997,10 +1048,10 @@ btnWhatsApp?.addEventListener("click", () => {
   fillModal(data, orderId);
   showModal();
 });// =================== INIT ===================
-renderProducts();
+renderProductsLoading("Estamos consultando los precios actualizados de los postres.");
 updateSummary();
 syncLocationUI();
-syncProductsCatalogFromBackend().catch(()=>{});
+bootProductsCatalog().catch(()=>{});
 
 
 function setLoadingProgress(value){
