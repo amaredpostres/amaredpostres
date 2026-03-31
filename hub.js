@@ -32,7 +32,7 @@ const HUB_MODULE_PREFETCH = {
   ],
   costs: [
     { href:"costs.html", as:"document" },
-    { href:"costs.css?v=20260330-bgfix-v8", as:"style" },
+    { href:"costs.css?v=20260330-v9", as:"style" },
     { href:"kitchen-costs.js?v=20260328-costs-loading-badge-v8", as:"script" },
     { href:"costs.js?v=20260328-costs-loading-badge-v8", as:"script" },
   ],

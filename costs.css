@@ -45,7 +45,7 @@ body.costsPage::before{
   isolation: isolate;
 }
 .costsPage main.container::before{
-  content: "";
+  content: none !important;
   position: absolute;
   z-index: -1;
   top: 0;
@@ -72,7 +72,7 @@ body.costsPage::before{
 }
 
 .costsPage #appRoot::before{
-  content: none;
+  content: none !important;
   position: absolute;
   z-index: -1;
   top: 0;
@@ -1170,57 +1170,76 @@ select.input{
 
 
 /* ==============================
-   FIX DEFINITIVO · fondo continuo de Costs
-   - usa el mismo fondo global del proyecto
-   - elimina cualquier capa interna del <main class="container">
-   - evita el bloque más oscuro detrás del contenido
+   Visual flattening fix v9
+   - evita el "bloque" oscuro generado por la suma de sombras
+   - mantiene la línea gráfica sin tocar la lógica
    ============================== */
-body.costsPage{
-  background: linear-gradient(180deg, #fff9f5 0%, #fff6f0 28%, #fff7f2 58%, #fffaf7 100%) !important;
-  background-attachment: scroll !important;
-  background-repeat: no-repeat !important;
-}
-
-body.costsPage::before{
-  content: "" !important;
-  display: block !important;
-  position: fixed !important;
-  inset: 0 !important;
-  pointer-events: none !important;
-  z-index: 0 !important;
-  background:
-    radial-gradient(52rem 24rem at 8% 6%, rgba(242,91,143,.14), transparent 60%),
-    radial-gradient(48rem 24rem at 94% 8%, rgba(246,186,96,.18), transparent 58%),
-    radial-gradient(40rem 28rem at 50% 92%, rgba(242,91,143,.08), transparent 62%) !important;
-}
-
-.costsPage .page,
-.costsPage #appRoot,
-.costsPage main.container,
-.costsPage #viewPurchases,
-.costsPage #viewRecipes{
-  background: transparent !important;
-  background-image: none !important;
-  box-shadow: none !important;
-}
-
-.costsPage #appRoot,
-.costsPage main.container{
-  position: relative;
-  isolation: auto !important;
-}
-
-.costsPage #appRoot::before,
-.costsPage #appRoot::after,
 .costsPage main.container::before,
 .costsPage main.container::after,
+.costsPage #appRoot::before,
+.costsPage #appRoot::after,
 .costsPage #viewPurchases::before,
 .costsPage #viewPurchases::after,
 .costsPage #viewRecipes::before,
 .costsPage #viewRecipes::after{
-  content: none !important;
-  display: none !important;
-  background: none !important;
-  background-image: none !important;
+  content:none !important;
+  display:none !important;
+  background:none !important;
+  box-shadow:none !important;
+}
+
+.costsPage .card{
+  background: rgba(255,253,251,.96) !important;
+  box-shadow: 0 8px 18px rgba(64,17,2,.035) !important;
+  border-color: rgba(64,17,2,.08) !important;
+}
+
+.costsPage .pGroup,
+.costsPage .pMiniTableWrap,
+.costsPage .pAdminDetails,
+.costsPage .pCatBox,
+.costsPage .pConfirmTotal,
+.costsPage .pConfirmItem,
+.costsPage .summaryMobileBlock,
+.costsPage .unitMobileCard,
+.costsPage .pRecipeLeft,
+.costsPage .pRecipeRight,
+.costsPage #recipeRightLocked,
+.costsPage .pListTableWrap{
+  background: rgba(255,253,251,.94) !important;
   box-shadow: none !important;
+  border-color: rgba(64,17,2,.08) !important;
+  backdrop-filter: none !important;
+}
+
+.costsPage .pItem{
+  background: rgba(255,255,255,.98) !important;
+  box-shadow: none !important;
+  border-color: rgba(64,17,2,.08) !important;
+}
+
+.costsPage .pGear,
+.costsPage .pTinyBtn,
+.costsPage .mNavTabs,
+.costsPage .mNavBtn,
+.costsPage .mNavCenter{
+  box-shadow: 0 6px 14px rgba(64,17,2,.04) !important;
+}
+
+.costsPage .pGroupBody,
+.costsPage .pSummaryGrid,
+.costsPage .pSummaryMobile,
+.costsPage .pRecipeGrid,
+.costsPage .pGroups,
+.costsPage #groups,
+.costsPage #costGroups,
+.costsPage #recipeEditor,
+.costsPage #summaryMobileList{
+  background: transparent !important;
+}
+
+@media (max-width: 860px){
+  .costsPage .card{
+    box-shadow: 0 6px 14px rgba(64,17,2,.03) !important;
+  }
 }
