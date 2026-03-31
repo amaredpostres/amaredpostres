@@ -553,6 +553,53 @@ document.addEventListener("visibilitychange", () => {
 
 
 // =================== UI RENDER ===================
+function ensureCatalogLoadingInlineStyles(){
+  if(document.getElementById("amaredPriceLoadingStyles")) return;
+  const style = document.createElement("style");
+  style.id = "amaredPriceLoadingStyles";
+  style.textContent = `
+    .priceLoadingText{
+      display:inline-flex;
+      align-items:center;
+      gap:10px;
+      opacity:.9;
+      font-weight:700;
+      letter-spacing:.01em;
+    }
+    .priceLoadingDots{
+      display:inline-flex;
+      align-items:center;
+      gap:4px;
+      min-width:26px;
+    }
+    .priceLoadingDot{
+      width:7px;
+      height:7px;
+      border-radius:999px;
+      background:currentColor;
+      opacity:.22;
+      transform:translateY(0) scale(.92);
+      animation:amaredPriceLoadingPulse 1.15s ease-in-out infinite;
+      box-shadow:0 0 0 0 rgba(255,255,255,0);
+    }
+    .priceLoadingDot:nth-child(2){ animation-delay:.16s; }
+    .priceLoadingDot:nth-child(3){ animation-delay:.32s; }
+    .priceLoadingLabel{
+      opacity:.88;
+      animation:amaredPriceLoadingFade 1.4s ease-in-out infinite;
+    }
+    @keyframes amaredPriceLoadingPulse{
+      0%, 100%{ opacity:.22; transform:translateY(0) scale(.92); box-shadow:0 0 0 0 rgba(255,255,255,0); }
+      40%{ opacity:.95; transform:translateY(-1px) scale(1.08); box-shadow:0 0 0 5px rgba(255,255,255,.05); }
+    }
+    @keyframes amaredPriceLoadingFade{
+      0%, 100%{ opacity:.62; }
+      50%{ opacity:1; }
+    }
+  `;
+  document.head.appendChild(style);
+}
+
 function createProductCard(p) {
   const qty = cart.get(p.id) || 0;
   const div = document.createElement("div");
@@ -569,7 +616,7 @@ function createProductCard(p) {
         <div class="productEyebrow">Postre artesanal</div>
         <div class="name">${p.name}</div>
         <div class="productMetaRow">
-          <div class="price${_catalogReady ? '' : ' muted priceLoading'}">${_catalogReady ? `$${money(p.price)} c/u` : '<span class="priceLoadingText" style="display:inline-flex;align-items:center;gap:8px;opacity:.86;"><span style="width:8px;height:8px;border-radius:999px;background:currentColor;display:inline-block;opacity:.7;"></span>Cargando precio…</span>'}</div>
+          <div class="price${_catalogReady ? '' : ' muted priceLoading'}">${_catalogReady ? `$${money(p.price)} c/u` : '<span class="priceLoadingText" aria-live="polite"><span class="priceLoadingDots" aria-hidden="true"><span class="priceLoadingDot"></span><span class="priceLoadingDot"></span><span class="priceLoadingDot"></span></span><span class="priceLoadingLabel">Cargando precio…</span></span>'}</div>
           <span class="sizeBadge">6 oz</span>
         </div>
       </div>
@@ -619,6 +666,7 @@ function onProductsClick(e) {
 }
 
 function renderProducts() {
+  ensureCatalogLoadingInlineStyles();
   elProducts.innerHTML = "";
   const frag = document.createDocumentFragment();
 
