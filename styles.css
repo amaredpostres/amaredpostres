@@ -3099,6 +3099,25 @@ body.is-index-admin-view .page{
   display:grid;
   gap: 3px;
 }
+
+.heroOrderIntro .spotlightStep{
+  min-width: 0;
+}
+.heroOrderIntro .spotlightStepCopy{
+  min-width: 0;
+  width: auto;
+  height: auto;
+  border-radius: 0;
+  display: grid;
+  place-items: initial;
+  flex: 1 1 auto;
+}
+.heroOrderIntro .spotlightStepCopy strong,
+.heroOrderIntro .spotlightStepCopy small{
+  white-space: normal;
+  word-break: normal;
+  overflow-wrap: anywhere;
+}
 .heroOrderIntro .spotlightStepCopy strong{
   display:block;
   font-size: 16px;
