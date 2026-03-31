@@ -8,6 +8,7 @@ const PRODUCT_CATALOG = [
 ];
 const PRODUCT_PRICES_STORAGE_KEY = "AMARED_PRODUCT_PRICES_V1";
 const DEFAULT_PRODUCT_CATALOG = PRODUCT_CATALOG.map(item => ({ ...item }));
+let _adminCatalogSyncInFlight = null;
 function readProductPriceOverrides_(){
   try{ return JSON.parse(localStorage.getItem(PRODUCT_PRICES_STORAGE_KEY) || "{}") || {}; }catch(_e){ return {}; }
 }
@@ -24,6 +25,45 @@ function applyProductPriceOverrides_(){
     const next = Number(map?.[item.id]);
     item.unit_price = Number.isFinite(next) && next > 0 ? Math.round(next) : fallback;
   });
+}
+function buildProductPriceMapFromItems_(items){
+  const map = {};
+  (Array.isArray(items) ? items : []).forEach(item => {
+    const id = String(item?.id || item?.dessert_id || item?.product_id || "").trim();
+    const price = Number(item?.price ?? item?.public_price ?? item?.unit_price ?? 0);
+    if(id && Number.isFinite(price) && price > 0) map[id] = Math.round(price);
+  });
+  return map;
+}
+function applyProductPriceMap_(map){
+  PRODUCT_CATALOG.forEach((item, idx)=>{
+    const fallback = Number(DEFAULT_PRODUCT_CATALOG[idx]?.unit_price || item.unit_price || 0);
+    const next = Number(map?.[item.id]);
+    item.unit_price = Number.isFinite(next) && next > 0 ? Math.round(next) : fallback;
+  });
+}
+async function syncAdminIndexCatalogFromBackend_(force = false){
+  if(!force && _adminCatalogSyncInFlight) return _adminCatalogSyncInFlight;
+  _adminCatalogSyncInFlight = (async ()=>{
+    try{
+      const out = await api({ action: "products_catalog_public" });
+      const items = Array.isArray(out?.items) ? out.items : [];
+      const map = buildProductPriceMapFromItems_(items);
+      if(Object.keys(map).length){
+        writeProductPriceOverrides_(map);
+        applyProductPriceMap_(map);
+      }else{
+        applyProductPriceOverrides_();
+      }
+      renderAdminIndexTools();
+    }catch(_e){
+      applyProductPriceOverrides_();
+      renderAdminIndexTools();
+    }finally{
+      _adminCatalogSyncInFlight = null;
+    }
+  })();
+  return _adminCatalogSyncInFlight;
 }
 applyProductPriceOverrides_();
 
@@ -235,10 +275,11 @@ function renderAdminIndexTools(){
     </div>
   `).join("");
 }
-function saveAdminIndexPrices(){
+async function saveAdminIndexPrices(){
   if(!adminIndexPriceRows) return;
   const inputs = Array.from(adminIndexPriceRows.querySelectorAll("[data-admin-price-id]"));
   const map = {};
+  const items = [];
   for(const input of inputs){
     const id = String(input.getAttribute("data-admin-price-id") || "").trim();
     const value = Number(input.value || 0);
@@ -248,17 +289,52 @@ function saveAdminIndexPrices(){
       return;
     }
     map[id] = Math.round(value);
+    const product = PRODUCT_CATALOG.find(p => p.id === id) || DEFAULT_PRODUCT_CATALOG.find(p => p.id === id) || {};
+    items.push({ dessert_id: id, dessert_name: String(product.name || "").trim(), public_price: Math.round(value) });
   }
-  writeProductPriceOverrides_(map);
-  applyProductPriceOverrides_();
-  renderAdminIndexTools();
-  setAdminIndexStatus("Precios guardados correctamente.");
+  showLoading("Guardando precios...", "Actualizando el catálogo público para todos los clientes.");
+  try{
+    const out = await api({ action: "products_catalog_save", items });
+    hideLoading();
+    if(!out?.ok){
+      setAdminIndexStatus(out?.error || "No se pudieron guardar los precios.", true);
+      return;
+    }
+    writeProductPriceOverrides_(map);
+    applyProductPriceMap_(map);
+    renderAdminIndexTools();
+    setAdminIndexStatus("Precios globales guardados correctamente.");
+    window.dispatchEvent(new CustomEvent("amared:catalog-updated", { detail: { source: "admin" } }));
+  }catch(e){
+    hideLoading();
+    setAdminIndexStatus(String(e?.message || e || "No se pudieron guardar los precios."), true);
+  }
 }
 function resetAdminIndexPrices(){
-  clearProductPriceOverrides_();
-  applyProductPriceOverrides_();
-  renderAdminIndexTools();
-  setAdminIndexStatus("Se restablecieron los precios originales.");
+  const defaults = {};
+  const items = DEFAULT_PRODUCT_CATALOG.map(product => {
+    const price = Math.round(Number(product.unit_price || 0));
+    defaults[product.id] = price;
+    return { dessert_id: product.id, dessert_name: String(product.name || "").trim(), public_price: price };
+  });
+  showLoading("Restableciendo precios...", "Volviendo a los precios base del catálogo público.");
+  api({ action: "products_catalog_save", items })
+    .then(out => {
+      hideLoading();
+      if(!out?.ok){
+        setAdminIndexStatus(out?.error || "No se pudieron restablecer los precios.", true);
+        return;
+      }
+      writeProductPriceOverrides_(defaults);
+      applyProductPriceMap_(defaults);
+      renderAdminIndexTools();
+      setAdminIndexStatus("Se restablecieron los precios globales.");
+      window.dispatchEvent(new CustomEvent("amared:catalog-updated", { detail: { source: "admin" } }));
+    })
+    .catch(e => {
+      hideLoading();
+      setAdminIndexStatus(String(e?.message || e || "No se pudieron restablecer los precios."), true);
+    });
 }
 
 // =================== LOADING (UX) ===================
@@ -584,6 +660,7 @@ function showPanel() {
   if (panelView) panelView.classList.remove("hidden");
   if (operatorName) operatorName.textContent = SESSION.operator || "";
   renderAdminIndexTools();
+  syncAdminIndexCatalogFromBackend_(true).catch(()=>{});
   syncAdminActionBars();
 }
 function showLogin() {
