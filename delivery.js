@@ -2,7 +2,7 @@
 // delivery.js — AMARED Envíos (v4 UX + Historial + Opt-in fix)
 "use strict";
 
-console.log("AMARED delivery v14");
+console.log("AMARED delivery v13");
 
 const API_URL = "https://amared-orders.amaredpostres.workers.dev/";
 const SS_KEY = "AMARED_DELIVERY_SESSION_V4";
@@ -122,11 +122,15 @@ function ensureDeliveryMobileBar(){
       <button id="dMBtnRefresh" class="amDeliveryMobileAction isWarm" type="button" aria-label="Recargar">
         <span class="ico">↻</span><span class="txt">Recargar</span>
       </button>
-      <div class="amDeliveryMobileCenter" role="group" aria-label="Acciones de envíos">
-        <button id="dMBtnHistory" class="amDeliveryMobileSeg isAccent" type="button">
-          <span class="txt">Historial</span>
-        </button>
-      </div>
+      <button id="dMBtnDelivery" class="amDeliveryMobileSeg amDeliveryMobileTab" type="button" aria-label="Mostrar pedidos para domicilio">
+        <span class="txt">Domicilio</span>
+      </button>
+      <button id="dMBtnPickup" class="amDeliveryMobileSeg amDeliveryMobileTab" type="button" aria-label="Mostrar pedidos para recoger">
+        <span class="txt">Recoger</span>
+      </button>
+      <button id="dMBtnHistory" class="amDeliveryMobileSeg amDeliveryMobileTab amDeliveryMobileHistory" type="button" aria-label="Ver historial">
+        <span class="txt">Historial</span>
+      </button>
       <button id="dMBtnLogout" class="amDeliveryMobileAction isNeutral" type="button" aria-label="Salir">
         <span class="ico">🚪</span><span class="txt">Salir</span>
       </button>`;
@@ -189,9 +193,13 @@ function syncDeliveryActionBars(){
 function wireDeliveryMobileBar(){
   ensureDeliveryMobileBar();
   const bRefresh = document.getElementById('dMBtnRefresh');
+  const bDelivery = document.getElementById('dMBtnDelivery');
+  const bPickup = document.getElementById('dMBtnPickup');
   const bHistory = document.getElementById('dMBtnHistory');
   const bLogout = document.getElementById('dMBtnLogout');
   if(bRefresh && !bRefresh.dataset.wired){ bRefresh.dataset.wired='1'; bRefresh.addEventListener('click', ()=> btnRefreshTop?.click()); }
+  if(bDelivery && !bDelivery.dataset.wired){ bDelivery.dataset.wired='1'; bDelivery.addEventListener('click', ()=> setPendingView('delivery')); }
+  if(bPickup && !bPickup.dataset.wired){ bPickup.dataset.wired='1'; bPickup.addEventListener('click', ()=> setPendingView('pickup')); }
   if(bHistory && !bHistory.dataset.wired){ bHistory.dataset.wired='1'; bHistory.addEventListener('click', ()=> btnHistory?.click()); }
   if(bLogout && !bLogout.dataset.wired){ bLogout.dataset.wired='1'; bLogout.addEventListener('click', ()=> { if(hasHubAccess_()) goHub_(); else btnLogoutTop?.click(); }); }
   scheduleDeliveryBarsSync();
@@ -683,6 +691,8 @@ function money(n){
   return Math.round(Number(n||0)).toLocaleString("es-CO");
 }
 
+let DELIVERY_PENDING_VIEW = "delivery";
+
 function isPickupOrder(order){
   const method = String(order?.location_method || "").trim().toLowerCase();
   const maps = String(order?.maps_link || "").trim().toUpperCase();
@@ -699,25 +709,81 @@ function groupPendingOrders(orders){
   return { delivery, pickup };
 }
 
-function getDeliveryTemplateSet(order){
-  return isPickupOrder(order) ? PICKUP_TEMPLATES : DELIVERY_TEMPLATES;
-}
-
-function getDeliveryTemplateById(order, templateId){
-  const set = getDeliveryTemplateSet(order);
-  return set.find(t => t.id === templateId) || set[0];
-}
-
 function getPickupPointText(){
   return "Parque La Toscana, ubicado entre Mercacentro 4 y Acqua";
+}
+
+function ensurePendingFiltersUI(){
+  if(!panelView) return null;
+  let wrap = document.getElementById("deliveryPendingFilters");
+  if(!wrap){
+    wrap = document.createElement("div");
+    wrap.id = "deliveryPendingFilters";
+    wrap.className = "deliveryPendingFilters";
+    wrap.setAttribute("role", "tablist");
+    wrap.setAttribute("aria-label", "Filtrar pedidos de envíos");
+    wrap.innerHTML = `
+      <button type="button" class="deliveryFilterBtn" data-view="delivery">Domicilio</button>
+      <button type="button" class="deliveryFilterBtn" data-view="pickup">Recoger</button>
+    `;
+    const anchor = statusEl || listEl;
+    if(anchor && anchor.parentNode) anchor.parentNode.insertBefore(wrap, anchor);
+  }
+  return wrap;
+}
+
+function syncPendingFilterUI(grouped){
+  const wrap = ensurePendingFiltersUI();
+  if(wrap){
+    wrap.querySelectorAll(".deliveryFilterBtn").forEach(btn => {
+      const view = String(btn.getAttribute("data-view") || "");
+      const active = view === DELIVERY_PENDING_VIEW;
+      btn.classList.toggle("isActive", active);
+      btn.setAttribute("aria-pressed", active ? "true" : "false");
+      const count = view === "pickup" ? grouped.pickup.length : grouped.delivery.length;
+      btn.textContent = `${view === "pickup" ? "Recoger" : "Domicilio"} · ${count}`;
+    });
+  }
+
+  const mobileMap = {
+    delivery: document.getElementById("dMBtnDelivery"),
+    pickup: document.getElementById("dMBtnPickup"),
+    history: document.getElementById("dMBtnHistory")
+  };
+  Object.entries(mobileMap).forEach(([key, btn]) => {
+    if(!btn) return;
+    const active = key === DELIVERY_PENDING_VIEW;
+    btn.classList.toggle("isAccent", active);
+    btn.setAttribute("aria-pressed", active ? "true" : "false");
+  });
+}
+
+function setPendingView(view){
+  DELIVERY_PENDING_VIEW = (view === "pickup") ? "pickup" : "delivery";
+  renderOrders(ORDERS);
 }
 
 function renderOrders(orders){
   ORDERS = orders || [];
   const grouped = groupPendingOrders(ORDERS);
-  if(metaLine){
-    metaLine.textContent = `Operador: ${SESSION?.operator?.label || "—"} · Domicilio: ${grouped.delivery.length} · Recogida: ${grouped.pickup.length}`;
+
+  if(DELIVERY_PENDING_VIEW === "pickup" && !grouped.pickup.length && grouped.delivery.length){
+    DELIVERY_PENDING_VIEW = "delivery";
+  }else if(DELIVERY_PENDING_VIEW !== "pickup" && !grouped.delivery.length && grouped.pickup.length){
+    DELIVERY_PENDING_VIEW = "pickup";
   }
+
+  const currentItems = DELIVERY_PENDING_VIEW === "pickup" ? grouped.pickup : grouped.delivery;
+  const currentTitle = DELIVERY_PENDING_VIEW === "pickup" ? "Pedidos para recoger" : "Pedidos para domicilio";
+  const currentEmpty = DELIVERY_PENDING_VIEW === "pickup"
+    ? "No hay pedidos de recogida presencial pendientes."
+    : "No hay pedidos de domicilio pendientes.";
+
+  if(metaLine){
+    metaLine.textContent = `Operador: ${SESSION?.operator?.label || "—"} · Domicilio: ${grouped.delivery.length} · Recoger: ${grouped.pickup.length} · Mostrando: ${DELIVERY_PENDING_VIEW === "pickup" ? "Recoger" : "Domicilio"}`;
+  }
+
+  syncPendingFilterUI(grouped);
 
   if(!listEl) return;
   if(ORDERS.length === 0){
@@ -725,7 +791,7 @@ function renderOrders(orders){
     return;
   }
 
-  const renderCard = (o)=>{
+  const html = currentItems.map(o=>{
     const items = normalizeItemsFromAnyOrder(o);
     const summary = itemsSummary(items) || (o.items || "");
     const units = calcUnits(o);
@@ -776,27 +842,20 @@ function renderOrders(orders){
         </div>
       </div>
     `;
-  };
+  }).join("");
 
-  const renderGroup = (title, items, emptyText, extraClass = "") => `
-    <section class="deliveryGroup ${extraClass}">
+  listEl.innerHTML = `
+    <section class="deliveryGroup ${DELIVERY_PENDING_VIEW === "pickup" ? "isPickup" : "isDelivery"}">
       <div class="deliveryGroupHead">
         <div>
-          <div class="deliveryGroupTitle">${title}</div>
-          <div class="deliveryGroupMeta">${items.length} ${items.length === 1 ? 'pedido' : 'pedidos'}</div>
+          <div class="deliveryGroupTitle">${currentTitle}</div>
+          <div class="deliveryGroupMeta">${currentItems.length} ${currentItems.length === 1 ? "pedido" : "pedidos"}</div>
         </div>
       </div>
       <div class="deliveryGroupList">
-        ${items.length ? items.map(renderCard).join("") : `<div class="muted small deliveryEmpty">${emptyText}</div>`}
+        ${currentItems.length ? html : `<div class="muted small deliveryEmpty">${currentEmpty}</div>`}
       </div>
     </section>
-  `;
-
-  listEl.innerHTML = `
-    <div class="deliveryGroups">
-      ${renderGroup('Pedidos para domicilio', grouped.delivery, 'No hay pedidos de domicilio pendientes.', 'isDelivery')}
-      ${renderGroup('Pedidos para recogida presencial', grouped.pickup, 'No hay pedidos de recogida presencial pendientes.', 'isPickup')}
-    </div>
   `;
 }
 
@@ -1042,6 +1101,15 @@ Llegamos aprox. en ${eta} min ⏱️`
   },
 ];
 
+function getDeliveryTemplateSet(order){
+  return isPickupOrder(order) ? PICKUP_TEMPLATES : DELIVERY_TEMPLATES;
+}
+
+function getDeliveryTemplateById(order, templateId){
+  const set = getDeliveryTemplateSet(order);
+  return set.find(t => t.id === templateId) || set[0];
+}
+
 function openSendModal(order, opts={}){
   SEND_ORDER = order;
   SEND_CONTEXT = opts?.fromHistory ? "history" : "pending";
@@ -1063,10 +1131,10 @@ function openSendModal(order, opts={}){
   inpEta.value = isPickup ? "8" : "5";
   if(etaLabel) etaLabel.textContent = isPickup ? "Tiempo estimado hacia el punto (minutos)" : "Tiempo estimado (minutos)";
   if(etaHint) etaHint.textContent = isPickup
-    ? `Se incluirá en el mensaje junto con el punto de encuentro: ${getPickupPointText()}.`
+    ? "Se incluirá en el mensaje para avisar cuándo llega la persona encargada al punto."
     : "Se incluirá en el mensaje de WhatsApp.";
   if(templateHint) templateHint.textContent = isPickup
-    ? "Opciones pensadas para avisar que la entrega presencial ya va en camino."
+    ? "Opciones pensadas para entregas de recogida presencial."
     : "3 opciones para que no todos los mensajes sean iguales.";
 
   selTemplate.innerHTML = templates.map(t=>`<option value="${t.id}">${t.label}</option>`).join("");
@@ -1108,7 +1176,6 @@ function buildMessage(order, etaMinutes, templateId){
   const itemsArr = normalizeItemsFromAnyOrder(order);
   const itemsTxt = itemsSummary(itemsArr) || (order.items || "tu pedido");
   const units = calcUnits(order);
-
   const name = firstName(order.customer_name);
   const eta = Math.max(1, Math.round(Number(etaMinutes||0) || 0));
   const pickupPoint = getPickupPointText();
@@ -1355,6 +1422,12 @@ btnLogout?.addEventListener("click", logout);
 btnHistory?.addEventListener("click", openHistory);
 btnRefreshTop?.addEventListener("click", ()=> loadOrders(true));
 btnLogoutTop?.addEventListener("click", logout);
+
+panelView?.addEventListener("click", (ev)=>{
+  const btn = ev.target?.closest?.(".deliveryFilterBtn");
+  if(!btn) return;
+  setPendingView(String(btn.getAttribute("data-view") || "delivery"));
+});
 
 listEl?.addEventListener("click", (ev)=>{
   const btnSend = ev.target?.closest?.(".btnSend");

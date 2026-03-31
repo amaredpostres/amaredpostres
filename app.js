@@ -258,7 +258,6 @@ const addressInput = document.getElementById("address");
 const mapsInput = document.getElementById("maps");
 const addressLabel = document.getElementById("addressLabel");
 const addressHint = document.getElementById("addressHint");
-const waOptHint = document.getElementById("waOptHint");
 
 // Alerta central
 const alertOverlay = document.getElementById("alertOverlay");
@@ -413,14 +412,6 @@ function syncLocationUI() {
     mapsInput.value = "";
   }else if(mapsInput && showMaps && !mapsInput.value && mapsInput.dataset.prevValue){
     mapsInput.value = mapsInput.dataset.prevValue;
-  }
-
-  if(showPickup){
-    const waOptEl = document.getElementById("waOptIn");
-    if(waOptEl) waOptEl.checked = true;
-  }
-  if(waOptHint){
-    waOptHint.classList.toggle("hidden", !showPickup);
   }
 
   setAddressMode(method);
@@ -1082,40 +1073,38 @@ btnSendWhatsApp?.addEventListener("click", async () => {
     await saveOrder(pending.data);
     await completeLoadingSuccess();
 
-    // 2) Abrir WhatsApp con texto (normal)
+    // 2) Preparar WhatsApp y ayuda
     const waUrl = buildWhatsAppUrlWithText(pending.messageNormal);
-
-    // 3) Habilitar ayuda (copiar/pegar) después del primer intento
     enableHelpMessage(pending.messageFallback, false);
 
     hideLoading();
 
     if(isMobile){
-      // ✅ EXACTO como delivery: usar wa.me y navegar en la MISMA pestaña
+      // ✅ mobile: abrir app directo / fallback web en la misma pestaña
       hideModal();
       shouldResetAfterAlert = true;
-
-      // al volver al navegador, mostrar aviso
       storeResumeAlert(SUCCESS_MSG, true, pending.messageFallback);
-
-      hideLoading();
-      openWhatsAppMobile(pending.messageNormal); // iPhone/mobile: intenta abrir la app directo y hace fallback a wa.me
+      openWhatsAppMobile(pending.messageNormal);
       return;
     }
 
-    // PC: primero se registra y se muestra la carga; luego redirige a WhatsApp
+    // ✅ escritorio: mantener la página actual y abrir WhatsApp en una pestaña nueva DESPUÉS del registro
     hideModal();
     shouldResetAfterAlert = true;
-    setAlertHelp(pending.messageFallback, false);
-    try{
-      window.location.href = waUrl;
+
+    const waWin = window.open(waUrl, "_blank", "noopener,noreferrer");
+
+    if(waWin){
+      showAlert(SUCCESS_MSG);
+      setAlertHelp(pending.messageFallback, false);
       return;
-    }catch(_e){
-      enableHelpMessage(pending.messageFallback, true);
-      showAlert("Pedido registrado ✅\n\nSi no se pudo abrir WhatsApp, copia el mensaje y pégalo en el chat.");
-      setAlertHelp(pending.messageFallback, true);
-      elStatus.textContent = "";
     }
+
+    // Si el navegador bloqueó abrir la pestaña: abrir ayuda
+    enableHelpMessage(pending.messageFallback, true);
+    showAlert("Pedido registrado ✅\n\nNo pudimos abrir WhatsApp en una nueva pestaña. Copia el mensaje y pégalo en el chat.");
+    setAlertHelp(pending.messageFallback, true);
+    elStatus.textContent = "";
 
   } catch (e) {
     hideLoading();
@@ -1125,6 +1114,7 @@ btnSendWhatsApp?.addEventListener("click", async () => {
     // En error: mostrar ayuda
     try{
       enableHelpMessage(pending?.messageFallback || "", true);
+      setAlertHelp(pending?.messageFallback || "", true);
     }catch(_e){}
   } finally {
     btnSendWhatsApp.disabled = false;
