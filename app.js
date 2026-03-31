@@ -99,21 +99,8 @@ function setCatalogLoadingState(isLoading){
     btnWhatsApp.disabled = _catalogLoading;
   }
 }
-function renderProductsLoading(message = 'Actualizando catálogo…'){
-  if(!elProducts) return;
-  elProducts.innerHTML = `
-    <div class="miniCard" style="padding:18px; border-radius:22px;">
-      <div class="miniCardTop">
-        <img class="miniIcon" src="assets/Logo-Isotipo-Amared.svg" alt="AMARED" />
-        <div class="miniTitle">Cargando catálogo</div>
-      </div>
-      <div class="muted small" style="margin-top:8px;">${escapeHtml(message)}</div>
-    </div>
-  `;
-}
 async function bootProductsCatalog(){
   setCatalogLoadingState(true);
-  renderProductsLoading('Estamos consultando los precios actualizados de los postres.');
   try{
     await syncProductsCatalogFromBackend(true);
   }finally{
@@ -582,7 +569,7 @@ function createProductCard(p) {
         <div class="productEyebrow">Postre artesanal</div>
         <div class="name">${p.name}</div>
         <div class="productMetaRow">
-          <div class="price${_catalogReady ? '' : ' muted'}">${_catalogReady ? `$${money(p.price)} c/u` : 'Actualizando precio…'}</div>
+          <div class="price${_catalogReady ? '' : ' muted priceLoading'}">${_catalogReady ? `$${money(p.price)} c/u` : '<span class="priceLoadingText" style="display:inline-flex;align-items:center;gap:8px;opacity:.86;"><span style="width:8px;height:8px;border-radius:999px;background:currentColor;display:inline-block;opacity:.7;"></span>Cargando precio…</span>'}</div>
           <span class="sizeBadge">6 oz</span>
         </div>
       </div>
@@ -1048,7 +1035,8 @@ btnWhatsApp?.addEventListener("click", () => {
   fillModal(data, orderId);
   showModal();
 });// =================== INIT ===================
-renderProductsLoading("Estamos consultando los precios actualizados de los postres.");
+setCatalogLoadingState(true);
+renderProducts();
 updateSummary();
 syncLocationUI();
 bootProductsCatalog().catch(()=>{});
