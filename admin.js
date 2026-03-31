@@ -199,6 +199,7 @@ const payMethod = document.getElementById("payMethod");
 const payOtherWrap = document.getElementById("payOtherWrap");
 const payOtherText = document.getElementById("payOtherText");
 const payRef = document.getElementById("payRef");
+const payRefWrap = payRef?.closest?.(".field") || null;
 const payTimer = document.getElementById("payTimer");
 const btnPayBack = document.getElementById("btnPayBack");
 const btnPayConfirm = document.getElementById("btnPayConfirm");
@@ -1289,11 +1290,11 @@ function renderPendingBody(order) {
 
 // =================== PAGO ===================
 payMethod?.addEventListener("change", () => {
-  payOtherWrap?.classList.toggle("hidden", payMethod.value !== "Otro");
+  syncPayMethodUI();
   resetPayTimerIfNeeded();
   maybeStartPayTimer();
 });
-payOtherText?.addEventListener("input", () => { resetPayTimerIfNeeded(); maybeStartPayTimer(); });
+payOtherText?.addEventListener("input", () => { syncPayMethodUI(); resetPayTimerIfNeeded(); maybeStartPayTimer(); });
 payRef?.addEventListener("input", () => { resetPayTimerIfNeeded(); maybeStartPayTimer(); });
 
 btnPayBack?.addEventListener("click", closePayModal);
@@ -1305,6 +1306,7 @@ function openPayModal(order) {
   payRef.value = "";
   payOtherText.value = "";
   payOtherWrap.classList.add("hidden");
+  syncPayMethodUI();
 
   btnPayConfirm.disabled = true;
   payTimer.textContent = "Completa los datos para iniciar la confirmación.";
@@ -1322,10 +1324,33 @@ function closePayModal() {
   modalOrder = null;
 }
 
+function paymentMethodNeedsReference(methodValue) {
+  const value = String(methodValue || "").trim().toLowerCase();
+  if (!value) return false;
+  return value !== "efectivo";
+}
+
+function syncPayMethodUI() {
+  const methodValue = String(payMethod?.value || "");
+  const isOther = methodValue === "Otro";
+  payOtherWrap?.classList.toggle("hidden", !isOther);
+
+  const finalMethod = isOther ? String(payOtherText?.value || "").trim() : methodValue;
+  const needsRef = paymentMethodNeedsReference(finalMethod);
+
+  if (payRefWrap) payRefWrap.classList.toggle("hidden", !needsRef);
+  if (payRef) {
+    payRef.disabled = !needsRef;
+    payRef.placeholder = needsRef ? "Referencia / últimos dígitos" : "No aplica para efectivo";
+    if (!needsRef) payRef.value = "";
+  }
+}
+
 function isPayValid() {
   if (!payMethod.value) return false;
   if (payMethod.value === "Otro" && !payOtherText.value.trim()) return false;
-  if (!payRef.value.trim()) return false;
+  const finalMethod = (payMethod.value === "Otro") ? payOtherText.value.trim() : payMethod.value;
+  if (paymentMethodNeedsReference(finalMethod) && !payRef.value.trim()) return false;
   return true;
 }
 
@@ -1378,7 +1403,7 @@ btnPayConfirm?.addEventListener("click", async () => {
   if (!isPayValid()) return;
 
   const finalMethod = (payMethod.value === "Otro") ? payOtherText.value.trim() : payMethod.value;
-  const finalRef = payRef.value.trim();
+  const finalRef = paymentMethodNeedsReference(finalMethod) ? payRef.value.trim() : "";
 
   const orderId = modalOrder.order_id;
 

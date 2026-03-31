@@ -224,8 +224,6 @@ const modal = document.getElementById("confirmModal");
 const btnCloseModal = document.getElementById("btnCloseModal");
 const btnCopyMessage = document.getElementById("btnCopyMessage");
 const btnSendWhatsApp = document.getElementById("btnSendWhatsApp");
-const waOptIn = document.getElementById("waOptIn");
-const waOptHint = document.getElementById("waOptHint");
 
 const elModalItems = document.getElementById("modalItems");
 const elModalUnits = document.getElementById("modalUnits");
@@ -260,6 +258,7 @@ const addressInput = document.getElementById("address");
 const mapsInput = document.getElementById("maps");
 const addressLabel = document.getElementById("addressLabel");
 const addressHint = document.getElementById("addressHint");
+const waOptHint = document.getElementById("waOptHint");
 
 // Alerta central
 const alertOverlay = document.getElementById("alertOverlay");
@@ -416,8 +415,9 @@ function syncLocationUI() {
     mapsInput.value = mapsInput.dataset.prevValue;
   }
 
-  if(showPickup && waOptIn){
-    waOptIn.checked = true;
+  if(showPickup){
+    const waOptEl = document.getElementById("waOptIn");
+    if(waOptEl) waOptEl.checked = true;
   }
   if(waOptHint){
     waOptHint.classList.toggle("hidden", !showPickup);
@@ -1067,12 +1067,6 @@ btnSendWhatsApp?.addEventListener("click", async () => {
 
   const isMobile = isMobileUA();
 
-  // ✅ PC: pre-abrir pestaña para evitar bloqueo por "user gesture"
-  let waWin = null;
-  if(!isMobile){
-    waWin = window.open("about:blank", "_blank");
-  }
-
   btnSendWhatsApp.disabled = true;
   btnCloseModal.disabled = true;
 
@@ -1109,21 +1103,19 @@ btnSendWhatsApp?.addEventListener("click", async () => {
       return;
     }
 
-    // PC: abre en pestaña nueva
-    if(waWin){
-      try{ waWin.location.href = waUrl; }catch(_e){}
-      hideModal();
-      shouldResetAfterAlert = true;
-      showAlert(SUCCESS_MSG);
-      setAlertHelp(pending.messageFallback, false);
+    // PC: primero se registra y se muestra la carga; luego redirige a WhatsApp
+    hideModal();
+    shouldResetAfterAlert = true;
+    setAlertHelp(pending.messageFallback, false);
+    try{
+      window.location.href = waUrl;
       return;
+    }catch(_e){
+      enableHelpMessage(pending.messageFallback, true);
+      showAlert("Pedido registrado ✅\n\nSi no se pudo abrir WhatsApp, copia el mensaje y pégalo en el chat.");
+      setAlertHelp(pending.messageFallback, true);
+      elStatus.textContent = "";
     }
-
-    // Si el navegador bloqueó abrir pestaña: abrir ayuda
-    enableHelpMessage(pending.messageFallback, true);
-    showAlert("Pedido registrado ✅\n\nSi no se abrió WhatsApp, copia el mensaje y pégalo en el chat.");
-    setAlertHelp(pending.messageFallback, true);
-    elStatus.textContent = "";
 
   } catch (e) {
     hideLoading();
@@ -1367,32 +1359,6 @@ const btnIndexAdminBarOpiniones = document.getElementById("btnIndexAdminBarOpini
 const btnIndexAdminBarTools = document.getElementById("btnIndexAdminBarTools");
 const btnIndexAdminDesktopHub = document.getElementById("btnIndexAdminDesktopHub");
 const orderSection = document.getElementById("pedido");
-const productsSection = document.getElementById("postres");
-const quickOrderSteps = Array.from(document.querySelectorAll("[data-scroll-target]"));
-const orderNameField = document.getElementById("name");
-const btnWhatsAppReview = document.getElementById("btnWhatsApp");
-
-function scrollToSectionWithOffset(targetEl){
-  if(!targetEl) return;
-  const topbar = document.querySelector(".topbar");
-  const topbarHeight = topbar ? topbar.getBoundingClientRect().height : 0;
-  const y = window.scrollY + targetEl.getBoundingClientRect().top - topbarHeight - 16;
-  window.scrollTo({ top: Math.max(0, y), behavior: "smooth" });
-}
-
-function handleQuickOrderStep(target){
-  if(target === "postres") {
-    scrollToSectionWithOffset(productsSection);
-    return;
-  }
-  scrollToSectionWithOffset(orderSection);
-  const focusTarget = target === "whatsapp" ? btnWhatsAppReview : orderNameField;
-  if(focusTarget){
-    window.setTimeout(() => {
-      try{ focusTarget.focus({ preventScroll:true }); }catch(_){ focusTarget.focus?.(); }
-    }, 420);
-  }
-}
 
 const reviewModal = document.getElementById("reviewModal");
 const btnCloseReview = document.getElementById("btnCloseReview");
@@ -1905,10 +1871,6 @@ if(reviewsListEl) fetchReviews();
 showAdminButtonIfNeeded();
 applyIndexAdminVisibility();
 syncIndexAdminMobileBar();
-
-quickOrderSteps.forEach((stepBtn) => {
-  stepBtn.addEventListener("click", () => handleQuickOrderStep(String(stepBtn.dataset.scrollTarget || "")));
-});
 
 btnIndexAdminSavePrices?.addEventListener("click", saveIndexAdminPrices);
 btnIndexAdminResetPrices?.addEventListener("click", resetIndexAdminPrices);

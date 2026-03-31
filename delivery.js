@@ -2,7 +2,7 @@
 // delivery.js — AMARED Envíos (v4 UX + Historial + Opt-in fix)
 "use strict";
 
-console.log("AMARED delivery v13");
+console.log("AMARED delivery v14");
 
 const API_URL = "https://amared-orders.amaredpostres.workers.dev/";
 const SS_KEY = "AMARED_DELIVERY_SESSION_V4";
@@ -683,10 +683,40 @@ function money(n){
   return Math.round(Number(n||0)).toLocaleString("es-CO");
 }
 
+function isPickupOrder(order){
+  const method = String(order?.location_method || "").trim().toLowerCase();
+  const maps = String(order?.maps_link || "").trim().toUpperCase();
+  const address = String(order?.address_text || "").trim().toLowerCase();
+  return method === "pickup" || maps === "PICKUP" || address.includes("recogida presencial");
+}
+
+function groupPendingOrders(orders){
+  const pickup = [];
+  const delivery = [];
+  (Array.isArray(orders) ? orders : []).forEach(order => {
+    (isPickupOrder(order) ? pickup : delivery).push(order);
+  });
+  return { delivery, pickup };
+}
+
+function getDeliveryTemplateSet(order){
+  return isPickupOrder(order) ? PICKUP_TEMPLATES : DELIVERY_TEMPLATES;
+}
+
+function getDeliveryTemplateById(order, templateId){
+  const set = getDeliveryTemplateSet(order);
+  return set.find(t => t.id === templateId) || set[0];
+}
+
+function getPickupPointText(){
+  return "Parque La Toscana, ubicado entre Mercacentro 4 y Acqua";
+}
+
 function renderOrders(orders){
   ORDERS = orders || [];
+  const grouped = groupPendingOrders(ORDERS);
   if(metaLine){
-    metaLine.textContent = `Operador: ${SESSION?.operator?.label || "—"} · Pedidos: ${ORDERS.length}`;
+    metaLine.textContent = `Operador: ${SESSION?.operator?.label || "—"} · Domicilio: ${grouped.delivery.length} · Recogida: ${grouped.pickup.length}`;
   }
 
   if(!listEl) return;
@@ -695,11 +725,18 @@ function renderOrders(orders){
     return;
   }
 
-  const html = ORDERS.map(o=>{
+  const renderCard = (o)=>{
     const items = normalizeItemsFromAnyOrder(o);
     const summary = itemsSummary(items) || (o.items || "");
     const units = calcUnits(o);
     const canWa = isOptIn(o.wa_opt_in);
+    const pickup = isPickupOrder(o);
+    const methodPill = pickup
+      ? '<span class="pill pillPickup">📍 Recogida presencial</span>'
+      : '<span class="pill pillDelivery">🛵 Domicilio</span>';
+    const addressLabel = pickup ? 'Punto de encuentro' : 'Dirección';
+    const addressText = pickup ? getPickupPointText() : (o.address_text || "—");
+    const btnText = pickup ? 'Ver mensaje de recogida' : 'Ver mensaje';
 
     return `
       <div class="orderCard">
@@ -709,6 +746,7 @@ function renderOrders(orders){
             <div class="orderMeta">${escapeHtml(o.customer_name || "")} · ${escapeHtml(formatDate(o.created_at))}</div>
           </div>
           <div class="row" style="gap:10px; flex-wrap:wrap; justify-content:flex-end;">
+            ${methodPill}
             <span class="pill">🧁 ${escapeHtml(String(units))} u</span>
             <span class="pill">💰 $${escapeHtml(money(o.subtotal||0))}</span>
             ${canWa ? "" : '<span class="pill">📵 Sin WhatsApp</span>'}
@@ -723,8 +761,8 @@ function renderOrders(orders){
 
           <div class="grid2">
             <div class="kv">
-              <label>Dirección</label>
-              <div class="v">${escapeHtml(o.address_text || "—")}</div>
+              <label>${addressLabel}</label>
+              <div class="v">${escapeHtml(addressText)}</div>
             </div>
             <div class="kv">
               <label>Teléfono</label>
@@ -733,14 +771,33 @@ function renderOrders(orders){
           </div>
 
           <div class="btnRow">
-            <button class="btn secondary btnSend" data-id="${escapeHtml(o.order_id)}">Ver mensaje</button>
+            <button class="btn secondary btnSend" data-id="${escapeHtml(o.order_id)}">${btnText}</button>
           </div>
         </div>
       </div>
     `;
-  }).join("");
+  };
 
-  listEl.innerHTML = html;
+  const renderGroup = (title, items, emptyText, extraClass = "") => `
+    <section class="deliveryGroup ${extraClass}">
+      <div class="deliveryGroupHead">
+        <div>
+          <div class="deliveryGroupTitle">${title}</div>
+          <div class="deliveryGroupMeta">${items.length} ${items.length === 1 ? 'pedido' : 'pedidos'}</div>
+        </div>
+      </div>
+      <div class="deliveryGroupList">
+        ${items.length ? items.map(renderCard).join("") : `<div class="muted small deliveryEmpty">${emptyText}</div>`}
+      </div>
+    </section>
+  `;
+
+  listEl.innerHTML = `
+    <div class="deliveryGroups">
+      ${renderGroup('Pedidos para domicilio', grouped.delivery, 'No hay pedidos de domicilio pendientes.', 'isDelivery')}
+      ${renderGroup('Pedidos para recogida presencial', grouped.pickup, 'No hay pedidos de recogida presencial pendientes.', 'isPickup')}
+    </div>
+  `;
 }
 
 async function loadOrders(force = false, opts = {}){
@@ -924,24 +981,64 @@ async function loadHistory(force = false, opts = {}){
 }
 
 // ---- Send flow ----
-const TEMPLATES = [
+const DELIVERY_TEMPLATES = [
   {
     id:"t1",
     label:"Cercano (✨🚗)",
     build: ({name, items, eta}) =>
-      `Hola ${name} 👋✨\nTu pedido (${items}) ya va en camino 🚗💨\nLlega aprox. en ${eta} min ⏱️\n¡Gracias por elegir AMARED! 😋🍰`
+      `Hola ${name} 👋✨
+Tu pedido (${items}) ya va en camino 🚗💨
+Llega aprox. en ${eta} min ⏱️
+¡Gracias por elegir AMARED! 😋🍰`
   },
   {
     id:"t2",
     label:"Corto (😊🧁)",
     build: ({name, units, eta}) =>
-      `¡Hola ${name}! 😊\nYa salió tu pedido 🧁🚚 (son ${units} postres).\nTiempo estimado: ${eta} min ⏱️\n¡Que lo disfrutes mucho! 💖`
+      `¡Hola ${name}! 😊
+Ya salió tu pedido 🧁🚚 (son ${units} postres).
+Tiempo estimado: ${eta} min ⏱️
+¡Que lo disfrutes mucho! 💖`
   },
   {
     id:"t3",
     label:"Con energía (🚀💛)",
     build: ({name, eta}) =>
-      `Hola ${name} 🙌\nTu pedido está listo y va en ruta 🚀\nEstimado: ${eta} min ⏱️\n¡Disfrútalo! 💛`
+      `Hola ${name} 🙌
+Tu pedido está listo y va en ruta 🚀
+Estimado: ${eta} min ⏱️
+¡Disfrútalo! 💛`
+  },
+];
+
+const PICKUP_TEMPLATES = [
+  {
+    id:"p1",
+    label:"En camino al punto (📍)",
+    build: ({name, eta, pickupPoint}) =>
+      `Hola ${name} 👋
+La persona encargada de la entrega presencial ya va en camino al punto indicado.
+Nos encontraremos en ${pickupPoint}.
+Tiempo estimado: ${eta} min ⏱️
+Por favor mantente atento(a) a este chat. ¡Nos vemos pronto!`
+  },
+  {
+    id:"p2",
+    label:"Recordatorio del punto (🧁)",
+    build: ({name, pickupPoint}) =>
+      `¡Hola ${name}! 😊
+Tu pedido ya va en camino para la entrega presencial.
+Recuerda que el punto de encuentro es ${pickupPoint}.
+Por favor mantente atento(a) a este chat para recibirlo.`
+  },
+  {
+    id:"p3",
+    label:"Ubicación + aviso (🚶)",
+    build: ({name, eta, pickupPoint}) =>
+      `Hola ${name} 🙌
+Ya vamos en camino con tu pedido para la entrega presencial.
+Nos vemos en ${pickupPoint}.
+Llegamos aprox. en ${eta} min ⏱️`
   },
 ];
 
@@ -951,28 +1048,46 @@ function openSendModal(order, opts={}){
   sendErr.textContent = "";
   if(!sendBack) return;
 
-  sendSubtitle.textContent = `${order.order_id} · ${order.customer_name || ""}`;
-  inpEta.value = "5";
+  const isPickup = isPickupOrder(order);
+  const templates = getDeliveryTemplateSet(order);
+  const etaField = inpEta?.closest?.(".field") || null;
+  const etaLabel = etaField?.querySelector?.("label") || null;
+  const etaHint = etaField?.querySelector?.(".muted.small") || null;
+  const templateField = selTemplate?.closest?.(".field") || null;
+  const templateHint = templateField?.querySelector?.(".muted.small") || null;
 
-  selTemplate.innerHTML = TEMPLATES.map(t=>`<option value="${t.id}">${t.label}</option>`).join("");
-  selTemplate.value = "t1";
+  sendSubtitle.textContent = isPickup
+    ? `${order.order_id} · ${order.customer_name || ""} · Recogida presencial`
+    : `${order.order_id} · ${order.customer_name || ""}`;
 
-  txtMsg.value = buildMessage(order, Number(inpEta.value||5)||5, "t1");
+  inpEta.value = isPickup ? "8" : "5";
+  if(etaLabel) etaLabel.textContent = isPickup ? "Tiempo estimado hacia el punto (minutos)" : "Tiempo estimado (minutos)";
+  if(etaHint) etaHint.textContent = isPickup
+    ? `Se incluirá en el mensaje junto con el punto de encuentro: ${getPickupPointText()}.`
+    : "Se incluirá en el mensaje de WhatsApp.";
+  if(templateHint) templateHint.textContent = isPickup
+    ? "Opciones pensadas para avisar que la entrega presencial ya va en camino."
+    : "3 opciones para que no todos los mensajes sean iguales.";
+
+  selTemplate.innerHTML = templates.map(t=>`<option value="${t.id}">${t.label}</option>`).join("");
+  selTemplate.value = templates[0]?.id || "";
+
+  txtMsg.value = buildMessage(order, Number(inpEta.value||5)||5, selTemplate.value);
 
   const canWa = isOptIn(order.wa_opt_in);
-if(btnAskWhatsApp){
-  btnAskWhatsApp.disabled = !canWa;
-  btnAskWhatsApp.style.opacity = canWa ? "" : "0.55";
-  btnAskWhatsApp.title = canWa ? "Abrir WhatsApp" : "El cliente no autorizó WhatsApp";
-}
-if(btnMarkSent){
-  btnMarkSent.disabled = false;
-  btnMarkSent.style.opacity = "";
-  btnMarkSent.title = "Marcar Enviado";
-}
-if(!canWa){
-  sendErr.textContent = "Este cliente NO autorizó recibir mensajes por WhatsApp. Puedes copiar el mensaje y luego usar “Marcar Enviado”.";
-}
+  if(btnAskWhatsApp){
+    btnAskWhatsApp.disabled = !canWa;
+    btnAskWhatsApp.style.opacity = canWa ? "" : "0.55";
+    btnAskWhatsApp.title = canWa ? "Abrir WhatsApp" : "El cliente no autorizó WhatsApp";
+  }
+  if(btnMarkSent){
+    btnMarkSent.disabled = false;
+    btnMarkSent.style.opacity = "";
+    btnMarkSent.title = "Marcar Enviado";
+  }
+  if(!canWa){
+    sendErr.textContent = "Este cliente NO autorizó recibir mensajes por WhatsApp. Puedes copiar el mensaje y luego usar “Marcar Enviado”.";
+  }
 
   applyContextButtons(order);
 
@@ -996,9 +1111,10 @@ function buildMessage(order, etaMinutes, templateId){
 
   const name = firstName(order.customer_name);
   const eta = Math.max(1, Math.round(Number(etaMinutes||0) || 0));
+  const pickupPoint = getPickupPointText();
 
-  const t = TEMPLATES.find(x=>x.id===templateId) || TEMPLATES[0];
-  return t.build({ name, items: itemsTxt, units, eta });
+  const t = getDeliveryTemplateById(order, templateId);
+  return t.build({ name, items: itemsTxt, units, eta, pickupPoint });
 }
 
 function applyContextButtons(order){
