@@ -1429,7 +1429,7 @@ btnSendWhatsApp?.addEventListener("click", async () => {
   if (!pending) return;
 
   const isMobile = isMobileUA();
-  const desktopWhatsAppTab = !isMobile ? preOpenDesktopWhatsAppTab() : null;
+  const desktopWhatsAppTab = null;
 
   btnSendWhatsApp.disabled = true;
   btnCloseModal.disabled = true;
@@ -1465,16 +1465,13 @@ btnSendWhatsApp?.addEventListener("click", async () => {
       return;
     }
 
-    // PC: primero finaliza el loader principal y luego se muestra el loader de la nueva pestaña
+    // PC: primero finaliza por completo el loader principal y solo después se abre la nueva pestaña
     hideModal();
     shouldResetAfterAlert = true;
     setAlertHelp(pending.messageFallback, false);
     hideLoading();
 
     try{
-      const renderedInPreparedTab = showDesktopWhatsAppLoaderTab(desktopWhatsAppTab, waUrl);
-      if(renderedInPreparedTab) return;
-
       const newTab = window.open("about:blank", "_blank", "noopener,noreferrer");
       if(newTab){
         try{ newTab.opener = null; }catch(_e){}
