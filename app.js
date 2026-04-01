@@ -258,6 +258,7 @@ const addressInput = document.getElementById("address");
 const mapsInput = document.getElementById("maps");
 const addressLabel = document.getElementById("addressLabel");
 const addressHint = document.getElementById("addressHint");
+const waOptIn = document.getElementById("waOptIn");
 
 // Alerta central
 const alertOverlay = document.getElementById("alertOverlay");
@@ -412,6 +413,10 @@ function syncLocationUI() {
     mapsInput.value = "";
   }else if(mapsInput && showMaps && !mapsInput.value && mapsInput.dataset.prevValue){
     mapsInput.value = mapsInput.dataset.prevValue;
+  }
+
+  if(showPickup && waOptIn){
+    waOptIn.checked = true;
   }
 
   setAddressMode(method);
@@ -1058,6 +1063,21 @@ btnSendWhatsApp?.addEventListener("click", async () => {
 
   const isMobile = isMobileUA();
 
+  // ✅ PC: pre-abrir pestaña para evitar bloqueo por "user gesture"
+  let waWin = null;
+  if(!isMobile){
+    try{
+      waWin = window.open("", "_blank");
+      if(waWin && !waWin.closed){
+        try{
+          waWin.document.title = "AMARED · Preparando WhatsApp";
+          waWin.document.body.innerHTML = '<div style="font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;padding:24px;color:#401102;background:#fff7f2">Preparando WhatsApp…</div>';
+        }catch(_e){}
+        try{ waWin.blur(); window.focus(); }catch(_e){}
+      }
+    }catch(_e){ waWin = null; }
+  }
+
   btnSendWhatsApp.disabled = true;
   btnCloseModal.disabled = true;
 
@@ -1073,38 +1093,53 @@ btnSendWhatsApp?.addEventListener("click", async () => {
     await saveOrder(pending.data);
     await completeLoadingSuccess();
 
-    // 2) Preparar WhatsApp y ayuda
+    // 2) Abrir WhatsApp con texto (normal)
     const waUrl = buildWhatsAppUrlWithText(pending.messageNormal);
+
+    // 3) Habilitar ayuda (copiar/pegar) después del primer intento
     enableHelpMessage(pending.messageFallback, false);
 
     hideLoading();
 
     if(isMobile){
-      // ✅ mobile: abrir app directo / fallback web en la misma pestaña
+      // ✅ EXACTO como delivery: usar wa.me y navegar en la MISMA pestaña
       hideModal();
       shouldResetAfterAlert = true;
+
+      // al volver al navegador, mostrar aviso
       storeResumeAlert(SUCCESS_MSG, true, pending.messageFallback);
-      openWhatsAppMobile(pending.messageNormal);
+
+      hideLoading();
+      openWhatsAppMobile(pending.messageNormal); // iPhone/mobile: intenta abrir la app directo y hace fallback a wa.me
       return;
     }
 
-    // ✅ escritorio: mantener la página actual y abrir WhatsApp en una pestaña nueva DESPUÉS del registro
+    // PC: abrir en pestaña nueva después de registrar y finalizar la carga
+    let waOpened = false;
+    if(waWin && !waWin.closed){
+      try{
+        waWin.location.replace(waUrl);
+        try{ waWin.focus(); }catch(_e){}
+        waOpened = true;
+      }catch(_e){}
+    }
+    if(!waOpened){
+      try{
+        const fallbackWin = window.open(waUrl, "_blank", "noopener,noreferrer");
+        waOpened = !!fallbackWin;
+      }catch(_e){}
+    }
+
     hideModal();
     shouldResetAfterAlert = true;
+    showAlert(SUCCESS_MSG);
+    setAlertHelp(pending.messageFallback, !waOpened);
 
-    const waWin = window.open(waUrl, "_blank", "noopener,noreferrer");
-
-    if(waWin){
-      showAlert(SUCCESS_MSG);
-      setAlertHelp(pending.messageFallback, false);
-      return;
+    if(!waOpened){
+      enableHelpMessage(pending.messageFallback, true);
+      elStatus.textContent = "";
     }
-
-    // Si el navegador bloqueó abrir la pestaña: abrir ayuda
-    enableHelpMessage(pending.messageFallback, true);
-    showAlert("Pedido registrado ✅\n\nNo pudimos abrir WhatsApp en una nueva pestaña. Copia el mensaje y pégalo en el chat.");
-    setAlertHelp(pending.messageFallback, true);
-    elStatus.textContent = "";
+    return;
 
   } catch (e) {
     hideLoading();
@@ -1114,7 +1149,6 @@ btnSendWhatsApp?.addEventListener("click", async () => {
     // En error: mostrar ayuda
     try{
       enableHelpMessage(pending?.messageFallback || "", true);
-      setAlertHelp(pending?.messageFallback || "", true);
     }catch(_e){}
   } finally {
     btnSendWhatsApp.disabled = false;

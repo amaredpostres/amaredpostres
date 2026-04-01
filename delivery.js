@@ -2,7 +2,7 @@
 // delivery.js — AMARED Envíos (v4 UX + Historial + Opt-in fix)
 "use strict";
 
-console.log("AMARED delivery v13");
+console.log("AMARED delivery v14");
 
 const API_URL = "https://amared-orders.amaredpostres.workers.dev/";
 const SS_KEY = "AMARED_DELIVERY_SESSION_V4";
@@ -692,6 +692,7 @@ function money(n){
 }
 
 let DELIVERY_PENDING_VIEW = "delivery";
+let DELIVERY_HISTORY_OPEN = false;
 
 function isPickupOrder(order){
   const method = String(order?.location_method || "").trim().toLowerCase();
@@ -752,13 +753,14 @@ function syncPendingFilterUI(grouped){
   };
   Object.entries(mobileMap).forEach(([key, btn]) => {
     if(!btn) return;
-    const active = key === DELIVERY_PENDING_VIEW;
+    const active = key === "history" ? DELIVERY_HISTORY_OPEN : key === DELIVERY_PENDING_VIEW;
     btn.classList.toggle("isAccent", active);
     btn.setAttribute("aria-pressed", active ? "true" : "false");
   });
 }
 
 function setPendingView(view){
+  DELIVERY_HISTORY_OPEN = false;
   DELIVERY_PENDING_VIEW = (view === "pickup") ? "pickup" : "delivery";
   renderOrders(ORDERS);
 }
@@ -935,16 +937,21 @@ function normalizeHistoryOrders(rows){
 // ---- History ----
 function openHistory(){
   if(!histBack) return;
-  histStatus.textContent = "";
+  DELIVERY_HISTORY_OPEN = true;
+  if(histStatus) histStatus.textContent = "";
+  if(histList) setInlineLoading_(histList, "Cargando historial…", "Estamos buscando los pedidos enviados.");
   setDisplayIfChanged(histBack, "flex");
   setAriaHiddenIfChanged(histBack, false);
+  syncPendingFilterUI(groupPendingOrders(ORDERS));
   scheduleDeliveryBarsSync();
   loadHistory(false, { silent:true });
 }
 function closeHistory(){
   if(!histBack) return;
+  DELIVERY_HISTORY_OPEN = false;
   setDisplayIfChanged(histBack, "none");
   setAriaHiddenIfChanged(histBack, true);
+  syncPendingFilterUI(groupPendingOrders(ORDERS));
   scheduleDeliveryBarsSync();
 }
 function renderHistory(orders){
@@ -1011,7 +1018,7 @@ async function loadHistory(force = false, opts = {}){
   if(histStatus) histStatus.textContent = "";
   if(silent){
     if(histStatus) histStatus.textContent = "Cargando historial…";
-    if(histList && !String(histList.innerHTML || "").trim()) setInlineLoading_(histList, "Cargando historial…", "Estamos buscando los pedidos que ya fueron enviados.");
+    if(histList) setInlineLoading_(histList, "Cargando historial…", "Estamos buscando los pedidos que ya fueron enviados.");
   }else{
     showLoading("Cargando historial…","Buscando pedidos enviados…");
   }

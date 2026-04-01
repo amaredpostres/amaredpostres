@@ -580,3 +580,58 @@ body.deliveryOverlayOpen .amDeliveryMobileBar{
     display:none;
   }
 }
+
+
+/* ===== Ajustes v2: historial + menú inferior unido ===== */
+#histBack .amModal > .rowBetween{
+  align-items:flex-start;
+}
+#histBack .amModal > .rowBetween > .row{
+  align-items:center;
+  gap:10px;
+}
+#histBack .amModal > .rowBetween .amModalCloseX{
+  order:2;
+}
+#histBack .amModal > .rowBetween #btnHistReload{
+  order:1;
+}
+
+@media (max-width: 720px){
+  #histBack{ padding: 12px; }
+  #histBack .amModal{
+    width:min(100%, calc(100vw - 20px));
+    max-height: calc(100vh - 20px);
+    border-radius: 24px;
+  }
+  #histList{ max-height: calc(100vh - 240px); }
+
+  .amDeliveryMobileBar{
+    display:grid;
+    grid-template-columns: 52px minmax(0,1fr) 52px;
+    align-items:center;
+    gap:10px;
+    padding:10px 12px calc(10px + env(safe-area-inset-bottom, 0px));
+    border-radius: 24px 24px 0 0;
+  }
+  .amDeliveryMobileCenter{
+    grid-template-columns: repeat(3, minmax(0,1fr));
+    gap:0;
+    padding:4px;
+    border-radius:999px;
+  }
+  .amDeliveryMobileBar .amDeliveryMobileSeg{
+    min-height:48px;
+    padding:0 10px;
+  }
+  .amDeliveryMobileBar .amDeliveryMobileSeg .txt{
+    font-size:15.5px;
+    font-weight:950;
+    letter-spacing:.01em;
+  }
+  .amDeliveryMobileBar .amDeliveryMobileAction{
+    width:52px;
+    height:52px;
+    min-height:52px;
+  }
+}
