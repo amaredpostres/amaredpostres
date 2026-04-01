@@ -85,7 +85,7 @@
 
   <link rel="icon" href="assets/favicon.ico" type="image/x-icon">
   <link rel="stylesheet" href="styles.css?v=20260330-project-v8" />
-  <link rel="stylesheet" href="delivery.css?v=20260401-delivery-unified-v2" />
+  <link rel="stylesheet" href="delivery.css?v=20260401-delivery-filters-v1" />
 
   <style>
     /* HISTORIAL FIXES */
@@ -197,6 +197,10 @@
       </div>
 
       <div id="status" class="muted small" style="margin-top:10px;"></div>
+      <div id="deliveryFilterWrap" class="deliveryFilterWrap" style="margin-top:12px; display:none;">
+        <button id="btnFilterDelivery" class="deliveryFilterBtn isActive" type="button">Domicilio</button>
+        <button id="btnFilterPickup" class="deliveryFilterBtn" type="button">Recoger</button>
+      </div>
       <div id="list" class="deliveryList" style="margin-top:12px;"></div>
     </section>
   </main>
@@ -295,6 +299,6 @@
     </div>
   </div>
 
-  <script src="delivery.js?v=20260401-delivery-unified-v2"></script>
+  <script src="delivery.js?v=20260401-delivery-filters-v1"></script>
 </body>
 </html>

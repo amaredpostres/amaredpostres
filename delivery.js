@@ -64,7 +64,7 @@ let ORDERS = [];
 let HIST = [];
 let SEND_ORDER = null;
 let SEND_CONTEXT = "pending"; // "pending" | "history"
-
+let DELIVERY_VIEW_FILTER = "delivery"; // delivery | pickup
 
 let deliveryMobileBar = null;
 let deliveryBarObserverStarted = false;
@@ -122,15 +122,11 @@ function ensureDeliveryMobileBar(){
       <button id="dMBtnRefresh" class="amDeliveryMobileAction isWarm" type="button" aria-label="Recargar">
         <span class="ico">↻</span><span class="txt">Recargar</span>
       </button>
-      <button id="dMBtnDelivery" class="amDeliveryMobileSeg amDeliveryMobileTab" type="button" aria-label="Mostrar pedidos para domicilio">
-        <span class="txt">Domicilio</span>
-      </button>
-      <button id="dMBtnPickup" class="amDeliveryMobileSeg amDeliveryMobileTab" type="button" aria-label="Mostrar pedidos para recoger">
-        <span class="txt">Recoger</span>
-      </button>
-      <button id="dMBtnHistory" class="amDeliveryMobileSeg amDeliveryMobileTab amDeliveryMobileHistory" type="button" aria-label="Ver historial">
-        <span class="txt">Historial</span>
-      </button>
+      <div class="amDeliveryMobileCenter" role="group" aria-label="Filtros de envíos">
+        <button id="dMBtnDelivery" class="amDeliveryMobileSeg isActive" type="button"><span class="txt">Domicilio</span></button>
+        <button id="dMBtnPickup" class="amDeliveryMobileSeg" type="button"><span class="txt">Recoger</span></button>
+        <button id="dMBtnHistory" class="amDeliveryMobileSeg" type="button"><span class="txt">Historial</span></button>
+      </div>
       <button id="dMBtnLogout" class="amDeliveryMobileAction isNeutral" type="button" aria-label="Salir">
         <span class="ico">🚪</span><span class="txt">Salir</span>
       </button>`;
@@ -189,18 +185,19 @@ function syncDeliveryActionBars(){
   syncDeliveryMobileReturnAction();
   toggleClassIfChanged(bar, 'isHidden', !appVisible || !mobile || overlay);
   toggleClassIfChanged(document.body, 'deliveryOverlayOpen', !!overlay);
+  syncDeliveryFilterUi();
 }
 function wireDeliveryMobileBar(){
   ensureDeliveryMobileBar();
   const bRefresh = document.getElementById('dMBtnRefresh');
+  const bHistory = document.getElementById('dMBtnHistory');
   const bDelivery = document.getElementById('dMBtnDelivery');
   const bPickup = document.getElementById('dMBtnPickup');
-  const bHistory = document.getElementById('dMBtnHistory');
   const bLogout = document.getElementById('dMBtnLogout');
   if(bRefresh && !bRefresh.dataset.wired){ bRefresh.dataset.wired='1'; bRefresh.addEventListener('click', ()=> btnRefreshTop?.click()); }
-  if(bDelivery && !bDelivery.dataset.wired){ bDelivery.dataset.wired='1'; bDelivery.addEventListener('click', ()=> setPendingView('delivery')); }
-  if(bPickup && !bPickup.dataset.wired){ bPickup.dataset.wired='1'; bPickup.addEventListener('click', ()=> setPendingView('pickup')); }
   if(bHistory && !bHistory.dataset.wired){ bHistory.dataset.wired='1'; bHistory.addEventListener('click', ()=> btnHistory?.click()); }
+  if(bDelivery && !bDelivery.dataset.wired){ bDelivery.dataset.wired='1'; bDelivery.addEventListener('click', ()=> setDeliveryViewFilter('delivery')); }
+  if(bPickup && !bPickup.dataset.wired){ bPickup.dataset.wired='1'; bPickup.addEventListener('click', ()=> setDeliveryViewFilter('pickup')); }
   if(bLogout && !bLogout.dataset.wired){ bLogout.dataset.wired='1'; bLogout.addEventListener('click', ()=> { if(hasHubAccess_()) goHub_(); else btnLogoutTop?.click(); }); }
   scheduleDeliveryBarsSync();
 }
@@ -230,6 +227,9 @@ const btnLogout = document.getElementById("btnLogout");
 const btnHistory = document.getElementById("btnHistory");
 const btnRefreshTop = document.getElementById("btnRefreshTop");
 const btnLogoutTop = document.getElementById("btnLogoutTop");
+const deliveryFilterWrap = document.getElementById("deliveryFilterWrap");
+const btnFilterDelivery = document.getElementById("btnFilterDelivery");
+const btnFilterPickup = document.getElementById("btnFilterPickup");
 
 const metaLine = document.getElementById("metaLine");
 const statusEl = document.getElementById("status");
@@ -691,120 +691,88 @@ function money(n){
   return Math.round(Number(n||0)).toLocaleString("es-CO");
 }
 
-let DELIVERY_PENDING_VIEW = "delivery";
-let DELIVERY_HISTORY_OPEN = false;
-
-function isPickupOrder(order){
+function classifyDeliveryType(order){
   const method = String(order?.location_method || "").trim().toLowerCase();
-  const maps = String(order?.maps_link || "").trim().toUpperCase();
   const address = String(order?.address_text || "").trim().toLowerCase();
-  return method === "pickup" || maps === "PICKUP" || address.includes("recogida presencial");
+  const maps = String(order?.maps_link || "").trim().toLowerCase();
+  if(method === "pickup" || address === "recogida presencial" || maps === "recogida_presencial") return "pickup";
+  return "delivery";
 }
 
-function groupPendingOrders(orders){
-  const pickup = [];
-  const delivery = [];
-  (Array.isArray(orders) ? orders : []).forEach(order => {
-    (isPickupOrder(order) ? pickup : delivery).push(order);
+function getPendingCounts(orders){
+  const rows = Array.isArray(orders) ? orders : [];
+  let delivery = 0, pickup = 0;
+  rows.forEach(order => {
+    if(classifyDeliveryType(order) === "pickup") pickup += 1;
+    else delivery += 1;
   });
   return { delivery, pickup };
 }
 
-function getPickupPointText(){
-  return "Parque La Toscana, ubicado entre Mercacentro 4 y Acqua";
+function getFilteredPendingOrders(orders){
+  const rows = Array.isArray(orders) ? orders : [];
+  return rows.filter(order => classifyDeliveryType(order) === DELIVERY_VIEW_FILTER);
 }
 
-function ensurePendingFiltersUI(){
-  if(!panelView) return null;
-  let wrap = document.getElementById("deliveryPendingFilters");
-  if(!wrap){
-    wrap = document.createElement("div");
-    wrap.id = "deliveryPendingFilters";
-    wrap.className = "deliveryPendingFilters";
-    wrap.setAttribute("role", "tablist");
-    wrap.setAttribute("aria-label", "Filtrar pedidos de envíos");
-    wrap.innerHTML = `
-      <button type="button" class="deliveryFilterBtn" data-view="delivery">Domicilio</button>
-      <button type="button" class="deliveryFilterBtn" data-view="pickup">Recoger</button>
-    `;
-    const anchor = statusEl || listEl;
-    if(anchor && anchor.parentNode) anchor.parentNode.insertBefore(wrap, anchor);
+function syncDeliveryFilterUi(){
+  const counts = getPendingCounts(ORDERS);
+  const activeLabel = DELIVERY_VIEW_FILTER === "pickup" ? "Recoger" : "Domicilio";
+  if(metaLine){
+    metaLine.textContent = `Operador: ${SESSION?.operator?.label || "—"} · Domicilio: ${counts.delivery} · Recoger: ${counts.pickup} · Mostrando: ${activeLabel}`;
   }
-  return wrap;
+  const hasBoth = counts.delivery > 0 && counts.pickup > 0;
+  if(deliveryFilterWrap) setDisplayIfChanged(deliveryFilterWrap, hasBoth ? "flex" : "none");
+  toggleClassIfChanged(btnFilterDelivery, 'isActive', DELIVERY_VIEW_FILTER === 'delivery');
+  toggleClassIfChanged(btnFilterPickup, 'isActive', DELIVERY_VIEW_FILTER === 'pickup');
+  const bDelivery = document.getElementById('dMBtnDelivery');
+  const bPickup = document.getElementById('dMBtnPickup');
+  const bHistory = document.getElementById('dMBtnHistory');
+  toggleClassIfChanged(bDelivery, 'isActive', DELIVERY_VIEW_FILTER === 'delivery');
+  toggleClassIfChanged(bPickup, 'isActive', DELIVERY_VIEW_FILTER === 'pickup');
+  toggleClassIfChanged(bHistory, 'isActive', isVisibleEl(histBack));
 }
 
-function syncPendingFilterUI(grouped){
-  const wrap = ensurePendingFiltersUI();
-  if(wrap){
-    wrap.querySelectorAll(".deliveryFilterBtn").forEach(btn => {
-      const view = String(btn.getAttribute("data-view") || "");
-      const active = view === DELIVERY_PENDING_VIEW;
-      btn.classList.toggle("isActive", active);
-      btn.setAttribute("aria-pressed", active ? "true" : "false");
-      const count = view === "pickup" ? grouped.pickup.length : grouped.delivery.length;
-      btn.textContent = `${view === "pickup" ? "Recoger" : "Domicilio"} · ${count}`;
-    });
-  }
-
-  const mobileMap = {
-    delivery: document.getElementById("dMBtnDelivery"),
-    pickup: document.getElementById("dMBtnPickup"),
-    history: document.getElementById("dMBtnHistory")
-  };
-  Object.entries(mobileMap).forEach(([key, btn]) => {
-    if(!btn) return;
-    const active = key === "history" ? DELIVERY_HISTORY_OPEN : key === DELIVERY_PENDING_VIEW;
-    btn.classList.toggle("isAccent", active);
-    btn.setAttribute("aria-pressed", active ? "true" : "false");
-  });
-}
-
-function setPendingView(view){
-  DELIVERY_HISTORY_OPEN = false;
-  DELIVERY_PENDING_VIEW = (view === "pickup") ? "pickup" : "delivery";
+function setDeliveryViewFilter(next){
+  DELIVERY_VIEW_FILTER = (next === 'pickup') ? 'pickup' : 'delivery';
   renderOrders(ORDERS);
+  syncDeliveryFilterUi();
+  scheduleDeliveryBarsSync();
+}
+
+function pickupLocationLine(){
+  return 'Parque La Toscana, entre Mercacentro 4 y Acqua';
 }
 
 function renderOrders(orders){
-  ORDERS = orders || [];
-  const grouped = groupPendingOrders(ORDERS);
-
-  if(DELIVERY_PENDING_VIEW === "pickup" && !grouped.pickup.length && grouped.delivery.length){
-    DELIVERY_PENDING_VIEW = "delivery";
-  }else if(DELIVERY_PENDING_VIEW !== "pickup" && !grouped.delivery.length && grouped.pickup.length){
-    DELIVERY_PENDING_VIEW = "pickup";
-  }
-
-  const currentItems = DELIVERY_PENDING_VIEW === "pickup" ? grouped.pickup : grouped.delivery;
-  const currentTitle = DELIVERY_PENDING_VIEW === "pickup" ? "Pedidos para recoger" : "Pedidos para domicilio";
-  const currentEmpty = DELIVERY_PENDING_VIEW === "pickup"
-    ? "No hay pedidos de recogida presencial pendientes."
-    : "No hay pedidos de domicilio pendientes.";
-
-  if(metaLine){
-    metaLine.textContent = `Operador: ${SESSION?.operator?.label || "—"} · Domicilio: ${grouped.delivery.length} · Recoger: ${grouped.pickup.length} · Mostrando: ${DELIVERY_PENDING_VIEW === "pickup" ? "Recoger" : "Domicilio"}`;
-  }
-
-  syncPendingFilterUI(grouped);
+  ORDERS = Array.isArray(orders) ? orders : [];
+  const counts = getPendingCounts(ORDERS);
+  if(!counts.delivery && counts.pickup) DELIVERY_VIEW_FILTER = 'pickup';
+  else if(!counts.pickup && counts.delivery) DELIVERY_VIEW_FILTER = 'delivery';
+  syncDeliveryFilterUi();
 
   if(!listEl) return;
-  if(ORDERS.length === 0){
-    listEl.innerHTML = `<div class="muted small">No hay pedidos con <b>Pagado + Listo + delivery Pendiente</b>.</div>`;
+  const filtered = getFilteredPendingOrders(ORDERS);
+  const title = DELIVERY_VIEW_FILTER === 'pickup' ? 'Pedidos para recoger' : 'Pedidos para domicilio';
+  const subtitleCount = `${filtered.length} pedido${filtered.length === 1 ? '' : 's'}`;
+
+  if(filtered.length === 0){
+    listEl.innerHTML = `
+      <div>
+        <div class="deliveryGroupTitle">${title}</div>
+        <div class="deliveryGroupCount">${subtitleCount}</div>
+        <div class="muted small" style="margin-top:8px;">No hay pedidos pendientes en esta vista.</div>
+      </div>`;
     return;
   }
 
-  const html = currentItems.map(o=>{
+  const cards = filtered.map(o=>{
     const items = normalizeItemsFromAnyOrder(o);
     const summary = itemsSummary(items) || (o.items || "");
     const units = calcUnits(o);
     const canWa = isOptIn(o.wa_opt_in);
-    const pickup = isPickupOrder(o);
-    const methodPill = pickup
-      ? '<span class="pill pillPickup">📍 Recogida presencial</span>'
-      : '<span class="pill pillDelivery">🛵 Domicilio</span>';
-    const addressLabel = pickup ? 'Punto de encuentro' : 'Dirección';
-    const addressText = pickup ? getPickupPointText() : (o.address_text || "—");
-    const btnText = pickup ? 'Ver mensaje de recogida' : 'Ver mensaje';
+    const type = classifyDeliveryType(o);
+    const typeLabel = type === 'pickup' ? 'Recoger' : 'Domicilio';
+    const typeClass = type === 'pickup' ? 'isPickupType' : 'isDeliveryType';
 
     return `
       <div class="orderCard">
@@ -814,7 +782,7 @@ function renderOrders(orders){
             <div class="orderMeta">${escapeHtml(o.customer_name || "")} · ${escapeHtml(formatDate(o.created_at))}</div>
           </div>
           <div class="row" style="gap:10px; flex-wrap:wrap; justify-content:flex-end;">
-            ${methodPill}
+            <span class="pill ${typeClass}">${type === 'pickup' ? '🛍️' : '🛵'} ${typeLabel}</span>
             <span class="pill">🧁 ${escapeHtml(String(units))} u</span>
             <span class="pill">💰 $${escapeHtml(money(o.subtotal||0))}</span>
             ${canWa ? "" : '<span class="pill">📵 Sin WhatsApp</span>'}
@@ -829,8 +797,8 @@ function renderOrders(orders){
 
           <div class="grid2">
             <div class="kv">
-              <label>${addressLabel}</label>
-              <div class="v">${escapeHtml(addressText)}</div>
+              <label>${type === 'pickup' ? 'Punto de entrega' : 'Dirección'}</label>
+              <div class="v">${escapeHtml(type === 'pickup' ? pickupLocationLine() : (o.address_text || "—"))}</div>
             </div>
             <div class="kv">
               <label>Teléfono</label>
@@ -839,26 +807,19 @@ function renderOrders(orders){
           </div>
 
           <div class="btnRow">
-            <button class="btn secondary btnSend" data-id="${escapeHtml(o.order_id)}">${btnText}</button>
+            <button class="btn secondary btnSend" data-id="${escapeHtml(o.order_id)}">Ver mensaje</button>
           </div>
         </div>
       </div>
     `;
-  }).join("");
+  }).join('');
 
   listEl.innerHTML = `
-    <section class="deliveryGroup ${DELIVERY_PENDING_VIEW === "pickup" ? "isPickup" : "isDelivery"}">
-      <div class="deliveryGroupHead">
-        <div>
-          <div class="deliveryGroupTitle">${currentTitle}</div>
-          <div class="deliveryGroupMeta">${currentItems.length} ${currentItems.length === 1 ? "pedido" : "pedidos"}</div>
-        </div>
-      </div>
-      <div class="deliveryGroupList">
-        ${currentItems.length ? html : `<div class="muted small deliveryEmpty">${currentEmpty}</div>`}
-      </div>
-    </section>
-  `;
+    <div>
+      <div class="deliveryGroupTitle">${title}</div>
+      <div class="deliveryGroupCount">${subtitleCount}</div>
+    </div>
+    ${cards}`;
 }
 
 async function loadOrders(force = false, opts = {}){
@@ -937,22 +898,19 @@ function normalizeHistoryOrders(rows){
 // ---- History ----
 function openHistory(){
   if(!histBack) return;
-  DELIVERY_HISTORY_OPEN = true;
   if(histStatus) histStatus.textContent = "";
-  if(histList) setInlineLoading_(histList, "Cargando historial…", "Estamos buscando los pedidos enviados.");
   setDisplayIfChanged(histBack, "flex");
   setAriaHiddenIfChanged(histBack, false);
-  syncPendingFilterUI(groupPendingOrders(ORDERS));
   scheduleDeliveryBarsSync();
-  loadHistory(false, { silent:true });
+  loadHistory(false, { silent:false });
+  syncDeliveryFilterUi();
 }
 function closeHistory(){
   if(!histBack) return;
-  DELIVERY_HISTORY_OPEN = false;
   setDisplayIfChanged(histBack, "none");
   setAriaHiddenIfChanged(histBack, true);
-  syncPendingFilterUI(groupPendingOrders(ORDERS));
   scheduleDeliveryBarsSync();
+  syncDeliveryFilterUi();
 }
 function renderHistory(orders){
   HIST = orders || [];
@@ -1017,11 +975,9 @@ async function loadHistory(force = false, opts = {}){
   }
   if(histStatus) histStatus.textContent = "";
   if(silent){
-    if(histStatus) histStatus.textContent = "Cargando historial…";
-    if(histList) setInlineLoading_(histList, "Cargando historial…", "Estamos buscando los pedidos que ya fueron enviados.");
-  }else{
-    showLoading("Cargando historial…","Buscando pedidos enviados…");
+    if(histList && !String(histList.innerHTML || "").trim()) setInlineLoading_(histList, "Preparando historial…", "Estamos organizando los pedidos enviados.");
   }
+  showLoading("Cargando historial…","Buscando pedidos enviados…");
   try{
     let orders = [];
 
@@ -1042,80 +998,31 @@ async function loadHistory(force = false, opts = {}){
     if(histStatus) histStatus.textContent = e?.message || "Error cargando historial.";
     if(histList) histList.innerHTML = "";
   }finally{
-    if(!silent) hideLoading();
+    hideLoading();
   }
 }
 
 // ---- Send flow ----
-const DELIVERY_TEMPLATES = [
+const TEMPLATES = [
   {
     id:"t1",
     label:"Cercano (✨🚗)",
     build: ({name, items, eta}) =>
-      `Hola ${name} 👋✨
-Tu pedido (${items}) ya va en camino 🚗💨
-Llega aprox. en ${eta} min ⏱️
-¡Gracias por elegir AMARED! 😋🍰`
+      `Hola ${name} 👋✨\nTu pedido (${items}) ya va en camino 🚗💨\nLlega aprox. en ${eta} min ⏱️\n¡Gracias por elegir AMARED! 😋🍰`
   },
   {
     id:"t2",
     label:"Corto (😊🧁)",
     build: ({name, units, eta}) =>
-      `¡Hola ${name}! 😊
-Ya salió tu pedido 🧁🚚 (son ${units} postres).
-Tiempo estimado: ${eta} min ⏱️
-¡Que lo disfrutes mucho! 💖`
+      `¡Hola ${name}! 😊\nYa salió tu pedido 🧁🚚 (son ${units} postres).\nTiempo estimado: ${eta} min ⏱️\n¡Que lo disfrutes mucho! 💖`
   },
   {
     id:"t3",
     label:"Con energía (🚀💛)",
     build: ({name, eta}) =>
-      `Hola ${name} 🙌
-Tu pedido está listo y va en ruta 🚀
-Estimado: ${eta} min ⏱️
-¡Disfrútalo! 💛`
+      `Hola ${name} 🙌\nTu pedido está listo y va en ruta 🚀\nEstimado: ${eta} min ⏱️\n¡Disfrútalo! 💛`
   },
 ];
-
-const PICKUP_TEMPLATES = [
-  {
-    id:"p1",
-    label:"En camino al punto (📍)",
-    build: ({name, eta, pickupPoint}) =>
-      `Hola ${name} 👋
-La persona encargada de la entrega presencial ya va en camino al punto indicado.
-Nos encontraremos en ${pickupPoint}.
-Tiempo estimado: ${eta} min ⏱️
-Por favor mantente atento(a) a este chat. ¡Nos vemos pronto!`
-  },
-  {
-    id:"p2",
-    label:"Recordatorio del punto (🧁)",
-    build: ({name, pickupPoint}) =>
-      `¡Hola ${name}! 😊
-Tu pedido ya va en camino para la entrega presencial.
-Recuerda que el punto de encuentro es ${pickupPoint}.
-Por favor mantente atento(a) a este chat para recibirlo.`
-  },
-  {
-    id:"p3",
-    label:"Ubicación + aviso (🚶)",
-    build: ({name, eta, pickupPoint}) =>
-      `Hola ${name} 🙌
-Ya vamos en camino con tu pedido para la entrega presencial.
-Nos vemos en ${pickupPoint}.
-Llegamos aprox. en ${eta} min ⏱️`
-  },
-];
-
-function getDeliveryTemplateSet(order){
-  return isPickupOrder(order) ? PICKUP_TEMPLATES : DELIVERY_TEMPLATES;
-}
-
-function getDeliveryTemplateById(order, templateId){
-  const set = getDeliveryTemplateSet(order);
-  return set.find(t => t.id === templateId) || set[0];
-}
 
 function openSendModal(order, opts={}){
   SEND_ORDER = order;
@@ -1123,46 +1030,28 @@ function openSendModal(order, opts={}){
   sendErr.textContent = "";
   if(!sendBack) return;
 
-  const isPickup = isPickupOrder(order);
-  const templates = getDeliveryTemplateSet(order);
-  const etaField = inpEta?.closest?.(".field") || null;
-  const etaLabel = etaField?.querySelector?.("label") || null;
-  const etaHint = etaField?.querySelector?.(".muted.small") || null;
-  const templateField = selTemplate?.closest?.(".field") || null;
-  const templateHint = templateField?.querySelector?.(".muted.small") || null;
+  sendSubtitle.textContent = `${order.order_id} · ${order.customer_name || ""}`;
+  inpEta.value = "5";
 
-  sendSubtitle.textContent = isPickup
-    ? `${order.order_id} · ${order.customer_name || ""} · Recogida presencial`
-    : `${order.order_id} · ${order.customer_name || ""}`;
+  selTemplate.innerHTML = TEMPLATES.map(t=>`<option value="${t.id}">${t.label}</option>`).join("");
+  selTemplate.value = "t1";
 
-  inpEta.value = isPickup ? "8" : "5";
-  if(etaLabel) etaLabel.textContent = isPickup ? "Tiempo estimado hacia el punto (minutos)" : "Tiempo estimado (minutos)";
-  if(etaHint) etaHint.textContent = isPickup
-    ? "Se incluirá en el mensaje para avisar cuándo llega la persona encargada al punto."
-    : "Se incluirá en el mensaje de WhatsApp.";
-  if(templateHint) templateHint.textContent = isPickup
-    ? "Opciones pensadas para entregas de recogida presencial."
-    : "3 opciones para que no todos los mensajes sean iguales.";
-
-  selTemplate.innerHTML = templates.map(t=>`<option value="${t.id}">${t.label}</option>`).join("");
-  selTemplate.value = templates[0]?.id || "";
-
-  txtMsg.value = buildMessage(order, Number(inpEta.value||5)||5, selTemplate.value);
+  txtMsg.value = buildMessage(order, Number(inpEta.value||5)||5, "t1");
 
   const canWa = isOptIn(order.wa_opt_in);
-  if(btnAskWhatsApp){
-    btnAskWhatsApp.disabled = !canWa;
-    btnAskWhatsApp.style.opacity = canWa ? "" : "0.55";
-    btnAskWhatsApp.title = canWa ? "Abrir WhatsApp" : "El cliente no autorizó WhatsApp";
-  }
-  if(btnMarkSent){
-    btnMarkSent.disabled = false;
-    btnMarkSent.style.opacity = "";
-    btnMarkSent.title = "Marcar Enviado";
-  }
-  if(!canWa){
-    sendErr.textContent = "Este cliente NO autorizó recibir mensajes por WhatsApp. Puedes copiar el mensaje y luego usar “Marcar Enviado”.";
-  }
+if(btnAskWhatsApp){
+  btnAskWhatsApp.disabled = !canWa;
+  btnAskWhatsApp.style.opacity = canWa ? "" : "0.55";
+  btnAskWhatsApp.title = canWa ? "Abrir WhatsApp" : "El cliente no autorizó WhatsApp";
+}
+if(btnMarkSent){
+  btnMarkSent.disabled = false;
+  btnMarkSent.style.opacity = "";
+  btnMarkSent.title = "Marcar Enviado";
+}
+if(!canWa){
+  sendErr.textContent = "Este cliente NO autorizó recibir mensajes por WhatsApp. Puedes copiar el mensaje y luego usar “Marcar Enviado”.";
+}
 
   applyContextButtons(order);
 
@@ -1183,12 +1072,20 @@ function buildMessage(order, etaMinutes, templateId){
   const itemsArr = normalizeItemsFromAnyOrder(order);
   const itemsTxt = itemsSummary(itemsArr) || (order.items || "tu pedido");
   const units = calcUnits(order);
+
   const name = firstName(order.customer_name);
   const eta = Math.max(1, Math.round(Number(etaMinutes||0) || 0));
-  const pickupPoint = getPickupPointText();
+  const isPickup = classifyDeliveryType(order) === 'pickup';
 
-  const t = getDeliveryTemplateById(order, templateId);
-  return t.build({ name, items: itemsTxt, units, eta, pickupPoint });
+  if(isPickup){
+    return `Hola ${name} 👋
+Tu pedido (${itemsTxt}) ya va en camino al punto de entrega presencial.
+Nos vemos en ${pickupLocationLine()} en aprox. ${eta} min ⏱️
+¡Gracias por elegir AMARED! 💖`;
+  }
+
+  const t = TEMPLATES.find(x=>x.id===templateId) || TEMPLATES[0];
+  return t.build({ name, items: itemsTxt, units, eta });
 }
 
 function applyContextButtons(order){
@@ -1429,12 +1326,8 @@ btnLogout?.addEventListener("click", logout);
 btnHistory?.addEventListener("click", openHistory);
 btnRefreshTop?.addEventListener("click", ()=> loadOrders(true));
 btnLogoutTop?.addEventListener("click", logout);
-
-panelView?.addEventListener("click", (ev)=>{
-  const btn = ev.target?.closest?.(".deliveryFilterBtn");
-  if(!btn) return;
-  setPendingView(String(btn.getAttribute("data-view") || "delivery"));
-});
+btnFilterDelivery?.addEventListener("click", ()=> setDeliveryViewFilter('delivery'));
+btnFilterPickup?.addEventListener("click", ()=> setDeliveryViewFilter('pickup'));
 
 listEl?.addEventListener("click", (ev)=>{
   const btnSend = ev.target?.closest?.(".btnSend");
@@ -1507,7 +1400,7 @@ btnConfirmGo?.addEventListener("click", doConfirmAction);
 
 // History events
 btnHistClose?.addEventListener("click", closeHistory);
-btnHistReload?.addEventListener("click", ()=> loadHistory(true, { silent:true }));
+btnHistReload?.addEventListener("click", ()=> loadHistory(true, { silent:false }));
 histBack?.addEventListener("click", (ev)=>{ if(ev.target === histBack) closeHistory(); });
 
 // ---- Init ----

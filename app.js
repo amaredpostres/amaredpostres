@@ -396,6 +396,42 @@ function getSelectedLocationMethod() {
   return el ? el.value : "maps";
 }
 
+function ensurePickupWhatsAppOptIn(force = false){
+  try{
+    const method = getSelectedLocationMethod();
+    const waOptEl = document.getElementById("waOptIn");
+    if(!waOptEl) return;
+    if(method === "pickup") waOptEl.checked = true;
+    else if(force && !waOptEl.checked) waOptEl.checked = false;
+  }catch(_e){}
+}
+
+function openDesktopWhatsAppHelper(){
+  try{
+    const helper = window.open('', '_blank');
+    if(!helper) return null;
+    const html = `<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>AMARED · Preparando WhatsApp</title><style>body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;background:radial-gradient(700px 320px at 20% 5%, rgba(242,91,143,.14), transparent 60%),radial-gradient(700px 320px at 80% 10%, rgba(246,186,96,.16), transparent 60%),#FEF6EF;color:#401102;display:grid;place-items:center;min-height:100vh;padding:20px;box-sizing:border-box}.card{width:min(520px,100%);background:rgba(255,253,252,.96);border:1px solid rgba(64,17,2,.10);border-radius:24px;padding:26px 22px;box-shadow:0 22px 60px rgba(64,17,2,.12);text-align:center}.dot{width:18px;height:18px;border-radius:999px;border:2px solid rgba(64,17,2,.18);border-top-color:rgba(64,17,2,.70);animation:spin 1s linear infinite;margin:0 auto 16px}.t{font-weight:950;font-size:28px;line-height:1.02;margin:0 0 10px}.s{font-size:15px;line-height:1.45;color:rgba(64,17,2,.72);font-weight:780}.bar{height:10px;border-radius:999px;background:rgba(64,17,2,.08);overflow:hidden;margin-top:18px}.bar>span{display:block;height:100%;width:42%;background:linear-gradient(90deg, rgba(242,91,143,.92), rgba(246,186,96,.92));animation:load 1.15s ease-in-out infinite}.note{margin-top:14px;font-size:13px;color:rgba(64,17,2,.60);font-weight:760}@keyframes spin{to{transform:rotate(360deg)}}@keyframes load{0%{transform:translateX(-120%)}100%{transform:translateX(260%)}}</style></head><body><div class="card"><div class="dot"></div><h1 class="t">Estamos preparando tu WhatsApp</h1><div class="s">Mientras confirmamos tu pedido en AMARED, esta página quedará lista para abrir el chat correctamente.</div><div class="bar"><span></span></div><div class="note">No cierres esta pestaña. Se actualizará automáticamente en unos segundos.</div></div></body></html>`;
+    helper.document.open();
+    helper.document.write(html);
+    helper.document.close();
+    try{ window.focus(); }catch(_e){}
+    return helper;
+  }catch(_e){ return null; }
+}
+
+function navigateDesktopWhatsAppHelper(helper, url){
+  try{
+    if(helper && !helper.closed){
+      helper.location.replace(url);
+      return true;
+    }
+  }catch(_e){}
+  try{
+    window.open(url, '_blank', 'noopener,noreferrer');
+    return true;
+  }catch(_e){ return false; }
+}
+
 function syncLocationUI() {
   const method = getSelectedLocationMethod();
   const showMaps = method === "maps";
@@ -416,8 +452,7 @@ function syncLocationUI() {
   }
 
   if(showPickup){
-    const waOptEl = document.getElementById("waOptIn");
-    if(waOptEl) waOptEl.checked = true;
+    ensurePickupWhatsAppOptIn();
   }
   if(waOptHint){
     waOptHint.classList.toggle("hidden", !showPickup);
@@ -1016,6 +1051,12 @@ btnOpenMaps?.addEventListener("click", openGoogleMaps);
 
 document.querySelectorAll('input[name="locMethod"]').forEach(r => {
   r.addEventListener("change", syncLocationUI);
+  r.addEventListener("click", ()=> {
+    if(String(r.value||"") === "pickup"){
+      ensurePickupWhatsAppOptIn();
+      if(waOptHint) waOptHint.classList.remove("hidden");
+    }
+  });
 });
 
 btnAlertOk?.addEventListener("click", () => {
@@ -1066,63 +1107,54 @@ btnSendWhatsApp?.addEventListener("click", async () => {
   if (!pending) return;
 
   const isMobile = isMobileUA();
+  const desktopHelper = !isMobile ? openDesktopWhatsAppHelper() : null;
 
   btnSendWhatsApp.disabled = true;
   btnCloseModal.disabled = true;
 
   showLoading("Registrando pedido...");
-
-  // ✅ deja que el navegador pinte el loader
   await nextFrame();
 
   try {
     elStatus.textContent = "Registrando pedido...";
 
-    // 1) Guardar primero
     await saveOrder(pending.data);
     await completeLoadingSuccess();
 
-    // 2) Abrir WhatsApp con texto (normal)
     const waUrl = buildWhatsAppUrlWithText(pending.messageNormal);
-
-    // 3) Habilitar ayuda (copiar/pegar) después del primer intento
     enableHelpMessage(pending.messageFallback, false);
 
     hideLoading();
 
     if(isMobile){
-      // ✅ EXACTO como delivery: usar wa.me y navegar en la MISMA pestaña
       hideModal();
       shouldResetAfterAlert = true;
-
-      // al volver al navegador, mostrar aviso
       storeResumeAlert(SUCCESS_MSG, true, pending.messageFallback);
-
       hideLoading();
-      openWhatsAppMobile(pending.messageNormal); // iPhone/mobile: intenta abrir la app directo y hace fallback a wa.me
+      openWhatsAppMobile(pending.messageNormal);
       return;
     }
 
-    // PC: primero se registra y se muestra la carga; luego redirige a WhatsApp
     hideModal();
     shouldResetAfterAlert = true;
     setAlertHelp(pending.messageFallback, false);
-    try{
-      window.location.href = waUrl;
+
+    const opened = navigateDesktopWhatsAppHelper(desktopHelper, waUrl);
+    if(opened){
+      showAlert("Pedido registrado ✅\n\nWhatsApp se abrió en una pestaña nueva para que continúes la confirmación.");
       return;
-    }catch(_e){
-      enableHelpMessage(pending.messageFallback, true);
-      showAlert("Pedido registrado ✅\n\nSi no se pudo abrir WhatsApp, copia el mensaje y pégalo en el chat.");
-      setAlertHelp(pending.messageFallback, true);
-      elStatus.textContent = "";
     }
 
+    enableHelpMessage(pending.messageFallback, true);
+    showAlert("Pedido registrado ✅\n\nSi no se pudo abrir WhatsApp, copia el mensaje y pégalo en el chat.");
+    setAlertHelp(pending.messageFallback, true);
+    elStatus.textContent = "";
+
   } catch (e) {
+    try{ if(desktopHelper && !desktopHelper.closed) desktopHelper.close(); }catch(_e){}
     hideLoading();
     elStatus.textContent = "";
     showAlert(`Error: ${e.message}`);
-
-    // En error: mostrar ayuda
     try{
       enableHelpMessage(pending?.messageFallback || "", true);
     }catch(_e){}
@@ -1165,6 +1197,7 @@ warmProductImages();
 renderProducts(true);
 updateSummary();
 syncLocationUI();
+ensurePickupWhatsAppOptIn();
 bootProductsCatalog().catch(()=>{});
 
 
