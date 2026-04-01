@@ -650,35 +650,6 @@ function buildDesktopWhatsAppLoaderHtml(targetUrl){
       color:rgba(64,17,2,.62);
       text-align:center;
     }
-    .actions{
-      position:relative;
-      z-index:1;
-      display:flex;
-      align-items:center;
-      justify-content:center;
-      gap:10px;
-      flex-wrap:wrap;
-      margin-top:2px;
-    }
-    .btn{
-      min-height:44px;
-      padding:0 18px;
-      border-radius:999px;
-      border:1px solid rgba(64,17,2,.10);
-      background:linear-gradient(180deg, rgba(255,255,255,.96), rgba(252,247,242,.92));
-      color:var(--choco);
-      font-size:14px;
-      font-weight:900;
-      cursor:pointer;
-      box-shadow:0 10px 24px rgba(64,17,2,.08);
-    }
-    .btn:hover{transform:translateY(-1px)}
-    .btn.primary{
-      border-color:transparent;
-      background:linear-gradient(135deg, rgba(242,91,143,.96), rgba(246,186,96,.94));
-      color:#fff;
-      box-shadow:0 14px 32px rgba(242,91,143,.22);
-    }
     @keyframes pulse{
       0%,100%{transform:scale(.96);opacity:.82}
       50%{transform:scale(1.04);opacity:1}
@@ -717,10 +688,6 @@ function buildDesktopWhatsAppLoaderHtml(targetUrl){
     </div>
     <div class="track" aria-hidden="true"><span id="waLoaderBar" class="bar"></span></div>
     <div class="hint">No cierres esta pestaña. El chat se abrirá automáticamente.</div>
-    <div class="actions">
-      <button id="waLoaderOpenNow" class="btn primary" type="button">Abrir ahora</button>
-      <button id="waLoaderRetry" class="btn" type="button">Reintentar</button>
-    </div>
   </main>
   <script>
     (function(){
@@ -730,8 +697,6 @@ function buildDesktopWhatsAppLoaderHtml(targetUrl){
       const barEl = document.getElementById("waLoaderBar");
       const titleEl = document.getElementById("waLoaderTitle");
       const subEl = document.getElementById("waLoaderSub");
-      const openNowBtn = document.getElementById("waLoaderOpenNow");
-      const retryBtn = document.getElementById("waLoaderRetry");
       let progress = 0;
       let done = false;
 
@@ -775,16 +740,6 @@ function buildDesktopWhatsAppLoaderHtml(targetUrl){
         update(Math.min(100, progress + step));
       }, 70);
 
-      openNowBtn?.addEventListener("click", go);
-      retryBtn?.addEventListener("click", function(){
-        done = false;
-        try{
-          window.location.replace(targetUrl);
-        }catch(_e){
-          window.location.href = targetUrl;
-        }
-      });
-
       window.addEventListener("pageshow", function(){
         if(progress < 8) update(8);
       });
@@ -794,26 +749,6 @@ function buildDesktopWhatsAppLoaderHtml(targetUrl){
   </script>
 </body>
 </html>`;
-}
-
-function preOpenDesktopWhatsAppTab(){
-  if(isMobileUA()) return null;
-  let tab = null;
-  try{
-    tab = window.open("about:blank", "_blank");
-    if(tab){
-      try{ tab.opener = null; }catch(_e){}
-      try{
-        tab.document.write(`<!doctype html><html lang="es"><head><meta charset="utf-8"><title>AMARED</title><style>html,body{margin:0;width:100%;height:100%;background:#fffaf5}body{opacity:0;pointer-events:none;user-select:none}</style></head><body aria-hidden="true"></body></html>`);
-        tab.document.close();
-      }catch(_e){}
-      try{ tab.blur(); }catch(_e){}
-      try{ window.focus(); }catch(_e){}
-    }
-  }catch(_e){
-    tab = null;
-  }
-  return tab;
 }
 
 function showDesktopWhatsAppLoaderTab(tab, targetUrl){
@@ -1429,16 +1364,9 @@ btnSendWhatsApp?.addEventListener("click", async () => {
   if (!pending) return;
 
   const isMobile = isMobileUA();
-  let desktopWhatsAppTab = null;
 
   btnSendWhatsApp.disabled = true;
   btnCloseModal.disabled = true;
-
-  if(!isMobile){
-    // Se prepara la pestaña dentro del gesto del usuario para evitar bloqueos del navegador.
-    // La página actual conserva el foco y la pestaña se llena solo cuando el loader principal llega al 100%.
-    desktopWhatsAppTab = preOpenDesktopWhatsAppTab();
-  }
 
   showLoading("Registrando pedido...");
 
@@ -1471,55 +1399,37 @@ btnSendWhatsApp?.addEventListener("click", async () => {
       return;
     }
 
-    // PC: primero termina el loader principal y luego se muestra la pestaña de WhatsApp.
+    // PC: primero termina el loader principal y solo después aparece la pestaña de WhatsApp.
     hideModal();
     shouldResetAfterAlert = true;
     setAlertHelp(pending.messageFallback, false);
 
+    hideLoading();
+
     let opened = false;
     try{
-      if(desktopWhatsAppTab && !desktopWhatsAppTab.closed){
-        opened = showDesktopWhatsAppLoaderTab(desktopWhatsAppTab, waUrl);
+      const newTab = window.open("about:blank", "_blank");
+      if(newTab){
+        try{ newTab.opener = null; }catch(_e){}
+        opened = showDesktopWhatsAppLoaderTab(newTab, waUrl);
         if(!opened){
           try{
-            desktopWhatsAppTab.location.href = waUrl;
+            newTab.location.href = waUrl;
             opened = true;
           }catch(_e){}
         }
       }
 
-      if(!opened){
-        const newTab = window.open("about:blank", "_blank", "noopener,noreferrer");
-        if(newTab){
-          try{ newTab.opener = null; }catch(_e){}
-          opened = showDesktopWhatsAppLoaderTab(newTab, waUrl);
-          if(!opened){
-            try{
-              newTab.location.href = waUrl;
-              opened = true;
-            }catch(_e){}
-          }
-        }
-      }
-
-      hideLoading();
-
       if(opened) return;
       throw new Error("No se pudo abrir la pestaña de WhatsApp.");
     }catch(_e){
-      try{
-        if(desktopWhatsAppTab && !desktopWhatsAppTab.closed) desktopWhatsAppTab.close();
-      }catch(_closeErr){}
       enableHelpMessage(pending.messageFallback, true);
-      showAlert("Pedido registrado ✅\n\nSi no se pudo abrir WhatsApp, copia el mensaje y pégalo en el chat.");
+      showAlert("Pedido registrado ✅\n\nNo se pudo abrir la nueva pestaña de WhatsApp automáticamente. Copia el mensaje y pégalo en el chat.");
       setAlertHelp(pending.messageFallback, true);
       elStatus.textContent = "";
     }
 
   } catch (e) {
-    try{
-      if(desktopWhatsAppTab && !desktopWhatsAppTab.closed) desktopWhatsAppTab.close();
-    }catch(_closeErr){}
     hideLoading();
     elStatus.textContent = "";
     showAlert(`Error: ${e.message}`);
