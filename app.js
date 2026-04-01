@@ -466,94 +466,6 @@ function openWhatsAppMobile(text){
   }, 650);
 }
 
-function buildDesktopWhatsAppBridgeHtml(url, fallbackText=""){
-  const safeUrl = JSON.stringify(String(url || ""));
-  const safeFallback = JSON.stringify(String(fallbackText || ""));
-  return `<!doctype html>
-<html lang="es">
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>AMARED · Abriendo WhatsApp</title>
-  <style>
-    :root{--cream:#FEF6EF;--paper:#FFFDFC;--choco:#401102;--pink:#F25B8F;--caramel:#F6BA60;--border:rgba(64,17,2,.10);}
-    *{box-sizing:border-box} html,body{height:100%} body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;background:radial-gradient(900px 420px at 20% 5%, rgba(242,91,143,.14), transparent 60%),radial-gradient(900px 420px at 80% 8%, rgba(246,186,96,.16), transparent 60%),var(--cream);color:var(--choco);display:grid;place-items:center;padding:22px}
-    .shell{width:min(520px,100%);background:var(--paper);border:1px solid var(--border);border-radius:28px;box-shadow:0 26px 70px rgba(64,17,2,.14);padding:28px 24px;text-align:center}
-    .mark{display:inline-flex;align-items:center;gap:10px;padding:10px 14px;border-radius:999px;border:1px solid rgba(64,17,2,.08);background:rgba(255,255,255,.84);font-weight:950}
-    .dot{width:12px;height:12px;border-radius:50%;background:linear-gradient(180deg,var(--pink),#f795b4);box-shadow:0 0 0 8px rgba(242,91,143,.12)}
-    h1{margin:18px 0 10px;font-size:clamp(30px,4vw,40px);line-height:1.02}
-    p{margin:0 auto 16px;max-width:420px;font-size:17px;line-height:1.55;color:rgba(64,17,2,.72);font-weight:700}
-    .track{height:14px;border-radius:999px;background:rgba(64,17,2,.08);overflow:hidden;margin:20px auto 14px;max-width:360px}
-    .bar{height:100%;width:0%;background:linear-gradient(90deg,var(--pink),var(--caramel));animation:grow 1.05s ease forwards}
-    .status{font-weight:900;font-size:15px;color:rgba(64,17,2,.76)}
-    .actions{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin-top:18px}
-    button,a{border:none;border-radius:16px;padding:12px 16px;font-weight:950;font-size:15px;text-decoration:none;cursor:pointer;box-shadow:0 10px 24px rgba(64,17,2,.10)}
-    .primary{background:linear-gradient(180deg, rgba(242,91,143,.95), rgba(242,91,143,.85));color:#fff}
-    .secondary{background:linear-gradient(180deg, rgba(246,186,96,.85), rgba(246,186,96,.72));color:var(--choco)}
-    @keyframes grow{from{width:0%}to{width:100%}}
-  </style>
-</head>
-<body>
-  <main class="shell">
-    <div class="mark"><span class="dot"></span><span>AMARED · Confirmación por WhatsApp</span></div>
-    <h1>Tu pedido ya fue registrado.</h1>
-    <p>Estamos abriendo WhatsApp para que confirmes el pago y los detalles finales del pedido.</p>
-    <div class="track" aria-hidden="true"><div class="bar"></div></div>
-    <div class="status" id="statusText">Abriendo WhatsApp…</div>
-    <div class="actions">
-      <a class="primary" id="openNow" href="#">Abrir WhatsApp ahora</a>
-      <button class="secondary" id="copyBtn" type="button">Copiar mensaje</button>
-    </div>
-  </main>
-  <script>
-    const WA_URL = ${safeUrl};
-    const FALLBACK = ${safeFallback};
-    function openNow(){
-      try{ window.location.replace(WA_URL); }
-      catch(_e){ window.location.href = WA_URL; }
-    }
-    document.getElementById('openNow').addEventListener('click', function(e){ e.preventDefault(); openNow(); });
-    document.getElementById('copyBtn').addEventListener('click', async function(){
-      if(!FALLBACK) return;
-      try{ await navigator.clipboard.writeText(FALLBACK); this.textContent = 'Mensaje copiado'; }
-      catch(_e){ this.textContent = 'No se pudo copiar'; }
-    });
-    setTimeout(openNow, 680);
-  </script>
-</body>
-</html>`;
-}
-
-function openDesktopWhatsAppBridge(url, fallbackText=""){
-  const html = buildDesktopWhatsAppBridgeHtml(url, fallbackText);
-  try{
-    const popup = window.open("", "_blank");
-    if(popup && !popup.closed){
-      popup.document.open();
-      popup.document.write(html);
-      popup.document.close();
-      try{ popup.focus(); }catch(_e){}
-      return true;
-    }
-  }catch(_e){}
-
-  try{
-    const blob = new Blob([html], { type: "text/html" });
-    const blobUrl = URL.createObjectURL(blob);
-    window.location.href = blobUrl;
-    setTimeout(() => {
-      try{ URL.revokeObjectURL(blobUrl); }catch(_e){}
-    }, 20000);
-    return true;
-  }catch(_e){}
-
-  try{
-    window.open(url, "_blank");
-    return true;
-  }catch(_e){}
-  return false;
-}
-
 
 // =================== ALERT HELPERS ===================
 function showAlert(message) {
@@ -1191,23 +1103,19 @@ btnSendWhatsApp?.addEventListener("click", async () => {
       return;
     }
 
-    // PC: primero termina la carga al 100% y luego aparece la pantalla que abre WhatsApp
+    // PC: primero se registra y se muestra la carga; luego redirige a WhatsApp
     hideModal();
-    shouldResetAfterAlert = false;
+    shouldResetAfterAlert = true;
     setAlertHelp(pending.messageFallback, false);
-    hideLoading();
-
-    const opened = openDesktopWhatsAppBridge(waUrl, pending.messageFallback);
-    if(opened){
-      resetAll();
-      elStatus.textContent = "";
+    try{
+      window.location.href = waUrl;
       return;
+    }catch(_e){
+      enableHelpMessage(pending.messageFallback, true);
+      showAlert("Pedido registrado ✅\n\nSi no se pudo abrir WhatsApp, copia el mensaje y pégalo en el chat.");
+      setAlertHelp(pending.messageFallback, true);
+      elStatus.textContent = "";
     }
-
-    enableHelpMessage(pending.messageFallback, true);
-    showAlert("Pedido registrado ✅\n\nSi no se pudo abrir WhatsApp, copia el mensaje y pégalo en el chat.");
-    setAlertHelp(pending.messageFallback, true);
-    elStatus.textContent = "";
 
   } catch (e) {
     hideLoading();
@@ -2053,3 +1961,43 @@ btnOpinionesTop?.addEventListener("click", ()=>{
 window.addEventListener("focus", ()=>{ syncProductsCatalogFromBackend(true).catch(()=>{}); });
 document.addEventListener("visibilitychange", ()=>{ if(!document.hidden) syncProductsCatalogFromBackend(true).catch(()=>{}); });
 window.addEventListener("amared:catalog-updated", ()=>{ syncProductsCatalogFromBackend(true).catch(()=>{}); });
+
+
+// =================== HERO QUICK NAV ===================
+function focusOrderFieldForQuickNav(mode){
+  if(mode === "pedido"){
+    try{
+      const target = document.getElementById("name") || document.getElementById("phone") || document.getElementById("address");
+      target?.focus?.({ preventScroll: true });
+    }catch(_e){}
+    return;
+  }
+  if(mode === "whatsapp"){
+    try{
+      const target = document.getElementById("btnWhatsApp") || document.getElementById("name") || document.getElementById("phone");
+      target?.focus?.({ preventScroll: true });
+    }catch(_e){}
+  }
+}
+
+function setupHeroQuickNav(){
+  const quickButtons = Array.from(document.querySelectorAll(".spotlightStep[data-scroll-target]"));
+  if(!quickButtons.length) return;
+
+  quickButtons.forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const targetKey = String(btn.getAttribute("data-scroll-target") || "").trim().toLowerCase();
+      const targetId = (targetKey === "postres") ? "postres" : "pedido";
+      const target = document.getElementById(targetId);
+      if(!target) return;
+
+      target.scrollIntoView({ behavior: "smooth", block: "start" });
+
+      if(targetKey === "pedido" || targetKey === "whatsapp"){
+        window.setTimeout(() => focusOrderFieldForQuickNav(targetKey), 420);
+      }
+    });
+  });
+}
+
+setupHeroQuickNav();
