@@ -459,11 +459,29 @@ function openWhatsAppUrl(url){
 function openWhatsAppMobile(text){
   const enc = encodeURIComponent(String(text || ""));
   const deep = `whatsapp://send?phone=${WHATSAPP_NUMBER}&text=${enc}`;
-  const web = `https://wa.me/${WHATSAPP_NUMBER}?text=${enc}`;
-  window.location.href = deep;
-  setTimeout(() => {
-    if(document.visibilityState === "visible") window.location.href = web;
-  }, 650);
+  try{
+    window.location.replace(deep);
+  }catch(_e){
+    window.location.href = deep;
+  }
+}
+
+function preOpenDesktopWhatsAppTab(){
+  if(isMobileUA()) return null;
+  let tab = null;
+  try{
+    tab = window.open("about:blank", "_blank");
+    if(tab){
+      try{ tab.opener = null; }catch(_e){}
+      try{
+        tab.document.write(`<!doctype html><html lang="es"><head><meta charset="utf-8"><title>Abriendo WhatsApp…</title><style>body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;background:#0f172a;color:#fff;display:grid;place-items:center;min-height:100vh;padding:24px;text-align:center}.box{max-width:420px}.muted{opacity:.75}</style></head><body><div class="box"><h1>Abriendo WhatsApp…</h1><p class="muted">Tu pedido se está terminando de registrar.</p></div></body></html>`);
+        tab.document.close();
+      }catch(_e){}
+    }
+  }catch(_e){
+    tab = null;
+  }
+  return tab;
 }
 
 
@@ -1066,6 +1084,7 @@ btnSendWhatsApp?.addEventListener("click", async () => {
   if (!pending) return;
 
   const isMobile = isMobileUA();
+  const desktopWhatsAppTab = !isMobile ? preOpenDesktopWhatsAppTab() : null;
 
   btnSendWhatsApp.disabled = true;
   btnCloseModal.disabled = true;
@@ -1091,7 +1110,7 @@ btnSendWhatsApp?.addEventListener("click", async () => {
     hideLoading();
 
     if(isMobile){
-      // ✅ EXACTO como delivery: usar wa.me y navegar en la MISMA pestaña
+      // ✅ Móvil: abrir la app de WhatsApp directamente, sin pasar por la web
       hideModal();
       shouldResetAfterAlert = true;
 
@@ -1099,18 +1118,27 @@ btnSendWhatsApp?.addEventListener("click", async () => {
       storeResumeAlert(SUCCESS_MSG, true, pending.messageFallback);
 
       hideLoading();
-      openWhatsAppMobile(pending.messageNormal); // iPhone/mobile: intenta abrir la app directo y hace fallback a wa.me
+      openWhatsAppMobile(pending.messageNormal); // iPhone/mobile: intenta abrir la app directo
       return;
     }
 
-    // PC: primero se registra y se muestra la carga; luego redirige a WhatsApp
+    // PC: primero se registra y se abre WhatsApp en una pestaña nueva
     hideModal();
     shouldResetAfterAlert = true;
     setAlertHelp(pending.messageFallback, false);
     try{
-      window.location.href = waUrl;
-      return;
+      if(desktopWhatsAppTab && !desktopWhatsAppTab.closed){
+        desktopWhatsAppTab.location.href = waUrl;
+        try{ desktopWhatsAppTab.focus(); }catch(_e){}
+        return;
+      }
+      const newTab = window.open(waUrl, "_blank", "noopener,noreferrer");
+      if(newTab) return;
+      throw new Error("No se pudo abrir la pestaña de WhatsApp.");
     }catch(_e){
+      try{
+        if(desktopWhatsAppTab && !desktopWhatsAppTab.closed) desktopWhatsAppTab.close();
+      }catch(_closeErr){}
       enableHelpMessage(pending.messageFallback, true);
       showAlert("Pedido registrado ✅\n\nSi no se pudo abrir WhatsApp, copia el mensaje y pégalo en el chat.");
       setAlertHelp(pending.messageFallback, true);
@@ -1118,6 +1146,9 @@ btnSendWhatsApp?.addEventListener("click", async () => {
     }
 
   } catch (e) {
+    try{
+      if(desktopWhatsAppTab && !desktopWhatsAppTab.closed) desktopWhatsAppTab.close();
+    }catch(_closeErr){}
     hideLoading();
     elStatus.textContent = "";
     showAlert(`Error: ${e.message}`);
