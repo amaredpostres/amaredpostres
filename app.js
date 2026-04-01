@@ -466,70 +466,92 @@ function openWhatsAppMobile(text){
   }, 650);
 }
 
-function openDesktopWhatsAppBridge(){
-  if(isMobileUA()) return null;
-  let helper = null;
-  try{
-    helper = window.open('', '_blank');
-    if(helper){
-      const helperHtml = `<!doctype html>
+function buildDesktopWhatsAppBridgeHtml(url, fallbackText=""){
+  const safeUrl = JSON.stringify(String(url || ""));
+  const safeFallback = JSON.stringify(String(fallbackText || ""));
+  return `<!doctype html>
 <html lang="es">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>AMARED · Preparando WhatsApp</title>
+  <title>AMARED · Abriendo WhatsApp</title>
   <style>
-    :root{--cream:#FEF6EF;--paper:#FFFDFC;--choco:#401102;--pink:#F25B8F;--caramel:#F6BA60;}
-    *{box-sizing:border-box}html,body{height:100%}
-    body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;color:var(--choco);background:
-      radial-gradient(900px 420px at 20% 5%, rgba(242,91,143,.14), transparent 60%),
-      radial-gradient(900px 420px at 80% 8%, rgba(246,186,96,.16), transparent 60%),
-      var(--cream);display:grid;place-items:center;padding:24px;}
-    .card{width:min(520px,100%);background:rgba(255,253,252,.96);border:1px solid rgba(64,17,2,.10);border-radius:26px;padding:28px 24px;box-shadow:0 22px 60px rgba(64,17,2,.14);text-align:center}
-    .logo{width:72px;height:auto;display:block;margin:0 auto 16px auto}
-    h1{margin:0 0 10px;font-size:clamp(28px,4vw,34px);line-height:1.02;font-weight:950}
-    p{margin:0;color:rgba(64,17,2,.72);font-size:16px;line-height:1.5;font-weight:750}
-    .row{display:flex;align-items:center;justify-content:center;gap:12px;margin-top:18px}
-    .spin{width:18px;height:18px;border-radius:999px;border:2px solid rgba(64,17,2,.12);border-top-color:rgba(242,91,143,.92);animation:spin 1s linear infinite}
-    .pill{display:inline-flex;align-items:center;justify-content:center;padding:10px 14px;border-radius:999px;background:linear-gradient(180deg, rgba(246,186,96,.18), rgba(242,91,143,.14));border:1px solid rgba(64,17,2,.08);font-weight:900}
-    @keyframes spin{to{transform:rotate(360deg)}}
+    :root{--cream:#FEF6EF;--paper:#FFFDFC;--choco:#401102;--pink:#F25B8F;--caramel:#F6BA60;--border:rgba(64,17,2,.10);}
+    *{box-sizing:border-box} html,body{height:100%} body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;background:radial-gradient(900px 420px at 20% 5%, rgba(242,91,143,.14), transparent 60%),radial-gradient(900px 420px at 80% 8%, rgba(246,186,96,.16), transparent 60%),var(--cream);color:var(--choco);display:grid;place-items:center;padding:22px}
+    .shell{width:min(520px,100%);background:var(--paper);border:1px solid var(--border);border-radius:28px;box-shadow:0 26px 70px rgba(64,17,2,.14);padding:28px 24px;text-align:center}
+    .mark{display:inline-flex;align-items:center;gap:10px;padding:10px 14px;border-radius:999px;border:1px solid rgba(64,17,2,.08);background:rgba(255,255,255,.84);font-weight:950}
+    .dot{width:12px;height:12px;border-radius:50%;background:linear-gradient(180deg,var(--pink),#f795b4);box-shadow:0 0 0 8px rgba(242,91,143,.12)}
+    h1{margin:18px 0 10px;font-size:clamp(30px,4vw,40px);line-height:1.02}
+    p{margin:0 auto 16px;max-width:420px;font-size:17px;line-height:1.55;color:rgba(64,17,2,.72);font-weight:700}
+    .track{height:14px;border-radius:999px;background:rgba(64,17,2,.08);overflow:hidden;margin:20px auto 14px;max-width:360px}
+    .bar{height:100%;width:0%;background:linear-gradient(90deg,var(--pink),var(--caramel));animation:grow 1.05s ease forwards}
+    .status{font-weight:900;font-size:15px;color:rgba(64,17,2,.76)}
+    .actions{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin-top:18px}
+    button,a{border:none;border-radius:16px;padding:12px 16px;font-weight:950;font-size:15px;text-decoration:none;cursor:pointer;box-shadow:0 10px 24px rgba(64,17,2,.10)}
+    .primary{background:linear-gradient(180deg, rgba(242,91,143,.95), rgba(242,91,143,.85));color:#fff}
+    .secondary{background:linear-gradient(180deg, rgba(246,186,96,.85), rgba(246,186,96,.72));color:var(--choco)}
+    @keyframes grow{from{width:0%}to{width:100%}}
   </style>
 </head>
 <body>
-  <div class="card">
-    <img class="logo" src="assets/Logo-Isotipo-Amared.svg" alt="AMARED" />
-    <h1>Estamos abriendo WhatsApp…</h1>
-    <p>Tu pedido ya quedó registrado. En unos segundos te llevaremos al chat de AMARED para confirmar el pago y los detalles finales.</p>
-    <div class="row"><span class="spin"></span><span class="pill">Preparando confirmación</span></div>
-  </div>
+  <main class="shell">
+    <div class="mark"><span class="dot"></span><span>AMARED · Confirmación por WhatsApp</span></div>
+    <h1>Tu pedido ya fue registrado.</h1>
+    <p>Estamos abriendo WhatsApp para que confirmes el pago y los detalles finales del pedido.</p>
+    <div class="track" aria-hidden="true"><div class="bar"></div></div>
+    <div class="status" id="statusText">Abriendo WhatsApp…</div>
+    <div class="actions">
+      <a class="primary" id="openNow" href="#">Abrir WhatsApp ahora</a>
+      <button class="secondary" id="copyBtn" type="button">Copiar mensaje</button>
+    </div>
+  </main>
+  <script>
+    const WA_URL = ${safeUrl};
+    const FALLBACK = ${safeFallback};
+    function openNow(){
+      try{ window.location.replace(WA_URL); }
+      catch(_e){ window.location.href = WA_URL; }
+    }
+    document.getElementById('openNow').addEventListener('click', function(e){ e.preventDefault(); openNow(); });
+    document.getElementById('copyBtn').addEventListener('click', async function(){
+      if(!FALLBACK) return;
+      try{ await navigator.clipboard.writeText(FALLBACK); this.textContent = 'Mensaje copiado'; }
+      catch(_e){ this.textContent = 'No se pudo copiar'; }
+    });
+    setTimeout(openNow, 680);
+  </script>
 </body>
 </html>`;
-      helper.document.open();
-      helper.document.write(helperHtml);
-      helper.document.close();
-      try{ helper.blur(); window.focus(); }catch(_e){}
-    }
-  }catch(_e){ helper = null; }
-  return helper;
 }
 
-function goDesktopBridgeToWhatsApp(helper, url){
+function openDesktopWhatsAppBridge(url, fallbackText=""){
+  const html = buildDesktopWhatsAppBridgeHtml(url, fallbackText);
   try{
-    if(helper && !helper.closed){
-      helper.location.href = url;
+    const popup = window.open("", "_blank");
+    if(popup && !popup.closed){
+      popup.document.open();
+      popup.document.write(html);
+      popup.document.close();
+      try{ popup.focus(); }catch(_e){}
       return true;
     }
   }catch(_e){}
-  try{
-    const popup = window.open(url, '_blank');
-    return !!popup;
-  }catch(_e){
-    return false;
-  }
-}
 
-function closeDesktopBridge(helper){
-  try{ if(helper && !helper.closed) helper.close(); }catch(_e){}
+  try{
+    const blob = new Blob([html], { type: "text/html" });
+    const blobUrl = URL.createObjectURL(blob);
+    window.location.href = blobUrl;
+    setTimeout(() => {
+      try{ URL.revokeObjectURL(blobUrl); }catch(_e){}
+    }, 20000);
+    return true;
+  }catch(_e){}
+
+  try{
+    window.open(url, "_blank");
+    return true;
+  }catch(_e){}
+  return false;
 }
 
 
@@ -1132,53 +1154,69 @@ btnSendWhatsApp?.addEventListener("click", async () => {
   if (!pending) return;
 
   const isMobile = isMobileUA();
-  const desktopBridge = !isMobile ? openDesktopWhatsAppBridge() : null;
 
   btnSendWhatsApp.disabled = true;
   btnCloseModal.disabled = true;
 
   showLoading("Registrando pedido...");
+
+  // ✅ deja que el navegador pinte el loader
   await nextFrame();
 
   try {
     elStatus.textContent = "Registrando pedido...";
 
+    // 1) Guardar primero
     await saveOrder(pending.data);
     await completeLoadingSuccess();
 
+    // 2) Abrir WhatsApp con texto (normal)
     const waUrl = buildWhatsAppUrlWithText(pending.messageNormal);
+
+    // 3) Habilitar ayuda (copiar/pegar) después del primer intento
     enableHelpMessage(pending.messageFallback, false);
 
+    hideLoading();
+
     if(isMobile){
+      // ✅ EXACTO como delivery: usar wa.me y navegar en la MISMA pestaña
       hideModal();
       shouldResetAfterAlert = true;
+
+      // al volver al navegador, mostrar aviso
       storeResumeAlert(SUCCESS_MSG, true, pending.messageFallback);
+
       hideLoading();
-      openWhatsAppMobile(pending.messageNormal);
+      openWhatsAppMobile(pending.messageNormal); // iPhone/mobile: intenta abrir la app directo y hace fallback a wa.me
       return;
     }
 
+    // PC: primero termina la carga al 100% y luego aparece la pantalla que abre WhatsApp
     hideModal();
-    const opened = goDesktopBridgeToWhatsApp(desktopBridge, waUrl);
+    shouldResetAfterAlert = false;
+    setAlertHelp(pending.messageFallback, false);
     hideLoading();
 
+    const opened = openDesktopWhatsAppBridge(waUrl, pending.messageFallback);
     if(opened){
       resetAll();
-      pending = null;
       elStatus.textContent = "";
       return;
     }
 
     enableHelpMessage(pending.messageFallback, true);
-    showAlert("Pedido registrado ✅\n\nSi no se pudo abrir WhatsApp automáticamente, copia el mensaje y pégalo en el chat.");
+    showAlert("Pedido registrado ✅
+
+Si no se pudo abrir WhatsApp, copia el mensaje y pégalo en el chat.");
     setAlertHelp(pending.messageFallback, true);
     elStatus.textContent = "";
 
   } catch (e) {
-    closeDesktopBridge(desktopBridge);
     hideLoading();
     elStatus.textContent = "";
     showAlert(`Error: ${e.message}`);
+
+    // En error: mostrar ayuda
     try{
       enableHelpMessage(pending?.messageFallback || "", true);
     }catch(_e){}
@@ -1415,9 +1453,6 @@ const btnIndexAdminBarOpiniones = document.getElementById("btnIndexAdminBarOpini
 const btnIndexAdminBarTools = document.getElementById("btnIndexAdminBarTools");
 const btnIndexAdminDesktopHub = document.getElementById("btnIndexAdminDesktopHub");
 const orderSection = document.getElementById("pedido");
-const catalogSection = document.getElementById("postres");
-const orderNameInput = document.getElementById("name");
-const spotlightNavButtons = Array.from(document.querySelectorAll('.spotlightStep[data-scroll-target]'));
 
 const reviewModal = document.getElementById("reviewModal");
 const btnCloseReview = document.getElementById("btnCloseReview");
@@ -1476,37 +1511,6 @@ function applyIndexAdminVisibility(){
   syncIndexAdminMobileBar();
   if(shouldRefreshReviews) fetchReviews();
 }
-
-function scrollToOrderArea(target){
-  const key = String(target || '').trim().toLowerCase();
-  let section = null;
-  let focusEl = null;
-  if(key === 'postres'){
-    section = catalogSection;
-  }else if(key === 'pedido'){
-    section = orderSection;
-    focusEl = orderNameInput || document.getElementById('phone') || btnWhatsApp;
-  }else if(key === 'whatsapp'){
-    section = orderSection;
-    focusEl = btnWhatsApp || orderNameInput || document.getElementById('phone');
-  }
-  if(!section) return;
-  try{ section.scrollIntoView({ behavior:'smooth', block:'start' }); }catch(_e){ section.scrollIntoView(); }
-  if(focusEl){
-    window.setTimeout(()=>{
-      try{ focusEl.focus({ preventScroll:true }); }catch(_e){ try{ focusEl.focus(); }catch(_e2){} }
-    }, 420);
-  }
-}
-
-function wireSpotlightOrderSteps(){
-  spotlightNavButtons.forEach(btn => {
-    if(btn.dataset.wired === '1') return;
-    btn.dataset.wired = '1';
-    btn.addEventListener('click', ()=> scrollToOrderArea(btn.dataset.scrollTarget));
-  });
-}
-
 function syncIndexAdminMobileBar(){
   if(!indexAdminMobileBar) return;
   const enabled = shouldUseIndexAdminView();
@@ -1960,7 +1964,6 @@ if(reviewsListEl) fetchReviews();
 
 showAdminButtonIfNeeded();
 applyIndexAdminVisibility();
-wireSpotlightOrderSteps();
 syncIndexAdminMobileBar();
 
 btnIndexAdminSavePrices?.addEventListener("click", saveIndexAdminPrices);
