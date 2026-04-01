@@ -764,6 +764,24 @@ function showDesktopWhatsAppLoaderTab(tab, targetUrl){
   }
 }
 
+function prepareDesktopWhatsAppTab(){
+  try{
+    const tab = window.open("about:blank", "_blank");
+    if(!tab) return null;
+    try{ tab.opener = null; }catch(_e){}
+    try{
+      tab.document.open();
+      tab.document.write(`<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>AMARED</title><style>html,body{margin:0;height:100%;background:#fffaf5}</style></head><body aria-hidden="true"></body></html>`);
+      tab.document.close();
+    }catch(_e){}
+    try{ tab.blur(); }catch(_e){}
+    try{ window.focus(); }catch(_e){}
+    return tab;
+  }catch(_e){
+    return null;
+  }
+}
+
 
 // =================== ALERT HELPERS ===================
 function showAlert(message) {
@@ -1364,6 +1382,7 @@ btnSendWhatsApp?.addEventListener("click", async () => {
   if (!pending) return;
 
   const isMobile = isMobileUA();
+  const preparedDesktopTab = !isMobile ? prepareDesktopWhatsAppTab() : null;
 
   btnSendWhatsApp.disabled = true;
   btnCloseModal.disabled = true;
@@ -1408,13 +1427,16 @@ btnSendWhatsApp?.addEventListener("click", async () => {
 
     let opened = false;
     try{
-      const newTab = window.open("about:blank", "_blank");
+      const newTab = (preparedDesktopTab && !preparedDesktopTab.closed)
+        ? preparedDesktopTab
+        : window.open("about:blank", "_blank");
       if(newTab){
         try{ newTab.opener = null; }catch(_e){}
         opened = showDesktopWhatsAppLoaderTab(newTab, waUrl);
         if(!opened){
           try{
             newTab.location.href = waUrl;
+            try{ newTab.focus(); }catch(_e2){}
             opened = true;
           }catch(_e){}
         }
