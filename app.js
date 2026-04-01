@@ -1429,10 +1429,16 @@ btnSendWhatsApp?.addEventListener("click", async () => {
   if (!pending) return;
 
   const isMobile = isMobileUA();
-  const desktopWhatsAppTab = null;
+  let desktopWhatsAppTab = null;
 
   btnSendWhatsApp.disabled = true;
   btnCloseModal.disabled = true;
+
+  if(!isMobile){
+    // Se prepara la pestaña dentro del gesto del usuario para evitar bloqueos del navegador.
+    // La página actual conserva el foco y la pestaña se llena solo cuando el loader principal llega al 100%.
+    desktopWhatsAppTab = preOpenDesktopWhatsAppTab();
+  }
 
   showLoading("Registrando pedido...");
 
@@ -1465,21 +1471,40 @@ btnSendWhatsApp?.addEventListener("click", async () => {
       return;
     }
 
-    // PC: primero finaliza por completo el loader principal y solo después se abre la nueva pestaña
+    // PC: primero termina el loader principal y luego se muestra la pestaña de WhatsApp.
     hideModal();
     shouldResetAfterAlert = true;
     setAlertHelp(pending.messageFallback, false);
-    hideLoading();
 
+    let opened = false;
     try{
-      const newTab = window.open("about:blank", "_blank", "noopener,noreferrer");
-      if(newTab){
-        try{ newTab.opener = null; }catch(_e){}
-        const rendered = showDesktopWhatsAppLoaderTab(newTab, waUrl);
-        if(rendered) return;
-        try{ newTab.location.href = waUrl; }catch(_e){ window.open(waUrl, "_blank", "noopener,noreferrer"); }
-        return;
+      if(desktopWhatsAppTab && !desktopWhatsAppTab.closed){
+        opened = showDesktopWhatsAppLoaderTab(desktopWhatsAppTab, waUrl);
+        if(!opened){
+          try{
+            desktopWhatsAppTab.location.href = waUrl;
+            opened = true;
+          }catch(_e){}
+        }
       }
+
+      if(!opened){
+        const newTab = window.open("about:blank", "_blank", "noopener,noreferrer");
+        if(newTab){
+          try{ newTab.opener = null; }catch(_e){}
+          opened = showDesktopWhatsAppLoaderTab(newTab, waUrl);
+          if(!opened){
+            try{
+              newTab.location.href = waUrl;
+              opened = true;
+            }catch(_e){}
+          }
+        }
+      }
+
+      hideLoading();
+
+      if(opened) return;
       throw new Error("No se pudo abrir la pestaña de WhatsApp.");
     }catch(_e){
       try{
