@@ -466,6 +466,336 @@ function openWhatsAppMobile(text){
   }
 }
 
+function getProjectAssetUrl(relativePath){
+  try{
+    return new URL(String(relativePath || ""), window.location.href).href;
+  }catch(_e){
+    return String(relativePath || "");
+  }
+}
+
+function buildDesktopWhatsAppLoaderHtml(targetUrl){
+  const brandLogo = getProjectAssetUrl("assets/Logo-Amared.svg");
+  const isoLogo = getProjectAssetUrl("assets/Logo-Isotipo-Amared.svg");
+  const safeTarget = JSON.stringify(String(targetUrl || ""));
+  return `<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>AMARED • Abriendo WhatsApp</title>
+  <style>
+    :root{
+      --choco:#401102;
+      --pink:#f25b8f;
+      --gold:#f6ba60;
+      --shell:#fffaf5;
+      --shell2:#fef6ef;
+    }
+    *{box-sizing:border-box}
+    html,body{margin:0;min-height:100%}
+    body{
+      min-height:100vh;
+      font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,sans-serif;
+      color:var(--choco);
+      display:grid;
+      place-items:center;
+      padding:24px;
+      background:
+        radial-gradient(1000px 520px at 0% 0%, rgba(242,91,143,.16), transparent 62%),
+        radial-gradient(920px 520px at 100% 0%, rgba(246,186,96,.16), transparent 58%),
+        linear-gradient(180deg, var(--shell) 0%, var(--shell2) 48%, #fff9f6 100%);
+      overflow:hidden;
+    }
+    .bgfx{
+      position:fixed;
+      inset:0;
+      pointer-events:none;
+      background:
+        radial-gradient(420px 220px at 18% 18%, rgba(242,91,143,.14), transparent 62%),
+        radial-gradient(440px 220px at 82% 12%, rgba(246,186,96,.16), transparent 62%),
+        radial-gradient(560px 260px at 50% 100%, rgba(255,255,255,.20), transparent 70%);
+    }
+    .card{
+      position:relative;
+      width:min(560px, 94vw);
+      border-radius:28px;
+      padding:28px 22px 22px;
+      border:1px solid rgba(255,255,255,.7);
+      background:linear-gradient(180deg, rgba(255,253,252,.96), rgba(255,248,243,.92));
+      box-shadow:0 26px 80px rgba(64,17,2,.18);
+      display:grid;
+      gap:14px;
+      justify-items:center;
+      overflow:hidden;
+    }
+    .card::before{
+      content:"";
+      position:absolute;
+      inset:0;
+      background:linear-gradient(135deg, rgba(255,255,255,.42), transparent 48%, rgba(246,186,96,.10));
+      pointer-events:none;
+    }
+    .brand{
+      position:relative;
+      z-index:1;
+      height:36px;
+      width:auto;
+      display:block;
+    }
+    .visual{
+      position:relative;
+      z-index:1;
+      width:138px;
+      height:138px;
+      display:grid;
+      place-items:center;
+    }
+    .halo{
+      position:absolute;
+      inset:6px;
+      border-radius:999px;
+      background:radial-gradient(circle, rgba(246,186,96,.34) 0%, rgba(242,91,143,.16) 48%, rgba(255,255,255,0) 72%);
+      filter:blur(2px);
+      animation:pulse 1.7s ease-in-out infinite;
+    }
+    .logoWrap{
+      position:relative;
+      width:88px;
+      height:88px;
+      border-radius:999px;
+      background:linear-gradient(180deg, rgba(255,255,255,.98), rgba(251,239,229,.92));
+      border:1px solid rgba(64,17,2,.08);
+      display:grid;
+      place-items:center;
+      box-shadow:0 18px 30px rgba(64,17,2,.12);
+    }
+    .iso{
+      width:52px;
+      height:52px;
+      object-fit:contain;
+      display:block;
+      animation:float 1.7s ease-in-out infinite;
+    }
+    .copy{
+      position:relative;
+      z-index:1;
+      text-align:center;
+      display:grid;
+      gap:6px;
+    }
+    .kicker{
+      font-size:12px;
+      text-transform:uppercase;
+      letter-spacing:.14em;
+      font-weight:950;
+      color:rgba(64,17,2,.56);
+    }
+    .title{
+      font-size:26px;
+      line-height:1.06;
+      font-weight:950;
+      color:var(--choco);
+    }
+    .sub{
+      font-size:14px;
+      line-height:1.45;
+      color:rgba(64,17,2,.74);
+      font-weight:750;
+      max-width:420px;
+    }
+    .meta{
+      position:relative;
+      z-index:1;
+      width:100%;
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:12px;
+    }
+    .step{
+      font-size:13px;
+      font-weight:900;
+      color:rgba(64,17,2,.72);
+    }
+    .percent{
+      font-size:18px;
+      font-weight:950;
+      color:var(--choco);
+    }
+    .track{
+      position:relative;
+      z-index:1;
+      width:100%;
+      height:12px;
+      border-radius:999px;
+      background:rgba(64,17,2,.10);
+      overflow:hidden;
+    }
+    .bar{
+      display:block;
+      width:0%;
+      height:100%;
+      border-radius:inherit;
+      background:linear-gradient(90deg, rgba(242,91,143,.95), rgba(246,186,96,.95));
+      box-shadow:0 4px 12px rgba(242,91,143,.25);
+      transition:width .18s ease;
+    }
+    .hint{
+      position:relative;
+      z-index:1;
+      font-size:13px;
+      line-height:1.45;
+      font-weight:760;
+      color:rgba(64,17,2,.62);
+      text-align:center;
+    }
+    .actions{
+      position:relative;
+      z-index:1;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      gap:10px;
+      flex-wrap:wrap;
+      margin-top:2px;
+    }
+    .btn{
+      min-height:44px;
+      padding:0 18px;
+      border-radius:999px;
+      border:1px solid rgba(64,17,2,.10);
+      background:linear-gradient(180deg, rgba(255,255,255,.96), rgba(252,247,242,.92));
+      color:var(--choco);
+      font-size:14px;
+      font-weight:900;
+      cursor:pointer;
+      box-shadow:0 10px 24px rgba(64,17,2,.08);
+    }
+    .btn:hover{transform:translateY(-1px)}
+    .btn.primary{
+      border-color:transparent;
+      background:linear-gradient(135deg, rgba(242,91,143,.96), rgba(246,186,96,.94));
+      color:#fff;
+      box-shadow:0 14px 32px rgba(242,91,143,.22);
+    }
+    @keyframes pulse{
+      0%,100%{transform:scale(.96);opacity:.82}
+      50%{transform:scale(1.04);opacity:1}
+    }
+    @keyframes float{
+      0%,100%{transform:translateY(0px) scale(1)}
+      50%{transform:translateY(-3px) scale(1.03)}
+    }
+    @media (max-width:560px){
+      body{padding:16px}
+      .card{padding:22px 18px 18px;border-radius:24px}
+      .visual{width:124px;height:124px}
+      .title{font-size:22px}
+      .sub{font-size:13px}
+    }
+  </style>
+</head>
+<body>
+  <div class="bgfx" aria-hidden="true"></div>
+  <main class="card" role="status" aria-live="polite">
+    <img class="brand" src="${brandLogo}" alt="AMARED">
+    <div class="visual" aria-hidden="true">
+      <div class="halo"></div>
+      <div class="logoWrap">
+        <img class="iso" src="${isoLogo}" alt="">
+      </div>
+    </div>
+    <div class="copy">
+      <div class="kicker">AMARED está preparando tu confirmación</div>
+      <div id="waLoaderTitle" class="title">Abriendo WhatsApp...</div>
+      <div id="waLoaderSub" class="sub">Tu pedido ya fue registrado. En un momento te llevaremos al chat para confirmar el pago y los detalles finales.</div>
+    </div>
+    <div class="meta">
+      <span id="waLoaderStep" class="step">Preparando pestaña segura</span>
+      <strong id="waLoaderPercent" class="percent">0%</strong>
+    </div>
+    <div class="track" aria-hidden="true"><span id="waLoaderBar" class="bar"></span></div>
+    <div class="hint">No cierres esta pestaña. El chat se abrirá automáticamente.</div>
+    <div class="actions">
+      <button id="waLoaderOpenNow" class="btn primary" type="button">Abrir ahora</button>
+      <button id="waLoaderRetry" class="btn" type="button">Reintentar</button>
+    </div>
+  </main>
+  <script>
+    (function(){
+      const targetUrl = ${safeTarget};
+      const percentEl = document.getElementById("waLoaderPercent");
+      const stepEl = document.getElementById("waLoaderStep");
+      const barEl = document.getElementById("waLoaderBar");
+      const titleEl = document.getElementById("waLoaderTitle");
+      const subEl = document.getElementById("waLoaderSub");
+      const openNowBtn = document.getElementById("waLoaderOpenNow");
+      const retryBtn = document.getElementById("waLoaderRetry");
+      let progress = 0;
+      let done = false;
+
+      function update(value){
+        progress = Math.max(0, Math.min(100, Math.round(value || 0)));
+        if(percentEl) percentEl.textContent = progress + "%";
+        if(barEl) barEl.style.width = progress + "%";
+        if(stepEl){
+          if(progress < 25) stepEl.textContent = "Preparando pestaña segura";
+          else if(progress < 55) stepEl.textContent = "Conectando con WhatsApp";
+          else if(progress < 85) stepEl.textContent = "Cargando chat";
+          else if(progress < 100) stepEl.textContent = "Casi listo";
+          else stepEl.textContent = "Abriendo chat";
+        }
+        if(progress >= 100){
+          if(titleEl) titleEl.textContent = "WhatsApp listo";
+          if(subEl) subEl.textContent = "Estamos abriendo el chat para que confirmes tu pedido con AMARED.";
+        }
+      }
+
+      function go(){
+        if(done) return;
+        done = true;
+        update(100);
+        setTimeout(function(){
+          try{
+            window.location.replace(targetUrl);
+          }catch(_e){
+            window.location.href = targetUrl;
+          }
+        }, 220);
+      }
+
+      const timer = setInterval(function(){
+        if(progress >= 100){
+          clearInterval(timer);
+          go();
+          return;
+        }
+        const step = progress < 20 ? 6 : progress < 55 ? 5 : progress < 82 ? 3 : 2;
+        update(Math.min(100, progress + step));
+      }, 70);
+
+      openNowBtn?.addEventListener("click", go);
+      retryBtn?.addEventListener("click", function(){
+        done = false;
+        try{
+          window.location.replace(targetUrl);
+        }catch(_e){
+          window.location.href = targetUrl;
+        }
+      });
+
+      window.addEventListener("pageshow", function(){
+        if(progress < 8) update(8);
+      });
+
+      update(4);
+    })();
+  </script>
+</body>
+</html>`;
+}
+
 function preOpenDesktopWhatsAppTab(){
   if(isMobileUA()) return null;
   let tab = null;
@@ -474,14 +804,29 @@ function preOpenDesktopWhatsAppTab(){
     if(tab){
       try{ tab.opener = null; }catch(_e){}
       try{
-        tab.document.write(`<!doctype html><html lang="es"><head><meta charset="utf-8"><title>Abriendo WhatsApp…</title><style>body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;background:#0f172a;color:#fff;display:grid;place-items:center;min-height:100vh;padding:24px;text-align:center}.box{max-width:420px}.muted{opacity:.75}</style></head><body><div class="box"><h1>Abriendo WhatsApp…</h1><p class="muted">Tu pedido se está terminando de registrar.</p></div></body></html>`);
+        tab.document.write(`<!doctype html><html lang="es"><head><meta charset="utf-8"><title>AMARED</title><style>html,body{margin:0;width:100%;height:100%;background:#fffaf5}body{opacity:0;pointer-events:none;user-select:none}</style></head><body aria-hidden="true"></body></html>`);
         tab.document.close();
       }catch(_e){}
+      try{ tab.blur(); }catch(_e){}
+      try{ window.focus(); }catch(_e){}
     }
   }catch(_e){
     tab = null;
   }
   return tab;
+}
+
+function showDesktopWhatsAppLoaderTab(tab, targetUrl){
+  if(!tab || tab.closed) return false;
+  try{
+    tab.document.open();
+    tab.document.write(buildDesktopWhatsAppLoaderHtml(targetUrl));
+    tab.document.close();
+    try{ tab.focus(); }catch(_e){}
+    return true;
+  }catch(_e){
+    return false;
+  }
 }
 
 
@@ -1101,13 +1446,11 @@ btnSendWhatsApp?.addEventListener("click", async () => {
     await saveOrder(pending.data);
     await completeLoadingSuccess();
 
-    // 2) Abrir WhatsApp con texto (normal)
+    // 2) Construir enlace de WhatsApp
     const waUrl = buildWhatsAppUrlWithText(pending.messageNormal);
 
     // 3) Habilitar ayuda (copiar/pegar) después del primer intento
     enableHelpMessage(pending.messageFallback, false);
-
-    hideLoading();
 
     if(isMobile){
       // ✅ Móvil: abrir la app de WhatsApp directamente, sin pasar por la web
@@ -1122,18 +1465,24 @@ btnSendWhatsApp?.addEventListener("click", async () => {
       return;
     }
 
-    // PC: primero se registra y se abre WhatsApp en una pestaña nueva
+    // PC: primero finaliza el loader principal y luego se muestra el loader de la nueva pestaña
     hideModal();
     shouldResetAfterAlert = true;
     setAlertHelp(pending.messageFallback, false);
+    hideLoading();
+
     try{
-      if(desktopWhatsAppTab && !desktopWhatsAppTab.closed){
-        desktopWhatsAppTab.location.href = waUrl;
-        try{ desktopWhatsAppTab.focus(); }catch(_e){}
+      const renderedInPreparedTab = showDesktopWhatsAppLoaderTab(desktopWhatsAppTab, waUrl);
+      if(renderedInPreparedTab) return;
+
+      const newTab = window.open("about:blank", "_blank", "noopener,noreferrer");
+      if(newTab){
+        try{ newTab.opener = null; }catch(_e){}
+        const rendered = showDesktopWhatsAppLoaderTab(newTab, waUrl);
+        if(rendered) return;
+        try{ newTab.location.href = waUrl; }catch(_e){ window.open(waUrl, "_blank", "noopener,noreferrer"); }
         return;
       }
-      const newTab = window.open(waUrl, "_blank", "noopener,noreferrer");
-      if(newTab) return;
       throw new Error("No se pudo abrir la pestaña de WhatsApp.");
     }catch(_e){
       try{
