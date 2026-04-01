@@ -764,6 +764,27 @@ function showDesktopWhatsAppLoaderTab(tab, targetUrl){
   }
 }
 
+function openDesktopWhatsAppLoaderTabAfterMainLoader(targetUrl){
+  const html = buildDesktopWhatsAppLoaderHtml(targetUrl);
+  try{
+    const blob = new Blob([html], { type: "text/html;charset=utf-8" });
+    const blobUrl = URL.createObjectURL(blob);
+    const newTab = window.open(blobUrl, "_blank", "noopener,noreferrer");
+    if(!newTab){
+      try{ URL.revokeObjectURL(blobUrl); }catch(_e){}
+      return false;
+    }
+    try{ newTab.opener = null; }catch(_e){}
+    try{ newTab.focus(); }catch(_e){}
+    setTimeout(() => {
+      try{ URL.revokeObjectURL(blobUrl); }catch(_e){}
+    }, 60000);
+    return true;
+  }catch(_e){
+    return false;
+  }
+}
+
 function prepareDesktopWhatsAppTab(){
   try{
     const tab = window.open("about:blank", "_blank");
@@ -1382,81 +1403,53 @@ btnSendWhatsApp?.addEventListener("click", async () => {
   if (!pending) return;
 
   const isMobile = isMobileUA();
-  const preparedDesktopTab = !isMobile ? prepareDesktopWhatsAppTab() : null;
 
   btnSendWhatsApp.disabled = true;
   btnCloseModal.disabled = true;
 
   showLoading("Registrando pedido...");
 
-  // ✅ deja que el navegador pinte el loader
   await nextFrame();
 
   try {
     elStatus.textContent = "Registrando pedido...";
 
-    // 1) Guardar primero
     await saveOrder(pending.data);
-    await completeLoadingSuccess();
 
-    // 2) Construir enlace de WhatsApp
     const waUrl = buildWhatsAppUrlWithText(pending.messageNormal);
-
-    // 3) Habilitar ayuda (copiar/pegar) después del primer intento
     enableHelpMessage(pending.messageFallback, false);
 
     if(isMobile){
-      // ✅ Móvil: abrir la app de WhatsApp directamente, sin pasar por la web
+      await completeLoadingSuccess();
       hideModal();
       shouldResetAfterAlert = true;
-
-      // al volver al navegador, mostrar aviso
       storeResumeAlert(SUCCESS_MSG, true, pending.messageFallback);
-
       hideLoading();
-      openWhatsAppMobile(pending.messageNormal); // iPhone/mobile: intenta abrir la app directo
+      openWhatsAppMobile(pending.messageNormal);
       return;
     }
 
-    // PC: primero termina el loader principal y solo después aparece la pestaña de WhatsApp.
     hideModal();
     shouldResetAfterAlert = true;
     setAlertHelp(pending.messageFallback, false);
 
+    await completeLoadingSuccess();
+
+    const opened = openDesktopWhatsAppLoaderTabAfterMainLoader(waUrl);
     hideLoading();
 
-    let opened = false;
-    try{
-      const newTab = (preparedDesktopTab && !preparedDesktopTab.closed)
-        ? preparedDesktopTab
-        : window.open("about:blank", "_blank");
-      if(newTab){
-        try{ newTab.opener = null; }catch(_e){}
-        opened = showDesktopWhatsAppLoaderTab(newTab, waUrl);
-        if(!opened){
-          try{
-            newTab.location.href = waUrl;
-            try{ newTab.focus(); }catch(_e2){}
-            opened = true;
-          }catch(_e){}
-        }
-      }
+    if(opened) return;
 
-      if(opened) return;
-      throw new Error("No se pudo abrir la pestaña de WhatsApp.");
-    }catch(_e){
-      enableHelpMessage(pending.messageFallback, true);
-      showAlert("Pedido registrado ✅\n\nNo se pudo abrir la nueva pestaña de WhatsApp automáticamente. Copia el mensaje y pégalo en el chat.");
-      setAlertHelp(pending.messageFallback, true);
-      elStatus.textContent = "";
-    }
+    enableHelpMessage(pending.messageFallback, true);
+    showAlert("Pedido registrado ✅\n\nNo se pudo abrir la nueva pestaña de WhatsApp automáticamente. Copia el mensaje y pégalo en el chat.");
+    setAlertHelp(pending.messageFallback, true);
+    elStatus.textContent = "";
 
   } catch (e) {
     hideLoading();
     elStatus.textContent = "";
     showAlert(`Error: ${e.message}`);
 
-    // En error: mostrar ayuda
     try{
       enableHelpMessage(pending?.messageFallback || "", true);
     }catch(_e){}
@@ -1465,6 +1458,7 @@ btnSendWhatsApp?.addEventListener("click", async () => {
     btnCloseModal.disabled = false;
   }
 });
+
 
 btnWhatsApp?.addEventListener("click", () => {
   elStatus.textContent = "";
