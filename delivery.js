@@ -125,7 +125,7 @@ function ensureDeliveryMobileBar(){
       <div class="amDeliveryMobileCenter" role="group" aria-label="Filtros de envíos">
         <button id="dMBtnDelivery" class="amDeliveryMobileSeg isActive" type="button"><span class="txt">Domicilio</span></button>
         <button id="dMBtnPickup" class="amDeliveryMobileSeg" type="button"><span class="txt">Recoger</span></button>
-        <button id="dMBtnHistory" class="amDeliveryMobileSeg" type="button"><span class="txt">Historial</span></button>
+        <button id="dMBtnHistory" class="amDeliveryMobileSeg" type="button" aria-label="Historial"><span class="txt">Historial</span></button>
       </div>
       <button id="dMBtnLogout" class="amDeliveryMobileAction isNeutral" type="button" aria-label="Salir">
         <span class="ico">🚪</span><span class="txt">Salir</span>
@@ -974,9 +974,6 @@ async function loadHistory(force = false, opts = {}){
     }
   }
   if(histStatus) histStatus.textContent = "";
-  if(silent){
-    if(histList && !String(histList.innerHTML || "").trim()) setInlineLoading_(histList, "Preparando historial…", "Estamos organizando los pedidos enviados.");
-  }
   showLoading("Cargando historial…","Buscando pedidos enviados…");
   try{
     let orders = [];

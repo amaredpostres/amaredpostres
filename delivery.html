@@ -85,7 +85,7 @@
 
   <link rel="icon" href="assets/favicon.ico" type="image/x-icon">
   <link rel="stylesheet" href="styles.css?v=20260330-project-v8" />
-  <link rel="stylesheet" href="delivery.css?v=20260401-delivery-filters-v1" />
+  <link rel="stylesheet" href="delivery.css?v=20260401-delivery-historybar-v2" />
 
   <style>
     /* HISTORIAL FIXES */
@@ -269,12 +269,12 @@
   <!-- HISTORIAL (ENVIADOS) -->
   <div id="histBack" class="amOverlay" aria-hidden="true" style="display:none;">
     <div class="amModal" role="dialog" aria-modal="true" style="max-width:980px;">
-      <div class="rowBetween" style="align-items:flex-start;">
-        <div>
+      <div class="rowBetween histModalHead" style="align-items:flex-start;">
+        <div class="histModalTitleWrap">
           <div class="amModalTitle">Historial de enviados</div>
           <div class="muted small" id="histMetaLine" style="margin-top:4px;">—</div>
         </div>
-        <div class="row" style="justify-content:flex-end;">
+        <div class="row histModalActions" style="justify-content:flex-end;">
           <button id="btnHistReload" class="btn secondary" type="button">Recargar</button>
           <button id="btnHistClose" class="iconBtn amModalCloseX" type="button" aria-label="Cerrar" title="Cerrar">✕</button>
         </div>
@@ -299,6 +299,6 @@
     </div>
   </div>
 
-  <script src="delivery.js?v=20260401-delivery-filters-v1"></script>
+  <script src="delivery.js?v=20260401-delivery-historybar-v2"></script>
 </body>
 </html>

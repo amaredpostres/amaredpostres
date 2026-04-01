@@ -564,3 +564,107 @@ body.deliveryOverlayOpen .amDeliveryMobileBar{
   color: var(--choco);
   box-shadow: inset 0 0 0 1px rgba(64,17,2,.08), 0 8px 18px rgba(64,17,2,.08);
 }
+
+/* ===== delivery history header + mobile bar refinement v2 ===== */
+#histBack .amModal{
+  position:relative;
+}
+.histModalHead{
+  position:relative;
+  padding-right:138px;
+  min-height:48px;
+}
+.histModalTitleWrap{
+  min-width:0;
+  padding-right:8px;
+}
+.histModalActions{
+  position:absolute;
+  top:0;
+  right:0;
+  display:flex;
+  align-items:center;
+  gap:8px;
+}
+#btnHistReload{
+  min-height:40px;
+  padding:10px 14px;
+  border-radius:14px;
+}
+#btnHistClose{
+  width:40px;
+  height:40px;
+  min-width:40px;
+  min-height:40px;
+  border-radius:14px;
+}
+
+.amDeliveryMobileBar{
+  left:12px;
+  right:12px;
+  bottom: calc(env(safe-area-inset-bottom, 0px) + 10px);
+  grid-template-columns:50px minmax(0,1fr) 50px;
+  gap:8px;
+  padding:8px;
+  border-radius:24px;
+  background: rgba(254,246,239,.93);
+  border:1px solid rgba(64,17,2,.10);
+  box-shadow:0 16px 38px rgba(64,17,2,.14);
+  backdrop-filter: blur(10px);
+}
+.amDeliveryMobileAction{
+  width:50px;
+  height:50px;
+  min-width:50px;
+  min-height:50px;
+  border-radius:16px;
+  box-shadow:0 8px 18px rgba(64,17,2,.08), inset 0 1px 0 rgba(255,255,255,.85);
+}
+.amDeliveryMobileAction .ico{ font-size:18px; }
+.amDeliveryMobileCenter{
+  grid-template-columns:repeat(3, minmax(0,1fr));
+  gap:5px;
+  padding:4px;
+  border-radius:18px;
+  background: linear-gradient(180deg, rgba(255,255,255,.98), rgba(248,244,239,.94));
+}
+.amDeliveryMobileSeg{
+  min-height:46px;
+  padding:0 8px;
+  border-radius:14px;
+}
+.amDeliveryMobileSeg .txt{
+  font-size:12.5px;
+  line-height:1.05;
+  white-space:nowrap;
+  letter-spacing:.01em;
+}
+.amDeliveryMobileSeg.isActive{
+  background: linear-gradient(180deg, rgba(242,91,143,.16), rgba(246,186,96,.16));
+  color: var(--choco);
+  box-shadow: inset 0 0 0 1px rgba(64,17,2,.08), 0 6px 14px rgba(64,17,2,.07);
+}
+
+@media (max-width:720px){
+  .deliveryPage .container{ padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 94px); }
+  .histModalHead{
+    padding-right:48px;
+    min-height:40px;
+  }
+  .histModalActions{
+    top:0;
+    right:0;
+    gap:6px;
+  }
+  #btnHistReload{
+    min-height:36px;
+    padding:8px 11px;
+    font-size:13px;
+  }
+  #btnHistClose{
+    width:36px;
+    height:36px;
+    min-width:36px;
+    min-height:36px;
+  }
+}

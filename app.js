@@ -396,42 +396,6 @@ function getSelectedLocationMethod() {
   return el ? el.value : "maps";
 }
 
-function ensurePickupWhatsAppOptIn(force = false){
-  try{
-    const method = getSelectedLocationMethod();
-    const waOptEl = document.getElementById("waOptIn");
-    if(!waOptEl) return;
-    if(method === "pickup") waOptEl.checked = true;
-    else if(force && !waOptEl.checked) waOptEl.checked = false;
-  }catch(_e){}
-}
-
-function openDesktopWhatsAppHelper(){
-  try{
-    const helper = window.open('', '_blank');
-    if(!helper) return null;
-    const html = `<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>AMARED · Preparando WhatsApp</title><style>body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;background:radial-gradient(700px 320px at 20% 5%, rgba(242,91,143,.14), transparent 60%),radial-gradient(700px 320px at 80% 10%, rgba(246,186,96,.16), transparent 60%),#FEF6EF;color:#401102;display:grid;place-items:center;min-height:100vh;padding:20px;box-sizing:border-box}.card{width:min(520px,100%);background:rgba(255,253,252,.96);border:1px solid rgba(64,17,2,.10);border-radius:24px;padding:26px 22px;box-shadow:0 22px 60px rgba(64,17,2,.12);text-align:center}.dot{width:18px;height:18px;border-radius:999px;border:2px solid rgba(64,17,2,.18);border-top-color:rgba(64,17,2,.70);animation:spin 1s linear infinite;margin:0 auto 16px}.t{font-weight:950;font-size:28px;line-height:1.02;margin:0 0 10px}.s{font-size:15px;line-height:1.45;color:rgba(64,17,2,.72);font-weight:780}.bar{height:10px;border-radius:999px;background:rgba(64,17,2,.08);overflow:hidden;margin-top:18px}.bar>span{display:block;height:100%;width:42%;background:linear-gradient(90deg, rgba(242,91,143,.92), rgba(246,186,96,.92));animation:load 1.15s ease-in-out infinite}.note{margin-top:14px;font-size:13px;color:rgba(64,17,2,.60);font-weight:760}@keyframes spin{to{transform:rotate(360deg)}}@keyframes load{0%{transform:translateX(-120%)}100%{transform:translateX(260%)}}</style></head><body><div class="card"><div class="dot"></div><h1 class="t">Estamos preparando tu WhatsApp</h1><div class="s">Mientras confirmamos tu pedido en AMARED, esta página quedará lista para abrir el chat correctamente.</div><div class="bar"><span></span></div><div class="note">No cierres esta pestaña. Se actualizará automáticamente en unos segundos.</div></div></body></html>`;
-    helper.document.open();
-    helper.document.write(html);
-    helper.document.close();
-    try{ window.focus(); }catch(_e){}
-    return helper;
-  }catch(_e){ return null; }
-}
-
-function navigateDesktopWhatsAppHelper(helper, url){
-  try{
-    if(helper && !helper.closed){
-      helper.location.replace(url);
-      return true;
-    }
-  }catch(_e){}
-  try{
-    window.open(url, '_blank', 'noopener,noreferrer');
-    return true;
-  }catch(_e){ return false; }
-}
-
 function syncLocationUI() {
   const method = getSelectedLocationMethod();
   const showMaps = method === "maps";
@@ -452,7 +416,8 @@ function syncLocationUI() {
   }
 
   if(showPickup){
-    ensurePickupWhatsAppOptIn();
+    const waOptEl = document.getElementById("waOptIn");
+    if(waOptEl) waOptEl.checked = true;
   }
   if(waOptHint){
     waOptHint.classList.toggle("hidden", !showPickup);
@@ -499,6 +464,72 @@ function openWhatsAppMobile(text){
   setTimeout(() => {
     if(document.visibilityState === "visible") window.location.href = web;
   }, 650);
+}
+
+function openDesktopWhatsAppBridge(){
+  if(isMobileUA()) return null;
+  let helper = null;
+  try{
+    helper = window.open('', '_blank');
+    if(helper){
+      const helperHtml = `<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>AMARED · Preparando WhatsApp</title>
+  <style>
+    :root{--cream:#FEF6EF;--paper:#FFFDFC;--choco:#401102;--pink:#F25B8F;--caramel:#F6BA60;}
+    *{box-sizing:border-box}html,body{height:100%}
+    body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;color:var(--choco);background:
+      radial-gradient(900px 420px at 20% 5%, rgba(242,91,143,.14), transparent 60%),
+      radial-gradient(900px 420px at 80% 8%, rgba(246,186,96,.16), transparent 60%),
+      var(--cream);display:grid;place-items:center;padding:24px;}
+    .card{width:min(520px,100%);background:rgba(255,253,252,.96);border:1px solid rgba(64,17,2,.10);border-radius:26px;padding:28px 24px;box-shadow:0 22px 60px rgba(64,17,2,.14);text-align:center}
+    .logo{width:72px;height:auto;display:block;margin:0 auto 16px auto}
+    h1{margin:0 0 10px;font-size:clamp(28px,4vw,34px);line-height:1.02;font-weight:950}
+    p{margin:0;color:rgba(64,17,2,.72);font-size:16px;line-height:1.5;font-weight:750}
+    .row{display:flex;align-items:center;justify-content:center;gap:12px;margin-top:18px}
+    .spin{width:18px;height:18px;border-radius:999px;border:2px solid rgba(64,17,2,.12);border-top-color:rgba(242,91,143,.92);animation:spin 1s linear infinite}
+    .pill{display:inline-flex;align-items:center;justify-content:center;padding:10px 14px;border-radius:999px;background:linear-gradient(180deg, rgba(246,186,96,.18), rgba(242,91,143,.14));border:1px solid rgba(64,17,2,.08);font-weight:900}
+    @keyframes spin{to{transform:rotate(360deg)}}
+  </style>
+</head>
+<body>
+  <div class="card">
+    <img class="logo" src="assets/Logo-Isotipo-Amared.svg" alt="AMARED" />
+    <h1>Estamos abriendo WhatsApp…</h1>
+    <p>Tu pedido ya quedó registrado. En unos segundos te llevaremos al chat de AMARED para confirmar el pago y los detalles finales.</p>
+    <div class="row"><span class="spin"></span><span class="pill">Preparando confirmación</span></div>
+  </div>
+</body>
+</html>`;
+      helper.document.open();
+      helper.document.write(helperHtml);
+      helper.document.close();
+      try{ helper.blur(); window.focus(); }catch(_e){}
+    }
+  }catch(_e){ helper = null; }
+  return helper;
+}
+
+function goDesktopBridgeToWhatsApp(helper, url){
+  try{
+    if(helper && !helper.closed){
+      helper.location.href = url;
+      return true;
+    }
+  }catch(_e){}
+  try{
+    const popup = window.open(url, '_blank');
+    return !!popup;
+  }catch(_e){
+    return false;
+  }
+}
+
+function closeDesktopBridge(helper){
+  try{ if(helper && !helper.closed) helper.close(); }catch(_e){}
 }
 
 
@@ -1051,12 +1082,6 @@ btnOpenMaps?.addEventListener("click", openGoogleMaps);
 
 document.querySelectorAll('input[name="locMethod"]').forEach(r => {
   r.addEventListener("change", syncLocationUI);
-  r.addEventListener("click", ()=> {
-    if(String(r.value||"") === "pickup"){
-      ensurePickupWhatsAppOptIn();
-      if(waOptHint) waOptHint.classList.remove("hidden");
-    }
-  });
 });
 
 btnAlertOk?.addEventListener("click", () => {
@@ -1107,7 +1132,7 @@ btnSendWhatsApp?.addEventListener("click", async () => {
   if (!pending) return;
 
   const isMobile = isMobileUA();
-  const desktopHelper = !isMobile ? openDesktopWhatsAppHelper() : null;
+  const desktopBridge = !isMobile ? openDesktopWhatsAppBridge() : null;
 
   btnSendWhatsApp.disabled = true;
   btnCloseModal.disabled = true;
@@ -1124,8 +1149,6 @@ btnSendWhatsApp?.addEventListener("click", async () => {
     const waUrl = buildWhatsAppUrlWithText(pending.messageNormal);
     enableHelpMessage(pending.messageFallback, false);
 
-    hideLoading();
-
     if(isMobile){
       hideModal();
       shouldResetAfterAlert = true;
@@ -1136,22 +1159,23 @@ btnSendWhatsApp?.addEventListener("click", async () => {
     }
 
     hideModal();
-    shouldResetAfterAlert = true;
-    setAlertHelp(pending.messageFallback, false);
+    const opened = goDesktopBridgeToWhatsApp(desktopBridge, waUrl);
+    hideLoading();
 
-    const opened = navigateDesktopWhatsAppHelper(desktopHelper, waUrl);
     if(opened){
-      showAlert("Pedido registrado ✅\n\nWhatsApp se abrió en una pestaña nueva para que continúes la confirmación.");
+      resetAll();
+      pending = null;
+      elStatus.textContent = "";
       return;
     }
 
     enableHelpMessage(pending.messageFallback, true);
-    showAlert("Pedido registrado ✅\n\nSi no se pudo abrir WhatsApp, copia el mensaje y pégalo en el chat.");
+    showAlert("Pedido registrado ✅\n\nSi no se pudo abrir WhatsApp automáticamente, copia el mensaje y pégalo en el chat.");
     setAlertHelp(pending.messageFallback, true);
     elStatus.textContent = "";
 
   } catch (e) {
-    try{ if(desktopHelper && !desktopHelper.closed) desktopHelper.close(); }catch(_e){}
+    closeDesktopBridge(desktopBridge);
     hideLoading();
     elStatus.textContent = "";
     showAlert(`Error: ${e.message}`);
@@ -1197,7 +1221,6 @@ warmProductImages();
 renderProducts(true);
 updateSummary();
 syncLocationUI();
-ensurePickupWhatsAppOptIn();
 bootProductsCatalog().catch(()=>{});
 
 
@@ -1392,6 +1415,9 @@ const btnIndexAdminBarOpiniones = document.getElementById("btnIndexAdminBarOpini
 const btnIndexAdminBarTools = document.getElementById("btnIndexAdminBarTools");
 const btnIndexAdminDesktopHub = document.getElementById("btnIndexAdminDesktopHub");
 const orderSection = document.getElementById("pedido");
+const catalogSection = document.getElementById("postres");
+const orderNameInput = document.getElementById("name");
+const spotlightNavButtons = Array.from(document.querySelectorAll('.spotlightStep[data-scroll-target]'));
 
 const reviewModal = document.getElementById("reviewModal");
 const btnCloseReview = document.getElementById("btnCloseReview");
@@ -1450,6 +1476,37 @@ function applyIndexAdminVisibility(){
   syncIndexAdminMobileBar();
   if(shouldRefreshReviews) fetchReviews();
 }
+
+function scrollToOrderArea(target){
+  const key = String(target || '').trim().toLowerCase();
+  let section = null;
+  let focusEl = null;
+  if(key === 'postres'){
+    section = catalogSection;
+  }else if(key === 'pedido'){
+    section = orderSection;
+    focusEl = orderNameInput || document.getElementById('phone') || btnWhatsApp;
+  }else if(key === 'whatsapp'){
+    section = orderSection;
+    focusEl = btnWhatsApp || orderNameInput || document.getElementById('phone');
+  }
+  if(!section) return;
+  try{ section.scrollIntoView({ behavior:'smooth', block:'start' }); }catch(_e){ section.scrollIntoView(); }
+  if(focusEl){
+    window.setTimeout(()=>{
+      try{ focusEl.focus({ preventScroll:true }); }catch(_e){ try{ focusEl.focus(); }catch(_e2){} }
+    }, 420);
+  }
+}
+
+function wireSpotlightOrderSteps(){
+  spotlightNavButtons.forEach(btn => {
+    if(btn.dataset.wired === '1') return;
+    btn.dataset.wired = '1';
+    btn.addEventListener('click', ()=> scrollToOrderArea(btn.dataset.scrollTarget));
+  });
+}
+
 function syncIndexAdminMobileBar(){
   if(!indexAdminMobileBar) return;
   const enabled = shouldUseIndexAdminView();
@@ -1903,6 +1960,7 @@ if(reviewsListEl) fetchReviews();
 
 showAdminButtonIfNeeded();
 applyIndexAdminVisibility();
+wireSpotlightOrderSteps();
 syncIndexAdminMobileBar();
 
 btnIndexAdminSavePrices?.addEventListener("click", saveIndexAdminPrices);
