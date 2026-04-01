@@ -258,7 +258,7 @@ const addressInput = document.getElementById("address");
 const mapsInput = document.getElementById("maps");
 const addressLabel = document.getElementById("addressLabel");
 const addressHint = document.getElementById("addressHint");
-const waOptIn = document.getElementById("waOptIn");
+const waOptHint = document.getElementById("waOptHint");
 
 // Alerta central
 const alertOverlay = document.getElementById("alertOverlay");
@@ -415,8 +415,12 @@ function syncLocationUI() {
     mapsInput.value = mapsInput.dataset.prevValue;
   }
 
-  if(showPickup && waOptIn){
-    waOptIn.checked = true;
+  if(showPickup){
+    const waOptEl = document.getElementById("waOptIn");
+    if(waOptEl) waOptEl.checked = true;
+  }
+  if(waOptHint){
+    waOptHint.classList.toggle("hidden", !showPickup);
   }
 
   setAddressMode(method);
@@ -1063,21 +1067,6 @@ btnSendWhatsApp?.addEventListener("click", async () => {
 
   const isMobile = isMobileUA();
 
-  // ✅ PC: pre-abrir pestaña para evitar bloqueo por "user gesture"
-  let waWin = null;
-  if(!isMobile){
-    try{
-      waWin = window.open("", "_blank");
-      if(waWin && !waWin.closed){
-        try{
-          waWin.document.title = "AMARED · Preparando WhatsApp";
-          waWin.document.body.innerHTML = '<div style="font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;padding:24px;color:#401102;background:#fff7f2">Preparando WhatsApp…</div>';
-        }catch(_e){}
-        try{ waWin.blur(); window.focus(); }catch(_e){}
-      }
-    }catch(_e){ waWin = null; }
-  }
-
   btnSendWhatsApp.disabled = true;
   btnCloseModal.disabled = true;
 
@@ -1114,32 +1103,19 @@ btnSendWhatsApp?.addEventListener("click", async () => {
       return;
     }
 
-    // PC: abrir en pestaña nueva después de registrar y finalizar la carga
-    let waOpened = false;
-    if(waWin && !waWin.closed){
-      try{
-        waWin.location.replace(waUrl);
-        try{ waWin.focus(); }catch(_e){}
-        waOpened = true;
-      }catch(_e){}
-    }
-    if(!waOpened){
-      try{
-        const fallbackWin = window.open(waUrl, "_blank", "noopener,noreferrer");
-        waOpened = !!fallbackWin;
-      }catch(_e){}
-    }
-
+    // PC: primero se registra y se muestra la carga; luego redirige a WhatsApp
     hideModal();
     shouldResetAfterAlert = true;
-    showAlert(SUCCESS_MSG);
-    setAlertHelp(pending.messageFallback, !waOpened);
-
-    if(!waOpened){
+    setAlertHelp(pending.messageFallback, false);
+    try{
+      window.location.href = waUrl;
+      return;
+    }catch(_e){
       enableHelpMessage(pending.messageFallback, true);
+      showAlert("Pedido registrado ✅\n\nSi no se pudo abrir WhatsApp, copia el mensaje y pégalo en el chat.");
+      setAlertHelp(pending.messageFallback, true);
       elStatus.textContent = "";
     }
-    return;
 
   } catch (e) {
     hideLoading();

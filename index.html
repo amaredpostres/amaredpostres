@@ -8,7 +8,7 @@
   <link rel="icon" href="assets/favicon.ico" type="image/x-icon">
   <link rel="preload" href="assets/Logo-Amared.svg" as="image" type="image/svg+xml">
   <link rel="preload" href="assets/Logo-Isotipo-Amared.svg" as="image" type="image/svg+xml">
-  <link rel="stylesheet" href="styles.css?v=20260330-project-v8" />
+  <link rel="stylesheet" href="styles.css?v=20260331-project-v11" />
 </head>
 <body>
   <div class="page">
@@ -17,38 +17,45 @@
         <a class="brand brandLink" href="#inicio" aria-label="Ir al inicio AMARED">
           <img class="brandLogo" src="assets/Logo-Amared.svg" alt="AMARED Postres" />
         </a>
-        <div class="topbarBadge">Pedidos directos</div>
         <button id="btnIndexAdminDesktopHub" class="btn amBtnSoft indexAdminTopbarAction hidden" type="button" aria-label="Volver al panel">Panel</button>
       </div>
     </header>
 
     <main class="container amIndex" id="inicio">
       <section class="hero heroPremium">
-        <div class="heroShell">
+        <div class="heroShell heroOrderIntro">
           <div class="heroCopy">
             <div class="heroEyebrow"><span class="heroDot"></span> Haz tu pedido</div>
             <h1 class="heroTitle">Pide tu antojo en minutos.</h1>
             <p class="heroSubtitle">Elige tus postres, registra tu pedido y confirma todo por WhatsApp. Allí te compartimos el pago y los detalles finales de entrega.</p>
-
-            <div class="heroChips" aria-label="Beneficios del pedido">
-              <span class="heroChip">Pedido rápido</span>
-              <span class="heroChip">Confirmación por WhatsApp</span>
-              <span class="heroChip">Domicilio o recogida</span>
-            </div>
           </div>
 
           <aside class="heroSpotlight" aria-label="Así funciona el pedido en AMARED">
             <div class="spotlightGlass spotlightOrderFlow">
-              <div class="spotlightMiniTop">
-                <img class="spotlightMiniIso" src="assets/Logo-Isotipo-Amared.svg" alt="AMARED" />
-                <span class="spotlightMiniLabel">Confirmación por WhatsApp</span>
-              </div>
               <h2 class="spotlightHeading">Tu pedido se confirma por WhatsApp.</h2>
               <p class="spotlightText">Cuando termines tu pedido, se abrirá el chat de AMARED para validar el pago, la entrega y cualquier detalle final.</p>
-              <div class="spotlightSteps">
-                <div class="spotlightStep"><span>1</span> Elige tus postres</div>
-                <div class="spotlightStep"><span>2</span> Registra tu pedido</div>
-                <div class="spotlightStep"><span>3</span> Confirma por WhatsApp</div>
+              <div class="spotlightSteps" role="navigation" aria-label="Accesos rápidos del pedido">
+                <button class="spotlightStep" type="button" data-scroll-target="postres">
+                  <span class="spotlightStepNum">1</span>
+                  <span class="spotlightStepCopy">
+                    <strong>Elige tus postres</strong>
+                    <small>Ve directo al catálogo y selecciona la cantidad que deseas.</small>
+                  </span>
+                </button>
+                <button class="spotlightStep" type="button" data-scroll-target="pedido">
+                  <span class="spotlightStepNum">2</span>
+                  <span class="spotlightStepCopy">
+                    <strong>Revisa y registra tu pedido</strong>
+                    <small>Completa tus datos y revisa el resumen antes de continuar.</small>
+                  </span>
+                </button>
+                <button class="spotlightStep" type="button" data-scroll-target="whatsapp">
+                  <span class="spotlightStepNum">3</span>
+                  <span class="spotlightStepCopy">
+                    <strong>Confirma por WhatsApp</strong>
+                    <small>Te llevamos a la sección para finalizar la confirmación.</small>
+                  </span>
+                </button>
               </div>
             </div>
           </aside>
@@ -62,7 +69,6 @@
               <div class="sectionKicker">Catálogo</div>
               <h2 class="cardTitle">Elige tus postres</h2>
             </div>
-            <div class="sectionPill">6 oz</div>
           </div>
           <div id="products" class="products"></div>
         </section>
@@ -178,10 +184,13 @@
               <div class="muted small">Podrías recibir notificaciones del pedido o información relacionada con AMARED.</div>
             </div>
 
-            <label class="checkRow">
-              <input id="waOptIn" type="checkbox" />
-              <span>Quiero recibir información de AMARED por WhatsApp.</span>
-            </label>
+            <div class="waOptWrap">
+              <label class="checkRow">
+                <input id="waOptIn" type="checkbox" />
+                <span>Quiero recibir información de AMARED por WhatsApp.</span>
+              </label>
+              <div id="waOptHint" class="waOptHint hidden">Importante: si eliges recogida presencial, mantén esta opción activa para avisarte por WhatsApp cuando tu pedido vaya en camino al punto de entrega.</div>
+            </div>
 
             <div class="field">
               <label class="label" for="notes">Notas (opcional)</label>
@@ -446,6 +455,6 @@
     <button id="btnIndexAdminBarHub" class="indexAdminMobileBtn isIconOnly" type="button" aria-label="Volver al panel"><span class="ico">⌂</span></button>
   </div>
 
-  <script src="app.js?v=20260401-pickup-wa-desktop-v1" defer></script>
+  <script src="app.js?v=20260330-index-admin-v5" defer></script>
 </body>
 </html>
