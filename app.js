@@ -1205,9 +1205,7 @@ btnSendWhatsApp?.addEventListener("click", async () => {
     }
 
     enableHelpMessage(pending.messageFallback, true);
-    showAlert("Pedido registrado ✅
-
-Si no se pudo abrir WhatsApp, copia el mensaje y pégalo en el chat.");
+    showAlert("Pedido registrado ✅\n\nSi no se pudo abrir WhatsApp, copia el mensaje y pégalo en el chat.");
     setAlertHelp(pending.messageFallback, true);
     elStatus.textContent = "";
 
