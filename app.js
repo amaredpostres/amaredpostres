@@ -1434,14 +1434,20 @@ btnSendWhatsApp?.addEventListener("click", async () => {
     setAlertHelp(pending.messageFallback, false);
 
     await completeLoadingSuccess();
-
-    const opened = openDesktopWhatsAppLoaderTabAfterMainLoader(waUrl);
     hideLoading();
 
-    if(opened) return;
+    try{
+      window.location.assign(waUrl);
+      return;
+    }catch(_e){
+      try{
+        window.location.href = waUrl;
+        return;
+      }catch(_e2){}
+    }
 
     enableHelpMessage(pending.messageFallback, true);
-    showAlert("Pedido registrado ✅\n\nNo se pudo abrir la nueva pestaña de WhatsApp automáticamente. Copia el mensaje y pégalo en el chat.");
+    showAlert("Pedido registrado ✅\n\nNo se pudo abrir WhatsApp automáticamente. Copia el mensaje y pégalo en el chat.");
     setAlertHelp(pending.messageFallback, true);
     elStatus.textContent = "";
 
