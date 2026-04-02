@@ -294,6 +294,31 @@ function buildInlineLoadMarkup_(title, sub){
 function setInlineLoading_(container, title, sub){
   if(container) container.innerHTML = buildInlineLoadMarkup_(title, sub);
 }
+function ensureDeliverySyncBadge_(){
+  let badge = document.getElementById("deliverySyncBadge");
+  if(badge) return badge;
+  badge = document.createElement("div");
+  badge.id = "deliverySyncBadge";
+  badge.className = "deliverySyncBadge";
+  badge.setAttribute("aria-live", "polite");
+  badge.setAttribute("aria-atomic", "true");
+  badge.innerHTML = `<div class="deliverySyncBadgeSpin"></div><div class="deliverySyncBadgeBody"><div class="deliverySyncBadgeTitle" id="deliverySyncBadgeTitle">Actualizando envíos…</div><div class="deliverySyncBadgeSub" id="deliverySyncBadgeSub">Puedes seguir usando la página mientras sincronizamos la información.</div></div>`;
+  document.body.appendChild(badge);
+  return badge;
+}
+function showDeliverySyncBadge_(title, sub){
+  const badge = ensureDeliverySyncBadge_();
+  const titleEl = badge.querySelector("#deliverySyncBadgeTitle");
+  const subEl = badge.querySelector("#deliverySyncBadgeSub");
+  if(titleEl) titleEl.textContent = title || "Actualizando envíos…";
+  if(subEl) subEl.textContent = sub || "Puedes seguir usando la página mientras sincronizamos la información.";
+  badge.classList.add("isVisible");
+}
+function hideDeliverySyncBadge_(){
+  const badge = document.getElementById("deliverySyncBadge");
+  if(!badge) return;
+  badge.classList.remove("isVisible");
+}
 function scheduleDeliveryBackgroundRefresh_(reason){
   window.setTimeout(()=>{
     loadOrders(true, { silent:true, reason: reason || "Actualizando envíos en segundo plano…" }).catch(()=>{});
@@ -478,7 +503,7 @@ function clearDeliveryDataCache_(){
 function hydrateDeliveryOrdersFromCache_(cache){
   ORDERS = Array.isArray(cache?.orders) ? cache.orders : [];
   renderOrders(ORDERS);
-  setStatus(`${ORDERS.length} pedidos listos para envío (caché de la sesión).`);
+  setStatus("");
 }
 function hydrateDeliveryHistoryFromCache_(cache){
   HIST = Array.isArray(cache?.history) ? cache.history : [];
@@ -833,9 +858,10 @@ async function loadOrders(force = false, opts = {}){
   }
   setStatus("");
   if(silent){
-    setStatus(String(opts.reason || "Actualizando envíos en segundo plano…"));
+    showDeliverySyncBadge_(String(opts.reason || "Actualizando envíos…"), "Puedes seguir usando la página mientras sincronizamos la información.");
     if(listEl && !String(listEl.innerHTML || "").trim()) setInlineLoading_(listEl, "Cargando pedidos…", "Estamos trayendo los pedidos listos para envío.");
   }else{
+    hideDeliverySyncBadge_();
     showLoading("Cargando pedidos…","Buscando Pagado + Listo + delivery Pendiente…");
   }
   try{
@@ -874,6 +900,10 @@ async function loadOrders(force = false, opts = {}){
     }
   }finally{
     hideLoading();
+    if(silent){
+      window.setTimeout(()=>{ hideDeliverySyncBadge_(); }, 180);
+      if(!(statusEl && String(statusEl.textContent || "").trim())) setStatus("");
+    }
   }
 }
 
