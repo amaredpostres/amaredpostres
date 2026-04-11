@@ -144,6 +144,9 @@
                     <input id="maps" class="input" type="url" placeholder="Pega aquí el link de tu ubicación" />
                     <button id="btnOpenMaps" class="btn secondary" type="button">Abrir Maps</button>
                   </div>
+                  <div class="tutorialAction">
+                    <button id="btnMapsTutorial" class="btn tutorialBtn" type="button">Ver tutorial</button>
+                  </div>
                   <div class="muted small">Abre Google Maps, toca compartir, copia el enlace y pégalo aquí.</div>
                 </div>
 
@@ -156,7 +159,10 @@
                 </label>
 
                 <div id="waLocBlock" class="waLocBlock muted small tileDetail">
-                  Cuando se abra WhatsApp, usa el botón de adjuntar y comparte tu ubicación.
+                  <div class="waLocCopy">Cuando se abra WhatsApp, usa el botón de adjuntar y comparte tu ubicación.</div>
+                  <div class="tutorialAction">
+                    <button id="btnWaTutorial" class="btn tutorialBtn" type="button">Ver tutorial</button>
+                  </div>
                 </div>
 
                 <label class="radioRow deliveryTile">
@@ -171,8 +177,10 @@
                   <div class="pickupBox">
                     <div class="pickupTitle">Recogida presencial</div>
                     <div class="muted small">No será necesario escribir dirección. El pedido se registrará como <strong>recogida presencial</strong>.</div>
-                    <a id="pickupVideoLink" class="pickupLink hidden" href="#" target="_blank" rel="noopener noreferrer">Ver video para llegar al punto de recogida</a>
-                    <div id="pickupVideoHint" class="muted small">Aquí encontrarás una guía breve para llegar y reclamar tu pedido.</div>
+                    <div class="pickupActions">
+                      <button id="btnPickupTutorial" class="btn tutorialBtn" type="button">Ver tutorial de recogida</button>
+                    </div>
+                    <div id="pickupVideoHint" class="muted small">Aquí encontrarás una guía breve para llegar, ubicar el punto y reclamar tu pedido.</div>
                   </div>
                 </div>
               </div>
@@ -351,8 +359,9 @@
         </div>
 
         <div class="formRow" style="margin-top:12px;">
-          <label class="label" for="reviewName">Nombre (opcional)</label>
-          <input id="reviewName" class="input" maxlength="40" placeholder="Tu nombre" />
+          <label class="label" for="reviewName">Nombre del pedido</label>
+          <input id="reviewName" class="input" maxlength="80" placeholder="Se cargará automáticamente con tu pedido" readonly />
+          <div id="reviewNameStatus" class="muted small reviewIdentityStatus">Escribe los 4 dígitos y cargaremos el nombre del pedido.</div>
         </div>
 
         <div class="formRow" style="margin-top:12px;">
@@ -455,6 +464,6 @@
     <button id="btnIndexAdminBarHub" class="indexAdminMobileBtn isIconOnly" type="button" aria-label="Volver al panel"><span class="ico">⌂</span></button>
   </div>
 
-  <script src="app.js?v=20260401-index-whatsapp-loader-v10" defer></script>
+  <script src="app.js?v=20260411-index-tutorials-reviews-v16" defer></script>
 </body>
 </html>

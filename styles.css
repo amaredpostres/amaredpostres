@@ -3210,3 +3210,58 @@ body.is-index-admin-view .page{
     font-size: 12px;
   }
 }
+
+
+/* INDEX v16: tutoriales entrega + nombre automático opiniones */
+.tutorialAction,
+.pickupActions{
+  margin-top: 10px;
+}
+.tutorialBtn{
+  width: 100%;
+  min-height: 46px;
+  border-radius: 16px;
+  background: linear-gradient(180deg, rgba(242,91,143,.18), rgba(242,91,143,.28));
+  border: 1px solid rgba(242,91,143,.24);
+  color: var(--choco);
+  font-weight: 900;
+  box-shadow: 0 10px 22px rgba(64,17,2,.08);
+}
+.tutorialBtn:hover{
+  filter: brightness(.99);
+}
+.tutorialBtn[data-ready="0"]{
+  background: linear-gradient(180deg, rgba(242,91,143,.12), rgba(246,186,96,.20));
+}
+.waLocBlock{
+  display: grid;
+  gap: 8px;
+}
+.waLocCopy{
+  color: rgba(64,17,2,.66);
+}
+.reviewIdentityStatus{
+  margin-top: 8px;
+  min-height: 18px;
+}
+.reviewIdentityStatus[data-tone="loading"]{
+  color: rgba(64,17,2,.68);
+}
+.reviewIdentityStatus[data-tone="success"]{
+  color: #2f7d32;
+}
+.reviewIdentityStatus[data-tone="warning"]{
+  color: #a86418;
+}
+.reviewIdentityStatus[data-tone="error"]{
+  color: #b00020;
+}
+#reviewName[readonly]{
+  background: rgba(255,248,243,.92);
+  color: rgba(64,17,2,.78);
+}
+@media (max-width: 720px){
+  .tutorialBtn{
+    min-height: 48px;
+  }
+}

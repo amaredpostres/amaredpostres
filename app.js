@@ -5,6 +5,8 @@ const PICKUP_MAPS_TEXT = "RECOGIDA_PRESENCIAL";
 const WHATSAPP_LOCATION_TEXT = "Ubicación por WhatsApp";
 const WHATSAPP_LOCATION_MAPS_TEXT = "UBICACION_POR_WHATSAPP";
 const PICKUP_VIDEO_URL = "https://drive.google.com/file/d/198VXUDfeyfouT7UauXBytVwyqbujxCn9/view?usp=sharing";
+const MAPS_TUTORIAL_URL = "";
+const WHATSAPP_TUTORIAL_URL = "";
 
 const WHATSAPP_NUMBER = "573028473086";
 const ORDER_API_URL = "https://amared-orders.amaredpostres.workers.dev/";
@@ -252,7 +254,9 @@ let _loadingProgress = 0;
 const mapsBlock = document.getElementById("mapsBlock");
 const waLocBlock = document.getElementById("waLocBlock");
 const pickupBlock = document.getElementById("pickupBlock");
-const pickupVideoLink = document.getElementById("pickupVideoLink");
+const btnMapsTutorial = document.getElementById("btnMapsTutorial");
+const btnWaTutorial = document.getElementById("btnWaTutorial");
+const btnPickupTutorial = document.getElementById("btnPickupTutorial");
 const pickupVideoHint = document.getElementById("pickupVideoHint");
 const addressInput = document.getElementById("address");
 const mapsInput = document.getElementById("maps");
@@ -322,24 +326,39 @@ function openGoogleMaps() {
   window.open("https://www.google.com/maps", "_blank", "noopener,noreferrer");
 }
 
-function getPickupVideoUrl(){
-  return String(PICKUP_VIDEO_URL || "").trim();
+function getTutorialUrl(type){
+  switch(String(type || "").trim()){
+    case "maps": return String(MAPS_TUTORIAL_URL || "").trim();
+    case "whatsapp": return String(WHATSAPP_TUTORIAL_URL || "").trim();
+    case "pickup": return String(PICKUP_VIDEO_URL || "").trim();
+    default: return "";
+  }
 }
 
-function syncPickupVideoUI(){
-  const url = getPickupVideoUrl();
-  if(pickupVideoLink){
-    if(url){
-      pickupVideoLink.href = url;
-      pickupVideoLink.classList.remove("hidden");
-    }else{
-      pickupVideoLink.href = "#";
-      pickupVideoLink.classList.add("hidden");
-    }
-  }
+function syncTutorialButtonsUI(){
+  [
+    [btnMapsTutorial, "maps"],
+    [btnWaTutorial, "whatsapp"],
+    [btnPickupTutorial, "pickup"],
+  ].forEach(([btn, type]) => {
+    if(!btn) return;
+    const hasUrl = !!getTutorialUrl(type);
+    btn.dataset.ready = hasUrl ? "1" : "0";
+    btn.setAttribute("aria-label", hasUrl ? "Ver tutorial" : "Tutorial próximamente");
+    btn.title = hasUrl ? "Ver tutorial" : "Configura la URL del video en app.js";
+  });
   if(pickupVideoHint){
     pickupVideoHint.classList.remove("hidden");
   }
+}
+
+function openTutorial(type){
+  const url = getTutorialUrl(type);
+  if(!url){
+    showAlert("Aún no hemos configurado el video tutorial de esta opción. Cuando tengas el enlace, solo debes pegarlo en app.js.");
+    return;
+  }
+  window.open(url, "_blank", "noopener,noreferrer");
 }
 
 function setAddressMode(mode){
@@ -424,7 +443,7 @@ function syncLocationUI() {
   }
 
   setAddressMode(method);
-  syncPickupVideoUI();
+  syncTutorialButtonsUI();
 }
 
 function isMobileUA(){
@@ -1350,6 +1369,9 @@ function resetAll() {
 
 // =================== EVENTS ===================
 btnOpenMaps?.addEventListener("click", openGoogleMaps);
+btnMapsTutorial?.addEventListener("click", ()=> openTutorial("maps"));
+btnWaTutorial?.addEventListener("click", ()=> openTutorial("whatsapp"));
+btnPickupTutorial?.addEventListener("click", ()=> openTutorial("pickup"));
 
 document.querySelectorAll('input[name="locMethod"]').forEach(r => {
   r.addEventListener("change", syncLocationUI);
@@ -1699,11 +1721,17 @@ const btnCloseReview = document.getElementById("btnCloseReview");
 const btnSubmitReview = document.getElementById("btnSubmitReview");
 const reviewLast4 = document.getElementById("reviewLast4");
 const reviewName = document.getElementById("reviewName");
+const reviewNameStatus = document.getElementById("reviewNameStatus");
 const reviewComment = document.getElementById("reviewComment");
 const reviewCharCount = document.getElementById("reviewCharCount");
 const reviewStarsRow = document.getElementById("reviewStars");
 
 let _reviewRating = 0;
+let _reviewLookupTimer = null;
+let _reviewLookupSeq = 0;
+let _reviewResolvedName = "";
+let _reviewResolvedOrderId = "";
+let _reviewLookupEligible = false;
 
 function setIndexAdminStatus(msg, isError=false){
   if(!indexAdminStatus) return;
@@ -1872,6 +1900,87 @@ function hideReviewModal(){
   syncIndexAdminMobileBar();
 }
 
+function setReviewIdentityStatus(text, tone = "muted"){
+  if(!reviewNameStatus) return;
+  reviewNameStatus.textContent = String(text || "");
+  reviewNameStatus.dataset.tone = tone;
+}
+
+function resetReviewIdentity(){
+  _reviewResolvedName = "";
+  _reviewResolvedOrderId = "";
+  _reviewLookupEligible = false;
+  if(reviewName){
+    reviewName.value = "";
+    reviewName.dataset.orderId = "";
+  }
+  setReviewIdentityStatus("Escribe los 4 dígitos y cargaremos el nombre del pedido.", "muted");
+}
+
+async function lookupReviewIdentity(last4){
+  const seq = ++_reviewLookupSeq;
+  _reviewResolvedName = "";
+  _reviewResolvedOrderId = "";
+  _reviewLookupEligible = false;
+  if(reviewName){
+    reviewName.value = "";
+    reviewName.dataset.orderId = "";
+  }
+  setReviewIdentityStatus("Cargando nombre...", "loading");
+
+  try{
+    const res = await fetch(ORDER_API_URL, {
+      method: "POST",
+      headers: { "Content-Type":"application/json" },
+      body: JSON.stringify({ action: "reviews_lookup_identity", last4 })
+    });
+    const out = await res.json();
+    if(seq !== _reviewLookupSeq) return;
+
+    if(!out?.ok || !String(out?.customer_name || "").trim()){
+      resetReviewIdentity();
+      setReviewIdentityStatus(out?.error || "No encontramos un pedido con esos 4 dígitos.", "error");
+      return;
+    }
+
+    _reviewResolvedName = String(out.customer_name || "").trim();
+    _reviewResolvedOrderId = String(out.order_id || "").trim();
+    _reviewLookupEligible = !!out.eligible_for_review;
+    if(reviewName){
+      reviewName.value = _reviewResolvedName;
+      reviewName.dataset.orderId = _reviewResolvedOrderId;
+    }
+
+    if(_reviewLookupEligible){
+      setReviewIdentityStatus(`Nombre cargado para el pedido ${_reviewResolvedOrderId || ""}. Así aparecerá tu opinión.`, "success");
+    }else{
+      const pay = String(out.payment_status || "").trim();
+      const delivery = String(out.delivery_status || "").trim();
+      setReviewIdentityStatus(`Encontramos el pedido a nombre de ${_reviewResolvedName}. Estado actual: ${delivery || pay || "pendiente"}.`, "warning");
+    }
+  }catch(_e){
+    if(seq !== _reviewLookupSeq) return;
+    resetReviewIdentity();
+    setReviewIdentityStatus("No fue posible cargar el nombre en este momento. Intenta de nuevo.", "error");
+  }
+}
+
+function scheduleReviewIdentityLookup(){
+  const raw = String(reviewLast4?.value || "").replace(/\D+/g, "").slice(-4);
+  if(reviewLast4 && reviewLast4.value !== raw) reviewLast4.value = raw;
+  if(_reviewLookupTimer) clearTimeout(_reviewLookupTimer);
+  _reviewLookupSeq += 1;
+
+  if(raw.length !== 4){
+    resetReviewIdentity();
+    return;
+  }
+
+  _reviewLookupTimer = setTimeout(() => {
+    lookupReviewIdentity(raw);
+  }, 260);
+}
+
 function setStarsUI(val){
   _reviewRating = val;
   if(!reviewStarsRow) return;
@@ -1895,11 +2004,13 @@ reviewComment?.addEventListener("input", () => {
   }
 });
 
+reviewLast4?.addEventListener("input", scheduleReviewIdentityLookup);
+
 btnOpenReviewModal?.addEventListener("click", () => {
   hideAlert();
   // reset
   if(reviewLast4) reviewLast4.value = "";
-  if(reviewName) reviewName.value = "";
+  resetReviewIdentity();
   if(reviewComment) reviewComment.value = "";
   if(reviewCharCount) reviewCharCount.textContent = "0/300";
   setStarsUI(0);
@@ -2098,7 +2209,7 @@ async function fetchReviews(opts = {}) {
 
 async function submitReview(){
   const last4 = String(reviewLast4?.value || "").trim();
-  const name = String(reviewName?.value || "").trim();
+  const name = String(_reviewResolvedName || reviewName?.value || "").trim();
   const comment = String(reviewComment?.value || "").trim();
 
   if(!/^[0-9]{4}$/.test(last4)){
@@ -2107,6 +2218,10 @@ async function submitReview(){
   }
   if(!_reviewRating || _reviewRating < 1 || _reviewRating > 5){
     showAlert("Selecciona una calificación (1 a 5 estrellas).");
+    return;
+  }
+  if(!name){
+    showAlert("Espera a que cargue el nombre del pedido antes de enviar tu opinión.");
     return;
   }
   if(comment.length < 10){
@@ -2202,6 +2317,7 @@ btnMoreReviews?.addEventListener("click", async () => {
 // ✅ Cargar las 3 últimas opiniones al abrir la página
 if(reviewsListEl) fetchReviews();
 
+syncTutorialButtonsUI();
 showAdminButtonIfNeeded();
 applyIndexAdminVisibility();
 syncIndexAdminMobileBar();
