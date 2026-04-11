@@ -277,6 +277,7 @@ function ensureApiWarmup_(){
   }
 
   const LS_TIMER_KEY = "AMARED_KITCHEN_TIMERS_V1";
+  const LS_TIMER_UI_KEY = "AMARED_KITCHEN_TIMER_UI_V2";
   const LS_DONE_KEY  = "AMARED_KITCHEN_DONE_V1";
 const LS_ORDER_DONE_KEY = "AMARED_KITCHEN_ORDER_DONE_V1";
 
@@ -490,6 +491,9 @@ tabProdToday?.addEventListener("click", ()=>setProdTab("today"));
     recipe: { open:false, productId:null, orderIds:[], units:0, stepIdx:0, timerStarted:false },
     refreshNonce: 0,
     widgetTick: null,
+    timerUi: null,
+    timerWidgetReady: false,
+    timerDrag: null,
     syncTail: Promise.resolve(),
     syncPending: 0,
     syncErrors: 0,
@@ -1574,32 +1578,104 @@ function syncKitchenMobileReturnAction(){
       /* Timer widget */
       .amStickyTimer{
         position:fixed;
-        right: 18px;
-        top: 88px;
-        z-index: 99997;
+        right:18px;
+        top:88px;
+        left:auto;
+        z-index:99997;
         display:none;
-        width: 232px;
+        width:244px;
+        max-width:calc(100vw - 24px);
+        touch-action:none;
+        user-select:none;
       }
+      .amStickyTimer.isLeft{ left:18px; right:auto; }
+      .amStickyTimer.isRight{ right:18px; left:auto; }
       .amStickyTimer .box{
-        background: rgba(255,255,255,.94);
-        border: 1px solid rgba(64,17,2,.14);
-        border-radius: 20px;
-        box-shadow: 0 16px 36px rgba(64,17,2,.10);
-        padding: 14px;
-        backdrop-filter: blur(8px);
+        background:linear-gradient(180deg, rgba(255,255,255,.97), rgba(252,244,247,.94));
+        border:1px solid rgba(64,17,2,.12);
+        border-radius:22px;
+        box-shadow:0 18px 38px rgba(64,17,2,.12);
+        padding:14px;
+        backdrop-filter:blur(10px);
+        transition:width .18s ease, padding .18s ease, transform .18s ease, box-shadow .18s ease;
       }
-      .amStickyTimer .tTitle{ font-weight:950; font-size:13px; }
+      .amStickyTimer.isDragging .box{
+        transition:none;
+        box-shadow:0 20px 42px rgba(64,17,2,.18);
+        transform:scale(1.01);
+      }
+      .amStickyTimer .tHead{
+        display:flex;
+        align-items:center;
+        gap:10px;
+      }
+      .amStickyTimer .dragHandle,
+      .amStickyTimer .ctrlBtn{
+        appearance:none;
+        border:none;
+        background:rgba(64,17,2,.07);
+        color:#401102;
+        width:30px;
+        height:30px;
+        border-radius:999px;
+        display:inline-flex;
+        align-items:center;
+        justify-content:center;
+        cursor:pointer;
+        font-weight:950;
+        flex:0 0 30px;
+      }
+      .amStickyTimer .dragHandle{
+        cursor:grab;
+        letter-spacing:-1px;
+        font-size:14px;
+      }
+      .amStickyTimer.isDragging .dragHandle{ cursor:grabbing; }
+      .amStickyTimer .tCopy{ flex:1; min-width:0; }
+      .amStickyTimer .tTitle{
+        font-weight:950;
+        font-size:13px;
+        white-space:nowrap;
+        overflow:hidden;
+        text-overflow:ellipsis;
+      }
       .amStickyTimer .tTime{ font-weight:950; font-size:24px; margin-top:4px; }
+      .amStickyTimer .tMeta{ margin-top:10px; }
       .amStickyTimer .bar{
-        height: 8px; border-radius: 999px; overflow:hidden;
-        background: rgba(64,17,2,.08);
-        margin-top: 10px;
+        height:8px;
+        border-radius:999px;
+        overflow:hidden;
+        background:rgba(64,17,2,.08);
       }
       .amStickyTimer .bar > div{
         height:100%;
-        width: 0%;
-        background: rgba(245,110,150,.9);
-        border-radius: 999px;
+        width:0%;
+        background:linear-gradient(90deg, rgba(246,186,96,.96), rgba(242,91,143,.92));
+        border-radius:999px;
+      }
+      .amStickyTimer.isCompact{
+        width:132px;
+      }
+      .amStickyTimer.isCompact .box{
+        padding:10px 10px 10px 8px;
+        border-radius:20px;
+      }
+      .amStickyTimer.isCompact .tHead{
+        gap:8px;
+      }
+      .amStickyTimer.isCompact .tTitle,
+      .amStickyTimer.isCompact .tMeta{
+        display:none;
+      }
+      .amStickyTimer.isCompact .tTime{
+        margin-top:0;
+        font-size:18px;
+        text-align:center;
+      }
+      .amStickyTimer.isCompact .tCopy{
+        display:flex;
+        align-items:center;
+        justify-content:center;
       }
 
       /* Historial modal */
@@ -1646,10 +1722,14 @@ function syncKitchenMobileReturnAction(){
           padding: 16px;
         }
         .amStickyTimer{
-          right: 12px;
-          top: 76px;
-          width: 208px;
+          right:12px;
+          top:76px;
+          width:216px;
+          max-width:calc(100vw - 16px);
         }
+        .amStickyTimer.isLeft{ left:12px; right:auto; }
+        .amStickyTimer.isRight{ right:12px; left:auto; }
+        .amStickyTimer.isCompact{ width:118px; }
         .header-actions{
           display:none !important;
         }
@@ -2057,12 +2137,20 @@ function renderProfilesSelect(list, selectedId){
         </div>
       </div>
 
-      <div id="amStickyTimerV6" class="amStickyTimer">
-        <div class="box">
-          <div class="tTitle" id="amStickyLabelV6">Temporizador</div>
-          <div class="tTime" id="amStickyTimeV6">00:00</div>
-          <div class="bar"><div id="amStickyBarV6"></div></div>
-          <div class="muted small" id="amStickySubV6" style="margin-top:8px;">Base en nevera</div>
+      <div id="amStickyTimerV6" class="amStickyTimer isRight" aria-live="polite">
+        <div class="box" id="amStickyBoxV6" tabindex="0" role="button" aria-label="Abrir temporizador">
+          <div class="tHead">
+            <button id="amStickyDragV6" class="dragHandle" type="button" aria-label="Mover temporizador" title="Mover temporizador">⋮⋮</button>
+            <div class="tCopy">
+              <div class="tTitle" id="amStickyLabelV6">Temporizador</div>
+              <div class="tTime" id="amStickyTimeV6">00:00</div>
+            </div>
+            <button id="amStickyToggleV6" class="ctrlBtn" type="button" aria-label="Minimizar temporizador" title="Minimizar temporizador">−</button>
+          </div>
+          <div class="tMeta" id="amStickyMetaV6">
+            <div class="bar"><div id="amStickyBarV6"></div></div>
+            <div class="muted small" id="amStickySubV6" style="margin-top:8px;">Base en nevera</div>
+          </div>
         </div>
       </div>
   `;
@@ -2078,6 +2166,7 @@ function renderProfilesSelect(list, selectedId){
     $("amNextOrTimer").onclick = onNextOrTimer;
     $("amFinishPostre").onclick = ()=> finalizePostreFromOverlay();
     $("amFinishLote").onclick = ()=> finalizeLoteFromOverlay();
+    ensureStickyTimerUi();
   }
 
   function openRecipe(pid, orderIds, units){
@@ -2131,6 +2220,166 @@ function msToMMSS(ms){
     const end=getTimerEnd(state.todayKey,pid); const now=Date.now();
     if(end && end>now){ pill.style.display="inline-flex"; txt.textContent=msToMMSS(end-now); }
     else { pill.style.display="none"; txt.textContent=""; }
+  }
+  function getDefaultTimerUiPref(){
+    return { side:"right", top: window.innerWidth<=860 ? 76 : 88, compact:false };
+  }
+  function clampTimerTop(top, compact){
+    const widget=$("amStickyTimerV6");
+    const minTop = window.innerWidth<=860 ? 76 : 88;
+    const fallbackHeight = compact ? 58 : 132;
+    const widgetHeight = widget ? Math.max(46, Math.round(widget.getBoundingClientRect().height || fallbackHeight)) : fallbackHeight;
+    const maxTop = Math.max(minTop, window.innerHeight - widgetHeight - 12);
+    const val = Number.isFinite(Number(top)) ? Number(top) : minTop;
+    return Math.max(minTop, Math.min(maxTop, val));
+  }
+  function loadTimerUiPref(){
+    const base=getDefaultTimerUiPref();
+    try{
+      const raw=localStorage.getItem(LS_TIMER_UI_KEY);
+      const data=raw?safeJsonParse(raw):null;
+      return {
+        side: data?.side === "left" ? "left" : "right",
+        top: clampTimerTop(data?.top ?? base.top, !!data?.compact),
+        compact: !!data?.compact
+      };
+    }catch(_e){
+      return base;
+    }
+  }
+  function saveTimerUiPref(pref){
+    try{
+      localStorage.setItem(LS_TIMER_UI_KEY, JSON.stringify({
+        side: pref?.side === "left" ? "left" : "right",
+        top: clampTimerTop(pref?.top, !!pref?.compact),
+        compact: !!pref?.compact
+      }));
+    }catch(_e){}
+  }
+  function ensureTimerUiState(){
+    if(!state.timerUi) state.timerUi = loadTimerUiPref();
+    return state.timerUi;
+  }
+  function syncStickyTimerToggleBtn(){
+    const btn=$("amStickyToggleV6");
+    const box=$("amStickyBoxV6");
+    const ui=ensureTimerUiState();
+    if(btn){
+      btn.textContent = ui.compact ? "+" : "−";
+      btn.title = ui.compact ? "Abrir temporizador" : "Minimizar temporizador";
+      btn.setAttribute("aria-label", btn.title);
+    }
+    if(box){
+      box.setAttribute("aria-label", ui.compact ? "Abrir temporizador" : "Temporizador en pantalla");
+      box.setAttribute("role", ui.compact ? "button" : "group");
+      box.tabIndex = 0;
+    }
+  }
+  function applyStickyTimerPosition(){
+    const widget=$("amStickyTimerV6");
+    if(!widget) return;
+    const ui=ensureTimerUiState();
+    const edge = window.innerWidth<=860 ? 12 : 18;
+    ui.top = clampTimerTop(ui.top, ui.compact);
+    widget.classList.toggle("isLeft", ui.side === "left");
+    widget.classList.toggle("isRight", ui.side !== "left");
+    widget.classList.toggle("isCompact", !!ui.compact);
+    widget.style.top = `${ui.top}px`;
+    widget.style.left = ui.side === "left" ? `${edge}px` : "auto";
+    widget.style.right = ui.side === "left" ? "auto" : `${edge}px`;
+    syncStickyTimerToggleBtn();
+  }
+  function setStickyTimerCompact(compact, opts={}){
+    const ui=ensureTimerUiState();
+    ui.compact = !!compact;
+    ui.top = clampTimerTop(ui.top, ui.compact);
+    applyStickyTimerPosition();
+    if(opts.persist !== false) saveTimerUiPref(ui);
+  }
+  function setStickyTimerSnap(side, top, opts={}){
+    const ui=ensureTimerUiState();
+    ui.side = side === "left" ? "left" : "right";
+    ui.top = clampTimerTop(top, ui.compact);
+    applyStickyTimerPosition();
+    if(opts.persist !== false) saveTimerUiPref(ui);
+  }
+  function getPointerClient(ev){
+    if(ev?.touches?.length) return { x: ev.touches[0].clientX, y: ev.touches[0].clientY };
+    if(ev?.changedTouches?.length) return { x: ev.changedTouches[0].clientX, y: ev.changedTouches[0].clientY };
+    return { x: Number(ev?.clientX || 0), y: Number(ev?.clientY || 0) };
+  }
+  function ensureStickyTimerUi(){
+    if(state.timerWidgetReady) return;
+    state.timerWidgetReady = true;
+    ensureTimerUiState();
+    const widget=$("amStickyTimerV6");
+    const box=$("amStickyBoxV6");
+    const handle=$("amStickyDragV6");
+    const toggle=$("amStickyToggleV6");
+    if(!widget || !box || !handle || !toggle) return;
+
+    const startDrag=(ev)=>{
+      if(ev?.button != null && ev.button !== 0) return;
+      ev.preventDefault();
+      const point=getPointerClient(ev);
+      const rect=widget.getBoundingClientRect();
+      state.timerDrag = {
+        offsetY: point.y - rect.top,
+        pointerId: ev?.pointerId ?? null
+      };
+      widget.classList.add("isDragging");
+      if(state.timerDrag.pointerId != null && handle.setPointerCapture){
+        try{ handle.setPointerCapture(state.timerDrag.pointerId); }catch(_e){}
+      }
+    };
+    const moveDrag=(ev)=>{
+      if(!state.timerDrag) return;
+      ev.preventDefault();
+      const point=getPointerClient(ev);
+      const side = point.x <= (window.innerWidth / 2) ? "left" : "right";
+      setStickyTimerSnap(side, point.y - state.timerDrag.offsetY, { persist:false });
+    };
+    const endDrag=(ev)=>{
+      if(!state.timerDrag) return;
+      const pointerId = state.timerDrag.pointerId;
+      state.timerDrag = null;
+      widget.classList.remove("isDragging");
+      const ui=ensureTimerUiState();
+      saveTimerUiPref(ui);
+      if(pointerId != null && handle.releasePointerCapture){
+        try{ handle.releasePointerCapture(pointerId); }catch(_e){}
+      }
+    };
+
+    handle.addEventListener("pointerdown", startDrag);
+    handle.addEventListener("pointermove", moveDrag);
+    handle.addEventListener("pointerup", endDrag);
+    handle.addEventListener("pointercancel", endDrag);
+
+    box.addEventListener("click", (ev)=>{
+      if(state.timerDrag) return;
+      if(ev.target?.closest?.("#amStickyDragV6") || ev.target?.closest?.("#amStickyToggleV6")) return;
+      if(ensureTimerUiState().compact) setStickyTimerCompact(false);
+    });
+    box.addEventListener("keydown", (ev)=>{
+      if(!ensureTimerUiState().compact) return;
+      if(ev.key === "Enter" || ev.key === " "){
+        ev.preventDefault();
+        setStickyTimerCompact(false);
+      }
+    });
+    toggle.addEventListener("click", (ev)=>{
+      ev.preventDefault();
+      ev.stopPropagation();
+      setStickyTimerCompact(!ensureTimerUiState().compact);
+    });
+    window.addEventListener("resize", ()=>{
+      const ui=ensureTimerUiState();
+      ui.top = clampTimerTop(ui.top, ui.compact);
+      applyStickyTimerPosition();
+      saveTimerUiPref(ui);
+    });
+    applyStickyTimerPosition();
   }
   function setRecipeImage(src){
     const img = $("amStepImg");
@@ -2266,22 +2515,26 @@ function msToMMSS(ms){
     const existing=getTimerEnd(state.todayKey,pid);
     const now=Date.now();
     if(existing && existing>now){
+      setStickyTimerCompact(false, { persist:false });
       startWidgetTicker();
       return;
     }
 
     const end=Date.now()+BASE_FRIDGE_MINUTES*60*1000;
     setTimerEnd(state.todayKey,pid,end);
+    setStickyTimerCompact(false, { persist:false });
     startWidgetTicker();
   }
 
   function startWidgetTicker(){
+    ensureStickyTimerUi();
     const w=$("amStickyTimerV6");
     const label=$("amStickyLabelV6");
     const time=$("amStickyTimeV6");
     const bar=$("amStickyBarV6");
     const sub=$("amStickySubV6");
     if(!w||!label||!time||!bar||!sub) return;
+    applyStickyTimerPosition();
     if(state.widgetTick) return;
 
     state.widgetTick=setInterval(()=>{
@@ -2304,6 +2557,7 @@ function msToMMSS(ms){
       const pct = Math.max(0, Math.min(100, Math.round((left/total)*100)));
       bar.style.width = pct + "%";
       sub.textContent = "Base en nevera";
+      applyStickyTimerPosition();
       w.style.display="block";
 
       if(state.recipe.open && state.recipe.productId) renderInlineTimer(state.recipe.productId);
@@ -2322,6 +2576,7 @@ function msToMMSS(ms){
         renderRecipeStep();
         return;
       }
+      setStickyTimerCompact(true);
     }
     stepMove(1);
   }
