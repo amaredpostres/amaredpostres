@@ -1590,6 +1590,7 @@ function syncKitchenMobileReturnAction(){
       }
       .amStickyTimer.isLeft{ left:18px; right:auto; }
       .amStickyTimer.isRight{ right:18px; left:auto; }
+      .amStickyTimer.isFree{ left:0; right:auto; }
       .amStickyTimer .box{
         background:linear-gradient(180deg, rgba(255,255,255,.97), rgba(252,244,247,.94));
         border:1px solid rgba(64,17,2,.12);
@@ -1609,7 +1610,6 @@ function syncKitchenMobileReturnAction(){
         align-items:center;
         gap:10px;
       }
-      .amStickyTimer .dragHandle,
       .amStickyTimer .ctrlBtn{
         appearance:none;
         border:none;
@@ -1625,12 +1625,8 @@ function syncKitchenMobileReturnAction(){
         font-weight:950;
         flex:0 0 30px;
       }
-      .amStickyTimer .dragHandle{
-        cursor:grab;
-        letter-spacing:-1px;
-        font-size:14px;
-      }
-      .amStickyTimer.isDragging .dragHandle{ cursor:grabbing; }
+      .amStickyTimer .box{ cursor:grab; }
+      .amStickyTimer.isDragging .box{ cursor:grabbing; }
       .amStickyTimer .tCopy{ flex:1; min-width:0; }
       .amStickyTimer .tTitle{
         font-weight:950;
@@ -1729,6 +1725,7 @@ function syncKitchenMobileReturnAction(){
         }
         .amStickyTimer.isLeft{ left:12px; right:auto; }
         .amStickyTimer.isRight{ right:12px; left:auto; }
+        .amStickyTimer.isFree{ left:0; right:auto; }
         .amStickyTimer.isCompact{ width:118px; }
         .header-actions{
           display:none !important;
@@ -2140,7 +2137,6 @@ function renderProfilesSelect(list, selectedId){
       <div id="amStickyTimerV6" class="amStickyTimer isRight" aria-live="polite">
         <div class="box" id="amStickyBoxV6" tabindex="0" role="button" aria-label="Abrir temporizador">
           <div class="tHead">
-            <button id="amStickyDragV6" class="dragHandle" type="button" aria-label="Mover temporizador" title="Mover temporizador">⋮⋮</button>
             <div class="tCopy">
               <div class="tTitle" id="amStickyLabelV6">Temporizador</div>
               <div class="tTime" id="amStickyTimeV6">00:00</div>
@@ -2314,51 +2310,94 @@ function msToMMSS(ms){
     ensureTimerUiState();
     const widget=$("amStickyTimerV6");
     const box=$("amStickyBoxV6");
-    const handle=$("amStickyDragV6");
     const toggle=$("amStickyToggleV6");
-    if(!widget || !box || !handle || !toggle) return;
+    if(!widget || !box || !toggle) return;
+
+    const dragThreshold = 6;
+    const getFreeLeft=(pointX, offsetX)=>{
+      const rect=widget.getBoundingClientRect();
+      const width=Math.max(96, Math.round(rect.width || widget.offsetWidth || 132));
+      const maxLeft=Math.max(0, window.innerWidth - width - 8);
+      return Math.max(8, Math.min(maxLeft, pointX - offsetX));
+    };
+    const applyFreeDragPosition=(left, top)=>{
+      widget.classList.add("isFree");
+      widget.classList.remove("isLeft", "isRight");
+      widget.style.left = `${left}px`;
+      widget.style.right = "auto";
+      widget.style.top = `${clampTimerTop(top, ensureTimerUiState().compact)}px`;
+    };
 
     const startDrag=(ev)=>{
       if(ev?.button != null && ev.button !== 0) return;
-      ev.preventDefault();
+      if(ev.target?.closest?.("#amStickyToggleV6")) return;
       const point=getPointerClient(ev);
       const rect=widget.getBoundingClientRect();
       state.timerDrag = {
+        offsetX: point.x - rect.left,
         offsetY: point.y - rect.top,
-        pointerId: ev?.pointerId ?? null
+        startX: point.x,
+        startY: point.y,
+        pointerId: ev?.pointerId ?? null,
+        active: false,
+        moved: false,
+        lastX: point.x,
+        lastY: point.y
       };
-      widget.classList.add("isDragging");
-      if(state.timerDrag.pointerId != null && handle.setPointerCapture){
-        try{ handle.setPointerCapture(state.timerDrag.pointerId); }catch(_e){}
+      if(state.timerDrag.pointerId != null && box.setPointerCapture){
+        try{ box.setPointerCapture(state.timerDrag.pointerId); }catch(_e){}
       }
     };
     const moveDrag=(ev)=>{
       if(!state.timerDrag) return;
-      ev.preventDefault();
       const point=getPointerClient(ev);
-      const side = point.x <= (window.innerWidth / 2) ? "left" : "right";
-      setStickyTimerSnap(side, point.y - state.timerDrag.offsetY, { persist:false });
+      state.timerDrag.lastX = point.x;
+      state.timerDrag.lastY = point.y;
+      const dx = point.x - state.timerDrag.startX;
+      const dy = point.y - state.timerDrag.startY;
+      if(!state.timerDrag.active){
+        if(Math.hypot(dx, dy) < dragThreshold) return;
+        state.timerDrag.active = true;
+        state.timerDrag.moved = true;
+        widget.classList.add("isDragging");
+      }
+      ev.preventDefault();
+      applyFreeDragPosition(getFreeLeft(point.x, state.timerDrag.offsetX), point.y - state.timerDrag.offsetY);
     };
     const endDrag=(ev)=>{
       if(!state.timerDrag) return;
-      const pointerId = state.timerDrag.pointerId;
+      const drag=state.timerDrag;
       state.timerDrag = null;
+      const pointerId = drag.pointerId;
+      if(drag.active){
+        const left = getFreeLeft(drag.lastX, drag.offsetX);
+        const rect=widget.getBoundingClientRect();
+        const width=Math.max(96, Math.round(rect.width || widget.offsetWidth || 132));
+        const centerX = left + (width / 2);
+        const side = centerX <= (window.innerWidth / 2) ? "left" : "right";
+        setStickyTimerSnap(side, drag.lastY - drag.offsetY, { persist:false });
+        saveTimerUiPref(ensureTimerUiState());
+        widget.classList.remove("isFree");
+        state.timerDragSuppressedUntil = Date.now() + 280;
+      }
       widget.classList.remove("isDragging");
-      const ui=ensureTimerUiState();
-      saveTimerUiPref(ui);
-      if(pointerId != null && handle.releasePointerCapture){
-        try{ handle.releasePointerCapture(pointerId); }catch(_e){}
+      if(pointerId != null && box.releasePointerCapture){
+        try{ box.releasePointerCapture(pointerId); }catch(_e){}
       }
     };
 
-    handle.addEventListener("pointerdown", startDrag);
-    handle.addEventListener("pointermove", moveDrag);
-    handle.addEventListener("pointerup", endDrag);
-    handle.addEventListener("pointercancel", endDrag);
+    box.addEventListener("pointerdown", startDrag);
+    box.addEventListener("pointermove", moveDrag);
+    box.addEventListener("pointerup", endDrag);
+    box.addEventListener("pointercancel", endDrag);
 
     box.addEventListener("click", (ev)=>{
-      if(state.timerDrag) return;
-      if(ev.target?.closest?.("#amStickyDragV6") || ev.target?.closest?.("#amStickyToggleV6")) return;
+      if(Date.now() < Number(state.timerDragSuppressedUntil || 0)){
+        ev.preventDefault();
+        ev.stopPropagation();
+        return;
+      }
+      if(ev.target?.closest?.("#amStickyToggleV6")) return;
       if(ensureTimerUiState().compact) setStickyTimerCompact(false);
     });
     box.addEventListener("keydown", (ev)=>{
@@ -2374,6 +2413,10 @@ function msToMMSS(ms){
       setStickyTimerCompact(!ensureTimerUiState().compact);
     });
     window.addEventListener("resize", ()=>{
+      if(state.timerDrag){
+        widget.classList.remove("isDragging", "isFree");
+        state.timerDrag = null;
+      }
       const ui=ensureTimerUiState();
       ui.top = clampTimerTop(ui.top, ui.compact);
       applyStickyTimerPosition();
