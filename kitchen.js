@@ -1636,6 +1636,7 @@ function syncKitchenMobileReturnAction(){
         position:absolute;
         top:10px;
         right:10px;
+        transform:none;
         width:30px;
         height:30px;
         min-width:30px;
@@ -1651,13 +1652,18 @@ function syncKitchenMobileReturnAction(){
         box-shadow: 0 8px 18px rgba(64,17,2,.08);
       }
       .amStickyTimer.is-minimized{
-        width: 118px;
+        width: 128px;
       }
       .amStickyTimer.is-minimized .box{
-        padding: 12px 14px;
+        padding: 10px 12px;
         border-radius: 18px;
       }
-      .amStickyTimer.is-minimized .tMain{ padding-right: 30px; }
+      .amStickyTimer.is-minimized .tMain{
+        padding-right: 34px;
+        min-height: 28px;
+        display:flex;
+        align-items:center;
+      }
       .amStickyTimer.is-minimized .tTitle,
       .amStickyTimer.is-minimized .bar,
       .amStickyTimer.is-minimized #amStickySubV6{
@@ -1665,15 +1671,18 @@ function syncKitchenMobileReturnAction(){
       }
       .amStickyTimer.is-minimized .tTime{
         margin-top:0;
-        font-size:22px;
+        font-size:20px;
+        line-height:1;
+        letter-spacing:.2px;
       }
       .amStickyTimer.is-minimized .tCtrl{
-        top:8px;
+        top:50%;
         right:8px;
-        width:26px;
-        height:26px;
-        min-width:26px;
-        font-size:15px;
+        transform: translateY(-50%);
+        width:24px;
+        height:24px;
+        min-width:24px;
+        font-size:14px;
       }
 
       /* Historial modal */
@@ -1725,7 +1734,7 @@ function syncKitchenMobileReturnAction(){
           max-width: calc(100vw - 18px);
         }
         .amStickyTimer.is-minimized{
-          width: 104px;
+          width: 116px;
         }
         .header-actions{
           display:none !important;
@@ -2217,6 +2226,14 @@ function msToMMSS(ms){
   function getTimerWidgetDefaultTop(){
     return window.innerWidth <= 860 ? 76 : 88;
   }
+  function getTimerWidgetTargetWidth(minimized = state.widgetUi.minimized){
+    const isMobile = window.innerWidth <= 860;
+    const desired = minimized
+      ? (isMobile ? 116 : 128)
+      : (isMobile ? 216 : 248);
+    const { pad } = getTimerWidgetBounds();
+    return Math.max(96, Math.min(desired, window.innerWidth - (pad * 2)));
+  }
   function getTimerWidgetPrefs(){
     const raw = localStorage.getItem(LS_TIMER_WIDGET_KEY);
     const data = raw ? safeJsonParse(raw, null) : null;
@@ -2269,13 +2286,13 @@ function msToMMSS(ms){
     w.classList.toggle("is-minimized", !!state.widgetUi.minimized);
     if(!animate) w.style.transition = "none";
     const { pad } = getTimerWidgetBounds();
-    const rect = w.getBoundingClientRect();
-    const width = rect.width || (state.widgetUi.minimized ? (window.innerWidth <= 860 ? 104 : 118) : (window.innerWidth <= 860 ? 216 : 248));
+    const width = getTimerWidgetTargetWidth(state.widgetUi.minimized);
     const left = state.widgetUi.side === "left"
       ? pad
       : Math.max(pad, window.innerWidth - width - pad);
     const top = clampTimerWidgetTop(state.widgetUi.top);
     state.widgetUi.top = top;
+    w.style.width = `${Math.round(width)}px`;
     w.style.left = `${Math.round(left)}px`;
     w.style.top = `${Math.round(top)}px`;
     syncTimerWidgetButton();
