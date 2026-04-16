@@ -2598,6 +2598,41 @@ function closeCostModal(){
   CM.key = null;
 }
 
+function refreshCostModalCatalogSelects_(opts={}){
+  const back = el("costModalBack");
+  if(!back || back.classList.contains("hidden")) return;
+  const currentBrand = Object.prototype.hasOwnProperty.call(opts, "brand")
+    ? String(opts.brand || "").trim()
+    : String(el("cmBrand")?.value || "").trim();
+  const currentStore = Object.prototype.hasOwnProperty.call(opts, "store")
+    ? String(opts.store || "").trim()
+    : String(el("cmStore")?.value || "").trim();
+  renderSelect("cmBrand", state.brands || [], currentBrand);
+  renderSelect("cmStore", state.stores || [], currentStore);
+}
+
+function upsertLocalCostSpec_(ingredient_key, patch){
+  const key = String(ingredient_key || "").trim();
+  if(!key) return;
+  if(!state.costsByKey || typeof state.costsByKey !== "object") state.costsByKey = {};
+  const prev = state.costsByKey[key] && typeof state.costsByKey[key] === "object" ? state.costsByKey[key] : {};
+  const next = { ...prev, ingredient_key:key, key, ...patch };
+  state.costsByKey[key] = next;
+
+  if(!Array.isArray(state.items)) state.items = [];
+  const ix = state.items.findIndex(it => String(it?.ingredient_key ?? it?.key ?? it?.name ?? "").trim() === key);
+  if(ix >= 0) state.items[ix] = { ...(state.items[ix] || {}), ...next };
+  else state.items.push(next);
+}
+
+function rerenderCostsAfterLocalSave_(){
+  try{ renderUnitCosts(); }catch(_e){}
+  try{ renderGroups(); }catch(_e){}
+  try{ renderCostGroupsIfOpen_(); }catch(_e){}
+  try{ refreshBottom(); }catch(_e){}
+  try{ saveCostsDataCache_(); }catch(_e){}
+}
+
 async function saveCostModal(){
   const e = cmEls();
   if(!CM.key) return;
@@ -2625,8 +2660,26 @@ async function saveCostModal(){
   }
 
   const cop_per_unit = pack_price / save_pack_qty;
+  const prevSpec = { ...(state.costsByKey?.[ingredient_key] || {}) };
+  const optimisticSpec = {
+    ingredient_key,
+    unit_type: save_unit_type,
+    pack_qty: save_pack_qty,
+    pack_price,
+    cop_per_unit,
+    brand,
+    store,
+    unit_item_qty: (unit_item_qty>0 ? unit_item_qty : ""),
+    unit_item_qty_type: unit_item_qty_type || "",
+    updated_by: "PURCHASES_UI"
+  };
 
-  showLoading("Guardando…", "Actualizando COSTOS_INGREDIENTES.");
+  upsertLocalCostSpec_(ingredient_key, optimisticSpec);
+  rerenderCostsAfterLocalSave_();
+  closeCostModal();
+  setGlobalMsg("⏳ Guardando ingrediente en segundo plano…");
+  showCostsSyncBadge_("Guardando ingrediente…", "Puedes seguir usando la página mientras actualizamos costo, empaque, marca y tienda.");
+
   try{
     await api({
       action:"costs_upsert",
@@ -2644,12 +2697,14 @@ async function saveCostModal(){
     }, {timeoutMs: 60000});
 
     await loadAll();
-    closeCostModal();
     setMeta("✅ Costos actualizados.");
+    setGlobalMsg("✅ Ingrediente actualizado.");
   } catch(err){
-    if(e.err) e.err.textContent = (err && err.message) ? err.message : "Error guardando.";
+    upsertLocalCostSpec_(ingredient_key, prevSpec);
+    rerenderCostsAfterLocalSave_();
+    setGlobalMsg(`❌ ${((err && err.message) ? err.message : "No se pudo guardar el ingrediente.")}`, true);
   } finally {
-    hideLoading();
+    hideCostsSyncBadge_();
   }
 }
 
@@ -4018,11 +4073,13 @@ el("ingModalBack")?.addEventListener("click", (e)=>{ if(e.target && e.target.id=
   el("btnAddStore")?.addEventListener("click", async ()=>{
     try{
       if(el("catErr")) el("catErr").textContent = "";
+      const nextStore = String(el("catStoreNew")?.value || "").trim();
       showLoading("Guardando…","Agregando tienda.");
-      await addCatalogValue("stores", el("catStoreNew")?.value);
+      await addCatalogValue("stores", nextStore);
       if(el("catStoreNew")) el("catStoreNew").value = "";
       fillSimpleSelect("catStores", state.stores);
       fillSimpleSelect("catBrands", state.brands);
+      refreshCostModalCatalogSelects_({ store: nextStore });
       setGlobalMsg("✅ Tienda agregada.");
     }catch(err){
       if(el("catErr")) el("catErr").textContent = err?.message || "Error";
@@ -4031,10 +4088,12 @@ el("ingModalBack")?.addEventListener("click", (e)=>{ if(e.target && e.target.id=
   el("btnDelStore")?.addEventListener("click", async ()=>{
     try{
       if(el("catErr")) el("catErr").textContent = "";
-      const v = el("catStores")?.value;
+      const v = String(el("catStores")?.value || "").trim();
+      const currentStore = String(el("cmStore")?.value || "").trim();
       showLoading("Guardando…","Eliminando tienda.");
       await deleteCatalogValue("stores", v);
       fillSimpleSelect("catStores", state.stores);
+      refreshCostModalCatalogSelects_({ store: currentStore && currentStore.toLowerCase() !== v.toLowerCase() ? currentStore : "" });
       setGlobalMsg("✅ Tienda eliminada.");
     }catch(err){
       if(el("catErr")) el("catErr").textContent = err?.message || "Error";
@@ -4043,11 +4102,13 @@ el("ingModalBack")?.addEventListener("click", (e)=>{ if(e.target && e.target.id=
   el("btnAddBrand")?.addEventListener("click", async ()=>{
     try{
       if(el("catErr")) el("catErr").textContent = "";
+      const nextBrand = String(el("catBrandNew")?.value || "").trim();
       showLoading("Guardando…","Agregando marca.");
-      await addCatalogValue("brands", el("catBrandNew")?.value);
+      await addCatalogValue("brands", nextBrand);
       if(el("catBrandNew")) el("catBrandNew").value = "";
       fillSimpleSelect("catBrands", state.brands);
       fillSimpleSelect("catStores", state.stores);
+      refreshCostModalCatalogSelects_({ brand: nextBrand });
       setGlobalMsg("✅ Marca agregada.");
     }catch(err){
       if(el("catErr")) el("catErr").textContent = err?.message || "Error";
@@ -4056,10 +4117,12 @@ el("ingModalBack")?.addEventListener("click", (e)=>{ if(e.target && e.target.id=
   el("btnDelBrand")?.addEventListener("click", async ()=>{
     try{
       if(el("catErr")) el("catErr").textContent = "";
-      const v = el("catBrands")?.value;
+      const v = String(el("catBrands")?.value || "").trim();
+      const currentBrand = String(el("cmBrand")?.value || "").trim();
       showLoading("Guardando…","Eliminando marca.");
       await deleteCatalogValue("brands", v);
       fillSimpleSelect("catBrands", state.brands);
+      refreshCostModalCatalogSelects_({ brand: currentBrand && currentBrand.toLowerCase() !== v.toLowerCase() ? currentBrand : "" });
       setGlobalMsg("✅ Marca eliminada.");
     }catch(err){
       if(el("catErr")) el("catErr").textContent = err?.message || "Error";
