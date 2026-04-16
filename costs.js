@@ -687,6 +687,21 @@ function hideCostsSyncBadge_(){
   badge.classList.remove("isVisible");
 }
 
+function updateBottomBarVisibility_(opts={}){
+  const bb = el("bottomBar");
+  if(!bb) return;
+  const immediate = !!opts.immediate;
+  const shouldShow = (state.view !== "recipes") && (selectedKeys().length > 0);
+  const page = document.body;
+  if(page) page.classList.toggle("hasBottomSummary", shouldShow);
+  bb.classList.toggle("noAnim", immediate);
+  bb.classList.toggle("isVisible", shouldShow);
+  bb.setAttribute("aria-hidden", shouldShow ? "false" : "true");
+  if(immediate){
+    requestAnimationFrame(()=> bb.classList.remove("noAnim"));
+  }
+}
+
 // =============== Tabs ===============
 function setView(view){
   const prev = state.view || "purchases";
@@ -704,7 +719,6 @@ function setView(view){
   const vp = el("viewPurchases");
   const vc = el("viewCosts");
   const vr = el("viewRecipes");
-  const bb = el("bottomBar");
 
   const tp = el("btnTabPurchases");
   const tr = el("btnTabRecipes");
@@ -713,14 +727,13 @@ function setView(view){
   if(tr){ tr.classList.remove("isActive"); tr.setAttribute("aria-selected","false"); }
 
   show(vp); hide(vc); hide(vr);
-  if(bb) bb.style.display = "";
 
   if(v === "recipes"){
     hide(vp); hide(vc); show(vr);
-    if(bb) bb.style.display = "none";
     if(tr){ tr.classList.add("isActive"); tr.setAttribute("aria-selected","true"); }
     ensureRecipesUnlocked_();
     scheduleRecipesWarmup_(true);
+    updateBottomBarVisibility_();
     return;
   }
 
@@ -2111,7 +2124,7 @@ function totalEstimated(){
   return { total, any };
 }
 
-function refreshBottom(){
+function refreshBottom(opts={}){
   const keys = selectedKeys();
   const n = keys.length;
   const est = totalEstimated();
@@ -2121,6 +2134,8 @@ function refreshBottom(){
 
   const btn = el("btnRegister");
   if(btn) btn.disabled = (n === 0);
+
+  updateBottomBarVisibility_(opts);
 }
 
 function openConfirm(){
@@ -3432,6 +3447,7 @@ function renderDessertPanelShell_(dessertId){
         <div class="cardTitle" style="margin:0;">Editar receta: ${escapeHtml(name)}</div>
         <div class="hint">Activa ingredientes (switch) y define cantidades por unidad.</div>
       </div>
+      <div style="display:flex; gap:10px; flex-wrap:wrap; justify-content:flex-end;"><button class="btn secondary" data-act="delete_dessert" style="background:rgba(242,91,143,.12); border-color:rgba(242,91,143,.35);">Eliminar</button><button class="btn primary" data-act="save_recipe">Guardar receta</button></div>
     </div>
 
     <div class="pDessertPanelControls" style="margin-top:10px;">
@@ -3440,11 +3456,6 @@ function renderDessertPanelShell_(dessertId){
 
     <div class="pDessertPanelScroll">
       <div class="pGroups" data-act="recipe_editor" style="margin-top:12px;"></div>
-    </div>
-
-    <div class="pDessertPanelFooterActions">
-      <button class="btn secondary" data-act="delete_dessert" style="background:rgba(242,91,143,.12); border-color:rgba(242,91,143,.35);">Eliminar</button>
-      <button class="btn primary" data-act="save_recipe">Guardar receta</button>
     </div>
   `;
 }

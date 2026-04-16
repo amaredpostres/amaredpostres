@@ -280,7 +280,17 @@ body.costsPage::before{
   align-items:center;
   justify-content: space-between;
   gap: 12px;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(calc(100% + 24px));
+  transition: opacity .28s ease, transform .28s cubic-bezier(.22,.8,.2,1);
 }
+.pBottomBar.isVisible{
+  opacity: 1;
+  pointer-events: auto;
+  transform: translateY(0);
+}
+.pBottomBar.noAnim{ transition: none !important; }
 
 .pBottomLeft{ display:flex; flex-direction:column; gap:2px; }
 .pBottomTitle{ font-weight:950; font-size:12px; color: rgba(64,17,2,.65); text-transform:uppercase; letter-spacing:.08em; }
@@ -691,6 +701,9 @@ select.input{
 
   /* Dar espacio para el menú inferior */
   .costsPage .container{
+    padding-bottom: calc(92px + env(safe-area-inset-bottom, 0px)); /* solo nav por defecto */
+  }
+  .costsPage.hasBottomSummary .container{
     padding-bottom: calc(168px + env(safe-area-inset-bottom, 0px)); /* nav + total bar */
   }
 
@@ -834,6 +847,10 @@ select.input{
 /* Ajuste extra móvil para que el contenido no quede debajo de barras flotantes */
 @media (max-width: 560px){
   .costsPage .container{
+    padding-bottom: calc(96px + env(safe-area-inset-bottom, 0px));
+  }
+
+  .costsPage.hasBottomSummary .container{
     padding-bottom: calc(176px + env(safe-area-inset-bottom, 0px));
   }
 
