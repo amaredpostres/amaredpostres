@@ -406,6 +406,13 @@
 .pDessertPanelControls{display:flex; gap:10px; flex-wrap:wrap; width:100%;}
 .pDessertPanelControls .input{flex:1; min-width:220px;}
 .pDessertPanelScroll{max-height:58vh; overflow:auto; padding-right:6px; margin-top:10px;}
+.pDessertPanelFooterActions{display:flex; gap:10px; flex-wrap:wrap; justify-content:flex-end; margin-top:14px;}
+.pDessertPanelFooterActions .btn{font-weight:950;}
+@media (max-width: 860px){
+  .pDessertPanelFooterActions{position:sticky; bottom:0; z-index:2; padding-top:12px; padding-bottom:4px; background:linear-gradient(180deg, rgba(255,255,255,0), rgba(255,255,255,.97) 24%, rgba(255,255,255,.97));}
+  .pDessertPanelFooterActions .btn{flex:1 1 100%; width:100%;}
+}
+.modalIconClose{width:40px; height:40px; min-width:40px; padding:0; display:inline-flex; align-items:center; justify-content:center; border-radius:999px; font-size:22px; font-weight:950; line-height:1;}
 @media (max-width: 860px){
   .pDessertPanelScroll{max-height:none; overflow:visible; padding-right:0;}
 }
@@ -859,7 +866,7 @@ body.is-app .costsLoginTopbar{ display:none !important; }
 <div class="modalTitle" id="costModalTitle" style="font-weight:950;">Detalle</div>
 <div class="modalSub" id="costModalSub" style="margin-top:4px;">Edita la última presentación guardada (se actualizará en COSTOS_INGREDIENTES).</div>
 </div>
-<button class="iconBtn amModalCloseX" id="cmCancelX" type="button" aria-label="Cerrar" title="Cerrar">✕</button>
+<button class="btn" id="cmCancelX">Cerrar</button>
 </div>
 <div class="modalBody" style="padding:14px;">
 <div class="pFormGrid">
@@ -948,7 +955,7 @@ body.is-app .costsLoginTopbar{ display:none !important; }
 <div class="modalTitle" style="font-weight:950;">🧩 Ingredientes (Productos)</div>
 <div class="modalSub" style="margin-top:4px;">Agrega o elimina ingredientes. Se refleja en <b>COSTOS_INGREDIENTES</b> e <b>INVENTARIO</b>.</div>
 </div>
-<button class="btn" id="ingCloseX">Cerrar</button>
+<button aria-label="Cerrar" class="btn modalIconClose" id="ingCloseX" type="button">✕</button>
 </div>
 <div class="modalBody" style="padding:14px;">
 <div class="pCatGrid ingGrid">
@@ -981,7 +988,7 @@ body.is-app .costsLoginTopbar{ display:none !important; }
 </div>
 <div class="pCatBox">
 <div class="k" style="font-weight:950;">Eliminar ingrediente</div>
-<div class="hint" style="margin-top:6px;">Eliminación segura: se bloqueará si el ingrediente está usado en RECETAS.</div>
+<div class="hint" style="margin-top:6px;">Si el ingrediente está usado en RECETAS, también se eliminará automáticamente de esas recetas.</div>
 <div class="pCatRow" style="margin-top:10px;">
 <select class="input" id="ingSelect"></select>
 <button class="btn" id="btnDelIng">Eliminar</button>
@@ -1005,7 +1012,7 @@ body.is-app .costsLoginTopbar{ display:none !important; }
 <div class="pCatBox" style="margin:0;">
 <div class="k" style="font-weight:950;">Ingrediente</div>
 <div id="ingConfirmName" style="margin-top:6px; font-weight:900;"></div>
-<div class="hint confirmHint" id="ingConfirmWarn">Si el ingrediente está usado en RECETAS, la eliminación será bloqueada automáticamente.</div>
+<div class="hint confirmHint" id="ingConfirmWarn">Si el ingrediente está usado en RECETAS, también se quitará automáticamente de todas las recetas donde aparezca.</div>
 <div class="pSmallMeta" id="ingConfirmCountdown" style="margin-top:10px; color:#7a2b00;"></div>
 <div class="confirmBtns" style="margin-top:12px;">
 <button class="btn secondary" id="ingConfirmCancel">Cancelar</button>
@@ -1092,7 +1099,7 @@ body.is-app .costsLoginTopbar{ display:none !important; }
     </div>
   </div>
 </div>
-<script src="kitchen-costs.js?v=13-costs-modal-sync-v20"></script>
-<script src="costs.js?v=13-costs-modal-sync-v20"></script>
+<script src="kitchen-costs.js?v=21-recipes-delete-mobile-actions"></script>
+<script src="costs.js?v=21-recipes-delete-mobile-actions"></script>
 </body>
 </html>
