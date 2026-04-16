@@ -335,6 +335,10 @@ function getTutorialUrl(type){
   }
 }
 
+function getPickupVideoUrl(){
+  return getTutorialUrl("pickup");
+}
+
 function syncTutorialButtonsUI(){
   [
     [btnMapsTutorial, "maps"],
