@@ -406,8 +406,12 @@
 .pDessertPanelControls{display:flex; gap:10px; flex-wrap:wrap; width:100%;}
 .pDessertPanelControls .input{flex:1; min-width:220px;}
 .pDessertPanelScroll{max-height:58vh; overflow:auto; padding-right:6px; margin-top:10px;}
+.pDessertPanelActions{display:flex; gap:10px; flex-wrap:wrap; justify-content:flex-end; margin-top:14px; padding-top:12px; border-top:1px solid rgba(64,17,2,.10);}
+.pDessertPanelActions .btn{min-width:180px;}
 @media (max-width: 860px){
   .pDessertPanelScroll{max-height:none; overflow:visible; padding-right:0;}
+  .pDessertPanelActions{flex-direction:column-reverse; align-items:stretch;}
+  .pDessertPanelActions .btn{width:100%; min-width:0;}
 }
 
 
@@ -1098,6 +1102,6 @@ body.is-app .costsLoginTopbar{ display:none !important; }
   </div>
 </div>
 <script src="kitchen-costs.js?v=30-costs-mobile-ux"></script>
-<script src="costs.js?v=20260417-v31"></script>
+<script src="costs.js?v=20260417-v32"></script>
 </body>
 </html>

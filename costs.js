@@ -3579,7 +3579,6 @@ function renderDessertPanelShell_(dessertId){
         <div class="cardTitle" style="margin:0;">Editar receta: ${escapeHtml(name)}</div>
         <div class="hint">Activa ingredientes (switch) y define cantidades por unidad.</div>
       </div>
-      <div style="display:flex; gap:10px; flex-wrap:wrap; justify-content:flex-end;"><button class="btn secondary" data-act="delete_dessert" style="background:rgba(242,91,143,.12); border-color:rgba(242,91,143,.35);">Eliminar</button><button class="btn primary" data-act="save_recipe">Guardar receta</button></div>
     </div>
 
     <div class="pDessertPanelControls" style="margin-top:10px;">
@@ -3588,6 +3587,11 @@ function renderDessertPanelShell_(dessertId){
 
     <div class="pDessertPanelScroll">
       <div class="pGroups" data-act="recipe_editor" style="margin-top:12px;"></div>
+    </div>
+
+    <div class="pDessertPanelActions">
+      <button class="btn secondary" data-act="delete_dessert" style="background:rgba(242,91,143,.12); border-color:rgba(242,91,143,.35);">Eliminar</button>
+      <button class="btn primary" data-act="save_recipe">Guardar receta</button>
     </div>
   `;
 }
