@@ -2385,11 +2385,13 @@ function updateHistoryFabPosition_(){
 }
 
 let historyOpenGuardUntil_ = 0;
+let historyBackdropIgnoreUntil_ = 0;
 
 function openHistoryModal(){
   const back = el("historyBack");
   if(!back) return;
-  historyOpenGuardUntil_ = Date.now() + 480;
+  historyOpenGuardUntil_ = Date.now() + 900;
+  historyBackdropIgnoreUntil_ = Date.now() + 900;
   renderPurchaseHistory();
   show(back);
   updateHistoryFabPosition_();
@@ -4273,11 +4275,35 @@ function bind(){
     }
   });
 
-  bindFastTap_("btnHistoryFab", (ev)=>{ try{ ev.stopPropagation(); }catch(_e){} openHistoryModal(); });
+  const historyFab = el("btnHistoryFab");
+  if(historyFab && historyFab.dataset.historyFabBound !== "1"){
+    historyFab.dataset.historyFabBound = "1";
+    let suppressHistoryClickUntil = 0;
+    historyFab.addEventListener("pointerup", (ev)=>{
+      if(ev.button != null && ev.button !== 0) return;
+      suppressHistoryClickUntil = Date.now() + 650;
+      try{ ev.preventDefault(); ev.stopPropagation(); }catch(_e){}
+      openHistoryModal();
+    }, { passive:false });
+    historyFab.addEventListener("click", (ev)=>{
+      try{ ev.preventDefault(); ev.stopPropagation(); }catch(_e){}
+      if(Date.now() < suppressHistoryClickUntil) return;
+      openHistoryModal();
+    }, { passive:false });
+  }
   el("historyCloseX")?.addEventListener("click", (ev)=>{ try{ ev.preventDefault(); ev.stopPropagation(); }catch(_e){} closeHistoryModal(); });
+  el("historyBack")?.addEventListener("pointerdown", (ev)=>{
+    if(ev.target !== el("historyBack")) return;
+    if(Date.now() < historyBackdropIgnoreUntil_) {
+      try{ ev.preventDefault(); ev.stopPropagation(); }catch(_e){}
+    }
+  }, { passive:false });
   el("historyBack")?.addEventListener("click", (ev)=>{
     if(ev.target !== el("historyBack")) return;
-    if(Date.now() < historyOpenGuardUntil_) return;
+    if(Date.now() < historyOpenGuardUntil_ || Date.now() < historyBackdropIgnoreUntil_) {
+      try{ ev.preventDefault(); ev.stopPropagation(); }catch(_e){}
+      return;
+    }
     closeHistoryModal();
   });
   el("historyBack")?.querySelector(".modal")?.addEventListener("click", (ev)=>{ try{ ev.stopPropagation(); }catch(_e){} });
