@@ -24,6 +24,15 @@ body.costsPage::before{
   display: none !important;
 }
 
+body.costsPage.hasFrontOverlay{
+  overflow:hidden !important;
+  touch-action:none;
+}
+body.costsPage.hasFrontOverlay main.container,
+body.costsPage.hasFrontOverlay .container{
+  overscroll-behavior: none;
+}
+
 .costsPage #appRoot,
 .costsPage .page,
 .costsPage main.container,
@@ -861,6 +870,7 @@ select.input{
   .costsPage .modalOverlay{
     padding: 12px;
     align-items: center;
+    justify-items: center;
   }
 
   .costsPage .modal{
@@ -1268,18 +1278,23 @@ select.input{
 .costsPage .modalOverlay{
   overflow-y:auto;
   -webkit-overflow-scrolling:touch;
-  align-items:flex-start;
+  align-items:center;
+  justify-items:center;
 }
 .costsPage .modal{
   max-width:calc(100vw - 20px) !important;
   max-height:calc(100dvh - 20px);
   overflow:auto;
+  overscroll-behavior:contain;
 }
 .costsPage .modalHeader{
   position:sticky;
   top:0;
   z-index:4;
   gap:10px;
+  background:#fff1e7 !important;
+  backdrop-filter:none !important;
+  opacity:1 !important;
 }
 .costsPage .modalHeader > div:first-child{
   min-width:0;
@@ -1318,7 +1333,7 @@ select.input{
   margin:0;
   padding:12px 14px;
   border-radius:18px;
-  z-index:60060;
+  z-index:100120;
   box-shadow:0 18px 38px rgba(64,17,2,.18);
   backdrop-filter:blur(10px);
   opacity:0;
@@ -1346,7 +1361,7 @@ select.input{
   width:min(560px, calc(100vw - 24px));
   max-width:none;
   padding:12px 14px;
-  z-index:60040;
+  z-index:100100;
   transform:translate(-50%, -8px);
 }
 .costsSyncBadge.isVisible{
@@ -1420,5 +1435,45 @@ select.input{
     top:calc(env(safe-area-inset-top, 0px) + 10px);
     width:calc(100vw - 20px);
     padding:11px 12px;
+  }
+}
+
+
+/* ===== Modal centering + solid sticky headers v31 ===== */
+.costsPage #recipesUnlockBack .modal,
+.costsPage #costModalBack .modal,
+.costsPage #ingModalBack .modal,
+.costsPage #catModalBack .modal,
+.costsPage #confirmBack .modal,
+.costsPage #ingConfirmBack .modal,
+.costsPage #dessertModalBack .modal,
+.costsPage #dessertDeleteBack .modal{
+  margin:auto;
+}
+
+.costsPage #costModalBack .modalHeader,
+.costsPage #ingModalBack .modalHeader,
+.costsPage #catModalBack .modalHeader,
+.costsPage #confirmBack .modalHeader,
+.costsPage #recipesUnlockBack .modalHeader,
+.costsPage #ingConfirmBack .modalHeader,
+.costsPage #dessertModalBack .modalHeader,
+.costsPage #dessertDeleteBack .modalHeader{
+  background:#fff1e7 !important;
+  backdrop-filter:none !important;
+  box-shadow:0 1px 0 rgba(64,17,2,.08);
+}
+
+@media (max-width: 560px){
+  .costsPage .modalOverlay{
+    padding: max(10px, env(safe-area-inset-top, 0px) + 10px) 10px max(10px, env(safe-area-inset-bottom, 0px) + 10px);
+  }
+  .costsPage .modal{
+    max-height: calc(100dvh - 20px - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px));
+  }
+  .pGlobalMsg,
+  .costsSyncBadge{
+    width: calc(100vw - 20px);
+    max-width: calc(100vw - 20px);
   }
 }

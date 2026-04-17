@@ -319,9 +319,39 @@ function isFrontOverlayOpen_(){
   return false;
 }
 
+let COSTS_SCROLL_LOCK_Y = null;
+
+function setBodyScrollLock_(locked){
+  try{
+    const body = document.body;
+    if(!body) return;
+    if(locked){
+      if(COSTS_SCROLL_LOCK_Y === null){
+        COSTS_SCROLL_LOCK_Y = window.scrollY || window.pageYOffset || 0;
+        body.style.position = "fixed";
+        body.style.top = `-${COSTS_SCROLL_LOCK_Y}px`;
+        body.style.left = "0";
+        body.style.right = "0";
+        body.style.width = "100%";
+      }
+    }else if(COSTS_SCROLL_LOCK_Y !== null){
+      const y = COSTS_SCROLL_LOCK_Y;
+      COSTS_SCROLL_LOCK_Y = null;
+      body.style.position = "";
+      body.style.top = "";
+      body.style.left = "";
+      body.style.right = "";
+      body.style.width = "";
+      window.scrollTo(0, y);
+    }
+  }catch(_e){}
+}
+
 function syncFrontLayer_(){
   try{
-    document.body.classList.toggle("hasFrontOverlay", isFrontOverlayOpen_());
+    const locked = isFrontOverlayOpen_();
+    document.body.classList.toggle("hasFrontOverlay", locked);
+    setBodyScrollLock_(locked);
   }catch(_e){}
 }
 
@@ -474,6 +504,10 @@ function setGlobalMsg(msg, isErr=false){
   }
   g.textContent = t;
   g.classList.toggle("err", !!isErr);
+  try{
+    g.style.zIndex = "100120";
+    g.style.position = "fixed";
+  }catch(_e){}
   g.classList.add("show");
   const ttl = isErr ? 3600 : 2400;
   globalMsgTimer_ = setTimeout(()=>{
@@ -690,6 +724,10 @@ function ensureCostsSyncBadge_(){
 }
 function showCostsSyncBadge_(title, sub){
   const badge = ensureCostsSyncBadge_();
+  try{
+    badge.style.zIndex = "100100";
+    badge.style.position = "fixed";
+  }catch(_e){}
   const titleEl = badge.querySelector("#costsSyncBadgeTitle");
   const subEl = badge.querySelector("#costsSyncBadgeSub");
   if(titleEl) titleEl.textContent = title || "Cargando información…";
@@ -3998,6 +4036,7 @@ function bind(){
   el("btnDoRecipesUnlock")?.addEventListener("click", ()=>doRecipesUnlock_(false));
   el("btnRecipesClear")?.addEventListener("click", ()=>{ if(el("recipesPinInput")) el("recipesPinInput").value=""; if(el("recipesUnlockMsg")) el("recipesUnlockMsg").textContent=""; el("recipesPinInput")?.focus(); });
   el("btnRecipesCancel")?.addEventListener("click", ()=>{ closeRecipesUnlock_(); setView(state.prevViewBeforeRecipes || "purchases"); });
+  el("recipesUnlockCloseX")?.addEventListener("click", ()=>{ closeRecipesUnlock_(); setView(state.prevViewBeforeRecipes || "purchases"); });
   el("recipesPinInput")?.addEventListener("keydown", (e)=>{ if(e.key==="Enter") doRecipesUnlock_(false); });
   el("recipesUnlockBack")?.addEventListener("click", (e)=>{ /* ✅ No cerrar al hacer click fuera: solo cancelar */ });
 // Controls
