@@ -101,7 +101,6 @@ state.desserts = [];
 state.recipesLoadedAt = 0;
 let RECIPES_FETCH_PROMISE = null;
 let RECIPES_WARM_TIMER = 0;
-let PURCHASE_HISTORY_PROMISE = null;
 
 function getCostsCacheScope_(scope){
   return String(scope || UNLOCKED_PROFILE?.id || "").trim().toLowerCase();
@@ -179,6 +178,7 @@ function hydrateCostsDataFromCache_(cache){
   renderCostGroupsIfOpen_();
   renderPurchaseHistory();
   refreshBottom();
+  updatePurchaseHistoryFab_();
   saveCostsDataCache_();
   scheduleRecipesWarmup_();
 }
@@ -357,6 +357,7 @@ function syncFrontLayer_(){
     const locked = isFrontOverlayOpen_();
     document.body.classList.toggle("hasFrontOverlay", locked);
     setBodyScrollLock_(locked);
+    updatePurchaseHistoryFab_();
   }catch(_e){}
 }
 
@@ -744,59 +745,6 @@ function hideCostsSyncBadge_(){
   if(!badge) return;
   badge.classList.remove("isVisible");
 }
-function refreshHistoryFab_(){
-  const btn = el("btnPurchaseHistoryFab");
-  if(!btn) return;
-  const visible = !!UNLOCKED_SECRET && state.view === "purchases";
-  btn.classList.toggle("hidden", !visible);
-  btn.setAttribute("aria-hidden", visible ? "false" : "true");
-}
-
-async function loadPurchaseHistory_(opts={}){
-  const force = !!opts.force;
-  const silent = !!opts.silent;
-  const host = el("purchaseHistoryList");
-  const meta = el("purchaseHistoryMeta");
-  if(!UNLOCKED_SECRET) return [];
-  if(PURCHASE_HISTORY_PROMISE && !force) return PURCHASE_HISTORY_PROMISE;
-
-  if(!silent){
-    if(meta) meta.textContent = "Cargando historial…";
-    if(host && !(Array.isArray(state.purchaseHistory) && state.purchaseHistory.length)){
-      host.innerHTML = `<div class="hint">Cargando compras registradas…</div>`;
-    }
-  }
-
-  PURCHASE_HISTORY_PROMISE = api({ action:"inventory_purchase_history", costs_secret: UNLOCKED_SECRET, limit: 160 }, { timeoutMs: 45000 })
-    .then(out=>{
-      state.purchaseHistory = Array.isArray(out?.items) ? out.items : [];
-      renderPurchaseHistory();
-      try{ saveCostsDataCache_(); }catch(_e){}
-      return state.purchaseHistory;
-    })
-    .catch(err=>{
-      state.purchaseHistory = Array.isArray(state.purchaseHistory) ? state.purchaseHistory : [];
-      if(!silent){
-        if(meta) meta.textContent = `No se pudo cargar el historial.`;
-        if(host) host.innerHTML = `<div class="hint">${escapeHtml((err && err.message) ? err.message : "Error cargando historial")}</div>`;
-      }else{
-        renderPurchaseHistory();
-      }
-      return state.purchaseHistory;
-    })
-    .finally(()=>{ PURCHASE_HISTORY_PROMISE = null; });
-
-  return PURCHASE_HISTORY_PROMISE;
-}
-
-function openPurchaseHistory_(){
-  renderPurchaseHistory();
-  show(el("purchaseHistoryBack"));
-  void loadPurchaseHistory_({ force:true, silent:false });
-}
-function closePurchaseHistory_(){
-  hide(el("purchaseHistoryBack"));
-}
 
 // =============== Tabs ===============
 function setView(view){
@@ -832,7 +780,6 @@ function setView(view){
     if(tr){ tr.classList.add("isActive"); tr.setAttribute("aria-selected","true"); }
     ensureRecipesUnlocked_();
     scheduleRecipesWarmup_(true);
-    refreshHistoryFab_();
     return;
   }
 
@@ -842,7 +789,6 @@ function setView(view){
   renderCostGroupsIfOpen_();
   renderUnitCosts();
   refreshBottom();
-  refreshHistoryFab_();
 }
 
 function setCostsMeta(msg){
@@ -2246,7 +2192,7 @@ function refreshBottom(){
     bar.setAttribute("aria-hidden", visible ? "false" : "true");
   }
   try{ document.body.classList.toggle("hasBottomBar", visible); }catch(_e){}
-  refreshHistoryFab_();
+  updatePurchaseHistoryFab_();
 }
 
 function openConfirm(){
@@ -2420,6 +2366,52 @@ function renderPurchaseHistory(){
   }).join("");
 }
 
+function updatePurchaseHistoryFab_(){
+  const fab = el("btnPurchaseHistoryFab");
+  if(!fab) return;
+  const inPurchases = (state.view === "purchases");
+  const visible = !!UNLOCKED_SECRET && inPurchases && !isFrontOverlayOpen_();
+  fab.classList.toggle("isVisible", visible);
+  const raised = !!el("bottomBar")?.classList.contains("isVisible");
+  fab.classList.toggle("isRaised", raised);
+}
+
+async function loadPurchaseHistory_(opts={}){
+  const silent = !!opts.silent;
+  const meta = el("purchaseHistoryMeta");
+  const host = el("purchaseHistoryList");
+  if(!silent){
+    if(meta) meta.textContent = "Cargando historial…";
+    if(host) host.innerHTML = `<div class="hint">Estamos consultando las compras registradas.</div>`;
+  }
+  if(!UNLOCKED_SECRET){
+    renderPurchaseHistory();
+    return;
+  }
+  try{
+    const out = await api({ action:"inventory_purchase_history", costs_secret: UNLOCKED_SECRET, limit: 80 });
+    state.purchaseHistory = Array.isArray(out?.items) ? out.items : [];
+    saveCostsDataCache_();
+  }catch(err){
+    if(meta) meta.textContent = err?.message || "No se pudo cargar el historial.";
+    if(host) host.innerHTML = `<div class="hint">No fue posible cargar el historial de compras en este momento.</div>`;
+    return;
+  }
+  renderPurchaseHistory();
+}
+
+async function openPurchaseHistoryModal(){
+  const back = el("purchaseHistoryBack");
+  if(!back) return;
+  show(back);
+  renderPurchaseHistory();
+  await loadPurchaseHistory_({ silent: false });
+}
+
+function closePurchaseHistoryModal(){
+  hide(el("purchaseHistoryBack"));
+}
+
 // =============== Meta ===============
 function setMeta(msg){
   const m = el("meta");
@@ -2447,9 +2439,10 @@ async function loadAll(opts={}){
 
   updateMetaLine();
 
-  const historyPromise = loadPurchaseHistory_({ silent:true }).catch(()=>[]);
+  const historyPromise = api({ action:"inventory_purchase_history", costs_secret: UNLOCKED_SECRET, limit: 80 })
+    .catch(()=>({ ok:false, items: [] }));
 
-  const [invOut, needsOut, costsOut, catOut, dessertsOut, historyRows] = await Promise.all([
+  const [invOut, needsOut, costsOut, catOut, dessertsOut, historyOut] = await Promise.all([
     api({ action:"inventory_get", costs_secret: UNLOCKED_SECRET }),
     api({ action:"costs_orders_for_purchases", costs_secret: UNLOCKED_SECRET, window_h: state.window_h }),
     api({ action:"costs_list", costs_secret: UNLOCKED_SECRET }),
@@ -2472,7 +2465,7 @@ async function loadAll(opts={}){
   state.late = needsOut.late || {};
   state.needs = mergeLateNeedsInto_(needsOut.needs || {}, state.late);
   state.items = costsOut.items || [];
-  state.purchaseHistory = Array.isArray(historyRows) ? historyRows : (Array.isArray(state.purchaseHistory) ? state.purchaseHistory : []);
+  state.purchaseHistory = Array.isArray(historyOut?.items) ? historyOut.items : [];
   indexCosts(state.items);
 
   // Recetas desde hoja RECETAS (para costo unitario)
@@ -2487,7 +2480,7 @@ async function loadAll(opts={}){
   renderCostGroupsIfOpen_();
   renderPurchaseHistory();
   refreshBottom();
-  refreshHistoryFab_();
+  updatePurchaseHistoryFab_();
   saveCostsDataCache_();
   hideCostsSyncBadge_();
 }
@@ -2526,7 +2519,6 @@ function primeCostsShell_(profile, fastCache){
     show(el("appRoot"));
     show(el("mobileNav"));
     setView("purchases");
-    refreshHistoryFab_();
     if(fastCache) hydrateCostsDataFromCache_(fastCache);
     else renderCostsBootLoadingState_("Actualizando información de compras…");
   }catch(_e){}
@@ -2621,7 +2613,6 @@ function openUnlock(msg){
   hide(el("appRoot"));
   // ✅ En login no mostramos el menú inferior móvil
   hide(el("mobileNav"));
-  try{ el("btnPurchaseHistoryFab")?.classList.add("hidden"); }catch(_e){}
   hide(el("mNavSheetBack"));
   try{ const b = el("mNavMenu"); if(b){ b.setAttribute("aria-expanded","false"); } }catch(_e){}
   // ✅ checkbox "Recuérdame"
@@ -2690,7 +2681,6 @@ async function doUnlock(isAuto=false, opts={}){
       show(el("appRoot"));
       show(el("mobileNav"));
       setView("purchases");
-      refreshHistoryFab_();
       syncMobileNavForViewport_();
     }
     if(backgroundLoad){
@@ -2703,7 +2693,6 @@ async function doUnlock(isAuto=false, opts={}){
     }else{
       await loadAll();
     }
-    refreshHistoryFab_();
     syncMobileNavForViewport_();
   } catch(err){
     hideCostsSyncBadge_();
@@ -2723,7 +2712,6 @@ async function doUnlock(isAuto=false, opts={}){
 
 function logout(){
   hideCostsSyncBadge_();
-  closePurchaseHistory_();
   UNLOCKED_SECRET = "";
   UNLOCKED_PROFILE = { id:"", label:"", categories:[] };
   clearCostsDataCache_();
@@ -2738,7 +2726,6 @@ function logout(){
   const chk = getRememberCheckbox_();
   if(chk) chk.checked = false;
   hide(el("mobileNav"));
-  try{ el("btnPurchaseHistoryFab")?.classList.add("hidden"); }catch(_e){}
   hide(el("mNavSheetBack"));
   clearPortalCostsSession_();
   openUnlock("Sesión cerrada.");
@@ -4086,6 +4073,11 @@ function bind(){
     setView("recipes");
   });
 
+  bindFastTap_("btnPurchaseHistoryFab", ()=>{ openPurchaseHistoryModal(); });
+  el("purchaseHistoryCloseX")?.addEventListener("click", closePurchaseHistoryModal);
+  el("btnPurchaseHistoryRefresh")?.addEventListener("click", ()=>{ loadPurchaseHistory_({ silent:false }); });
+  el("purchaseHistoryBack")?.addEventListener("click", (e)=>{ if(e.target === el("purchaseHistoryBack")) closePurchaseHistoryModal(); });
+
   // Compras (admin integrado)
   el("btnCatalogs")?.addEventListener("click", ()=> openCatalogModal());
   el("btnIngredients")?.addEventListener("click", ()=> openIngredientsModal());
@@ -4302,9 +4294,6 @@ function bind(){
 
   // Bottom bar
   el("btnRegister")?.addEventListener("click", ()=>{ openConfirm(); });
-  bindFastTap_("btnPurchaseHistoryFab", ()=> openPurchaseHistory_());
-  el("purchaseHistoryCloseX")?.addEventListener("click", closePurchaseHistory_);
-  el("purchaseHistoryBack")?.addEventListener("click", (e)=>{ if(e.target === el("purchaseHistoryBack")) closePurchaseHistory_(); });
 
   // Confirm modal
   el("btnConfirmClose")?.addEventListener("click", closeConfirm);

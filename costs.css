@@ -1530,54 +1530,98 @@ select.input{
 }
 
 
-/* ===== Floating history button + modal ===== */
-.costsHistoryFab{
-  position:fixed;
-  right:18px;
-  bottom:24px;
-  z-index:11940;
-  width:60px;
-  height:60px;
-  border:none;
-  border-radius:999px;
-  display:inline-flex;
+/* ===== Historial de compras FAB + modal ===== */
+.purchaseHistoryFab{
+  position: fixed;
+  right: 16px;
+  bottom: calc(92px + env(safe-area-inset-bottom, 0px));
+  width: 58px;
+  height: 58px;
+  border-radius: 999px;
+  border: 1px solid rgba(64,17,2,.12);
+  background: linear-gradient(180deg, rgba(242,91,143,.20), rgba(246,186,96,.20)), rgba(255,255,255,.90);
+  color: var(--choco);
+  box-shadow: 0 16px 34px rgba(64,17,2,.18);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 24px;
+  cursor: pointer;
+  z-index: 11950;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transform: translateY(18px) scale(.96);
+  transition: opacity .22s ease, transform .24s cubic-bezier(.22,.8,.2,1), bottom .24s cubic-bezier(.22,.8,.2,1), visibility .22s ease;
+  -webkit-tap-highlight-color: transparent;
+}
+.purchaseHistoryFab.isVisible{
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+  transform: translateY(0) scale(1);
+}
+.purchaseHistoryFab.isRaised{
+  bottom: calc(170px + env(safe-area-inset-bottom, 0px));
+}
+.purchaseHistoryFab:active{ transform: translateY(1px) scale(.98); }
+.costsPage.hasFrontOverlay .purchaseHistoryFab{
+  opacity: 0 !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
+  transform: translateY(18px) scale(.96) !important;
+}
+.purchaseHistoryModal{
+  width: min(760px, calc(100vw - 24px));
+  max-height: min(82vh, calc(100dvh - 32px));
+  display: flex;
+  flex-direction: column;
+}
+.purchaseHistoryHeader{
+  position: sticky;
+  top: 0;
+  z-index: 2;
+}
+.purchaseHistoryModalBody{
+  overflow: auto;
+}
+.purchaseHistoryToolbar{
+  display:flex;
   align-items:center;
-  justify-content:center;
-  background:linear-gradient(180deg, rgba(242,91,143,.98), rgba(205,66,118,.98));
-  color:#fff;
-  box-shadow:0 18px 36px rgba(64,17,2,.22);
-  cursor:pointer;
-  transition:opacity .2s ease, transform .22s ease, bottom .22s ease, box-shadow .2s ease;
+  justify-content:space-between;
+  gap:12px;
+  flex-wrap:wrap;
 }
-.costsHistoryFab:hover{ box-shadow:0 20px 38px rgba(64,17,2,.26); }
-.costsHistoryFab:active{ transform:translateY(1px); }
-.costsHistoryFab.hidden{ display:none !important; }
-.costsHistoryFabIcon{ font-size:24px; line-height:1; }
-.costsPage.hasFrontOverlay .costsHistoryFab{
-  opacity:0 !important;
-  pointer-events:none !important;
-  transform:translateY(16px) scale(.96);
+.purchaseHistoryRefreshBtn{
+  white-space:nowrap;
 }
-#purchaseHistoryBack{ z-index:50040 !important; }
-#purchaseHistoryBack .modalBody{ padding-top:14px; }
 @media (max-width: 560px){
-  .costsHistoryFab{
-    left:50%;
-    right:auto;
-    bottom:calc(86px + env(safe-area-inset-bottom, 0px));
-    transform:translateX(-50%);
-    width:62px;
-    height:62px;
+  .purchaseHistoryFab{
+    right: 14px;
+    width: 56px;
+    height: 56px;
+    bottom: calc(96px + env(safe-area-inset-bottom, 0px));
+    font-size: 22px;
   }
-  .costsPage.hasBottomBar .costsHistoryFab{
-    bottom:calc(170px + env(safe-area-inset-bottom, 0px));
+  .purchaseHistoryFab.isRaised{
+    bottom: calc(178px + env(safe-area-inset-bottom, 0px));
   }
-  .costsPage.hasFrontOverlay .costsHistoryFab{
-    transform:translate(-50%, 16px) scale(.96);
+  .purchaseHistoryModal{
+    width: calc(100vw - 18px);
+    max-height: calc(100dvh - 18px);
+  }
+  .purchaseHistoryToolbar{
+    align-items:stretch;
+  }
+  .purchaseHistoryRefreshBtn{
+    width: 100%;
   }
 }
 @media (min-width: 561px){
-  .costsPage.hasBottomBar .costsHistoryFab{
-    bottom:110px;
+  .purchaseHistoryFab{
+    bottom: 22px;
+  }
+  .purchaseHistoryFab.isRaised{
+    bottom: 104px;
   }
 }

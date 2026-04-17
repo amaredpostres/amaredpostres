@@ -196,7 +196,7 @@
 <!-- ✅ estilos globales AMARED -->
 <link href="styles.css?v=20260330-project-v8" rel="stylesheet"/>
 <!-- ✅ estilos de Compras / Recetas -->
-<link href="costs.css?v=20260417-v34" rel="stylesheet"/>
+<link href="costs.css?v=20260417-v35-history-fab" rel="stylesheet"/>
 <style>
 /* ===== Ingredientes modal responsive ===== */
 #ingModalBack .pCatGrid.ingGrid{grid-template-columns: 1fr 1fr;}
@@ -777,9 +777,7 @@ body.is-app .costsLoginTopbar{ display:none !important; }
 </div>
 </div>
 
-<button class="costsHistoryFab hidden" id="btnPurchaseHistoryFab" type="button" aria-label="Ver historial de compras" title="Historial de compras">
-  <span class="costsHistoryFabIcon">🧾</span>
-</button>
+<button class="purchaseHistoryFab" id="btnPurchaseHistoryFab" type="button" aria-label="Ver historial de compras" title="Historial de compras">🕘</button>
 
 <!-- Mobile bottom nav (solo móvil) -->
 <div class="mobileNav hidden" id="mobileNav" aria-label="Navegación inferior">
@@ -794,19 +792,22 @@ body.is-app .costsLoginTopbar{ display:none !important; }
 </div>
 
 <div class="modalOverlay hidden" id="purchaseHistoryBack">
-<div class="modal" style="max-width:min(760px, calc(100vw - 20px)); width:min(760px, calc(100vw - 20px));">
-<div class="modalHeader">
-  <div>
-    <div class="modalTitle" style="font-weight:950;">🧾 Historial de compras</div>
-    <div class="modalSub">Consulta las compras registradas para ingredientes y su trazabilidad.</div>
+  <div class="modal purchaseHistoryModal">
+    <div class="modalHeader purchaseHistoryHeader">
+      <div>
+        <div class="modalTitle">Historial de compras</div>
+        <div class="hint" style="margin-top:6px;">Consulta las compras registradas para ingredientes y su trazabilidad.</div>
+      </div>
+      <button aria-label="Cerrar" class="iconBtn costsModalClose" id="purchaseHistoryCloseX" type="button">×</button>
+    </div>
+    <div class="modalBody purchaseHistoryModalBody">
+      <div class="purchaseHistoryToolbar">
+        <div class="pSmallMeta" id="purchaseHistoryMeta">Cargando historial…</div>
+        <button class="btn secondary purchaseHistoryRefreshBtn" id="btnPurchaseHistoryRefresh" type="button">↻ Actualizar</button>
+      </div>
+      <div class="purchaseHistoryList" id="purchaseHistoryList" style="margin-top:12px;"></div>
+    </div>
   </div>
-  <button class="btn secondary costsModalClose" id="purchaseHistoryCloseX" aria-label="Cerrar" type="button">×</button>
-</div>
-<div class="modalBody">
-  <div class="pSmallMeta" id="purchaseHistoryMeta" style="margin-top:2px;">Cargando historial…</div>
-  <div class="purchaseHistoryList" id="purchaseHistoryList" style="margin-top:12px;"></div>
-</div>
-</div>
 </div>
 
 <!-- LOGIN (pantalla completa) -->
@@ -1122,6 +1123,6 @@ body.is-app .costsLoginTopbar{ display:none !important; }
   </div>
 </div>
 <script src="kitchen-costs.js?v=30-costs-mobile-ux"></script>
-<script src="costs.js?v=20260417-v34"></script>
+<script src="costs.js?v=20260417-v35-history-fab"></script>
 </body>
 </html>
