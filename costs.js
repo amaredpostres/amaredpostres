@@ -810,6 +810,7 @@ function normRecipeUnit_(u){
   if(t === "u" || t === "und" || t === "unidad" || t === "unidades") return "unidad";
   if(t === "g" || t === "gr" || t === "gramo" || t === "gramos") return "g";
   if(t === "ml" || t === "mililitro" || t === "mililitros") return "ml";
+  if(t === "m" || t === "mt" || t === "mts" || t === "metro" || t === "metros") return "m";
   return t;
 }
 
@@ -948,12 +949,12 @@ function baseFromSpec(spec){
 
   const cpuOr = ((pack_qty>0 && pack_price>0) ? (pack_price/pack_qty) : ((cpuStored>0 && isFinite(cpuStored)) ? cpuStored : null));
 
-  if(unit_type === "g" || unit_type === "ml"){
+  if(unit_type === "g" || unit_type === "ml" || unit_type === "m"){
     return { base_unit: unit_type, cpu: cpuOr, pack_qty, pack_price, brand, store, unit_item_qty, unit_item_type, unit_type };
   }
 
   if(unit_type === "unidad"){
-    if(unit_item_qty>0 && (unit_item_type === "g" || unit_item_type === "ml")){
+    if(unit_item_qty>0 && (unit_item_type === "g" || unit_item_type === "ml" || unit_item_type === "m")){
       const basePackQty = pack_qty * unit_item_qty;
       const cpu = (basePackQty>0 && pack_price>0) ? (pack_price/basePackQty) : null;
       return { base_unit: unit_item_type, cpu, pack_qty: basePackQty, pack_price, brand, store, unit_item_qty, unit_item_type, unit_type };
@@ -980,7 +981,7 @@ function normalizeInvToBase(key){
     return { qty, unit, raw };
   }
 
-  if(unit === "unidad" && (base.base_unit === "g" || base.base_unit === "ml") && base.unit_item_qty>0 && base.unit_item_type === base.base_unit){
+  if(unit === "unidad" && (base.base_unit === "g" || base.base_unit === "ml" || base.base_unit === "m") && base.unit_item_qty>0 && base.unit_item_type === base.base_unit){
     return { qty: qty * base.unit_item_qty, unit: base.base_unit, raw };
   }
 
@@ -2556,7 +2557,7 @@ function cmComputePreview(){
   let base_pack_qty = pack_qty;
   let cpu = null;
 
-  if(unit_type === "unidad" && unit_item_qty>0 && (unit_item_type==="g" || unit_item_type==="ml")){
+  if(unit_type === "unidad" && unit_item_qty>0 && (unit_item_type==="g" || unit_item_type==="ml" || unit_item_type==="m")){
     base_unit = unit_item_type;
     base_pack_qty = pack_qty * unit_item_qty;
   }
@@ -2579,7 +2580,7 @@ function openCostModal(key){
 
   if(e.title) e.title.textContent = `Detalle: ${key}`;
 
-  if(e.unitType) e.unitType.value = (unit_type==="g"||unit_type==="ml"||unit_type==="unidad") ? unit_type : "g";
+  if(e.unitType) e.unitType.value = (unit_type==="g"||unit_type==="ml"||unit_type==="m"||unit_type==="unidad") ? unit_type : "g";
   if(e.packQty) e.packQty.value = spec?.pack_qty ? String(spec.pack_qty) : "";
   if(e.packPrice) e.packPrice.value = spec?.pack_price ? String(spec.pack_price) : "";
 
@@ -2898,6 +2899,7 @@ function normalizeUnitType_(u){
   const t = String(u||"").trim().toLowerCase();
   if(t==="g"||t==="gr"||t==="gramo"||t==="gramos") return "g";
   if(t==="ml"||t==="mililitro"||t==="mililitros") return "ml";
+  if(t==="m"||t==="mt"||t==="mts"||t==="metro"||t==="metros") return "m";
   if(t==="u"||t==="und"||t==="unidad"||t==="unidades") return "unidad";
   return t;
 }
@@ -2916,9 +2918,9 @@ async function addIngredient(){
   const unit_item_qty_type = normalizeUnitType_(el("ingUnitItemQtyType")?.value||"");
 
   if(!key) throw new Error("Escribe el nombre del ingrediente.");
-  if(!unit_type || !["g","ml","unidad"].includes(unit_type)) throw new Error("Selecciona un tipo válido (g/ml/unidad).");
+  if(!unit_type || !["g","ml","m","unidad"].includes(unit_type)) throw new Error("Selecciona un tipo válido (g/ml/m/unidad).");
   if(unit_item_qty_raw && !(unit_item_qty>0)) throw new Error("Cantidad por unidad inválida.");
-  if(unit_item_qty_raw && !["g","ml"].includes(unit_item_qty_type)) throw new Error("Selecciona g o ml en “Cantidad por unidad”.");
+  if(unit_item_qty_raw && !["g","ml","m"].includes(unit_item_qty_type)) throw new Error("Selecciona g, ml o m en “Cantidad por unidad”.");
 
   try{
   await api({
