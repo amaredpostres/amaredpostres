@@ -165,7 +165,6 @@ function hydrateCostsDataFromCache_(cache){
   state.recipesSource = cache?.recipesSource || state.recipesSource;
   state.recipesLoadedAt = Number(cache?.recipesLoadedAt || 0) || state.recipesLoadedAt || 0;
   state.buyPlan = cache?.buyPlan || state.buyPlan || {};
-  state.needs = mergeLateNeedsInto_(state.needs || {}, state.late || {});
   indexCosts(state.items);
   updateMetaLine();
   renderDesserts();
@@ -810,7 +809,6 @@ function normRecipeUnit_(u){
   if(t === "u" || t === "und" || t === "unidad" || t === "unidades") return "unidad";
   if(t === "g" || t === "gr" || t === "gramo" || t === "gramos") return "g";
   if(t === "ml" || t === "mililitro" || t === "mililitros") return "ml";
-  if(t === "m" || t === "mt" || t === "mts" || t === "metro" || t === "metros") return "m";
   return t;
 }
 
@@ -949,12 +947,12 @@ function baseFromSpec(spec){
 
   const cpuOr = ((pack_qty>0 && pack_price>0) ? (pack_price/pack_qty) : ((cpuStored>0 && isFinite(cpuStored)) ? cpuStored : null));
 
-  if(unit_type === "g" || unit_type === "ml" || unit_type === "m"){
+  if(unit_type === "g" || unit_type === "ml"){
     return { base_unit: unit_type, cpu: cpuOr, pack_qty, pack_price, brand, store, unit_item_qty, unit_item_type, unit_type };
   }
 
   if(unit_type === "unidad"){
-    if(unit_item_qty>0 && (unit_item_type === "g" || unit_item_type === "ml" || unit_item_type === "m")){
+    if(unit_item_qty>0 && (unit_item_type === "g" || unit_item_type === "ml")){
       const basePackQty = pack_qty * unit_item_qty;
       const cpu = (basePackQty>0 && pack_price>0) ? (pack_price/basePackQty) : null;
       return { base_unit: unit_item_type, cpu, pack_qty: basePackQty, pack_price, brand, store, unit_item_qty, unit_item_type, unit_type };
@@ -981,7 +979,7 @@ function normalizeInvToBase(key){
     return { qty, unit, raw };
   }
 
-  if(unit === "unidad" && (base.base_unit === "g" || base.base_unit === "ml" || base.base_unit === "m") && base.unit_item_qty>0 && base.unit_item_type === base.base_unit){
+  if(unit === "unidad" && (base.base_unit === "g" || base.base_unit === "ml") && base.unit_item_qty>0 && base.unit_item_type === base.base_unit){
     return { qty: qty * base.unit_item_qty, unit: base.base_unit, raw };
   }
 
@@ -1008,14 +1006,15 @@ function getCostPerUnit(key){
 function collectAllKeys(){
   const seen = new Set();
   const out = [];
-  for(const k of Object.keys(state.needs || {})){
-    if(!k) continue;
-    if(!seen.has(k)){ seen.add(k); out.push(k); }
-  }
-  for(const k of Object.keys(state.inventory || {})){
-    if(!k) continue;
-    if(!seen.has(k)){ seen.add(k); out.push(k); }
-  }
+  const pushKey = (k)=>{
+    const kk = String(k||"").trim();
+    if(!kk || seen.has(kk)) return;
+    seen.add(kk);
+    out.push(kk);
+  };
+  for(const k of Object.keys(state.needs || {})) pushKey(k);
+  for(const k of Object.keys(state.inventory || {})) pushKey(k);
+  for(const k of Object.keys(state.costsByKey || {})) pushKey(k);
   return out;
 }
 
@@ -1625,7 +1624,7 @@ function renderDessertSummaryMobile_(){
     </section>`;
 
   host.innerHTML = [
-    blockHtml("Producción prioritaria", "Pedidos confirmados dentro de la ventana principal de producción.", today, "isToday"),
+    blockHtml("Pagados pendientes de elaborar", "Pedidos pagados que todavía siguen en “No iniciar” y debes tener presentes para compras y producción.", today, "isToday"),
     blockHtml("Después de las 3:00 p. m.", "Referencia rápida de pedidos recientes posteriores al corte.", late, "isLate")
   ].join("");
 }
@@ -1707,9 +1706,14 @@ function rowPassesFilters(row){
   const onlyMissing = !!state.ui.onlyMissing;
   const onlySelected = !!state.ui.onlySelected;
   const plan = getPlan(row.key);
+  const matchesQuery = !q || row.key.toLowerCase().includes(q);
 
-  if(q && !row.key.toLowerCase().includes(q)) return false;
-  if(onlyMissing && !(row.missing0 > 0)) return false;
+  if(!matchesQuery) return false;
+  if(onlyMissing && !(row.missing0 > 0) && !plan.selected){
+    // ✅ Si el usuario está buscando un ingrediente específico, permitir mostrarlo
+    // aunque no haga falta para que también pueda registrarse una compra manual.
+    if(!q) return false;
+  }
   if(onlySelected && !plan.selected) return false;
   return true;
 }
@@ -2122,6 +2126,11 @@ function refreshBottom(){
 
   const btn = el("btnRegister");
   if(btn) btn.disabled = (n === 0);
+
+  const bb = el("bottomBar");
+  if(bb){
+    bb.classList.toggle("isVisible", n > 0);
+  }
 }
 
 function openConfirm(){
@@ -2258,7 +2267,7 @@ async function loadAll(opts={}){
 
   state.ordersByDessert = needsOut.orders_by_dessert || needsOut.ordersByDessert || {};
   state.late = needsOut.late || {};
-  state.needs = mergeLateNeedsInto_(needsOut.needs || {}, state.late);
+  state.needs = needsOut.needs || {};
   state.items = costsOut.items || [];
   indexCosts(state.items);
 
@@ -2557,7 +2566,7 @@ function cmComputePreview(){
   let base_pack_qty = pack_qty;
   let cpu = null;
 
-  if(unit_type === "unidad" && unit_item_qty>0 && (unit_item_type==="g" || unit_item_type==="ml" || unit_item_type==="m")){
+  if(unit_type === "unidad" && unit_item_qty>0 && (unit_item_type==="g" || unit_item_type==="ml")){
     base_unit = unit_item_type;
     base_pack_qty = pack_qty * unit_item_qty;
   }
@@ -2580,7 +2589,7 @@ function openCostModal(key){
 
   if(e.title) e.title.textContent = `Detalle: ${key}`;
 
-  if(e.unitType) e.unitType.value = (unit_type==="g"||unit_type==="ml"||unit_type==="m"||unit_type==="unidad") ? unit_type : "g";
+  if(e.unitType) e.unitType.value = (unit_type==="g"||unit_type==="ml"||unit_type==="unidad") ? unit_type : "g";
   if(e.packQty) e.packQty.value = spec?.pack_qty ? String(spec.pack_qty) : "";
   if(e.packPrice) e.packPrice.value = spec?.pack_price ? String(spec.pack_price) : "";
 
@@ -2597,6 +2606,19 @@ function openCostModal(key){
 function closeCostModal(){
   hide(el("costModalBack"));
   CM.key = null;
+}
+
+function refreshCostModalCatalogSelects_(opts={}){
+  const back = el("costModalBack");
+  if(!back || back.classList.contains("hidden")) return;
+  const currentBrand = Object.prototype.hasOwnProperty.call(opts, "brand")
+    ? String(opts.brand || "").trim()
+    : String(el("cmBrand")?.value || "").trim();
+  const currentStore = Object.prototype.hasOwnProperty.call(opts, "store")
+    ? String(opts.store || "").trim()
+    : String(el("cmStore")?.value || "").trim();
+  renderSelect("cmBrand", state.brands || [], currentBrand);
+  renderSelect("cmStore", state.stores || [], currentStore);
 }
 
 function patchCostSpecInState_(ingredient_key, patch, opts={}){
@@ -2899,7 +2921,6 @@ function normalizeUnitType_(u){
   const t = String(u||"").trim().toLowerCase();
   if(t==="g"||t==="gr"||t==="gramo"||t==="gramos") return "g";
   if(t==="ml"||t==="mililitro"||t==="mililitros") return "ml";
-  if(t==="m"||t==="mt"||t==="mts"||t==="metro"||t==="metros") return "m";
   if(t==="u"||t==="und"||t==="unidad"||t==="unidades") return "unidad";
   return t;
 }
@@ -2918,9 +2939,9 @@ async function addIngredient(){
   const unit_item_qty_type = normalizeUnitType_(el("ingUnitItemQtyType")?.value||"");
 
   if(!key) throw new Error("Escribe el nombre del ingrediente.");
-  if(!unit_type || !["g","ml","m","unidad"].includes(unit_type)) throw new Error("Selecciona un tipo válido (g/ml/m/unidad).");
+  if(!unit_type || !["g","ml","unidad"].includes(unit_type)) throw new Error("Selecciona un tipo válido (g/ml/unidad).");
   if(unit_item_qty_raw && !(unit_item_qty>0)) throw new Error("Cantidad por unidad inválida.");
-  if(unit_item_qty_raw && !["g","ml","m"].includes(unit_item_qty_type)) throw new Error("Selecciona g, ml o m en “Cantidad por unidad”.");
+  if(unit_item_qty_raw && !["g","ml"].includes(unit_item_qty_type)) throw new Error("Selecciona g o ml en “Cantidad por unidad”.");
 
   try{
   await api({
@@ -4097,11 +4118,13 @@ el("ingModalBack")?.addEventListener("click", (e)=>{ if(e.target && e.target.id=
   el("btnAddStore")?.addEventListener("click", async ()=>{
     try{
       if(el("catErr")) el("catErr").textContent = "";
+      const nextStore = String(el("catStoreNew")?.value || "").trim();
       showLoading("Guardando…","Agregando tienda.");
-      await addCatalogValue("stores", el("catStoreNew")?.value);
+      await addCatalogValue("stores", nextStore);
       if(el("catStoreNew")) el("catStoreNew").value = "";
       fillSimpleSelect("catStores", state.stores);
       fillSimpleSelect("catBrands", state.brands);
+      refreshCostModalCatalogSelects_({ store: nextStore });
       setGlobalMsg("✅ Tienda agregada.");
     }catch(err){
       if(el("catErr")) el("catErr").textContent = err?.message || "Error";
@@ -4110,10 +4133,13 @@ el("ingModalBack")?.addEventListener("click", (e)=>{ if(e.target && e.target.id=
   el("btnDelStore")?.addEventListener("click", async ()=>{
     try{
       if(el("catErr")) el("catErr").textContent = "";
-      const v = el("catStores")?.value;
+      const v = String(el("catStores")?.value || "").trim();
+      const currentStore = String(el("cmStore")?.value || "").trim();
       showLoading("Guardando…","Eliminando tienda.");
       await deleteCatalogValue("stores", v);
       fillSimpleSelect("catStores", state.stores);
+      fillSimpleSelect("catBrands", state.brands);
+      refreshCostModalCatalogSelects_({ store: currentStore && currentStore.toLowerCase() !== v.toLowerCase() ? currentStore : "" });
       setGlobalMsg("✅ Tienda eliminada.");
     }catch(err){
       if(el("catErr")) el("catErr").textContent = err?.message || "Error";
@@ -4122,11 +4148,13 @@ el("ingModalBack")?.addEventListener("click", (e)=>{ if(e.target && e.target.id=
   el("btnAddBrand")?.addEventListener("click", async ()=>{
     try{
       if(el("catErr")) el("catErr").textContent = "";
+      const nextBrand = String(el("catBrandNew")?.value || "").trim();
       showLoading("Guardando…","Agregando marca.");
-      await addCatalogValue("brands", el("catBrandNew")?.value);
+      await addCatalogValue("brands", nextBrand);
       if(el("catBrandNew")) el("catBrandNew").value = "";
       fillSimpleSelect("catBrands", state.brands);
       fillSimpleSelect("catStores", state.stores);
+      refreshCostModalCatalogSelects_({ brand: nextBrand });
       setGlobalMsg("✅ Marca agregada.");
     }catch(err){
       if(el("catErr")) el("catErr").textContent = err?.message || "Error";
@@ -4135,10 +4163,13 @@ el("ingModalBack")?.addEventListener("click", (e)=>{ if(e.target && e.target.id=
   el("btnDelBrand")?.addEventListener("click", async ()=>{
     try{
       if(el("catErr")) el("catErr").textContent = "";
-      const v = el("catBrands")?.value;
+      const v = String(el("catBrands")?.value || "").trim();
+      const currentBrand = String(el("cmBrand")?.value || "").trim();
       showLoading("Guardando…","Eliminando marca.");
       await deleteCatalogValue("brands", v);
       fillSimpleSelect("catBrands", state.brands);
+      fillSimpleSelect("catStores", state.stores);
+      refreshCostModalCatalogSelects_({ brand: currentBrand && currentBrand.toLowerCase() !== v.toLowerCase() ? currentBrand : "" });
       setGlobalMsg("✅ Marca eliminada.");
     }catch(err){
       if(el("catErr")) el("catErr").textContent = err?.message || "Error";
