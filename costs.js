@@ -165,6 +165,7 @@ function hydrateCostsDataFromCache_(cache){
   state.recipesSource = cache?.recipesSource || state.recipesSource;
   state.recipesLoadedAt = Number(cache?.recipesLoadedAt || 0) || state.recipesLoadedAt || 0;
   state.buyPlan = cache?.buyPlan || state.buyPlan || {};
+  state.needs = mergeLateNeedsInto_(state.needs || {}, state.late || {});
   indexCosts(state.items);
   updateMetaLine();
   renderDesserts();
@@ -458,14 +459,29 @@ function bindFastTap_(id, handler){
 }
 
 
+let globalMsgTimer_ = null;
+
 function setGlobalMsg(msg, isErr=false){
   const g = el("globalMsg");
   if(!g) return;
+  try{ if(globalMsgTimer_) clearTimeout(globalMsgTimer_); }catch(_e){}
+  globalMsgTimer_ = null;
   const t = String(msg||"").trim();
-  if(!t){ g.textContent = ""; g.classList.remove("show","err"); return; }
+  if(!t){
+    g.textContent = "";
+    g.classList.remove("show","err");
+    return;
+  }
   g.textContent = t;
-  g.classList.add("show");
   g.classList.toggle("err", !!isErr);
+  g.classList.add("show");
+  const ttl = isErr ? 3600 : 2400;
+  globalMsgTimer_ = setTimeout(()=>{
+    try{
+      g.classList.remove("show","err");
+      setTimeout(()=>{ try{ if(!g.classList.contains("show")) g.textContent = ""; }catch(_e){} }, 220);
+    }catch(_e){}
+  }, ttl);
 }
 
 function moneyCOP(n){
@@ -809,6 +825,7 @@ function normRecipeUnit_(u){
   if(t === "u" || t === "und" || t === "unidad" || t === "unidades") return "unidad";
   if(t === "g" || t === "gr" || t === "gramo" || t === "gramos") return "g";
   if(t === "ml" || t === "mililitro" || t === "mililitros") return "ml";
+  if(t === "m" || t === "mt" || t === "mts" || t === "metro" || t === "metros") return "m";
   return t;
 }
 
@@ -947,12 +964,12 @@ function baseFromSpec(spec){
 
   const cpuOr = ((pack_qty>0 && pack_price>0) ? (pack_price/pack_qty) : ((cpuStored>0 && isFinite(cpuStored)) ? cpuStored : null));
 
-  if(unit_type === "g" || unit_type === "ml"){
+  if(unit_type === "g" || unit_type === "ml" || unit_type === "m"){
     return { base_unit: unit_type, cpu: cpuOr, pack_qty, pack_price, brand, store, unit_item_qty, unit_item_type, unit_type };
   }
 
   if(unit_type === "unidad"){
-    if(unit_item_qty>0 && (unit_item_type === "g" || unit_item_type === "ml")){
+    if(unit_item_qty>0 && (unit_item_type === "g" || unit_item_type === "ml" || unit_item_type === "m")){
       const basePackQty = pack_qty * unit_item_qty;
       const cpu = (basePackQty>0 && pack_price>0) ? (pack_price/basePackQty) : null;
       return { base_unit: unit_item_type, cpu, pack_qty: basePackQty, pack_price, brand, store, unit_item_qty, unit_item_type, unit_type };
@@ -979,7 +996,7 @@ function normalizeInvToBase(key){
     return { qty, unit, raw };
   }
 
-  if(unit === "unidad" && (base.base_unit === "g" || base.base_unit === "ml") && base.unit_item_qty>0 && base.unit_item_type === base.base_unit){
+  if(unit === "unidad" && (base.base_unit === "g" || base.base_unit === "ml" || base.base_unit === "m") && base.unit_item_qty>0 && base.unit_item_type === base.base_unit){
     return { qty: qty * base.unit_item_qty, unit: base.base_unit, raw };
   }
 
@@ -1006,15 +1023,14 @@ function getCostPerUnit(key){
 function collectAllKeys(){
   const seen = new Set();
   const out = [];
-  const pushKey = (k)=>{
-    const kk = String(k||"").trim();
-    if(!kk || seen.has(kk)) return;
-    seen.add(kk);
-    out.push(kk);
-  };
-  for(const k of Object.keys(state.needs || {})) pushKey(k);
-  for(const k of Object.keys(state.inventory || {})) pushKey(k);
-  for(const k of Object.keys(state.costsByKey || {})) pushKey(k);
+  for(const k of Object.keys(state.needs || {})){
+    if(!k) continue;
+    if(!seen.has(k)){ seen.add(k); out.push(k); }
+  }
+  for(const k of Object.keys(state.inventory || {})){
+    if(!k) continue;
+    if(!seen.has(k)){ seen.add(k); out.push(k); }
+  }
   return out;
 }
 
@@ -1624,7 +1640,7 @@ function renderDessertSummaryMobile_(){
     </section>`;
 
   host.innerHTML = [
-    blockHtml("Pagados pendientes de elaborar", "Pedidos pagados que todavía siguen en “No iniciar” y debes tener presentes para compras y producción.", today, "isToday"),
+    blockHtml("Producción prioritaria", "Pedidos confirmados dentro de la ventana principal de producción.", today, "isToday"),
     blockHtml("Después de las 3:00 p. m.", "Referencia rápida de pedidos recientes posteriores al corte.", late, "isLate")
   ].join("");
 }
@@ -1706,14 +1722,9 @@ function rowPassesFilters(row){
   const onlyMissing = !!state.ui.onlyMissing;
   const onlySelected = !!state.ui.onlySelected;
   const plan = getPlan(row.key);
-  const matchesQuery = !q || row.key.toLowerCase().includes(q);
 
-  if(!matchesQuery) return false;
-  if(onlyMissing && !(row.missing0 > 0) && !plan.selected){
-    // ✅ Si el usuario está buscando un ingrediente específico, permitir mostrarlo
-    // aunque no haga falta para que también pueda registrarse una compra manual.
-    if(!q) return false;
-  }
+  if(q && !row.key.toLowerCase().includes(q)) return false;
+  if(onlyMissing && !(row.missing0 > 0)) return false;
   if(onlySelected && !plan.selected) return false;
   return true;
 }
@@ -2126,11 +2137,6 @@ function refreshBottom(){
 
   const btn = el("btnRegister");
   if(btn) btn.disabled = (n === 0);
-
-  const bb = el("bottomBar");
-  if(bb){
-    bb.classList.toggle("isVisible", n > 0);
-  }
 }
 
 function openConfirm(){
@@ -2267,7 +2273,7 @@ async function loadAll(opts={}){
 
   state.ordersByDessert = needsOut.orders_by_dessert || needsOut.ordersByDessert || {};
   state.late = needsOut.late || {};
-  state.needs = needsOut.needs || {};
+  state.needs = mergeLateNeedsInto_(needsOut.needs || {}, state.late);
   state.items = costsOut.items || [];
   indexCosts(state.items);
 
@@ -2566,7 +2572,7 @@ function cmComputePreview(){
   let base_pack_qty = pack_qty;
   let cpu = null;
 
-  if(unit_type === "unidad" && unit_item_qty>0 && (unit_item_type==="g" || unit_item_type==="ml")){
+  if(unit_type === "unidad" && unit_item_qty>0 && (unit_item_type==="g" || unit_item_type==="ml" || unit_item_type==="m")){
     base_unit = unit_item_type;
     base_pack_qty = pack_qty * unit_item_qty;
   }
@@ -2589,7 +2595,7 @@ function openCostModal(key){
 
   if(e.title) e.title.textContent = `Detalle: ${key}`;
 
-  if(e.unitType) e.unitType.value = (unit_type==="g"||unit_type==="ml"||unit_type==="unidad") ? unit_type : "g";
+  if(e.unitType) e.unitType.value = (unit_type==="g"||unit_type==="ml"||unit_type==="m"||unit_type==="unidad") ? unit_type : "g";
   if(e.packQty) e.packQty.value = spec?.pack_qty ? String(spec.pack_qty) : "";
   if(e.packPrice) e.packPrice.value = spec?.pack_price ? String(spec.pack_price) : "";
 
@@ -2921,6 +2927,7 @@ function normalizeUnitType_(u){
   const t = String(u||"").trim().toLowerCase();
   if(t==="g"||t==="gr"||t==="gramo"||t==="gramos") return "g";
   if(t==="ml"||t==="mililitro"||t==="mililitros") return "ml";
+  if(t==="m"||t==="mt"||t==="mts"||t==="metro"||t==="metros") return "m";
   if(t==="u"||t==="und"||t==="unidad"||t==="unidades") return "unidad";
   return t;
 }
@@ -2939,9 +2946,9 @@ async function addIngredient(){
   const unit_item_qty_type = normalizeUnitType_(el("ingUnitItemQtyType")?.value||"");
 
   if(!key) throw new Error("Escribe el nombre del ingrediente.");
-  if(!unit_type || !["g","ml","unidad"].includes(unit_type)) throw new Error("Selecciona un tipo válido (g/ml/unidad).");
+  if(!unit_type || !["g","ml","m","unidad"].includes(unit_type)) throw new Error("Selecciona un tipo válido (g/ml/m/unidad).");
   if(unit_item_qty_raw && !(unit_item_qty>0)) throw new Error("Cantidad por unidad inválida.");
-  if(unit_item_qty_raw && !["g","ml"].includes(unit_item_qty_type)) throw new Error("Selecciona g o ml en “Cantidad por unidad”.");
+  if(unit_item_qty_raw && !["g","ml","m"].includes(unit_item_qty_type)) throw new Error("Selecciona g, ml o m en “Cantidad por unidad”.");
 
   try{
   await api({
@@ -2971,6 +2978,7 @@ async function addIngredient(){
   if(el("ingUnitItemQty")) el("ingUnitItemQty").value = "";
   if(el("ingUnitItemQtyType")) el("ingUnitItemQtyType").value = "";
   if(el("ingAddMsg")) el("ingAddMsg").textContent = "Ingrediente agregado con éxito.";
+  setGlobalMsg("✅ Ingrediente agregado.", false);
 }
 
 async function deleteIngredientByKey_(key){
@@ -3001,6 +3009,7 @@ async function deleteIngredient(){
     const btn2 = el("btnDelIng"); if(btn2) btn2.disabled = false;
   }
   if(el("ingDelMsg")) el("ingDelMsg").textContent = "Ingrediente eliminado.";
+  setGlobalMsg("✅ Ingrediente eliminado.", false);
 }
 function normalizeCatalogType_(type){
   const t = String(type||"").trim().toLowerCase();
@@ -4203,6 +4212,7 @@ el("ingModalBack")?.addEventListener("click", (e)=>{ if(e.target && e.target.id=
       closeIngConfirm();
       refreshIngredientSelect_();
       if(el("ingDelMsg")) el("ingDelMsg").textContent = "Ingrediente eliminado.";
+      setGlobalMsg("✅ Ingrediente eliminado.", false);
     }catch(e){
       if(el("ingConfirmCountdown")) el("ingConfirmCountdown").textContent = String(e.message||e);
     }finally{

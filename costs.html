@@ -196,7 +196,7 @@
 <!-- ✅ estilos globales AMARED -->
 <link href="styles.css?v=20260330-project-v8" rel="stylesheet"/>
 <!-- ✅ estilos de Compras / Recetas -->
-<link href="costs.css?v=20260330-v9" rel="stylesheet"/>
+<link href="costs.css?v=20260330-v10" rel="stylesheet"/>
 <style>
 /* ===== Ingredientes modal responsive ===== */
 #ingModalBack .pCatGrid.ingGrid{grid-template-columns: 1fr 1fr;}
@@ -662,8 +662,8 @@ body.is-app .costsLoginTopbar{ display:none !important; }
 <section class="card" id="summaryCard" style="margin-top:14px;">
 <div class="pSummaryGrid">
 <div>
-<div class="cardTitle" style="margin-bottom:8px;">Pagados pendientes de elaborar</div>
-<div class="hint" style="margin-bottom:10px;">Estos postres corresponden a pedidos pagados que todavía siguen en “No iniciar”, por eso deben tenerse en cuenta para calcular ingredientes y compras.</div>
+<div class="cardTitle" style="margin-bottom:8px;">Postres confirmados</div>
+<div class="hint" style="margin-bottom:10px;">Estos postres se usan para calcular ingredientes de todos los pedidos pagados que siguen en “No iniciar”.</div>
 <div class="pMiniTableWrap isCompact">
 <table class="pMiniTable isCompact">
 <thead><tr><th>Postre</th><th class="num">Cant.</th></tr></thead>
@@ -693,7 +693,7 @@ body.is-app .costsLoginTopbar{ display:none !important; }
 <div class="pCostsHead">
 <div>
 <div class="cardTitle" style="margin-bottom:8px;">Ingredientes</div>
-<div class="hint" style="margin-top:6px;">Actualiza compra, presentación, precio, marca y tienda sin salir de <b>Compras</b>. Si buscas un ingrediente específico, también podrás registrarlo aunque no tenga faltante.</div>
+<div class="hint" style="margin-top:6px;">Actualiza compra, presentación, precio, marca y tienda sin salir de <b>Compras</b>.</div>
 </div>
 
 </div><div class="pControls">
@@ -707,7 +707,7 @@ body.is-app .costsLoginTopbar{ display:none !important; }
 <span>Solo marcados</span>
 </label>
 </div><div class="hint" style="margin-top:10px;">
-            Marca <b>Comprar</b> y escribe <b>empaques</b> (según la última presentación guardada). Si no hay empaque, escribe cantidad directa en g/ml.
+            Marca <b>Comprar</b> y escribe <b>empaques</b> (según la última presentación guardada). Si no hay empaque, escribe cantidad directa en g/ml/m.
           </div>
 
 <div class="pSmallMeta" id="costsMeta" style="margin-top:10px;"></div>
@@ -859,7 +859,7 @@ body.is-app .costsLoginTopbar{ display:none !important; }
 <div class="modalTitle" id="costModalTitle" style="font-weight:950;">Detalle</div>
 <div class="modalSub" id="costModalSub" style="margin-top:4px;">Edita la última presentación guardada (se actualizará en COSTOS_INGREDIENTES).</div>
 </div>
-<button class="btn" id="cmCancelX">Cerrar</button>
+<button aria-label="Cerrar" class="iconBtn costsModalClose" id="cmCancelX" type="button">×</button>
 </div>
 <div class="modalBody" style="padding:14px;">
 <div class="pFormGrid">
@@ -868,6 +868,7 @@ body.is-app .costsLoginTopbar{ display:none !important; }
 <select class="input" id="cmUnitType">
 <option value="g">g</option>
 <option value="ml">ml</option>
+<option value="m">m</option>
 <option value="unidad">unidad</option>
 </select>
 </div>
@@ -881,7 +882,7 @@ body.is-app .costsLoginTopbar{ display:none !important; }
 </div>
 </div>
 <div class="pUnitExtra" id="cmUnitExtra" style="display:none;">
-<div class="hint" style="margin:10px 0;">Si compras por <b>unidades</b>, define cuánto trae cada unidad (g/ml) para guardar el costo en unidad base.</div>
+<div class="hint" style="margin:10px 0;">Si compras por <b>unidades</b>, define cuánto trae cada unidad (g/ml/m) para guardar el costo en unidad base.</div>
 <div class="pFormGrid">
 <div>
 <div class="label">Cantidad por unidad</div>
@@ -893,6 +894,7 @@ body.is-app .costsLoginTopbar{ display:none !important; }
 <option value="">—</option>
 <option value="g">g</option>
 <option value="ml">ml</option>
+<option value="m">m</option>
 </select>
 </div>
 </div>
@@ -948,7 +950,7 @@ body.is-app .costsLoginTopbar{ display:none !important; }
 <div class="modalTitle" style="font-weight:950;">🧩 Ingredientes (Productos)</div>
 <div class="modalSub" style="margin-top:4px;">Agrega o elimina ingredientes. Se refleja en <b>COSTOS_INGREDIENTES</b> e <b>INVENTARIO</b>.</div>
 </div>
-<button class="btn" id="ingCloseX">Cerrar</button>
+<button aria-label="Cerrar" class="iconBtn costsModalClose" id="ingCloseX" type="button">×</button>
 </div>
 <div class="modalBody" style="padding:14px;">
 <div class="pCatGrid ingGrid">
@@ -962,12 +964,13 @@ body.is-app .costsLoginTopbar{ display:none !important; }
 <select class="input" id="ingNewUnit">
 <option value="g">g</option>
 <option value="ml">ml</option>
+<option value="m">m</option>
 <option value="unidad">unidad</option>
 </select>
 <button class="btn secondary" id="btnAddIng">Agregar</button>
 </div>
 <div class="hint" style="margin-top:10px;">
-              Opcional (solo si el ingrediente se compra por unidades pero se consume en g/ml): “Cantidad por unidad”.
+              Opcional (solo si el ingrediente se compra por unidades pero se consume en g/ml/m): “Cantidad por unidad”.
             </div>
 <div class="pCatRow" style="margin-top:10px;">
 <input class="input" id="ingUnitItemQty" placeholder="Cantidad por unidad (opcional)"/>
@@ -975,6 +978,7 @@ body.is-app .costsLoginTopbar{ display:none !important; }
 <option value="">—</option>
 <option value="g">g</option>
 <option value="ml">ml</option>
+<option value="m">m</option>
 </select>
 </div>
 <div class="pSmallMeta" id="ingAddMsg" style="margin-top:10px; color:#7a2b00;"></div>
@@ -1023,7 +1027,7 @@ body.is-app .costsLoginTopbar{ display:none !important; }
 <div class="modalTitle" style="font-weight:950;">⚙️ Tiendas y Marcas</div>
 <div class="modalSub" style="margin-top:4px;">Estas opciones alimentan los selects de Marca/Tienda.</div>
 </div>
-<button class="btn" id="catCloseX">Cerrar</button>
+<button aria-label="Cerrar" class="iconBtn costsModalClose" id="catCloseX" type="button">×</button>
 </div>
 <div class="modalBody" style="padding:14px;">
 <div class="pCatGrid">
@@ -1064,7 +1068,7 @@ body.is-app .costsLoginTopbar{ display:none !important; }
 <div class="modalTitle" style="font-weight:950;">✅ Confirmar compras</div>
 <div class="modalSub" style="margin-top:4px;">Se sumará al inventario usando la última presentación guardada.</div>
 </div>
-<button class="btn" id="btnConfirmClose">Cerrar</button>
+<button aria-label="Cerrar" class="iconBtn costsModalClose" id="btnConfirmClose" type="button">×</button>
 </div>
 <div class="modalBody" style="padding:14px;">
 <div class="pConfirmTotal">
@@ -1092,7 +1096,7 @@ body.is-app .costsLoginTopbar{ display:none !important; }
     </div>
   </div>
 </div>
-<script src="kitchen-costs.js?v=28-costs-bgsave-fix"></script>
-<script src="costs.js?v=28-costs-bgsave-fix"></script>
+<script src="kitchen-costs.js?v=30-costs-mobile-ux"></script>
+<script src="costs.js?v=30-costs-mobile-ux"></script>
 </body>
 </html>

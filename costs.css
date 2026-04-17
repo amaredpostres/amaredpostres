@@ -1260,3 +1260,165 @@ select.input{
     box-shadow: 0 6px 14px rgba(64,17,2,.03) !important;
   }
 }
+
+
+/* ==============================
+   UX móvil + cierres uniformes v30
+   ============================== */
+.costsPage .modalOverlay{
+  overflow-y:auto;
+  -webkit-overflow-scrolling:touch;
+  align-items:flex-start;
+}
+.costsPage .modal{
+  max-width:calc(100vw - 20px) !important;
+  max-height:calc(100dvh - 20px);
+  overflow:auto;
+}
+.costsPage .modalHeader{
+  position:sticky;
+  top:0;
+  z-index:4;
+  gap:10px;
+}
+.costsPage .modalHeader > div:first-child{
+  min-width:0;
+  flex:1 1 auto;
+}
+.costsPage .modalTitle,
+.costsPage .modalSub,
+.costsPage .hint,
+.costsPage .pSmallMeta{
+  overflow-wrap:anywhere;
+  word-break:break-word;
+}
+.costsPage .modalBody{
+  overflow-x:hidden;
+}
+.costsModalClose{
+  flex:0 0 auto;
+  width:38px;
+  height:38px;
+  border-radius:14px;
+  padding:0;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  font-size:24px;
+  line-height:1;
+}
+
+/* Aviso frontal y efímero */
+.pGlobalMsg{
+  position:fixed;
+  top:calc(env(safe-area-inset-top, 0px) + 14px);
+  left:50%;
+  right:auto;
+  width:min(560px, calc(100vw - 24px));
+  margin:0;
+  padding:12px 14px;
+  border-radius:18px;
+  z-index:60060;
+  box-shadow:0 18px 38px rgba(64,17,2,.18);
+  backdrop-filter:blur(10px);
+  opacity:0;
+  visibility:hidden;
+  pointer-events:none;
+  transform:translate(-50%, -12px);
+  transition:opacity .22s ease, transform .22s ease, visibility .22s ease;
+  display:block;
+}
+.pGlobalMsg.show{
+  opacity:1;
+  visibility:visible;
+  transform:translate(-50%, 0);
+}
+.pGlobalMsg.err{
+  border-color:rgba(242,91,143,.25);
+  background:rgba(255,241,244,.96);
+}
+
+/* Avisos de actualización en segundo plano más adaptables */
+.costsSyncBadge{
+  top:calc(env(safe-area-inset-top, 0px) + 72px);
+  left:50%;
+  right:auto;
+  width:min(560px, calc(100vw - 24px));
+  max-width:none;
+  padding:12px 14px;
+  z-index:60040;
+  transform:translate(-50%, -8px);
+}
+.costsSyncBadge.isVisible{
+  transform:translate(-50%, 0);
+}
+.costsSyncBadgeTitle,
+.costsSyncBadgeSub{
+  overflow-wrap:anywhere;
+  word-break:break-word;
+}
+
+@media (max-width: 720px){
+  .costsSyncBadge{
+    top:calc(env(safe-area-inset-top, 0px) + 72px);
+    left:12px;
+    right:12px;
+    width:auto;
+    transform:translateY(-8px);
+  }
+  .costsSyncBadge.isVisible{
+    transform:translateY(0);
+  }
+}
+
+@media (max-width: 560px){
+  .costsPage .modal{
+    width:calc(100vw - 20px) !important;
+    border-radius:20px;
+    margin:10px auto;
+  }
+  .costsPage .modalOverlay{
+    padding:10px;
+  }
+  .costsPage .pCatRow,
+  .costsPage .pModalActions,
+  .costsPage .confirmBtns,
+  .costsPage .pLoginRow,
+  .costsPage .unlockActions{
+    display:grid;
+    grid-template-columns:1fr;
+    align-items:stretch;
+  }
+  .costsPage .pCatRow .input,
+  .costsPage .pCatRow .btn,
+  .costsPage .pModalActions .btn,
+  .costsPage .confirmBtns .btn,
+  .costsPage .pLoginRow .input,
+  .costsPage .pLoginRow .btn,
+  .costsPage .unlockActions .btn{
+    width:100%;
+    min-width:0;
+  }
+  .costsPage .pCatRow .input,
+  .costsPage .pControls .input{
+    min-width:0;
+  }
+  .costsPage .pTopBtns{
+    width:100%;
+  }
+  .costsPage .pCostsHead .pTopBtns{
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    width:100%;
+    gap:10px;
+  }
+  .costsPage .pCostsHead .pTopBtns .btn{
+    width:100%;
+    min-width:0;
+  }
+  .pGlobalMsg{
+    top:calc(env(safe-area-inset-top, 0px) + 10px);
+    width:calc(100vw - 20px);
+    padding:11px 12px;
+  }
+}
