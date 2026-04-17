@@ -687,21 +687,6 @@ function hideCostsSyncBadge_(){
   badge.classList.remove("isVisible");
 }
 
-function updateBottomBarVisibility_(opts={}){
-  const bb = el("bottomBar");
-  if(!bb) return;
-  const immediate = !!opts.immediate;
-  const shouldShow = (state.view !== "recipes") && (selectedKeys().length > 0);
-  const page = document.body;
-  if(page) page.classList.toggle("hasBottomSummary", shouldShow);
-  bb.classList.toggle("noAnim", immediate);
-  bb.classList.toggle("isVisible", shouldShow);
-  bb.setAttribute("aria-hidden", shouldShow ? "false" : "true");
-  if(immediate){
-    requestAnimationFrame(()=> bb.classList.remove("noAnim"));
-  }
-}
-
 // =============== Tabs ===============
 function setView(view){
   const prev = state.view || "purchases";
@@ -719,6 +704,7 @@ function setView(view){
   const vp = el("viewPurchases");
   const vc = el("viewCosts");
   const vr = el("viewRecipes");
+  const bb = el("bottomBar");
 
   const tp = el("btnTabPurchases");
   const tr = el("btnTabRecipes");
@@ -727,13 +713,14 @@ function setView(view){
   if(tr){ tr.classList.remove("isActive"); tr.setAttribute("aria-selected","false"); }
 
   show(vp); hide(vc); hide(vr);
+  if(bb) bb.style.display = "";
 
   if(v === "recipes"){
     hide(vp); hide(vc); show(vr);
+    if(bb) bb.style.display = "none";
     if(tr){ tr.classList.add("isActive"); tr.setAttribute("aria-selected","true"); }
     ensureRecipesUnlocked_();
     scheduleRecipesWarmup_(true);
-    updateBottomBarVisibility_();
     return;
   }
 
@@ -823,7 +810,6 @@ function normRecipeUnit_(u){
   if(t === "u" || t === "und" || t === "unidad" || t === "unidades") return "unidad";
   if(t === "g" || t === "gr" || t === "gramo" || t === "gramos") return "g";
   if(t === "ml" || t === "mililitro" || t === "mililitros") return "ml";
-  if(t === "m" || t === "mt" || t === "mts" || t === "metro" || t === "metros") return "m";
   return t;
 }
 
@@ -962,12 +948,12 @@ function baseFromSpec(spec){
 
   const cpuOr = ((pack_qty>0 && pack_price>0) ? (pack_price/pack_qty) : ((cpuStored>0 && isFinite(cpuStored)) ? cpuStored : null));
 
-  if(unit_type === "g" || unit_type === "ml" || unit_type === "m"){
+  if(unit_type === "g" || unit_type === "ml"){
     return { base_unit: unit_type, cpu: cpuOr, pack_qty, pack_price, brand, store, unit_item_qty, unit_item_type, unit_type };
   }
 
   if(unit_type === "unidad"){
-    if(unit_item_qty>0 && (unit_item_type === "g" || unit_item_type === "ml" || unit_item_type === "m")){
+    if(unit_item_qty>0 && (unit_item_type === "g" || unit_item_type === "ml")){
       const basePackQty = pack_qty * unit_item_qty;
       const cpu = (basePackQty>0 && pack_price>0) ? (pack_price/basePackQty) : null;
       return { base_unit: unit_item_type, cpu, pack_qty: basePackQty, pack_price, brand, store, unit_item_qty, unit_item_type, unit_type };
@@ -994,7 +980,7 @@ function normalizeInvToBase(key){
     return { qty, unit, raw };
   }
 
-  if(unit === "unidad" && (base.base_unit === "g" || base.base_unit === "ml" || base.base_unit === "m") && base.unit_item_qty>0 && base.unit_item_type === base.base_unit){
+  if(unit === "unidad" && (base.base_unit === "g" || base.base_unit === "ml") && base.unit_item_qty>0 && base.unit_item_type === base.base_unit){
     return { qty: qty * base.unit_item_qty, unit: base.base_unit, raw };
   }
 
@@ -2125,7 +2111,7 @@ function totalEstimated(){
   return { total, any };
 }
 
-function refreshBottom(opts={}){
+function refreshBottom(){
   const keys = selectedKeys();
   const n = keys.length;
   const est = totalEstimated();
@@ -2135,8 +2121,6 @@ function refreshBottom(opts={}){
 
   const btn = el("btnRegister");
   if(btn) btn.disabled = (n === 0);
-
-  updateBottomBarVisibility_(opts);
 }
 
 function openConfirm(){
@@ -2572,7 +2556,7 @@ function cmComputePreview(){
   let base_pack_qty = pack_qty;
   let cpu = null;
 
-  if(unit_type === "unidad" && unit_item_qty>0 && (unit_item_type==="g" || unit_item_type==="ml" || unit_item_type==="m")){
+  if(unit_type === "unidad" && unit_item_qty>0 && (unit_item_type==="g" || unit_item_type==="ml")){
     base_unit = unit_item_type;
     base_pack_qty = pack_qty * unit_item_qty;
   }
@@ -2595,7 +2579,7 @@ function openCostModal(key){
 
   if(e.title) e.title.textContent = `Detalle: ${key}`;
 
-  if(e.unitType) e.unitType.value = (unit_type==="g"||unit_type==="ml"||unit_type==="m"||unit_type==="unidad") ? unit_type : "g";
+  if(e.unitType) e.unitType.value = (unit_type==="g"||unit_type==="ml"||unit_type==="unidad") ? unit_type : "g";
   if(e.packQty) e.packQty.value = spec?.pack_qty ? String(spec.pack_qty) : "";
   if(e.packPrice) e.packPrice.value = spec?.pack_price ? String(spec.pack_price) : "";
 
@@ -2612,6 +2596,45 @@ function openCostModal(key){
 function closeCostModal(){
   hide(el("costModalBack"));
   CM.key = null;
+}
+
+function patchCostSpecInState_(ingredient_key, patch, opts={}){
+  const removeIfMissing = !!opts.removeIfMissing;
+  const prevByKey = state.costsByKey || {};
+  const prevSpec = prevByKey[ingredient_key] ? { ...prevByKey[ingredient_key] } : null;
+  const prevIdx = Array.isArray(state.items)
+    ? state.items.findIndex(it => String(it?.ingredient_key ?? it?.key ?? it?.name ?? "").trim() === ingredient_key)
+    : -1;
+  const prevItem = (prevIdx >= 0 && Array.isArray(state.items)) ? { ...state.items[prevIdx] } : null;
+
+  if(!patch && removeIfMissing){
+    try{ delete prevByKey[ingredient_key]; }catch(_e){}
+    if(prevIdx >= 0) state.items.splice(prevIdx, 1);
+  }else if(patch){
+    const next = {
+      ...(prevSpec || {}),
+      ingredient_key,
+      key: prevSpec?.key || ingredient_key,
+      name: prevSpec?.name || ingredient_key,
+      ...patch,
+    };
+    state.costsByKey = state.costsByKey || {};
+    state.costsByKey[ingredient_key] = next;
+    if(Array.isArray(state.items)){
+      if(prevIdx >= 0) state.items[prevIdx] = { ...(state.items[prevIdx] || {}), ...next };
+      else state.items.push(next);
+    }
+  }
+
+  try{
+    renderUnitCosts();
+    renderGroups();
+    renderCostGroupsIfOpen_();
+    refreshBottom();
+    saveCostsDataCache_();
+  }catch(_e){}
+
+  return { prevSpec, prevItem, prevIdx };
 }
 
 async function saveCostModal(){
@@ -2635,38 +2658,76 @@ async function saveCostModal(){
 
   let save_unit_type = unit_type;
   let save_pack_qty = pack_qty0;
-  if(unit_type === "unidad" && unit_item_qty>0 && (unit_item_qty_type==="g" || unit_item_qty_type==="ml")){
+  if(unit_type === "unidad" && unit_item_qty>0 && (unit_item_qty_type==="g" || unit_item_qty_type==="ml" || unit_item_qty_type==="m")){
     save_unit_type = unit_item_qty_type;
     save_pack_qty = pack_qty0 * unit_item_qty;
   }
 
   const cop_per_unit = pack_price / save_pack_qty;
+  const payload = {
+    unit_type: save_unit_type,
+    pack_qty: save_pack_qty,
+    pack_price,
+    cop_per_unit,
+    brand,
+    store,
+    unit_item_qty: (unit_item_qty>0 ? unit_item_qty : ""),
+    unit_item_qty_type: unit_item_qty_type || "",
+  };
 
-  showLoading("Guardando…", "Actualizando COSTOS_INGREDIENTES.");
-  try{
-    await api({
-      action:"costs_upsert",
-      costs_secret: UNLOCKED_SECRET,
-      ingredient_key,
-      unit_type: save_unit_type,
-      pack_qty: save_pack_qty,
-      pack_price,
-      cop_per_unit,
-      brand,
-      store,
-      unit_item_qty: (unit_item_qty>0 ? unit_item_qty : ""),
-      unit_item_qty_type: unit_item_qty_type || "",
-      updated_by: "PURCHASES_UI"
-    }, {timeoutMs: 60000});
+  const snapshot = patchCostSpecInState_(ingredient_key, payload);
+  closeCostModal();
+  setGlobalMsg("", false);
+  setMeta(`⏳ Guardando ${ingredient_key} en segundo plano…`);
+  showCostsSyncBadge_("Guardando cambios…", "Puedes seguir usando la página mientras actualizamos COSTOS_INGREDIENTES.");
 
-    await loadAll();
-    closeCostModal();
-    setMeta("✅ Costos actualizados.");
-  } catch(err){
-    if(e.err) e.err.textContent = (err && err.message) ? err.message : "Error guardando.";
-  } finally {
-    hideLoading();
-  }
+  void api({
+    action:"costs_upsert",
+    costs_secret: UNLOCKED_SECRET,
+    ingredient_key,
+    unit_type: save_unit_type,
+    pack_qty: save_pack_qty,
+    pack_price,
+    cop_per_unit,
+    brand,
+    store,
+    unit_item_qty: (unit_item_qty>0 ? unit_item_qty : ""),
+    unit_item_qty_type: unit_item_qty_type || "",
+    updated_by: "PURCHASES_UI"
+  }, {timeoutMs: 60000})
+    .then(async()=>{
+      setMeta("✅ Costos actualizados.");
+      showCostsSyncBadge_("Costos actualizados", "Sincronizando la información más reciente sin interrumpir tu trabajo.");
+      try{
+        await loadAll();
+      }catch(_e){}
+      setGlobalMsg("", false);
+      setTimeout(()=>{ try{ hideCostsSyncBadge_(); }catch(_e){} }, 1200);
+    })
+    .catch((err)=>{
+      const stateCosts = state.costsByKey || {};
+      if(snapshot.prevSpec){
+        stateCosts[ingredient_key] = snapshot.prevSpec;
+        if(Array.isArray(state.items) && snapshot.prevIdx >= 0 && snapshot.prevItem){
+          state.items[snapshot.prevIdx] = snapshot.prevItem;
+        }
+      }else{
+        try{ delete stateCosts[ingredient_key]; }catch(_e){}
+        if(Array.isArray(state.items) && snapshot.prevIdx >= 0){
+          state.items.splice(snapshot.prevIdx, 1);
+        }
+      }
+      try{
+        renderUnitCosts();
+        renderGroups();
+        renderCostGroupsIfOpen_();
+        refreshBottom();
+        saveCostsDataCache_();
+      }catch(_e){}
+      hideCostsSyncBadge_();
+      setMeta("❌ No se pudo guardar el costo.");
+      setGlobalMsg((err && err.message) ? err.message : "Error guardando el costo.", true);
+    });
 }
 
 // =============== Catalog manager (Tiendas/Marcas) ===============
@@ -2837,7 +2898,6 @@ function normalizeUnitType_(u){
   const t = String(u||"").trim().toLowerCase();
   if(t==="g"||t==="gr"||t==="gramo"||t==="gramos") return "g";
   if(t==="ml"||t==="mililitro"||t==="mililitros") return "ml";
-  if(t==="m"||t==="mt"||t==="mts"||t==="metro"||t==="metros") return "m";
   if(t==="u"||t==="und"||t==="unidad"||t==="unidades") return "unidad";
   return t;
 }
@@ -2856,9 +2916,9 @@ async function addIngredient(){
   const unit_item_qty_type = normalizeUnitType_(el("ingUnitItemQtyType")?.value||"");
 
   if(!key) throw new Error("Escribe el nombre del ingrediente.");
-  if(!unit_type || !["g","ml","m","unidad"].includes(unit_type)) throw new Error("Selecciona un tipo válido (g/ml/m/unidad).");
+  if(!unit_type || !["g","ml","unidad"].includes(unit_type)) throw new Error("Selecciona un tipo válido (g/ml/unidad).");
   if(unit_item_qty_raw && !(unit_item_qty>0)) throw new Error("Cantidad por unidad inválida.");
-  if(unit_item_qty_raw && !["g","ml","m"].includes(unit_item_qty_type)) throw new Error("Selecciona g, ml o m en “Cantidad por unidad”.");
+  if(unit_item_qty_raw && !["g","ml"].includes(unit_item_qty_type)) throw new Error("Selecciona g o ml en “Cantidad por unidad”.");
 
   try{
   await api({
