@@ -196,7 +196,7 @@
 <!-- ✅ estilos globales AMARED -->
 <link href="styles.css?v=20260330-project-v8" rel="stylesheet"/>
 <!-- ✅ estilos de Compras / Recetas -->
-<link href="costs.css?v=20260417-v31" rel="stylesheet"/>
+<link href="costs.css?v=20260417-v33" rel="stylesheet"/>
 <style>
 /* ===== Ingredientes modal responsive ===== */
 #ingModalBack .pCatGrid.ingGrid{grid-template-columns: 1fr 1fr;}
@@ -716,6 +716,15 @@ body.is-app .costsLoginTopbar{ display:none !important; }
 
 <div class="pSmallMeta" id="costsMeta" style="margin-top:10px;"></div>
 <div class="pGroups" id="groups" style="margin-top:12px;"></div>
+</section><section class="card" style="margin-top:14px;">
+<div class="pCostsHead">
+<div>
+<div class="cardTitle" style="margin-bottom:8px;">Historial de compras</div>
+<div class="hint" style="margin-top:6px;">Consulta las compras registradas para ingredientes y su trazabilidad.</div>
+</div>
+</div>
+<div class="pSmallMeta" id="purchaseHistoryMeta" style="margin-top:10px;">Cargando historial…</div>
+<div class="purchaseHistoryList" id="purchaseHistoryList" style="margin-top:12px;"></div>
 </section><section class="card" style="margin-top:14px;"><div class="pCostsHead"><div><div class="cardTitle" style="margin-bottom:8px;">Administración de ingredientes</div><div class="hint" style="margin-top:6px;">Crea/elimina ingredientes y gestiona tiendas/marcas. Úsalo cuando toque mantenimiento.</div></div><div class="pTopBtns" style="justify-content:flex-end;">
 <button class="btn secondary" id="btnCatalogs">⚙️ Tiendas/Marcas</button>
 <button class="btn secondary" id="btnIngredients">🧩 Ingredientes</button>
@@ -1102,6 +1111,6 @@ body.is-app .costsLoginTopbar{ display:none !important; }
   </div>
 </div>
 <script src="kitchen-costs.js?v=30-costs-mobile-ux"></script>
-<script src="costs.js?v=20260417-v32"></script>
+<script src="costs.js?v=20260417-v33"></script>
 </body>
 </html>

@@ -1477,3 +1477,54 @@ select.input{
     max-width: calc(100vw - 20px);
   }
 }
+
+
+/* ===== Historial de compras ===== */
+.purchaseHistoryList{ display:grid; gap:12px; }
+.purchaseHistoryCard{
+  border:1px solid rgba(64,17,2,.10);
+  border-radius:18px;
+  background:rgba(255,255,255,.84);
+  overflow:hidden;
+  box-shadow:0 10px 24px rgba(64,17,2,.06);
+}
+.purchaseHistoryCard summary{
+  list-style:none;
+  cursor:pointer;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:12px;
+  padding:14px 16px;
+}
+.purchaseHistoryCard summary::-webkit-details-marker{ display:none; }
+.purchaseHistoryTitle{ font-weight:950; line-height:1.12; }
+.purchaseHistoryMetaLine{ margin-top:4px; font-size:12.5px; font-weight:850; color:rgba(64,17,2,.62); }
+.purchaseHistoryTotal{ white-space:nowrap; font-weight:950; font-size:15px; color:var(--choco); }
+.purchaseHistoryBody{
+  padding:0 14px 14px;
+  border-top:1px solid rgba(64,17,2,.08);
+  background:rgba(255,255,255,.94);
+  display:grid;
+  gap:10px;
+}
+.purchaseHistoryItem{
+  display:flex;
+  justify-content:space-between;
+  gap:12px;
+  align-items:flex-start;
+  border:1px solid rgba(64,17,2,.08);
+  border-radius:14px;
+  padding:10px 12px;
+  background:rgba(255,248,242,.88);
+}
+.purchaseHistoryItemName{ font-weight:900; line-height:1.15; }
+.purchaseHistoryItemMeta{ margin-top:4px; font-size:12px; font-weight:800; color:rgba(64,17,2,.62); }
+.purchaseHistoryItemCost{ white-space:nowrap; font-weight:950; }
+@media (max-width: 640px){
+  .purchaseHistoryCard summary,
+  .purchaseHistoryItem{ padding:12px; }
+  .purchaseHistoryCard summary{ align-items:flex-start; }
+  .purchaseHistoryTotal,
+  .purchaseHistoryItemCost{ font-size:14px; }
+}

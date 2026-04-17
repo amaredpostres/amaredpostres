@@ -81,6 +81,7 @@ let state = {
   stores: [],
   brands: [],
   buyPlan: {},
+  purchaseHistory: [],
   window_h: 36,
   view: "purchases",
   ui: {
@@ -144,6 +145,7 @@ function saveCostsDataCache_(){
       recipesSource: state.recipesSource || "embedded",
       recipesLoadedAt: Number(state.recipesLoadedAt || 0) || 0,
       buyPlan: state.buyPlan || {},
+      purchaseHistory: state.purchaseHistory || [],
       ts: Date.now()
     }));
   }catch(_e){}
@@ -165,6 +167,7 @@ function hydrateCostsDataFromCache_(cache){
   state.recipesSource = cache?.recipesSource || state.recipesSource;
   state.recipesLoadedAt = Number(cache?.recipesLoadedAt || 0) || state.recipesLoadedAt || 0;
   state.buyPlan = cache?.buyPlan || state.buyPlan || {};
+  state.purchaseHistory = Array.isArray(cache?.purchaseHistory) ? cache.purchaseHistory : (state.purchaseHistory || []);
   state.needs = mergeLateNeedsInto_(state.needs || {}, state.late || {});
   indexCosts(state.items);
   updateMetaLine();
@@ -173,6 +176,7 @@ function hydrateCostsDataFromCache_(cache){
   renderLate();
   renderGroups();
   renderCostGroupsIfOpen_();
+  renderPurchaseHistory();
   refreshBottom();
   saveCostsDataCache_();
   scheduleRecipesWarmup_();
@@ -1061,14 +1065,17 @@ function getCostPerUnit(key){
 function collectAllKeys(){
   const seen = new Set();
   const out = [];
-  for(const k of Object.keys(state.needs || {})){
-    if(!k) continue;
-    if(!seen.has(k)){ seen.add(k); out.push(k); }
-  }
-  for(const k of Object.keys(state.inventory || {})){
-    if(!k) continue;
-    if(!seen.has(k)){ seen.add(k); out.push(k); }
-  }
+  const addKeys = (src)=>{
+    for(const k of Object.keys(src || {})){
+      const kk = String(k || "").trim();
+      if(!kk || seen.has(kk)) continue;
+      seen.add(kk);
+      out.push(kk);
+    }
+  };
+  addKeys(state.needs || {});
+  addKeys(state.inventory || {});
+  addKeys(state.costsByKey || {});
   return out;
 }
 
@@ -2175,6 +2182,14 @@ function refreshBottom(){
 
   const btn = el("btnRegister");
   if(btn) btn.disabled = (n === 0);
+
+  const bar = el("bottomBar");
+  const visible = (state.view === "purchases") && (n > 0);
+  if(bar){
+    bar.classList.toggle("isVisible", visible);
+    bar.setAttribute("aria-hidden", visible ? "false" : "true");
+  }
+  try{ document.body.classList.toggle("hasBottomBar", visible); }catch(_e){}
 }
 
 function openConfirm(){
@@ -2264,6 +2279,90 @@ async function registerPurchases(){
   }
 }
 
+
+function purchaseHistoryGroups_(){
+  const rows = Array.isArray(state.purchaseHistory) ? state.purchaseHistory.slice() : [];
+  const groups = [];
+  const byId = new Map();
+  for(const row of rows){
+    const purchaseId = String(row.purchase_id || row.purchaseId || "SIN-ID").trim() || "SIN-ID";
+    let g = byId.get(purchaseId);
+    if(!g){
+      g = { purchase_id: purchaseId, created_at: String(row.created_at || row.createdAt || "").trim(), items: [], total: 0 };
+      byId.set(purchaseId, g);
+      groups.push(g);
+    }
+    const qty = Number(row.qty || 0) || 0;
+    const cpu = Number(row.cop_per_unit || row.copPerUnit || 0) || 0;
+    const total = Number(row.cop_total || row.copTotal || (qty * cpu) || 0) || 0;
+    g.items.push({
+      ingredient_key: String(row.ingredient_key || row.ingredientKey || "").trim(),
+      qty,
+      unit: String(row.unit || "").trim(),
+      cop_per_unit: cpu,
+      cop_total: total,
+      store: String(row.store || "").trim(),
+      brand: String(row.brand || "").trim(),
+      created_at: String(row.created_at || row.createdAt || "").trim()
+    });
+    g.total += total;
+    if(!g.created_at) g.created_at = String(row.created_at || row.createdAt || "").trim();
+  }
+  return groups;
+}
+
+function renderPurchaseHistory(){
+  const host = el("purchaseHistoryList");
+  const meta = el("purchaseHistoryMeta");
+  if(!host) return;
+
+  const groups = purchaseHistoryGroups_();
+  if(meta){
+    const itemsCount = groups.reduce((acc, g)=> acc + (Array.isArray(g.items) ? g.items.length : 0), 0);
+    meta.textContent = groups.length
+      ? `Compras registradas: ${groups.length} · Movimientos: ${itemsCount}`
+      : "Aún no hay compras registradas.";
+  }
+
+  if(!groups.length){
+    host.innerHTML = `<div class="hint">Aquí verás el historial de compras registradas para ingredientes.</div>`;
+    return;
+  }
+
+  host.innerHTML = groups.map((g, idx)=>{
+    const gid = `purchaseHistory:${escapeHtmlAttr(g.purchase_id || ('row-'+idx))}`;
+    const itemsHtml = (g.items || []).map(it=>{
+      const metaBits = [it.brand, it.store].filter(Boolean).join(" · ");
+      return `
+        <div class="purchaseHistoryItem">
+          <div>
+            <div class="purchaseHistoryItemName">${escapeHtml(it.ingredient_key || 'Ingrediente')}</div>
+            <div class="purchaseHistoryItemMeta">
+              ${escapeHtml(fmtNum(it.qty))} ${escapeHtml(it.unit || '')}${metaBits ? ` · ${escapeHtml(metaBits)}` : ""}
+            </div>
+          </div>
+          <div class="purchaseHistoryItemCost">${it.cop_total > 0 ? moneyCOP(it.cop_total) : "$—"}</div>
+        </div>
+      `;
+    }).join("");
+
+    return `
+      <details class="purchaseHistoryCard" data-gid="${gid}">
+        <summary>
+          <div>
+            <div class="purchaseHistoryTitle">${escapeHtml(g.created_at || g.purchase_id)}</div>
+            <div class="purchaseHistoryMetaLine">${escapeHtml(g.purchase_id)} · ${(g.items || []).length} ingrediente(s)</div>
+          </div>
+          <div class="purchaseHistoryTotal">${g.total > 0 ? moneyCOP(g.total) : "$—"}</div>
+        </summary>
+        <div class="purchaseHistoryBody">
+          ${itemsHtml}
+        </div>
+      </details>
+    `;
+  }).join("");
+}
+
 // =============== Meta ===============
 function setMeta(msg){
   const m = el("meta");
@@ -2291,12 +2390,16 @@ async function loadAll(opts={}){
 
   updateMetaLine();
 
-  const [invOut, needsOut, costsOut, catOut, dessertsOut] = await Promise.all([
+  const historyPromise = api({ action:"inventory_purchase_history", costs_secret: UNLOCKED_SECRET, limit: 80 })
+    .catch(()=>({ ok:false, items: [] }));
+
+  const [invOut, needsOut, costsOut, catOut, dessertsOut, historyOut] = await Promise.all([
     api({ action:"inventory_get", costs_secret: UNLOCKED_SECRET }),
     api({ action:"costs_orders_for_purchases", costs_secret: UNLOCKED_SECRET, window_h: state.window_h }),
     api({ action:"costs_list", costs_secret: UNLOCKED_SECRET }),
     api({ action:"catalog_list", costs_secret: UNLOCKED_SECRET }),
     api({ action:"desserts_public_list", costs_secret: UNLOCKED_SECRET }),
+    historyPromise,
   ]);
 
   state.inventory = invOut.inventory || {};
@@ -2313,6 +2416,7 @@ async function loadAll(opts={}){
   state.late = needsOut.late || {};
   state.needs = mergeLateNeedsInto_(needsOut.needs || {}, state.late);
   state.items = costsOut.items || [];
+  state.purchaseHistory = Array.isArray(historyOut?.items) ? historyOut.items : [];
   indexCosts(state.items);
 
   // Recetas desde hoja RECETAS (para costo unitario)
