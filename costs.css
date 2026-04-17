@@ -1498,6 +1498,28 @@ select.input{
   padding:14px 16px;
 }
 .purchaseHistoryCard summary::-webkit-details-marker{ display:none; }
+.purchaseHistoryCard summary::after{
+  content:"+";
+  flex:0 0 auto;
+  width:30px;
+  height:30px;
+  margin-left:auto;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  border-radius:999px;
+  border:1px solid rgba(64,17,2,.10);
+  background:rgba(255,255,255,.92);
+  font-size:18px;
+  line-height:1;
+  font-weight:950;
+  color:rgba(64,17,2,.72);
+}
+.purchaseHistoryCard[open] summary::after{
+  content:"−";
+  background:rgba(242,91,143,.12);
+  border-color:rgba(242,91,143,.20);
+}
 .purchaseHistoryTitle{ font-weight:950; line-height:1.12; }
 .purchaseHistoryMetaLine{ margin-top:4px; font-size:12.5px; font-weight:850; color:rgba(64,17,2,.62); }
 .purchaseHistoryTotal{ white-space:nowrap; font-weight:950; font-size:15px; color:var(--choco); }
@@ -1539,9 +1561,9 @@ select.input{
   height:58px;
   border-radius:999px;
   border:1px solid rgba(64,17,2,.10);
-  background:linear-gradient(180deg, rgba(242,91,143,.18), rgba(246,186,96,.18));
+  background:linear-gradient(180deg, rgba(242,91,143,.64), rgba(246,186,96,.70));
   color:var(--choco);
-  box-shadow:0 18px 34px rgba(64,17,2,.16), inset 0 0 0 1px rgba(255,255,255,.45);
+  box-shadow:0 18px 34px rgba(64,17,2,.18), inset 0 0 0 1px rgba(255,255,255,.62);
   display:inline-flex;
   align-items:center;
   justify-content:center;
@@ -1560,6 +1582,9 @@ select.input{
 .costsPage.hasFrontOverlay .historyFab{ opacity:0; pointer-events:none; transform:translateY(8px) scale(.98); }
 .historyModal{ width:min(760px, calc(100vw - 20px)); }
 .historyModal .modalBody{ padding-top:16px; }
+.historyModalHeader{ align-items:flex-start; gap:12px; }
+.historyModalActions{ display:flex; align-items:center; gap:10px; margin-left:auto; }
+.historyModalActions .btn{ min-height:40px; }
 @media (max-width: 560px){
   .historyFab{
     right:14px;
@@ -1569,6 +1594,10 @@ select.input{
   }
   .historyFab.aboveBar{ bottom:calc(204px + env(safe-area-inset-bottom, 0px)); }
   .historyModal{ width:calc(100vw - 20px) !important; }
+  .historyModalHeader{ align-items:stretch; }
+  .historyModalActions{ width:100%; justify-content:space-between; margin-left:0; }
+  .historyModalActions .btn{ flex:1 1 auto; }
+  .historyModalActions #historyCloseX{ flex:0 0 auto; min-width:48px; }
 }
 @media (min-width: 561px){
   .historyFab{ bottom:24px; }

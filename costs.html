@@ -196,7 +196,7 @@
 <!-- ✅ estilos globales AMARED -->
 <link href="styles.css?v=20260330-project-v8" rel="stylesheet"/>
 <!-- ✅ estilos de Compras / Recetas -->
-<link href="costs.css?v=20260417-v36" rel="stylesheet"/>
+<link href="costs.css?v=20260417-v37-history-ready" rel="stylesheet"/>
 <style>
 /* ===== Ingredientes modal responsive ===== */
 #ingModalBack .pCatGrid.ingGrid{grid-template-columns: 1fr 1fr;}
@@ -1107,12 +1107,15 @@ body.is-app .costsLoginTopbar{ display:none !important; }
 
 <div class="modalOverlay hidden" id="historyBack">
   <div class="modal historyModal" role="dialog" aria-modal="true" aria-labelledby="historyModalTitle">
-    <div class="modalHeader">
+    <div class="modalHeader historyModalHeader">
       <div>
         <div class="modalTitle" id="historyModalTitle">Historial de compras</div>
         <div class="modalSub">Consulta las compras registradas para ingredientes y su trazabilidad.</div>
       </div>
-      <button class="btn secondary costsModalClose" id="historyCloseX" type="button" aria-label="Cerrar">×</button>
+      <div class="historyModalActions">
+        <button class="btn secondary" id="btnHistoryRefresh" type="button">Actualizar</button>
+        <button class="btn secondary costsModalClose" id="historyCloseX" type="button" aria-label="Cerrar">×</button>
+      </div>
     </div>
     <div class="modalBody">
       <div class="pSmallMeta" id="purchaseHistoryMeta" style="margin-top:0;">Cargando historial…</div>
@@ -1122,6 +1125,6 @@ body.is-app .costsLoginTopbar{ display:none !important; }
 </div>
 
 <script src="kitchen-costs.js?v=30-costs-mobile-ux"></script>
-<script src="costs.js?v=20260417-v37-history-fix"></script>
+<script src="costs.js?v=20260417-v38-history-ready"></script>
 </body>
 </html>

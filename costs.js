@@ -168,6 +168,7 @@ function hydrateCostsDataFromCache_(cache){
   state.recipesLoadedAt = Number(cache?.recipesLoadedAt || 0) || state.recipesLoadedAt || 0;
   state.buyPlan = cache?.buyPlan || state.buyPlan || {};
   state.purchaseHistory = Array.isArray(cache?.purchaseHistory) ? cache.purchaseHistory : (state.purchaseHistory || []);
+  historyDataReady_ = true;
   state.needs = mergeLateNeedsInto_(state.needs || {}, state.late || {});
   indexCosts(state.items);
   updateMetaLine();
@@ -2368,6 +2369,7 @@ function renderPurchaseHistory(){
       </details>
     `;
   }).join("");
+  collapsePurchaseHistoryCards_();
 }
 
 function updateHistoryFabPosition_(){
@@ -2378,7 +2380,7 @@ function updateHistoryFabPosition_(){
   const isMobile = (()=>{ try{ return window.innerWidth <= 560; }catch(_e){ return false; } })();
   const appVisible = !!app && !app.classList.contains("hidden") && app.hidden !== true && (app.style.display !== "none");
   const unlockVisible = !!unlock && !unlock.classList.contains("hidden") && unlock.hidden !== true && (unlock.style.display !== "none");
-  const shouldShow = appVisible && !unlockVisible && state.view === "purchases";
+  const shouldShow = appVisible && !unlockVisible && state.view === "purchases" && historyDataReady_;
   fab.classList.toggle("hidden", !shouldShow);
   const barVisible = !!el("bottomBar") && el("bottomBar").classList.contains("isVisible");
   fab.classList.toggle("aboveBar", barVisible);
@@ -2386,18 +2388,63 @@ function updateHistoryFabPosition_(){
 
 let historyOpenGuardUntil_ = 0;
 let historyBackdropIgnoreUntil_ = 0;
+let historyDataReady_ = false;
+let historySyncInFlight_ = null;
+
+function collapsePurchaseHistoryCards_(){
+  try{
+    document.querySelectorAll('#purchaseHistoryList .purchaseHistoryCard[open]').forEach(card=>{
+      try{ card.removeAttribute('open'); }catch(_e){}
+      try{ card.open = false; }catch(_e){}
+    });
+  }catch(_e){}
+}
+
+function setHistoryRefreshLoading_(loading){
+  const btn = el("btnHistoryRefresh");
+  if(!btn) return;
+  const busy = !!loading;
+  btn.disabled = busy;
+  btn.textContent = busy ? "Actualizando…" : "Actualizar";
+}
+
+async function refreshPurchaseHistory_(opts={}){
+  if(!UNLOCKED_SECRET) return [];
+  if(historySyncInFlight_) return historySyncInFlight_;
+  const silent = !!opts.silent;
+  const meta = el("purchaseHistoryMeta");
+  if(!silent && meta) meta.textContent = "Actualizando historial…";
+  setHistoryRefreshLoading_(true);
+  historySyncInFlight_ = api({ action:"inventory_purchase_history", costs_secret: UNLOCKED_SECRET, limit: 80 })
+    .catch(()=>({ ok:false, items: [] }))
+    .then(out=>{
+      state.purchaseHistory = Array.isArray(out?.items) ? out.items : [];
+      historyDataReady_ = true;
+      renderPurchaseHistory();
+      saveCostsDataCache_();
+      updateHistoryFabPosition_();
+      return state.purchaseHistory;
+    })
+    .finally(()=>{
+      historySyncInFlight_ = null;
+      setHistoryRefreshLoading_(false);
+    });
+  return historySyncInFlight_;
+}
 
 function openHistoryModal(){
   const back = el("historyBack");
-  if(!back) return;
+  if(!back || !historyDataReady_) return;
   historyOpenGuardUntil_ = Date.now() + 900;
   historyBackdropIgnoreUntil_ = Date.now() + 900;
   renderPurchaseHistory();
+  collapsePurchaseHistoryCards_();
   show(back);
   updateHistoryFabPosition_();
 }
 
 function closeHistoryModal(){
+  setHistoryRefreshLoading_(false);
   hide(el("historyBack"));
   updateHistoryFabPosition_();
 }
@@ -2427,6 +2474,8 @@ async function loadAll(opts={}){
   if(!UNLOCKED_SECRET) throw new Error("Sin clave.");
   const loadRecipesNow = !!opts.loadRecipesNow || state.view === "recipes";
 
+  historyDataReady_ = false;
+  updateHistoryFabPosition_();
   updateMetaLine();
 
   const historyPromise = api({ action:"inventory_purchase_history", costs_secret: UNLOCKED_SECRET, limit: 80 })
@@ -2456,6 +2505,7 @@ async function loadAll(opts={}){
   state.needs = mergeLateNeedsInto_(needsOut.needs || {}, state.late);
   state.items = costsOut.items || [];
   state.purchaseHistory = Array.isArray(historyOut?.items) ? historyOut.items : [];
+  historyDataReady_ = true;
   indexCosts(state.items);
 
   // Recetas desde hoja RECETAS (para costo unitario)
@@ -2468,6 +2518,7 @@ async function loadAll(opts={}){
   renderLate();
   renderGroups();
   renderCostGroupsIfOpen_();
+  renderPurchaseHistory();
   refreshBottom();
   saveCostsDataCache_();
   hideCostsSyncBadge_();
@@ -2507,8 +2558,13 @@ function primeCostsShell_(profile, fastCache){
     show(el("appRoot"));
     show(el("mobileNav"));
     setView("purchases");
-    if(fastCache) hydrateCostsDataFromCache_(fastCache);
-    else renderCostsBootLoadingState_("Actualizando información de compras…");
+    if(fastCache){
+      hydrateCostsDataFromCache_(fastCache);
+      historyDataReady_ = false;
+      updateHistoryFabPosition_();
+    }else{
+      renderCostsBootLoadingState_("Actualizando información de compras…");
+    }
   }catch(_e){}
 }
 
@@ -4292,6 +4348,10 @@ function bind(){
     }, { passive:false });
   }
   el("historyCloseX")?.addEventListener("click", (ev)=>{ try{ ev.preventDefault(); ev.stopPropagation(); }catch(_e){} closeHistoryModal(); });
+  el("btnHistoryRefresh")?.addEventListener("click", async (ev)=>{
+    try{ ev.preventDefault(); ev.stopPropagation(); }catch(_e){}
+    await refreshPurchaseHistory_();
+  });
   el("historyBack")?.addEventListener("pointerdown", (ev)=>{
     if(ev.target !== el("historyBack")) return;
     if(Date.now() < historyBackdropIgnoreUntil_) {
