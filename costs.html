@@ -868,6 +868,7 @@ body.is-app .costsLoginTopbar{ display:none !important; }
 <select class="input" id="cmUnitType">
 <option value="g">g</option>
 <option value="ml">ml</option>
+<option value="m">m</option>
 <option value="unidad">unidad</option>
 </select>
 </div>
@@ -881,7 +882,7 @@ body.is-app .costsLoginTopbar{ display:none !important; }
 </div>
 </div>
 <div class="pUnitExtra" id="cmUnitExtra" style="display:none;">
-<div class="hint" style="margin:10px 0;">Si compras por <b>unidades</b>, define cuánto trae cada unidad (g/ml) para guardar el costo en unidad base.</div>
+<div class="hint" style="margin:10px 0;">Si compras por <b>unidades</b>, define cuánto trae cada unidad (g/ml/m) para guardar el costo en unidad base.</div>
 <div class="pFormGrid">
 <div>
 <div class="label">Cantidad por unidad</div>
@@ -893,6 +894,7 @@ body.is-app .costsLoginTopbar{ display:none !important; }
 <option value="">—</option>
 <option value="g">g</option>
 <option value="ml">ml</option>
+<option value="m">m</option>
 </select>
 </div>
 </div>
@@ -962,12 +964,13 @@ body.is-app .costsLoginTopbar{ display:none !important; }
 <select class="input" id="ingNewUnit">
 <option value="g">g</option>
 <option value="ml">ml</option>
+<option value="m">m</option>
 <option value="unidad">unidad</option>
 </select>
 <button class="btn secondary" id="btnAddIng">Agregar</button>
 </div>
 <div class="hint" style="margin-top:10px;">
-              Opcional (solo si el ingrediente se compra por unidades pero se consume en g/ml): “Cantidad por unidad”.
+              Opcional (solo si el ingrediente se compra por unidades pero se consume en g/ml/m): “Cantidad por unidad”.
             </div>
 <div class="pCatRow" style="margin-top:10px;">
 <input class="input" id="ingUnitItemQty" placeholder="Cantidad por unidad (opcional)"/>
@@ -975,6 +978,7 @@ body.is-app .costsLoginTopbar{ display:none !important; }
 <option value="">—</option>
 <option value="g">g</option>
 <option value="ml">ml</option>
+<option value="m">m</option>
 </select>
 </div>
 <div class="pSmallMeta" id="ingAddMsg" style="margin-top:10px; color:#7a2b00;"></div>
@@ -1092,7 +1096,7 @@ body.is-app .costsLoginTopbar{ display:none !important; }
     </div>
   </div>
 </div>
-<script src="kitchen-costs.js?v=20260416b-costs-hub-exit-v10"></script>
-<script src="costs.js?v=20260416b-costs-hub-exit-v10"></script>
+<script src="kitchen-costs.js?v=20260417a-costs-unit-m-v24"></script>
+<script src="costs.js?v=20260417a-costs-unit-m-v24"></script>
 </body>
 </html>
