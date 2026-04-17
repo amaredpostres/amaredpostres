@@ -178,7 +178,6 @@ function hydrateCostsDataFromCache_(cache){
   renderCostGroupsIfOpen_();
   renderPurchaseHistory();
   refreshBottom();
-  updatePurchaseHistoryFab_();
   saveCostsDataCache_();
   scheduleRecipesWarmup_();
 }
@@ -309,7 +308,8 @@ const FRONT_OVERLAY_IDS = [
   "catModalBack",
   "confirmBack",
   "loadingBack",
-  "dessertDeleteBack"
+  "dessertDeleteBack",
+  "historyBack"
 ];
 
 function isFrontOverlayOpen_(){
@@ -357,7 +357,7 @@ function syncFrontLayer_(){
     const locked = isFrontOverlayOpen_();
     document.body.classList.toggle("hasFrontOverlay", locked);
     setBodyScrollLock_(locked);
-    updatePurchaseHistoryFab_();
+    try{ updateHistoryFabPosition_(); }catch(_e){}
   }catch(_e){}
 }
 
@@ -458,10 +458,12 @@ function syncMobileNavForViewport_(){
   if(isMobile && appVisible && !unlockVisible){
     show(nav);
     try{ updateMobileNavLabel_(); }catch(_e){}
+    try{ updateHistoryFabPosition_(); }catch(_e){}
     return;
   }
 
   hide(nav);
+  try{ updateHistoryFabPosition_(); }catch(_e){}
 }
 
 function bindFastTap_(id, handler){
@@ -780,6 +782,7 @@ function setView(view){
     if(tr){ tr.classList.add("isActive"); tr.setAttribute("aria-selected","true"); }
     ensureRecipesUnlocked_();
     scheduleRecipesWarmup_(true);
+    try{ updateHistoryFabPosition_(); }catch(_e){}
     return;
   }
 
@@ -789,6 +792,7 @@ function setView(view){
   renderCostGroupsIfOpen_();
   renderUnitCosts();
   refreshBottom();
+  try{ updateHistoryFabPosition_(); }catch(_e){}
 }
 
 function setCostsMeta(msg){
@@ -2192,7 +2196,7 @@ function refreshBottom(){
     bar.setAttribute("aria-hidden", visible ? "false" : "true");
   }
   try{ document.body.classList.toggle("hasBottomBar", visible); }catch(_e){}
-  updatePurchaseHistoryFab_();
+  try{ updateHistoryFabPosition_(); }catch(_e){}
 }
 
 function openConfirm(){
@@ -2366,50 +2370,34 @@ function renderPurchaseHistory(){
   }).join("");
 }
 
-function updatePurchaseHistoryFab_(){
-  const fab = el("btnPurchaseHistoryFab");
+function updateHistoryFabPosition_(){
+  const fab = el("btnHistoryFab");
   if(!fab) return;
-  const inPurchases = (state.view === "purchases");
-  const visible = !!UNLOCKED_SECRET && inPurchases && !isFrontOverlayOpen_();
-  fab.classList.toggle("isVisible", visible);
-  const raised = !!el("bottomBar")?.classList.contains("isVisible");
-  fab.classList.toggle("isRaised", raised);
+  const app = el("appRoot");
+  const unlock = el("unlockBack");
+  const isMobile = (()=>{ try{ return window.innerWidth <= 560; }catch(_e){ return false; } })();
+  const appVisible = !!app && !app.classList.contains("hidden") && app.hidden !== true && (app.style.display !== "none");
+  const unlockVisible = !!unlock && !unlock.classList.contains("hidden") && unlock.hidden !== true && (unlock.style.display !== "none");
+  const shouldShow = appVisible && !unlockVisible && state.view === "purchases";
+  fab.classList.toggle("hidden", !shouldShow);
+  const barVisible = !!el("bottomBar") && el("bottomBar").classList.contains("isVisible");
+  fab.classList.toggle("aboveBar", barVisible);
 }
 
-async function loadPurchaseHistory_(opts={}){
-  const silent = !!opts.silent;
-  const meta = el("purchaseHistoryMeta");
-  const host = el("purchaseHistoryList");
-  if(!silent){
-    if(meta) meta.textContent = "Cargando historial…";
-    if(host) host.innerHTML = `<div class="hint">Estamos consultando las compras registradas.</div>`;
-  }
-  if(!UNLOCKED_SECRET){
-    renderPurchaseHistory();
-    return;
-  }
-  try{
-    const out = await api({ action:"inventory_purchase_history", costs_secret: UNLOCKED_SECRET, limit: 80 });
-    state.purchaseHistory = Array.isArray(out?.items) ? out.items : [];
-    saveCostsDataCache_();
-  }catch(err){
-    if(meta) meta.textContent = err?.message || "No se pudo cargar el historial.";
-    if(host) host.innerHTML = `<div class="hint">No fue posible cargar el historial de compras en este momento.</div>`;
-    return;
-  }
-  renderPurchaseHistory();
-}
+let historyOpenGuardUntil_ = 0;
 
-async function openPurchaseHistoryModal(){
-  const back = el("purchaseHistoryBack");
+function openHistoryModal(){
+  const back = el("historyBack");
   if(!back) return;
-  show(back);
+  historyOpenGuardUntil_ = Date.now() + 480;
   renderPurchaseHistory();
-  await loadPurchaseHistory_({ silent: false });
+  show(back);
+  updateHistoryFabPosition_();
 }
 
-function closePurchaseHistoryModal(){
-  hide(el("purchaseHistoryBack"));
+function closeHistoryModal(){
+  hide(el("historyBack"));
+  updateHistoryFabPosition_();
 }
 
 // =============== Meta ===============
@@ -2478,9 +2466,7 @@ async function loadAll(opts={}){
   renderLate();
   renderGroups();
   renderCostGroupsIfOpen_();
-  renderPurchaseHistory();
   refreshBottom();
-  updatePurchaseHistoryFab_();
   saveCostsDataCache_();
   hideCostsSyncBadge_();
 }
@@ -4073,11 +4059,6 @@ function bind(){
     setView("recipes");
   });
 
-  bindFastTap_("btnPurchaseHistoryFab", ()=>{ openPurchaseHistoryModal(); });
-  el("purchaseHistoryCloseX")?.addEventListener("click", closePurchaseHistoryModal);
-  el("btnPurchaseHistoryRefresh")?.addEventListener("click", ()=>{ loadPurchaseHistory_({ silent:false }); });
-  el("purchaseHistoryBack")?.addEventListener("click", (e)=>{ if(e.target === el("purchaseHistoryBack")) closePurchaseHistoryModal(); });
-
   // Compras (admin integrado)
   el("btnCatalogs")?.addEventListener("click", ()=> openCatalogModal());
   el("btnIngredients")?.addEventListener("click", ()=> openIngredientsModal());
@@ -4291,6 +4272,15 @@ function bind(){
       return;
     }
   });
+
+  bindFastTap_("btnHistoryFab", (ev)=>{ try{ ev.stopPropagation(); }catch(_e){} openHistoryModal(); });
+  el("historyCloseX")?.addEventListener("click", (ev)=>{ try{ ev.preventDefault(); ev.stopPropagation(); }catch(_e){} closeHistoryModal(); });
+  el("historyBack")?.addEventListener("click", (ev)=>{
+    if(ev.target !== el("historyBack")) return;
+    if(Date.now() < historyOpenGuardUntil_) return;
+    closeHistoryModal();
+  });
+  el("historyBack")?.querySelector(".modal")?.addEventListener("click", (ev)=>{ try{ ev.stopPropagation(); }catch(_e){} });
 
   // Bottom bar
   el("btnRegister")?.addEventListener("click", ()=>{ openConfirm(); });
@@ -4530,4 +4520,4 @@ el("ingModalBack")?.addEventListener("click", (e)=>{ if(e.target && e.target.id=
 
 
 // Keep mobile nav in sync on resize
-try{ window.addEventListener("resize", ()=>{ try{ syncMobileNavForViewport_(); }catch(_e){} }); }catch(_e){}
+try{ window.addEventListener("resize", ()=>{ try{ syncMobileNavForViewport_(); }catch(_e){} try{ updateHistoryFabPosition_(); }catch(_e){} }); }catch(_e){}
