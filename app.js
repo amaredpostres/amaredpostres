@@ -407,8 +407,8 @@ function setAddressMode(mode){
   if(isMaps || isWhatsApp){
     addressInput.disabled = false;
     addressInput.placeholder = isWhatsApp
-      ? "Ej: Barrio, conjunto, calle o punto de referencia"
-      : "Ej: Calle 10 # 5-20, Apto 301";
+      ? "Ej: Calle 53, número 8-2, Ibagué, Tolima"
+      : "Ej: Calle 53, número 8-2, Ibagué, Tolima";
     addressInput.value = addressInput.dataset.prevManualValue || "";
     if(addressLabel) addressLabel.innerHTML = 'Dirección <span class="req">*</span>';
     if(addressHint){
@@ -1384,7 +1384,7 @@ function resetAll() {
   if (rWhatsApp) rWhatsApp.checked = true;
   if(addressInput){
     addressInput.disabled = false;
-    addressInput.placeholder = "Ej: Calle 10 # 5-20, Apto 301";
+    addressInput.placeholder = "Ej: Calle 53, número 8-2, Ibagué, Tolima";
     delete addressInput.dataset.prevManualValue;
   }
   if(mapsInput){
