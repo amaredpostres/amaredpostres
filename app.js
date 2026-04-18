@@ -1,6 +1,7 @@
 // =================== CONFIG ===================
 const SUCCESS_MSG = "Pedido registrado ✅\n\nAhora falta confirmar el pago por WhatsApp.";
 const PICKUP_ADDRESS_TEXT = "Recogida presencial";
+const PICKUP_RESERVE_PERCENT = 0.4;
 const PICKUP_MAPS_TEXT = "RECOGIDA_PRESENCIAL";
 const WHATSAPP_LOCATION_TEXT = "Ubicación por WhatsApp";
 const WHATSAPP_LOCATION_MAPS_TEXT = "UBICACION_POR_WHATSAPP";
@@ -258,6 +259,12 @@ const btnMapsTutorial = document.getElementById("btnMapsTutorial");
 const btnWaTutorial = document.getElementById("btnWaTutorial");
 const btnPickupTutorial = document.getElementById("btnPickupTutorial");
 const pickupVideoHint = document.getElementById("pickupVideoHint");
+const pickupPreviewTotal = document.getElementById("pickupPreviewTotal");
+const pickupPreviewReserve = document.getElementById("pickupPreviewReserve");
+const pickupPreviewBalance = document.getElementById("pickupPreviewBalance");
+const modalPickupBreakdown = document.getElementById("modalPickupBreakdown");
+const modalPickupReserve = document.getElementById("modalPickupReserve");
+const modalPickupBalance = document.getElementById("modalPickupBalance");
 const addressInput = document.getElementById("address");
 const mapsInput = document.getElementById("maps");
 const addressLabel = document.getElementById("addressLabel");
@@ -284,7 +291,25 @@ function money(n) {
   return Math.round(n).toLocaleString("es-CO");
 }
 
+function getPickupPaymentBreakdown(subtotal) {
+  const safeSubtotal = Math.max(0, Number(subtotal) || 0);
+  const reserve = Math.round(safeSubtotal * PICKUP_RESERVE_PERCENT);
+  const remaining = Math.max(0, safeSubtotal - reserve);
+  return { subtotal: safeSubtotal, reserve, remaining };
+}
 
+function syncPickupPricingUI(subtotal = 0, locationMethod = getSelectedLocationMethod()) {
+  const info = getPickupPaymentBreakdown(subtotal);
+
+  if (pickupPreviewTotal) pickupPreviewTotal.textContent = `$${money(info.subtotal)}`;
+  if (pickupPreviewReserve) pickupPreviewReserve.textContent = `$${money(info.reserve)}`;
+  if (pickupPreviewBalance) pickupPreviewBalance.textContent = `$${money(info.remaining)}`;
+
+  const showModalBreakdown = locationMethod === "pickup" && info.subtotal > 0;
+  if (modalPickupBreakdown) modalPickupBreakdown.classList.toggle("hidden", !showModalBreakdown);
+  if (modalPickupReserve) modalPickupReserve.textContent = `$${money(info.reserve)}`;
+  if (modalPickupBalance) modalPickupBalance.textContent = `$${money(info.remaining)}`;
+}
 
 function escapeHtml(s){
   return String(s ?? "")
@@ -442,6 +467,10 @@ function syncLocationUI() {
     const waOptEl = document.getElementById("waOptIn");
     if(waOptEl) waOptEl.checked = true;
   }
+
+  const currentSubtotal = buildCartItems().reduce((a, b) => a + b.qty * b.price, 0);
+  syncPickupPricingUI(currentSubtotal, method);
+
   if(waOptHint){
     waOptHint.classList.toggle("hidden", !showPickup);
   }
@@ -1158,6 +1187,8 @@ function updateSummary() {
       `)
       .join("");
   }
+
+  syncPickupPricingUI(subtotal);
 }
 
 // =================== FORM DATA + VALIDATION ===================
@@ -1222,6 +1253,7 @@ function validate(data) {
 function buildWhatsAppMessage(data, orderId) {
   const lines = [];
   const pickupVideoUrl = getPickupVideoUrl();
+  const pickupPayment = getPickupPaymentBreakdown(data.subtotal);
 
   lines.push(`Hola, mi nombre es ${data.customer_name} y mi número es ${data.phone}.`);
   lines.push("");
@@ -1236,6 +1268,8 @@ function buildWhatsAppMessage(data, orderId) {
 
   if (data.location_method === "pickup") {
     lines.push(`Entrega: Recogida presencial.`);
+    lines.push(`Anticipo de reserva (40%): $${money(pickupPayment.reserve)}`);
+    lines.push(`Saldo restante al reclamar el pedido: $${money(pickupPayment.remaining)}`);
     lines.push("");
     lines.push(`Recogida: ${PICKUP_ADDRESS_TEXT}.`);
     if (pickupVideoUrl) {
@@ -1256,7 +1290,12 @@ function buildWhatsAppMessage(data, orderId) {
 
   lines.push("");
   lines.push("✅ Ya registré el pedido desde la web.");
-  lines.push("Para iniciar la elaboración, queda pendiente confirmar el pago por este chat.");
+  if (data.location_method === "pickup") {
+    lines.push(`Para confirmar la recogida presencial, queda pendiente enviar el anticipo de reserva por $${money(pickupPayment.reserve)} por este chat.`);
+    lines.push(`El saldo restante de $${money(pickupPayment.remaining)} se paga al momento de reclamar tu pedido.`);
+  } else {
+    lines.push("Para iniciar la elaboración, queda pendiente confirmar el pago por este chat.");
+  }
   lines.push("");
   lines.push("Muchas gracias.");
 
@@ -1316,6 +1355,7 @@ function fillModal(data, orderId) {
 
   elModalUnits.textContent = String(data.total_units || 0);
   elModalSubtotal.textContent = money(data.subtotal || 0);
+  syncPickupPricingUI(data.subtotal || 0, data.location_method);
 
   if(modalStatus){
     modalStatus.style.display = "none";

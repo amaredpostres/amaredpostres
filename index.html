@@ -177,6 +177,31 @@
                   <div class="pickupBox">
                     <div class="pickupTitle">Recogida presencial</div>
                     <div class="muted small">No será necesario escribir dirección. El pedido se registrará como <strong>recogida presencial</strong>.</div>
+
+                    <details class="pickupInfoDetails">
+                      <summary>Más información sobre la recogida presencial</summary>
+                      <div class="pickupInfoBody">
+                        <div class="muted small">Para confirmar tu pedido por recogida presencial, solicitamos un anticipo de reserva del <strong>40%</strong> del valor total. Este valor se abona al pedido y el saldo restante se paga al momento de reclamarlo en el horario de entrega.</div>
+
+                        <div id="pickupPaymentPreview" class="pickupPaymentPreview">
+                          <div class="pickupPaymentLine">
+                            <span>Total actual del pedido</span>
+                            <strong id="pickupPreviewTotal">$0</strong>
+                          </div>
+                          <div class="pickupPaymentLine accent">
+                            <span>Anticipo a confirmar por WhatsApp</span>
+                            <strong id="pickupPreviewReserve">$0</strong>
+                          </div>
+                          <div class="pickupPaymentLine">
+                            <span>Saldo restante al reclamar</span>
+                            <strong id="pickupPreviewBalance">$0</strong>
+                          </div>
+                        </div>
+
+                        <div class="muted small">El valor exacto también se enviará automáticamente en el mensaje de WhatsApp cuando confirmes el pedido.</div>
+                      </div>
+                    </details>
+
                     <div class="pickupActions">
                       <button id="btnPickupTutorial" class="btn tutorialBtn" type="button">Ver tutorial de recogida</button>
                     </div>
@@ -294,6 +319,18 @@
             <span class="muted">Subtotal</span>
             <strong class="modalSubtotal">$<span id="modalSubtotal">0</span></strong>
           </div>
+
+          <div id="modalPickupBreakdown" class="modalPickupBreakdown hidden">
+            <div class="modalTotalLine compact">
+              <span class="muted">Anticipo de reserva (40%)</span>
+              <strong id="modalPickupReserve">$0</strong>
+            </div>
+            <div class="modalTotalLine compact">
+              <span class="muted">Saldo restante al reclamar</span>
+              <strong id="modalPickupBalance">$0</strong>
+            </div>
+          </div>
+
           <div class="muted small">La entrega se confirma según el método que seleccionaste.</div>
         </div>
       </div>

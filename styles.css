@@ -3240,6 +3240,70 @@ body.is-index-admin-view .page{
 .waLocCopy{
   color: rgba(64,17,2,.66);
 }
+.pickupInfoDetails{
+  margin-top: 12px;
+  border: 1px solid rgba(242,91,143,.16);
+  border-radius: 18px;
+  background: rgba(255,255,255,.68);
+  overflow: hidden;
+}
+.pickupInfoDetails summary{
+  list-style: none;
+  cursor: pointer;
+  padding: 14px 16px;
+  font-weight: 900;
+  color: var(--choco);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.pickupInfoDetails summary::-webkit-details-marker{ display:none; }
+.pickupInfoDetails summary::after{
+  content: "▾";
+  font-size: 14px;
+  color: rgba(64,17,2,.70);
+}
+.pickupInfoDetails[open] summary::after{ content: "▴"; }
+.pickupInfoBody{
+  display: grid;
+  gap: 12px;
+  padding: 0 16px 16px;
+}
+.pickupPaymentPreview,
+.modalPickupBreakdown{
+  display: grid;
+  gap: 8px;
+}
+.pickupPaymentPreview{
+  padding: 12px;
+  border-radius: 16px;
+  background: linear-gradient(180deg, rgba(255,248,243,.96), rgba(255,240,235,.94));
+  border: 1px solid rgba(242,91,143,.14);
+}
+.pickupPaymentLine,
+.modalTotalLine.compact{
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.pickupPaymentLine{
+  font-size: 14px;
+  color: rgba(64,17,2,.78);
+}
+.pickupPaymentLine strong,
+.modalPickupBreakdown strong{
+  color: var(--choco);
+}
+.pickupPaymentLine.accent{
+  color: #9b174c;
+}
+.modalPickupBreakdown{
+  margin-top: 8px;
+  padding-top: 10px;
+  border-top: 1px dashed rgba(64,17,2,.12);
+}
 .reviewIdentityStatus{
   margin-top: 8px;
   min-height: 18px;
