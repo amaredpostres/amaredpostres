@@ -424,7 +424,7 @@ body{
   border-radius: 14px;
   font-size: 14px;
 }
-.checkRow input{ margin-top: 2px; }
+.checkRow input{ margin-top: 2px; accent-color: var(--pink); }
 
 .waOptWrap{
   display:grid;

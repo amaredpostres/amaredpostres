@@ -128,11 +128,26 @@
               <div class="miniCardTop">
                 <div class="miniTitle">Entrega y ubicación</div>
               </div>
-              <div class="muted small deliveryIntro">Selecciona la opción que mejor te funcione. Para domicilio recomendamos enviar el enlace de Google Maps.</div>
+              <div class="muted small deliveryIntro">Selecciona la opción que mejor te funcione. La opción predeterminada te permite escribir una dirección de referencia y completar el pedido fácilmente por WhatsApp.</div>
 
               <div class="locationOptions deliveryTiles">
                 <label class="radioRow deliveryTile">
-                  <input type="radio" name="locMethod" value="maps" checked />
+                  <input type="radio" name="locMethod" value="whatsapp" checked />
+                  <span class="deliveryTileCopy">
+                    <strong>Enviar ubicación por WhatsApp</strong>
+                    <small>Escribe una dirección de referencia aquí y en el chat te indicaremos cómo compartir tu ubicación.</small>
+                  </span>
+                </label>
+
+                <div id="waLocBlock" class="waLocBlock muted small tileDetail">
+                  <div class="waLocCopy">Escribe tu dirección o punto de referencia en este formulario. Cuando se abra WhatsApp, podremos guiarte para compartir la ubicación exacta si lo necesitas.</div>
+                  <div class="tutorialAction">
+                    <button id="btnWaTutorial" class="btn tutorialBtn" type="button">Ver tutorial</button>
+                  </div>
+                </div>
+
+                <label class="radioRow deliveryTile">
+                  <input type="radio" name="locMethod" value="maps" />
                   <span class="deliveryTileCopy">
                     <strong>Enviar link de Google Maps</strong>
                     <small>La opción más precisa para ubicar tu domicilio.</small>
@@ -148,21 +163,6 @@
                     <button id="btnMapsTutorial" class="btn tutorialBtn" type="button">Ver tutorial</button>
                   </div>
                   <div class="muted small">Abre Google Maps, toca compartir, copia el enlace y pégalo aquí.</div>
-                </div>
-
-                <label class="radioRow deliveryTile">
-                  <input type="radio" name="locMethod" value="whatsapp" />
-                  <span class="deliveryTileCopy">
-                    <strong>Enviar ubicación por WhatsApp</strong>
-                    <small>Comparte tu ubicación cuando se abra el chat.</small>
-                  </span>
-                </label>
-
-                <div id="waLocBlock" class="waLocBlock muted small tileDetail">
-                  <div class="waLocCopy">Cuando se abra WhatsApp, usa el botón de adjuntar y comparte tu ubicación.</div>
-                  <div class="tutorialAction">
-                    <button id="btnWaTutorial" class="btn tutorialBtn" type="button">Ver tutorial</button>
-                  </div>
                 </div>
 
                 <label class="radioRow deliveryTile">
@@ -219,7 +219,7 @@
 
             <div class="waOptWrap">
               <label class="checkRow">
-                <input id="waOptIn" type="checkbox" />
+                <input id="waOptIn" type="checkbox" checked />
                 <span>Quiero recibir información de AMARED por WhatsApp.</span>
               </label>
               <div id="waOptHint" class="waOptHint hidden">Importante: si eliges recogida presencial, mantén esta opción activa para avisarte por WhatsApp cuando tu pedido vaya en camino al punto de entrega.</div>

@@ -395,41 +395,32 @@ function setAddressMode(mode){
 
   const isMaps = mode === "maps";
   const isWhatsApp = mode === "whatsapp";
-  const isPickup = mode === "pickup";
 
   if(typeof addressInput.dataset.prevManualValue === "undefined"){
     addressInput.dataset.prevManualValue = "";
   }
 
-  if(!addressInput.disabled && addressInput.value !== WHATSAPP_LOCATION_TEXT && addressInput.value !== PICKUP_ADDRESS_TEXT){
+  if(!addressInput.disabled && addressInput.value !== PICKUP_ADDRESS_TEXT){
     addressInput.dataset.prevManualValue = addressInput.value || "";
   }
 
-  if(isMaps){
+  if(isMaps || isWhatsApp){
     addressInput.disabled = false;
-    addressInput.placeholder = "Ej: Calle 10 # 5-20, Apto 301";
+    addressInput.placeholder = isWhatsApp
+      ? "Ej: Barrio, conjunto, calle o punto de referencia"
+      : "Ej: Calle 10 # 5-20, Apto 301";
     addressInput.value = addressInput.dataset.prevManualValue || "";
     if(addressLabel) addressLabel.innerHTML = 'Dirección <span class="req">*</span>';
     if(addressHint){
-      addressHint.textContent = 'Escribe la dirección donde deseas recibir tu pedido.';
-      addressHint.classList.add("hidden");
+      addressHint.textContent = isWhatsApp
+        ? 'Escribe una dirección de referencia. En el chat te indicaremos cómo compartir la ubicación por WhatsApp si lo necesitas.'
+        : 'Escribe la dirección donde deseas recibir tu pedido.';
+      addressHint.classList.toggle("hidden", !isWhatsApp);
     }
     return;
   }
 
   addressInput.disabled = true;
-
-  if(isWhatsApp){
-    addressInput.value = WHATSAPP_LOCATION_TEXT;
-    addressInput.placeholder = WHATSAPP_LOCATION_TEXT;
-    if(addressLabel) addressLabel.innerHTML = 'Ubicación <span class="req">*</span>';
-    if(addressHint){
-      addressHint.textContent = 'Tu ubicación se compartirá directamente por WhatsApp cuando se abra el chat.';
-      addressHint.classList.remove("hidden");
-    }
-    return;
-  }
-
   addressInput.value = PICKUP_ADDRESS_TEXT;
   addressInput.placeholder = PICKUP_ADDRESS_TEXT;
   if(addressLabel) addressLabel.innerHTML = 'Recogida <span class="req">*</span>';
@@ -441,7 +432,7 @@ function setAddressMode(mode){
 
 function getSelectedLocationMethod() {
   const el = document.querySelector('input[name="locMethod"]:checked');
-  return el ? el.value : "maps";
+  return el ? el.value : "whatsapp";
 }
 
 function syncLocationUI() {
@@ -1198,9 +1189,7 @@ function getFormData() {
   const location_method = getSelectedLocationMethod(); // "maps" | "whatsapp" | "pickup"
   const address_text = location_method === "pickup"
     ? PICKUP_ADDRESS_TEXT
-    : location_method === "whatsapp"
-      ? WHATSAPP_LOCATION_TEXT
-      : document.getElementById("address").value.trim();
+    : document.getElementById("address").value.trim();
   const maps_link = location_method === "pickup"
     ? PICKUP_MAPS_TEXT
     : location_method === "whatsapp"
@@ -1239,7 +1228,7 @@ function validate(data) {
   if (!data.phone) return "Escribe tu número.";
   if (!isValidEmail(data.email)) return "El correo no parece válido. Revisa el formato (ej: correo@dominio.com).";
 
-  if (data.location_method === "maps" && !data.address_text) return "Escribe tu dirección.";
+  if ((data.location_method === "maps" || data.location_method === "whatsapp") && !data.address_text) return "Escribe tu dirección.";
 
   if (data.location_method === "maps") {
     if (!data.maps_link) return "Pega el link de Google Maps o selecciona “Enviar ubicación desde WhatsApp”.";
@@ -1283,7 +1272,8 @@ function buildWhatsAppMessage(data, orderId) {
   } else {
     lines.push(`Domicilio: lo cubre el cliente. (Se debe confirmar mediante WhatsApp)`);
     lines.push("");
-    lines.push(`Ubicación: Te la envío por WhatsApp cuando se abra el chat.`);
+    lines.push(`Dirección de referencia: ${data.address_text}`);
+    lines.push(`Ubicación exacta: la compartiré por WhatsApp dentro del chat.`);
   }
 
   if (data.notes) lines.push(`Nota: ${data.notes}`);
@@ -1388,10 +1378,10 @@ function resetAll() {
   if (emailEl) emailEl.value = "";
 
   const waOpt = document.getElementById("waOptIn");
-  if (waOpt) waOpt.checked = false;
+  if (waOpt) waOpt.checked = true;
 
-  const rMaps = document.querySelector('input[name="locMethod"][value="maps"]');
-  if (rMaps) rMaps.checked = true;
+  const rWhatsApp = document.querySelector('input[name="locMethod"][value="whatsapp"]');
+  if (rWhatsApp) rWhatsApp.checked = true;
   if(addressInput){
     addressInput.disabled = false;
     addressInput.placeholder = "Ej: Calle 10 # 5-20, Apto 301";
