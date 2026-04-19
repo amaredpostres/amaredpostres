@@ -992,6 +992,30 @@ function startDayRolloverWatch_(){
       || isNodeVisible($("amConfirmOverlay"))
       || isNodeVisible(loading);
   }
+  let pageScrollLockY = 0;
+  function syncPageScrollLock(locked){
+    try{
+      const html = document.documentElement;
+      const body = document.body;
+      if(!html || !body) return;
+      const isLocked = body.classList.contains("amScrollLocked");
+      if(locked){
+        if(isLocked) return;
+        pageScrollLockY = Math.max(0, window.scrollY || window.pageYOffset || 0);
+        html.classList.add("amScrollLocked");
+        body.classList.add("amScrollLocked");
+        body.style.top = `-${pageScrollLockY}px`;
+        body.style.width = "100%";
+      }else{
+        if(!isLocked) return;
+        html.classList.remove("amScrollLocked");
+        body.classList.remove("amScrollLocked");
+        body.style.top = "";
+        body.style.width = "";
+        window.scrollTo(0, pageScrollLockY || 0);
+      }
+    }catch(_e){}
+  }
 
 function ensureKitchenHubReturnUI(){
   if(!hasHubAccess_()) return null;
@@ -1026,6 +1050,7 @@ function syncKitchenMobileReturnAction(){
     const mobile = isMobileViewport();
     const overlayOpen = hasBlockingOverlay();
     document.body.classList.toggle("amOverlayOpen", overlayOpen);
+    syncPageScrollLock(overlayOpen);
     if(headerBtns){
       headerBtns.classList.toggle("isHidden", !appVisible || mobile);
     }
@@ -1229,6 +1254,16 @@ function syncKitchenMobileReturnAction(){
           radial-gradient(900px 420px at 20% 5%, rgba(242,91,143,.10), transparent 60%),
           radial-gradient(900px 420px at 80% 8%, rgba(246,186,96,.12), transparent 60%),
           var(--cream);
+      }
+      html.amScrollLocked,
+      body.amScrollLocked{
+        overflow:hidden !important;
+        overscroll-behavior:none;
+      }
+      body.amScrollLocked{
+        position:fixed;
+        left:0;
+        right:0;
       }
       .hidden{ display:none !important; }
       .topbar{
