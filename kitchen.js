@@ -276,9 +276,11 @@ function ensureApiWarmup_(){
     document.head.appendChild(st);
   }
 
-  const LS_TIMER_KEY = "AMARED_KITCHEN_TIMERS_V1";
+  const LS_TIMER_KEY = "AMARED_KITCHEN_TIMERS_V2";
+  const LS_TIMER_KEY_LEGACY = "AMARED_KITCHEN_TIMERS_V1";
   const LS_DONE_KEY  = "AMARED_KITCHEN_DONE_V1";
 const LS_ORDER_DONE_KEY = "AMARED_KITCHEN_ORDER_DONE_V1";
+  const LS_RECIPE_PROGRESS_KEY = "AMARED_KITCHEN_RECIPE_PROGRESS_V1";
   const LS_TIMER_WIDGET_KEY = "AMARED_KITCHEN_TIMER_WIDGET_V2";
 
   // ========= PRODUCTOS =========
@@ -490,7 +492,7 @@ tabProdToday?.addEventListener("click", ()=>setProdTab("today"));
     todayKey: null,
     nextKey: null,
     buckets: { today: [], infoTomorrow: [], inProgress: [], doneDb: [] },
-    recipe: { open:false, productId:null, orderIds:[], units:0, stepIdx:0, timerStarted:false },
+    recipe: { open:false, productId:null, orderIds:[], units:0, stepIdx:0, timerStarted:false, batchKey:null },
     refreshNonce: 0,
     widgetTick: null,
     widgetUi: {
@@ -878,13 +880,130 @@ function addDoneQty(day,pid,delta){
   setDoneQty(day,pid, getDoneQty(day,pid) + Number(delta||0));
 }
 
-const getTimersMap=()=>{ const r=localStorage.getItem(LS_TIMER_KEY); const o=r?safeJsonParse(r):null; return (o&&typeof o==="object")?o:{}; };
+function makeRecipeBatchKey(pid, orderIds){
+  const ids = Array.isArray(orderIds)
+    ? orderIds.map(x=>String(x||"").trim()).filter(Boolean).sort()
+    : [];
+  return `${String(pid||"").trim()}::${ids.join(",")}`;
+}
+const getRecipeProgressMap=()=>{
+  const r=localStorage.getItem(LS_RECIPE_PROGRESS_KEY);
+  const o=r?safeJsonParse(r):null;
+  return (o&&typeof o==="object")?o:{};
+};
+const setRecipeProgressMap=(o)=> localStorage.setItem(LS_RECIPE_PROGRESS_KEY, JSON.stringify(o||{}));
+function getRecipeProgress(batchKey){
+  if(!batchKey) return null;
+  const item = getRecipeProgressMap()?.[batchKey];
+  return (item && typeof item === "object") ? item : null;
+}
+function setRecipeProgress(batchKey, data){
+  if(!batchKey) return;
+  const m=getRecipeProgressMap();
+  m[batchKey] = { ...(m[batchKey]||{}), ...(data||{}) };
+  setRecipeProgressMap(m);
+}
+function clearRecipeProgress(batchKey){
+  if(!batchKey) return;
+  const m=getRecipeProgressMap();
+  if(Object.prototype.hasOwnProperty.call(m, batchKey)){
+    delete m[batchKey];
+    setRecipeProgressMap(m);
+  }
+}
+function persistCurrentRecipeProgress(extra={}){
+  const rk = String(state?.recipe?.batchKey||"").trim();
+  if(!rk) return;
+  setRecipeProgress(rk, {
+    batchKey: rk,
+    pid: state.recipe.productId,
+    orderIds: (state.recipe.orderIds||[]).map(String),
+    units: Number(state.recipe.units||0),
+    stepIdx: Number(state.recipe.stepIdx||0),
+    updatedAt: nowIso(),
+    ...(extra||{})
+  });
+}
+
+function getTimersMapRaw_(){
+  const raw = localStorage.getItem(LS_TIMER_KEY);
+  const parsed = raw ? safeJsonParse(raw, null) : null;
+  if(parsed && typeof parsed === "object") return parsed;
+  const legacyRaw = localStorage.getItem(LS_TIMER_KEY_LEGACY);
+  const legacyParsed = legacyRaw ? safeJsonParse(legacyRaw, null) : null;
+  const out = {};
+  if(legacyParsed && typeof legacyParsed === "object"){
+    for(const [dayKey, dayMap] of Object.entries(legacyParsed)){
+      if(!dayMap || typeof dayMap !== "object") continue;
+      for(const [pid, end] of Object.entries(dayMap)){
+        const legacyKey = `legacy:${dayKey}::${pid}`;
+        out[legacyKey] = {
+          batchKey: legacyKey,
+          pid: String(pid||""),
+          end: Number(end||0),
+          dayKey: String(dayKey||""),
+          orderIds: []
+        };
+      }
+    }
+    try{ localStorage.setItem(LS_TIMER_KEY, JSON.stringify(out)); }catch(_e){}
+  }
+  return out;
+}
+const getTimersMap=()=>{
+  const o=getTimersMapRaw_();
+  return (o&&typeof o==="object")?o:{};
+};
 const setTimersMap=(o)=> localStorage.setItem(LS_TIMER_KEY, JSON.stringify(o||{}));
-const setTimerEnd=(day,pid,end)=>{ const m=getTimersMap(); if(!m[day]) m[day]={}; m[day][pid]=Number(end||0); setTimersMap(m); };
-const getTimerEnd=(day,pid)=> Number(getTimersMap()?.[day]?.[pid]||0);
-const clearTimer=(day,pid)=>{ const m=getTimersMap(); if(m?.[day]){ delete m[day][pid]; setTimersMap(m); } };
-
-
+function setTimerEntry(batchKey, entry){
+  if(!batchKey) return;
+  const m=getTimersMap();
+  m[batchKey] = { ...(m[batchKey]||{}), ...(entry||{}), batchKey };
+  setTimersMap(m);
+}
+function getTimerEntry(batchKey){
+  if(!batchKey) return null;
+  const item = getTimersMap()?.[batchKey];
+  return (item && typeof item === "object") ? item : null;
+}
+function getTimerEnd(batchKey){
+  return Number(getTimerEntry(batchKey)?.end || 0);
+}
+function clearTimer(batchKey){
+  if(!batchKey) return;
+  const m=getTimersMap();
+  if(Object.prototype.hasOwnProperty.call(m, batchKey)){
+    delete m[batchKey];
+    setTimersMap(m);
+  }
+}
+function getRecipeBatchKey_(recipeLike){
+  const pid = String(recipeLike?.productId || recipeLike?.pid || "").trim();
+  const ids = Array.isArray(recipeLike?.orderIds) ? recipeLike.orderIds : [];
+  return makeRecipeBatchKey(pid, ids);
+}
+function parseJsonMapField_(raw){
+  const parsed = safeJsonParse(raw, null);
+  return (parsed && typeof parsed === "object") ? parsed : {};
+}
+function orderHasProductStamp_(order, fieldName, pid){
+  const map = parseJsonMapField_(String(order?.[fieldName]||"").trim());
+  return !!(map && map[pid]);
+}
+function getOrderIdsMissingProductStamp_(orderIds, fieldName, pid){
+  const byId = new Map((state.paidOrders||[]).map(o=>[String(o.order_id||""), o]));
+  return (orderIds||[]).map(String).filter(oid=>{
+    const order = byId.get(String(oid));
+    return !orderHasProductStamp_(order, fieldName, pid);
+  });
+}
+function mergeProductStampIntoOrder_(order, fieldName, pid, stampPayload){
+  if(!order || !fieldName || !pid || !stampPayload) return;
+  const current = parseJsonMapField_(String(order[fieldName]||"").trim());
+  if(current && current[pid]) return;
+  current[pid] = stampPayload[pid];
+  order[fieldName] = JSON.stringify(current);
+}
 // Limpieza: mantener SOLO progreso del día actual (evita que "Finalizados" se arrastre al día siguiente)
 
 // Progreso por pedido: qué productos ya se completaron (para NO marcar el pedido como LISTO hasta que termine todo)
@@ -927,6 +1046,18 @@ function pruneLocalProgressToDay_(keepDayKey){
     const nom = {};
     if(dk && om && om[dk]) nom[dk] = om[dk];
     setOrderDoneMap(nom);
+
+    // RECIPE_PROGRESS: conservar lo reciente para permitir reanudar lotes iniciados el día anterior.
+    const rpm = getRecipeProgressMap();
+    const nrpm = {};
+    const now = Date.now();
+    for(const [key, value] of Object.entries(rpm||{})){
+      const ts = Date.parse(String(value?.updatedAt || ""));
+      if(!Number.isFinite(ts) || (now - ts) <= (72 * 60 * 60 * 1000)){
+        nrpm[key] = value;
+      }
+    }
+    setRecipeProgressMap(nrpm);
   }catch(e){
     console.warn("pruneLocalProgressToDay_ error:", e);
   }
@@ -2234,6 +2365,10 @@ function renderProfilesSelect(list, selectedId){
 
   function openRecipe(pid, orderIds, units){
     injectRecipeOverlay();
+    const batchKey = makeRecipeBatchKey(pid, orderIds||[]);
+    const saved = getRecipeProgress(batchKey);
+    const steps = RECIPE_UNIT[pid]?.steps||[];
+    const savedStepIdx = Math.max(0, Math.min(steps.length ? (steps.length - 1) : 0, Number(saved?.stepIdx || 0)));
     const ov=$("amRecipeOverlayV6");
     ov.style.display="flex"; ov.setAttribute("aria-hidden","false");
     try{
@@ -2244,15 +2379,17 @@ function renderProfilesSelect(list, selectedId){
       if(body) body.scrollTop = 0;
     }catch(_e){}
     syncActionBarsVisibility();
-    state.recipe={open:true, productId:pid, orderIds:orderIds||[], units:Number(units||0), stepIdx:0, timerStarted:false};
+    state.recipe={open:true, productId:pid, orderIds:orderIds||[], units:Number(units||0), stepIdx:savedStepIdx, timerStarted:false, batchKey};
+    persistCurrentRecipeProgress();
     applyTimerWidgetState({ force:true });
     renderRecipeStep();
   }
   function closeRecipe(){
+    persistCurrentRecipeProgress();
     const ov=$("amRecipeOverlayV6");
     if(ov){ ov.style.display="none"; ov.setAttribute("aria-hidden","true"); }
     syncActionBarsVisibility();
-    state.recipe={open:false, productId:null, orderIds:[], units:0, stepIdx:0, timerStarted:false};
+    state.recipe={open:false, productId:null, orderIds:[], units:0, stepIdx:0, timerStarted:false, batchKey:null};
     applyTimerWidgetState({ force:true });
   }
   function stepMove(delta){
@@ -2265,6 +2402,7 @@ function renderProfilesSelect(list, selectedId){
     if(prevStep?.type === "timer_base" && nextStep?.type !== "timer_base"){
       setTimerWidgetMinimized(true, { save:true, animate:true });
     }
+    persistCurrentRecipeProgress();
     renderRecipeStep();
   }
   
@@ -2466,7 +2604,8 @@ function msToMMSS(ms){
   function renderInlineTimer(pid){
     const pill=$("amTimerInline"); const txt=$("amTimerTxt");
     if(!pill||!txt) return;
-    const end=getTimerEnd(state.todayKey,pid); const now=Date.now();
+    const activeBatchKey = String(state?.recipe?.batchKey || makeRecipeBatchKey(pid, state?.recipe?.orderIds||[]));
+    const end=getTimerEnd(activeBatchKey); const now=Date.now();
     if(end && end>now){ pill.style.display="inline-flex"; txt.textContent=msToMMSS(end-now); }
     else { pill.style.display="none"; txt.textContent=""; }
   }
@@ -2508,11 +2647,9 @@ function msToMMSS(ms){
   }
 
   function remainingProductsCount(){
-    const todayAll = state.paidOrders.filter(o=>String(o.__prod_day||"")===String(state.todayKey||""));
     const normStatus = (v)=>String(v||"").trim().toLowerCase();
-    // Contar por producto SOLO los pedidos que aún no están LISTO en BD
-    const pending = todayAll.filter(o=>{ const ks=normStatus(o.kitchen_status); return ks!=="listo"; });
-    const byProd = aggregateByProduct(pending);
+    const pending = (state.paidOrders||[]).filter(o=>normStatus(o.kitchen_status)!=="listo");
+    const byProd = aggregateByProductRemaining(pending);
     const needed = PRODUCTS.map(p=>p.id).filter(pid=>(byProd.get(pid)||0)>0);
     return needed.length;
   }
@@ -2579,7 +2716,7 @@ function msToMMSS(ms){
     $("amStepHint").textContent = "";
 
     if(st?.type==="timer_base"){
-      const hasActiveTimer = getTimerEnd(state.todayKey, pid) > Date.now();
+      const hasActiveTimer = getTimerEnd(String(state?.recipe?.batchKey||"")) > Date.now();
       if(hasActiveTimer) startWidgetTicker();
       if(hasActiveTimer || state.recipe.timerStarted){
         setTimerWidgetMinimized(false, { save:true, animate:true, force:true });
@@ -2608,23 +2745,40 @@ function msToMMSS(ms){
 
   async function startBaseTimer(pid){
     const ids = (state.recipe?.orderIds && state.recipe.orderIds.length) ? state.recipe.orderIds : getTodayOrderIds();
-    if(ids.length){
-      enqueueKitchenSync_("base-fridge", ()=> kitchenBulkUpdate(ids,{ base_fridge_started_at: JSON.stringify(buildProdStampPayload(pid)) }), {
+    const batchKey = String(state?.recipe?.batchKey || makeRecipeBatchKey(pid, ids));
+    const stampPayload = buildProdStampPayload(pid);
+    const idsMissingStamp = getOrderIdsMissingProductStamp_(ids, "base_fridge_started_at", pid);
+
+    if(idsMissingStamp.length){
+      enqueueKitchenSync_("base-fridge", ()=> kitchenBulkUpdate(idsMissingStamp,{ base_fridge_started_at: JSON.stringify(stampPayload) }), {
         message:"Guardando hora de nevera…",
         errorMessage:"No se pudo guardar la hora de nevera.",
         refreshAfter:false
       }).catch((e)=>{ console.warn("No se pudo guardar base_fridge_started_at:", e); });
     }
 
-    const existing=getTimerEnd(state.todayKey,pid);
+    for(const oid of idsMissingStamp){
+      const order = (state.paidOrders||[]).find(o => String(o.order_id||"") === String(oid));
+      if(order) mergeProductStampIntoOrder_(order, "base_fridge_started_at", pid, stampPayload);
+    }
+
+    const existing=getTimerEnd(batchKey);
     const now=Date.now();
     if(existing && existing>now){
       startWidgetTicker();
+      persistCurrentRecipeProgress({ timerStartedAt: getTimerEntry(batchKey)?.timerStartedAt || nowIso() });
       return;
     }
 
     const end=Date.now()+BASE_FRIDGE_MINUTES*60*1000;
-    setTimerEnd(state.todayKey,pid,end);
+    setTimerEntry(batchKey, {
+      pid,
+      end,
+      orderIds: ids.map(String),
+      timerStartedAt: getTimerEntry(batchKey)?.timerStartedAt || nowIso(),
+      label: (PRODUCTS.find(p=>p.id===pid)?.name || "Temporizador")
+    });
+    persistCurrentRecipeProgress({ timerStartedAt: getTimerEntry(batchKey)?.timerStartedAt || nowIso() });
     startWidgetTicker();
   }
 
@@ -2641,8 +2795,16 @@ function msToMMSS(ms){
 
     state.widgetTick=setInterval(()=>{
       const now=Date.now();
-      const day = getTimersMap()?.[state.todayKey] || {};
-      const entries=Object.entries(day).map(([pid,end])=>({pid,end:Number(end||0)})).filter(x=>x.end>now).sort((a,b)=>a.end-b.end);
+      const entries=Object.values(getTimersMap())
+        .map(entry=>({
+          batchKey: String(entry?.batchKey || ""),
+          pid: String(entry?.pid || ""),
+          end: Number(entry?.end || 0),
+          label: String(entry?.label || "")
+        }))
+        .filter(x=>x.end>now)
+        .sort((a,b)=>a.end-b.end);
+
       if(entries.length===0){
         w.style.display="none";
         clearInterval(state.widgetTick); state.widgetTick=null;
@@ -2650,11 +2812,10 @@ function msToMMSS(ms){
       }
       const top=entries[0];
       const prod=PRODUCTS.find(p=>p.id===top.pid);
-      label.textContent = prod?prod.name:"Temporizador";
+      label.textContent = top.label || (prod?prod.name:"Temporizador");
       const left = top.end-now;
       time.textContent = msToMMSS(left);
 
-      // barra: asume 30min si no sabemos; si quieres, podemos guardar startTime para barra exacta
       const total = BASE_FRIDGE_MINUTES*60*1000;
       const pct = Math.max(0, Math.min(100, Math.round((left/total)*100)));
       bar.style.width = pct + "%";
@@ -2674,10 +2835,11 @@ function msToMMSS(ms){
     const st=steps[state.recipe.stepIdx]||null;
 
     if(st?.type==="timer_base"){
-      const hasActiveTimer = getTimerEnd(state.todayKey, pid) > Date.now();
+      const hasActiveTimer = getTimerEnd(String(state?.recipe?.batchKey||"")) > Date.now();
       if(!state.recipe.timerStarted && !hasActiveTimer){
         await startBaseTimer(pid);
         state.recipe.timerStarted=true;
+        persistCurrentRecipeProgress({ timerStartedAt: getTimerEntry(String(state?.recipe?.batchKey||""))?.timerStartedAt || nowIso() });
         setTimerWidgetMinimized(false, { save:true, animate:true, force:true });
         renderRecipeStep();
         return;
@@ -2720,13 +2882,16 @@ function msToMMSS(ms){
     const ids=getOrderIdsThatContainProduct(orders,pid);
     if(ids.length===0) return;
 
-    const startedStamp = JSON.stringify(buildProdStampPayload(pid));
+    const stampPayload = buildProdStampPayload(pid);
+    const startedStamp = JSON.stringify(stampPayload);
     const nowIsoLocal = new Date().toISOString();
+    const idsMissingStamp = getOrderIdsMissingProductStamp_(ids, "kitchen_started_at", pid);
+
     for(const oid of ids){
       const order = (state.paidOrders || []).find(o => String(o.order_id || "") === String(oid));
       if(!order) continue;
       order.kitchen_status = "En proceso";
-      if(!String(order.kitchen_started_at || "").trim()) order.kitchen_started_at = startedStamp;
+      mergeProductStampIntoOrder_(order, "kitchen_started_at", pid, stampPayload);
       if(!String(order.last_updated_at || "").trim()) order.last_updated_at = nowIsoLocal;
     }
     recomputeKitchenBucketsFromPaidOrders_();
@@ -2734,7 +2899,7 @@ function msToMMSS(ms){
     renderAll();
     openRecipe(pid, ids, units);
 
-    enqueueKitchenSync_("start-recipe", ()=> kitchenBulkUpdate(ids,{ kitchen_status:"En proceso", kitchen_started_at: startedStamp }), {
+    enqueueKitchenSync_("start-recipe", ()=> kitchenBulkUpdate(ids,{ kitchen_status:"En proceso", ...(idsMissingStamp.length ? { kitchen_started_at: startedStamp } : {}) }), {
       message:"Guardando inicio de producción…",
       errorMessage:"No se pudo guardar el inicio en la base de datos.",
       refreshAfter:true,
@@ -2765,11 +2930,15 @@ async function finalizePostreFromOverlay(){
     if(!ok) return;
 
     // 1) Marcar localmente este producto como listo por pedido
+    const batchKey = String(state?.recipe?.batchKey || makeRecipeBatchKey(pid, orderIds));
     const day=String(state.todayKey||"");
     for(const oid of orderIds){
-      setOrderProductDone(day, oid, pid, true);
+      const order = (state.paidOrders||[]).find(o => String(o.order_id||"") === String(oid));
+      const orderDay = String(order?.__prod_day || day || "");
+      setOrderProductDone(orderDay, oid, pid, true);
     }
-    clearTimer(day, pid);
+    clearTimer(batchKey);
+    clearRecipeProgress(batchKey);
 
     // 2) Pasar a LISTO en BD solo los pedidos que ya tengan TODOS sus productos listos
     const byId=new Map((state.paidOrders||[]).map(o=>[String(o.order_id||""), o]));
@@ -2817,11 +2986,17 @@ async function finalizePostreFromOverlay(){
     showLoading("Finalizando lote…","Actualizando base de datos…");
     try{
       await kitchenBulkUpdate(ids,{kitchen_status:"Listo"});
-      // Limpieza local: temporizadores + progreso por pedido/producto (cerramos el día).
-      for(const p of PRODUCTS) clearTimer(state.todayKey, p.id);
-      clearOrderDoneDay(state.todayKey);
-      // (Opcional) también limpiar doneQty
-      try{ const dm=getDoneMap(); delete dm[state.todayKey]; setDoneMap(dm); }catch(_e){}
+      const batchKey = String(state?.recipe?.batchKey || makeRecipeBatchKey(state?.recipe?.productId, ids));
+      clearTimer(batchKey);
+      clearRecipeProgress(batchKey);
+      for(const oid of ids){
+        const order = (state.paidOrders||[]).find(o => String(o.order_id||"") === String(oid));
+        const dayKey = String(order?.__prod_day || state.todayKey || "");
+        const required = getRequiredProductIdsForOrder_(order);
+        for(const reqPid of required){
+          setOrderProductDone(dayKey, oid, reqPid, true);
+        }
+      }
       closeRecipe();
       await refresh();
     }catch(e){
