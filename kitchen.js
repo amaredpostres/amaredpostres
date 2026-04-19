@@ -312,7 +312,7 @@ const LS_ORDER_DONE_KEY = "AMARED_KITCHEN_ORDER_DONE_V1";
         { key:"Leche entera (ml)", qty:42.83 },
         { key:"Gelatina sin sabor (g)", qty:1.25 },
         { key:"Agua (ml)", qty:8.33 },
-        { key:"Galletas trituradas (g)", qty:25 },
+        { key:"Galletas trituradas (g)", qty:35 },
         { key:"Mantequilla derretida (g)", qty:11.6 },
         { key:"Vainilla (ml)", qty:0.33 },
         { key:"Chocorramo (g)", qty:20 },
@@ -324,10 +324,12 @@ const LS_ORDER_DONE_KEY = "AMARED_KITCHEN_ORDER_DONE_V1";
 
         { type:"normal", text:"Tritura las galletas hasta lograr una textura tipo arena.", img:"assets/steps/mousse/step01.webp" },
         { type:"normal", text:"Mezcla la galleta triturada con la mantequilla derretida hasta que compacte.", img:"assets/steps/mousse/step02.webp" },
-        { type:"normal", text:"Divide 25 g por vasito y presiona firme para formar la base.", img:"assets/steps/mousse/step03.webp" },
+        { type:"normal", text:"Divide 35 g por vasito y presiona firme para formar la base.", img:"assets/steps/mousse/step03.webp" },
         { type:"timer_base", text:"Lleva los vasitos con base a la nevera por 30 min. (Inicia el temporizador para continuar).", img:"assets/steps/mousse/step04.webp" },
 
-        { type:"normal", text:"En licuadora: integra pulpa, leche condensada, crema de leche, leche entera y vainilla, hasta obtener una mezcla uniforme.", img:"assets/steps/mousse/step05.webp" },
+        { type:"normal", text:"Lleva a la licuadora la pulpa de maracuyá para extraer el jugo. Deben quedar listos {{MARACUYA_JUICE_ML}} ml de jugo para esta preparación.", img:"assets/steps/mousse/step05.webp" },
+        { type:"normal", text:"Licúa la pulpa y ajusta la cantidad necesaria hasta obtener los {{MARACUYA_JUICE_ML}} ml de jugo requeridos; si hace falta, agrega un poco más de pulpa para completar.", img:"assets/steps/mousse/step06.webp" },
+        { type:"normal", text:"En licuadora: integra el jugo de maracuyá, la leche condensada, la crema de leche, la leche entera y la vainilla, hasta obtener una mezcla uniforme.", img:"assets/steps/mousse/step05.webp" },
         { type:"normal", text:"Calienta el agua sin dejar que hierva.", img:"assets/steps/mousse/step06.webp" },
         { type:"normal", text:"Agrega la gelatina al agua tibia y mezcla en el fogón hasta disolver (sin grumos).", img:"assets/steps/mousse/step07.webp" },
         { type:"normal", text:"Con la licuadora encendida, incorpora la gelatina disuelta lentamente.", img:"assets/steps/mousse/step08.webp" },
@@ -2036,59 +2038,81 @@ function renderProfilesSelect(list, selectedId){
     wrap.innerHTML=`
       <style id="amRecipeCss">
         /* Unified recipe modal */
-                #amTextCol{ min-height:0; overflow:hidden; }
-        #amStepScroll{ min-height:0; padding-bottom:14px; }
-        #amNav{ position:sticky; bottom:0; z-index:6; background:rgba(255,255,255,.92); }
-        #amRecipeOverlayV6 .modalBox{ width:min(980px, calc(100vw - 24px)); max-height:min(92dvh, calc(100vh - 24px)); padding:16px; }
+        #amRecipeOverlayV6{ align-items:flex-start; overflow:auto; -webkit-overflow-scrolling:touch; }
+        #amRecipeOverlayV6 .modalBox{
+          width:min(980px, calc(100vw - 24px));
+          max-height:min(92dvh, calc(100vh - 24px));
+          padding:16px;
+          overflow:auto;
+          overscroll-behavior:contain;
+          -webkit-overflow-scrolling:touch;
+        }
         #amRecipeOverlayV6 .modalBox > div:last-child{ flex:1 1 auto; min-height:0; }
-        #amUnifiedCard{ height:100%; grid-template-rows:minmax(0,1fr) auto !important; align-items:stretch; }
+        #amRecipeBody{ margin-top:12px; overflow:hidden; min-height:0; flex:1 1 auto; }
+        #amTextCol{ min-height:0; overflow:hidden; }
+        #amStepScroll{ min-height:0; padding-bottom:14px; -webkit-overflow-scrolling:touch; }
+        #amNav{ position:sticky; bottom:0; z-index:6; background:rgba(255,255,255,.96); }
+        #amUnifiedCard{ height:100%; min-height:0; grid-template-rows:minmax(0,1fr) auto !important; align-items:stretch; }
         #amImgCol{ min-height:0; align-self:center; }
         #amImgCol img{ display:block; width:100%; height:auto; max-height:min(52dvh, 420px); object-fit:contain; }
-#amUnifiedCard{ min-height:0; }
-        #amStepScroll{ -webkit-overflow-scrolling: touch; }
 
         @media (max-width: 920px){
-          /* Mobile: texto -> imagen -> botones (una sola sección) */
-          #amUnifiedCard{
-            grid-template-columns: 1fr !important;
-            grid-template-areas: "text" "img" "nav" !important;
-            grid-template-rows: minmax(0,1fr) auto auto !important;
+          /* Mobile: una sola columna con scroll dentro del paso a paso */
+          #amRecipeOverlayV6{ padding:10px; }
+          #amRecipeOverlayV6 .modalBox{
+            width:min(720px, calc(100vw - 18px));
+            max-height:min(94dvh, calc(100vh - 18px));
+            padding:12px;
+            overflow-y:auto;
           }
-          #amRecipeOverlayV6 .modalBox{ width:min(720px, calc(100vw - 18px)); max-height:min(94dvh, calc(100vh - 18px)); padding:12px; }
+          #amRecipeBody,
+          #amTextCol,
+          #amImgCol{
+            overflow:visible;
+          }
+          #amUnifiedCard{
+            height:auto;
+            grid-template-columns:1fr !important;
+            grid-template-areas:"text" "img" "nav" !important;
+            grid-template-rows:auto auto auto !important;
+          }
+          #amStepScroll{
+            overflow:visible;
+            max-height:none;
+            flex:0 1 auto;
+            padding-bottom:10px;
+          }
           #amImgCol img{ max-height:min(28dvh, 220px); }
-          #amNav{ justify-content:center !important; }
-          #amNav .btn{ flex:1; max-width:260px; }
+          #amNav{
+            justify-content:space-between;
+            margin:0 auto;
+            max-width:420px;
+            padding-bottom:max(0px, env(safe-area-inset-bottom));
+          }
+          #amNav .btn{ min-width:120px; flex:1; }
         }
-      
+
         /* Nav alignment */
-        #amNav{ justify-content:flex-end; }
+        #amNav{ display:flex; gap:12px; justify-content:flex-end; max-width:520px; margin-left:auto; }
         #amNav .btn{ min-width:160px; }
         @media (max-width: 920px){
-          #amNav{ justify-content:center !important; }
+          #amNav{ justify-content:space-between !important; }
           #amNav .btn{ min-width:140px; }
         }
 
-        /* Desktop: botones abajo a la derecha */
-        #amNav{ display:flex; gap:12px; justify-content:flex-end; max-width:520px; margin-left:auto; }
-        #amNav .btn{ min-width:160px; }
-        /* Móvil: botones centrados (bloque centrado con espacio entre) */
-        @media (max-width: 920px){
-          #amNav{ justify-content:space-between; margin:0 auto; max-width:420px; }
-          #amNav .btn{ min-width:120px; flex:1; }
-          #amStepScroll{ max-height:none; flex:1 1 auto; padding-bottom:10px; }
-        }
         @media (max-width: 520px){
-          #amRecipeOverlayV6 .modalBox{ width:calc(100vw - 12px); max-height:calc(100dvh - 12px); padding:10px; }
+          #amRecipeOverlayV6{ padding:6px; }
+          #amRecipeOverlayV6 .modalBox{ width:calc(100vw - 8px); max-height:calc(100dvh - 8px); padding:10px; }
           #amUnifiedCard{ gap:10px !important; }
           #amImgCol img{ max-height:min(24dvh, 180px); border-radius:14px; }
           #amStepScroll{ padding-right:2px; }
           #amNav{ gap:8px; max-width:none; }
           #amNav .btn{ min-width:0; padding-left:10px; padding-right:10px; font-size:13px; }
         }
-</style>
+      </style>
 
       <div id="amRecipeOverlayV6" class="modalOverlay" aria-hidden="true" style="display:none;">
-        <div class="modalBox" style="max-width:980px; max-height:calc(100vh - 32px); overflow:hidden; display:flex; flex-direction:column; position:relative; width:min(980px, calc(100vw - 24px));">
+        <div class="modalBox" style="max-width:980px; max-height:calc(100vh - 32px); overflow:auto; display:flex; flex-direction:column; position:relative; width:min(980px, calc(100vw - 24px)); -webkit-overflow-scrolling:touch; overscroll-behavior:contain;">
           <div class="rowBetween" style="align-items:flex-start;">
             <div style="min-width:0;">
               <div style="font-weight:950; font-size:18px;" id="amRecipeTitle">Receta</div>
@@ -2102,7 +2126,7 @@ function renderProfilesSelect(list, selectedId){
             <button id="amRecipeClose" class="iconBtn" type="button" aria-label="Cerrar" title="Cerrar" style="position:absolute; top:14px; right:14px; z-index:5;">✕</button>
           </div>
 
-          <div style="margin-top:12px; overflow:hidden; min-height:0; flex:1 1 auto;">
+          <div id="amRecipeBody" style="margin-top:12px; overflow:hidden; min-height:0; flex:1 1 auto;">
             <!-- Unified section -->
             <div id="amUnifiedCard" class="amCard"
               style="margin:0; overflow:hidden; min-height:0; display:grid; grid-template-columns:1.1fr .9fr; grid-template-areas:'text img' 'nav nav'; grid-template-rows:auto auto; gap:14px;">
@@ -2175,6 +2199,13 @@ function renderProfilesSelect(list, selectedId){
     injectRecipeOverlay();
     const ov=$("amRecipeOverlayV6");
     ov.style.display="flex"; ov.setAttribute("aria-hidden","false");
+    try{
+      ov.scrollTop = 0;
+      const modalBox = ov.querySelector(".modalBox");
+      if(modalBox) modalBox.scrollTop = 0;
+      const body = $("amRecipeBody");
+      if(body) body.scrollTop = 0;
+    }catch(_e){}
     syncActionBarsVisibility();
     state.recipe={open:true, productId:pid, orderIds:orderIds||[], units:Number(units||0), stepIdx:0, timerStarted:false};
     applyTimerWidgetState({ force:true });
@@ -2208,9 +2239,13 @@ function renderProfilesSelect(list, selectedId){
   // Permite textos dinámicos en el paso a paso (tokens tipo {{TOKEN}})
   function applyStepVars(text, pid){
     let t = String(text || "");
+    const units = Number(state?.recipe?.units || 0) || 0;
+    if(pid === "mousse_maracuya"){
+      const maracuyaJuice = units * 21.41;
+      t = t.replaceAll("{{MARACUYA_JUICE_ML}}", fmtDec2(maracuyaJuice));
+    }
     // Cheesecake: agua para preparar café (10 ml por postre)
     if(pid === "cheesecake_cafe_panela"){
-      const units = Number(state?.recipe?.units || 0) || 0;
       const coffeeWater = units * 10; // ml por postre (según tu receta)
       t = t.replaceAll("{{COFFEE_WATER_ML}}", fmtDec2(coffeeWater));
     }
@@ -2458,6 +2493,14 @@ function msToMMSS(ms){
     if(bar){ const pct=Math.round(((state.recipe.stepIdx+1)/Math.max(1,steps.length))*100); bar.style.width=pct+"%"; }
 
     renderInlineTimer(pid);
+    try{
+      const stepScroll = $("amStepScroll");
+      if(stepScroll) stepScroll.scrollTop = 0;
+      const body = $("amRecipeBody");
+      if(body) body.scrollTop = 0;
+      const modalBox = document.querySelector("#amRecipeOverlayV6 .modalBox");
+      if(modalBox && window.matchMedia("(max-width: 920px)").matches) modalBox.scrollTop = 0;
+    }catch(_e){}
 
     const nextBtn=$("amNextOrTimer");
     const finalBox=$("amFinalActions");
