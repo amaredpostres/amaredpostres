@@ -329,7 +329,7 @@ const LS_ORDER_DONE_KEY = "AMARED_KITCHEN_ORDER_DONE_V1";
 
         { type:"normal", text:"Lleva a la licuadora la pulpa de maracuyá para extraer el jugo. Deben quedar listos {{MARACUYA_JUICE_ML}} ml de jugo para esta preparación.", img:"assets/steps/mousse/step05.webp" },
         { type:"normal", text:"Licúa la pulpa y ajusta la cantidad necesaria hasta obtener los {{MARACUYA_JUICE_ML}} ml de jugo requeridos; si hace falta, agrega un poco más de pulpa para completar.", img:"assets/steps/mousse/step06.webp" },
-        { type:"normal", text:"En licuadora: integra el jugo de maracuyá, la leche condensada, la crema de leche, la leche entera y la vainilla, hasta obtener una mezcla uniforme.", img:"assets/steps/mousse/step05.webp" },
+        { type:"normal", text:"En licuadora: integra el jugo de maracuyá, la leche condensada, la crema de leche, la leche entera y la vainilla, hasta obtener una mezcla uniforme.", img:"assets/steps/mousse/step08.webp" },
         { type:"normal", text:"Calienta el agua sin dejar que hierva.", img:"assets/steps/mousse/step06.webp" },
         { type:"normal", text:"Agrega la gelatina al agua tibia y mezcla en el fogón hasta disolver (sin grumos).", img:"assets/steps/mousse/step07.webp" },
         { type:"normal", text:"Con la licuadora encendida, incorpora la gelatina disuelta lentamente.", img:"assets/steps/mousse/step08.webp" },
@@ -2038,19 +2038,21 @@ function renderProfilesSelect(list, selectedId){
     wrap.innerHTML=`
       <style id="amRecipeCss">
         /* Unified recipe modal */
-        #amRecipeOverlayV6{ align-items:flex-start; overflow:auto; -webkit-overflow-scrolling:touch; }
+        #amRecipeOverlayV6{ align-items:center; justify-content:center; overflow:hidden; -webkit-overflow-scrolling:touch; }
         #amRecipeOverlayV6 .modalBox{
           width:min(980px, calc(100vw - 24px));
           max-height:min(92dvh, calc(100vh - 24px));
           padding:16px;
-          overflow:auto;
+          overflow:hidden;
+          display:flex;
+          flex-direction:column;
           overscroll-behavior:contain;
           -webkit-overflow-scrolling:touch;
         }
         #amRecipeOverlayV6 .modalBox > div:last-child{ flex:1 1 auto; min-height:0; }
-        #amRecipeBody{ margin-top:12px; overflow:hidden; min-height:0; flex:1 1 auto; }
-        #amTextCol{ min-height:0; overflow:hidden; }
-        #amStepScroll{ min-height:0; padding-bottom:14px; -webkit-overflow-scrolling:touch; }
+        #amRecipeBody{ margin-top:12px; overflow:auto; min-height:0; flex:1 1 auto; padding-right:4px; overscroll-behavior:contain; -webkit-overflow-scrolling:touch; }
+        #amTextCol{ min-height:0; overflow:visible; }
+        #amStepScroll{ min-height:0; max-height:none; overflow:visible; padding-bottom:14px; -webkit-overflow-scrolling:touch; }
         #amNav{ position:sticky; bottom:0; z-index:6; background:rgba(255,255,255,.96); }
         #amUnifiedCard{ height:100%; min-height:0; grid-template-rows:minmax(0,1fr) auto !important; align-items:stretch; }
         #amImgCol{ min-height:0; align-self:center; }
@@ -2063,7 +2065,7 @@ function renderProfilesSelect(list, selectedId){
             width:min(720px, calc(100vw - 18px));
             max-height:min(94dvh, calc(100vh - 18px));
             padding:12px;
-            overflow-y:auto;
+            overflow:hidden;
           }
           #amRecipeBody,
           #amTextCol,
@@ -2112,7 +2114,7 @@ function renderProfilesSelect(list, selectedId){
       </style>
 
       <div id="amRecipeOverlayV6" class="modalOverlay" aria-hidden="true" style="display:none;">
-        <div class="modalBox" style="max-width:980px; max-height:calc(100vh - 32px); overflow:auto; display:flex; flex-direction:column; position:relative; width:min(980px, calc(100vw - 24px)); -webkit-overflow-scrolling:touch; overscroll-behavior:contain;">
+        <div class="modalBox" style="max-width:980px; max-height:calc(100vh - 32px); overflow:hidden; display:flex; flex-direction:column; position:relative; width:min(980px, calc(100vw - 24px)); -webkit-overflow-scrolling:touch; overscroll-behavior:contain;">
           <div class="rowBetween" style="align-items:flex-start;">
             <div style="min-width:0;">
               <div style="font-weight:950; font-size:18px;" id="amRecipeTitle">Receta</div>
@@ -2126,19 +2128,19 @@ function renderProfilesSelect(list, selectedId){
             <button id="amRecipeClose" class="iconBtn" type="button" aria-label="Cerrar" title="Cerrar" style="position:absolute; top:14px; right:14px; z-index:5;">✕</button>
           </div>
 
-          <div id="amRecipeBody" style="margin-top:12px; overflow:hidden; min-height:0; flex:1 1 auto;">
+          <div id="amRecipeBody" style="margin-top:12px; overflow:auto; min-height:0; flex:1 1 auto; padding-right:4px; overscroll-behavior:contain; -webkit-overflow-scrolling:touch;">
             <!-- Unified section -->
             <div id="amUnifiedCard" class="amCard"
               style="margin:0; overflow:hidden; min-height:0; display:grid; grid-template-columns:1.1fr .9fr; grid-template-areas:'text img' 'nav nav'; grid-template-rows:auto auto; gap:14px;">
 
               <!-- Text -->
-              <div id="amTextCol" style="grid-area:text; display:flex; flex-direction:column; overflow:hidden; min-height:0; padding-bottom:6px;">
+              <div id="amTextCol" style="grid-area:text; display:flex; flex-direction:column; overflow:visible; min-height:0; padding-bottom:6px;">
                 <div class="rowBetween" style="flex:0 0 auto;">
                   <div class="pill" id="amStepCounter">Paso</div>
                   <div class="pill" id="amTimerInline" style="display:none;">⏱️ <span id="amTimerTxt"></span></div>
                 </div>
 
-                <div id="amStepScroll" style="overflow:auto; max-height:52vh; padding-right:6px; padding-bottom:18px; margin-top:12px; min-height:0;">
+                <div id="amStepScroll" style="overflow:visible; max-height:none; padding-right:6px; padding-bottom:18px; margin-top:12px; min-height:0;">
                   <div id="amStepText" style="font-weight:950; font-size:16px;"></div>
                   <div id="amStepHint" class="muted small" style="margin-top:10px;"></div>
                 </div>
