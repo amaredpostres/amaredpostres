@@ -329,17 +329,17 @@ const LS_ORDER_DONE_KEY = "AMARED_KITCHEN_ORDER_DONE_V1";
 
         { type:"normal", text:"Lleva a la licuadora la pulpa de maracuyá para extraer el jugo. Deben quedar listos {{MARACUYA_JUICE_ML}} ml de jugo para esta preparación.", img:"assets/steps/mousse/step05.webp" },
         { type:"normal", text:"Licúa la pulpa y ajusta la cantidad necesaria hasta obtener los {{MARACUYA_JUICE_ML}} ml de jugo requeridos; si hace falta, agrega un poco más de pulpa para completar.", img:"assets/steps/mousse/step06.webp" },
-        { type:"normal", text:"En licuadora: integra el jugo de maracuyá, la leche condensada, la crema de leche, la leche entera y la vainilla, hasta obtener una mezcla uniforme.", img:"assets/steps/mousse/step08.webp" },
-        { type:"normal", text:"Calienta el agua sin dejar que hierva.", img:"assets/steps/mousse/step06.webp" },
-        { type:"normal", text:"Agrega la gelatina al agua tibia y mezcla en el fogón hasta disolver (sin grumos).", img:"assets/steps/mousse/step07.webp" },
-        { type:"normal", text:"Con la licuadora encendida, incorpora la gelatina disuelta lentamente.", img:"assets/steps/mousse/step08.webp" },
+        { type:"normal", text:"En licuadora: integra el jugo de maracuyá, la leche condensada, la crema de leche, la leche entera y la vainilla, hasta obtener una mezcla uniforme.", img:"assets/steps/mousse/step07.webp" },
+        { type:"normal", text:"Calienta el agua sin dejar que hierva.", img:"assets/steps/mousse/step08.webp" },
+        { type:"normal", text:"Agrega la gelatina al agua tibia y mezcla en el fogón hasta disolver (sin grumos).", img:"assets/steps/mousse/step09.webp" },
+        { type:"normal", text:"Con la licuadora encendida, incorpora la gelatina disuelta lentamente.", img:"assets/steps/mousse/step10.webp" },
 
-        { type:"normal", text:"Vierte 150 ml de mezcla en cada vasito, sobre la base.", img:"assets/steps/mousse/step09.webp" },
-        { type:"normal", text:"Refrigera mínimo 8 horas o toda la noche.", img:"assets/steps/mousse/step10.webp" },
-        { type:"normal", text:"Decora con el logo espolvoreado.", img:"assets/steps/mousse/step11.webp" },
-        { type:"normal", text:"Añade cubos de chocorramo (≈ 20 g por postre).", img:"assets/steps/mousse/step12.webp" },
+        { type:"normal", text:"Vierte 150 ml de mezcla en cada vasito, sobre la base.", img:"assets/steps/mousse/step11.webp" },
+        { type:"normal", text:"Refrigera mínimo 8 horas o toda la noche.", img:"assets/steps/mousse/step12.webp" },
+        { type:"normal", text:"Decora con el logo espolvoreado.", img:"assets/steps/mousse/step13.webp" },
+        { type:"normal", text:"Añade cubos de chocorramo (≈ 20 g por postre).", img:"assets/steps/mousse/step14.webp" },
 
-        { type:"final", text:"¡Listo! Revisa presentación y deja el área limpia.", img:"assets/steps/mousse/step13.webp" },
+        { type:"final", text:"¡Listo! Revisa presentación y deja el área limpia.", img:"assets/steps/mousse/step15.webp" },
       ],
     };
   }
