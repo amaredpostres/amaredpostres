@@ -864,6 +864,29 @@ const apiPost = (payload) => api(payload);
     }
     return ids;
   }
+  function getOrderIdsThatContainDoneProduct(orders,pid){
+    const ids=[];
+    for(const o of (orders||[])){
+      const day=String(o.__prod_day||state.todayKey||"");
+      const oid=String(o.order_id||"");
+      if(!isOrderProductDone(day, oid, pid)) continue;
+      if(normalizeItemsFromOrder(o).some(it=>it.id===pid && it.qty>0)) ids.push(String(o.order_id));
+    }
+    return ids;
+  }
+  function getOrderProductQty_(order, pid){
+    return normalizeItemsFromOrder(order).reduce((acc,it)=> acc + ((it.id===pid) ? (Number(it.qty)||0) : 0), 0);
+  }
+  function getDoneQtyForOrders_(orders, pid){
+    let total=0;
+    for(const o of (orders||[])){
+      const day=String(o.__prod_day||state.todayKey||"");
+      const oid=String(o.order_id||"");
+      if(!isOrderProductDone(day, oid, pid)) continue;
+      total += getOrderProductQty_(o, pid);
+    }
+    return total;
+  }
 
   // ========= DONE / TIMERS (LOCAL) =========
 // Guardamos progreso por día y por producto en CANTIDAD (no boolean).
@@ -1026,40 +1049,67 @@ function clearOrderDoneDay(day){
   const m=getOrderDoneMap(); const d=String(day||"");
   if(m && d && m[d]){ delete m[d]; setOrderDoneMap(m); }
 }
-function pruneLocalProgressToDay_(keepDayKey){
+function getActiveProgressDayKeys_(orders, fallbackDayKey){
+  const keep = new Set();
+  const fb = String(fallbackDayKey||"").trim();
+  if(fb) keep.add(fb);
+  for(const o of (orders||[])){
+    const day = String(o?.__prod_day || "").trim();
+    if(day) keep.add(day);
+  }
+  return [...keep];
+}
+function pruneLocalProgressToDays_(keepDayKeys){
   try{
-    const dk = String(keepDayKey||"");
-    // DONE
+    const keep = new Set((Array.isArray(keepDayKeys)?keepDayKeys:[keepDayKeys]).map(v=>String(v||"").trim()).filter(Boolean));
+
+    // DONE (legacy visual)
     const dm = getDoneMap();
     const ndm = {};
-    if(dk && dm && dm[dk]) ndm[dk] = dm[dk];
+    for(const [dayKey, dayMap] of Object.entries(dm||{})){
+      if(keep.has(String(dayKey||""))) ndm[dayKey] = dayMap;
+    }
     setDoneMap(ndm);
 
-    // TIMERS
+    // TIMERS: se guardan por batchKey, así que filtramos por dayKey/ordenes si existe.
     const tm = getTimersMap();
     const ntm = {};
-    if(dk && tm && tm[dk]) ntm[dk] = tm[dk];
+    for(const [batchKey, entry] of Object.entries(tm||{})){
+      const entryDay = String(entry?.dayKey || "").trim();
+      const keepByDay = entryDay && keep.has(entryDay);
+      const keepByOrder = Array.isArray(entry?.orderIds) && entry.orderIds.some(oid=>{
+        const order = (state.paidOrders||[]).find(o=>String(o.order_id||"") === String(oid||""));
+        return keep.has(String(order?.__prod_day || "").trim());
+      });
+      const keepLegacy = !entryDay && (!Array.isArray(entry?.orderIds) || entry.orderIds.length===0);
+      if(keepByDay || keepByOrder || keepLegacy) ntm[batchKey] = entry;
+    }
     setTimersMap(ntm);
 
     // ORDER_DONE
     const om = getOrderDoneMap();
     const nom = {};
-    if(dk && om && om[dk]) nom[dk] = om[dk];
+    for(const [dayKey, dayMap] of Object.entries(om||{})){
+      if(keep.has(String(dayKey||""))) nom[dayKey] = dayMap;
+    }
     setOrderDoneMap(nom);
 
-    // RECIPE_PROGRESS: conservar lo reciente para permitir reanudar lotes iniciados el día anterior.
+    // RECIPE_PROGRESS: conservar lo reciente y/o asociado a días todavía activos.
     const rpm = getRecipeProgressMap();
     const nrpm = {};
     const now = Date.now();
     for(const [key, value] of Object.entries(rpm||{})){
       const ts = Date.parse(String(value?.updatedAt || ""));
-      if(!Number.isFinite(ts) || (now - ts) <= (72 * 60 * 60 * 1000)){
-        nrpm[key] = value;
-      }
+      const keepRecent = !Number.isFinite(ts) || (now - ts) <= (72 * 60 * 60 * 1000);
+      const keepByOrder = Array.isArray(value?.orderIds) && value.orderIds.some(oid=>{
+        const order = (state.paidOrders||[]).find(o=>String(o.order_id||"") === String(oid||""));
+        return keep.has(String(order?.__prod_day || "").trim());
+      });
+      if(keepRecent || keepByOrder) nrpm[key] = value;
     }
     setRecipeProgressMap(nrpm);
   }catch(e){
-    console.warn("pruneLocalProgressToDay_ error:", e);
+    console.warn("pruneLocalProgressToDays_ error:", e);
   }
 }
 
@@ -1075,10 +1125,9 @@ function startDayRolloverWatch_(){
         state.todayKey = nowKey;
         state.nextKey = getNextProductionDayKey(state.todayKey);
 
-        // Regla pedida: a las 00:00 se limpia el progreso local (Finalizado operador)
-        pruneLocalProgressToDay_(state.todayKey);
-
-        // Refrescar UI/BD
+        // Refrescar UI/BD. La limpieza local ahora la decide loadData()
+        // con base en los días activos, para no perder postres iniciados
+        // el día anterior y terminados hoy.
         await refresh();
       }
     }catch(e){
@@ -1356,7 +1405,6 @@ function syncKitchenMobileReturnAction(){
     if(!state.session.pin) throw new Error("Unauthorized admin");
     state.todayKey=getTodayProductionDayKey();
     state.nextKey=getNextProductionDayKey(state.todayKey);
-    pruneLocalProgressToDay_(state.todayKey);
 
     if(!silent) showLoading("Cargando cocina…","Obteniendo pedidos…");
     const outPaid = await api({action:"list_orders", payment_status:"Pagado", admin_pin: state.session.pin});
@@ -1369,6 +1417,8 @@ function syncKitchenMobileReturnAction(){
     const paid=merged.filter(o=>{ const id=String(o.order_id||""); if(!id||seen.has(id)) return false; seen.add(id); return true; })
       .map(o=>{ o.__prod_day=computeProductionDayKeyForOrder(o.created_at) || state.todayKey; return o; });
     state.paidOrders=paid;
+    const activeOrdersForLocalState = paid.filter(o=>String(o.kitchen_status||"").trim().toLowerCase()!=="listo");
+    pruneLocalProgressToDays_(getActiveProgressDayKeys_(activeOrdersForLocalState, state.todayKey));
 
     recomputeKitchenBucketsFromPaidOrders_();
     saveKitchenDataCache_();
@@ -2037,9 +2087,10 @@ function renderProfilesSelect(list, selectedId){
       const qty=byProd.get(p.id)||0;
       if(qty<=0) continue;
 
-      const doneQty = getDoneQty(dayKey, p.id);
-      const doneLocal = (qty>0) && (doneQty >= qty);
-      const partial = (doneQty > 0) && (doneQty < qty);
+      const totalQty = aggregateByProduct(orders).get(p.id) || 0;
+      const doneQty = getDoneQtyForOrders_(orders, p.id);
+      const doneLocal = (totalQty>0) && (doneQty >= totalQty);
+      const partial = (doneQty > 0) && (doneQty < totalQty);
       // Nota: no ocultamos tarjetas en Producción/En proceso por progreso local; siempre se muestran si hay pedidos.
 
       cards.push(`
@@ -2935,7 +2986,11 @@ async function finalizePostreFromOverlay(){
     for(const oid of orderIds){
       const order = (state.paidOrders||[]).find(o => String(o.order_id||"") === String(oid));
       const orderDay = String(order?.__prod_day || day || "");
+      const wasDone = isOrderProductDone(orderDay, oid, pid);
       setOrderProductDone(orderDay, oid, pid, true);
+      if(!wasDone){
+        addDoneQty(orderDay, pid, getOrderProductQty_(order, pid));
+      }
     }
     clearTimer(batchKey);
     clearRecipeProgress(batchKey);
@@ -2994,7 +3049,11 @@ async function finalizePostreFromOverlay(){
         const dayKey = String(order?.__prod_day || state.todayKey || "");
         const required = getRequiredProductIdsForOrder_(order);
         for(const reqPid of required){
+          const wasDone = isOrderProductDone(dayKey, oid, reqPid);
           setOrderProductDone(dayKey, oid, reqPid, true);
+          if(!wasDone){
+            addDoneQty(dayKey, reqPid, getOrderProductQty_(order, reqPid));
+          }
         }
       }
       closeRecipe();
@@ -3020,7 +3079,7 @@ async function finalizePostreFromOverlay(){
       const qty=byProd.get(p.id)||0;
       if(qty<=0) continue;
 
-      const ids = getOrderIdsThatContainProduct(notDoneDb, p.id);
+      const ids = getOrderIdsThatContainDoneProduct(notDoneDb, p.id);
 
       cards.push(`
         <div class="amCard" data-pid="${escapeHtml(p.id)}" data-units="${qty}">
@@ -3056,7 +3115,7 @@ async function finalizePostreFromOverlay(){
       const units=Number(card.getAttribute("data-units")||0);
 
       // IDs asociados (solo referencia)
-      const ids = getOrderIdsThatContainProduct(notDoneDb, pid);
+      const ids = getOrderIdsThatContainDoneProduct(notDoneDb, pid);
 
       const {lines,totalCost}=calcBatchIngredients(pid,units);
       const costText= totalCost>0?`$${money(totalCost)}`:"—";
@@ -3265,7 +3324,11 @@ async function finalizePostreFromOverlay(){
     if(doneWrap){
       doneWrap.innerHTML = `<div class="muted small" style="margin:6px 0 10px; font-weight:900;">Listo (BD)</div><div id="doneDbBlock"></div><div style="height:14px;"></div><div class="muted small" style="margin:6px 0 10px; font-weight:900;">Finalizado (operador)</div><div id="doneLocalBlock"></div>`;
       renderFinalizadosDb(document.getElementById("doneDbBlock"), state.buckets.doneDb);
-      renderFinalizadosLocal(document.getElementById("doneLocalBlock"), state.paidOrders.filter(o=>String(o.__prod_day||"")===String(state.todayKey||"")), "Finalizado (operador)");
+      renderFinalizadosLocal(
+        document.getElementById("doneLocalBlock"),
+        state.paidOrders.filter(o=>String(o.kitchen_status||"").trim().toLowerCase()!=="listo"),
+        "Finalizado (operador)"
+      );
     }
   }
 
