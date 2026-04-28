@@ -89,6 +89,7 @@ let state = {
     onlyMissing: true,
     onlySelected: false,
     cost_q: "",
+    unitCostsSyncState: "loading",
   }
 };
 
@@ -168,6 +169,8 @@ function hydrateCostsDataFromCache_(cache){
   state.recipesLoadedAt = Number(cache?.recipesLoadedAt || 0) || state.recipesLoadedAt || 0;
   state.buyPlan = cache?.buyPlan || state.buyPlan || {};
   state.purchaseHistory = Array.isArray(cache?.purchaseHistory) ? cache.purchaseHistory : (state.purchaseHistory || []);
+  state.ui = state.ui || {};
+  state.ui.unitCostsSyncState = "loading";
   historyDataReady_ = true;
   state.needs = mergeLateNeedsInto_(state.needs || {}, state.late || {});
   indexCosts(state.items);
@@ -947,8 +950,33 @@ function renderCostGroupsIfOpen_(){
   if(admin && !admin.open) return;
   renderCostsGroups();
 }
+function renderUnitCostsPendingState_(kind="loading"){
+  const tbody = el("unitCostRows");
+  const mobileList = el("unitCostMobileList");
+  const meta = el("unitCostMeta");
+  const isError = kind === "error";
+  const title = isError ? "No se pudo actualizar el costo unitario" : "Actualizando costo unitario…";
+  const sub = isError
+    ? "Vuelve a cargar la página para consultar el precio actualizado desde la base de datos."
+    : "Esta sección aparecerá cuando tengamos la información final y actualizada de recetas e ingredientes.";
+  if(tbody){
+    tbody.innerHTML = `<tr><td colspan="4">${inlineLoadHtml(title, sub, true)}</td></tr>`;
+  }
+  if(mobileList){
+    mobileList.innerHTML = inlineLoadHtml(title, sub, true);
+  }
+  if(meta){
+    meta.textContent = isError
+      ? "No fue posible cargar el costo unitario actualizado en este momento."
+      : "Esperando la información actualizada para mostrar el costo unitario y el precio sugerido.";
+  }
+}
 function afterRecipesRefresh_(){
   try{
+    state.ui = state.ui || {};
+    state.ui.unitCostsSyncState = (state.recipesSource === "sheet" && state.recipesByDessert && Object.keys(state.recipesByDessert||{}).length)
+      ? "ready"
+      : "error";
     if(state.view === "recipes" && state.recipesPinUnlocked) renderRecipesView_();
     else renderUnitCosts();
   }catch(_e){}
@@ -1578,6 +1606,13 @@ function renderUnitCosts(){
   const mobileList = el("unitCostMobileList");
   const meta = el("unitCostMeta");
   if(!tbody && !mobileList) return;
+
+  state.ui = state.ui || {};
+  const syncState = String(state.ui.unitCostsSyncState || "loading");
+  if(syncState !== "ready"){
+    renderUnitCostsPendingState_(syncState === "error" ? "error" : "loading");
+    return;
+  }
 
   ensurePackagingEntries();
   buildCostAliasMap();
@@ -2472,7 +2507,10 @@ function updateMetaLine(){
 // =============== Data load ===============
 async function loadAll(opts={}){
   if(!UNLOCKED_SECRET) throw new Error("Sin clave.");
-  const loadRecipesNow = !!opts.loadRecipesNow || state.view === "recipes";
+
+  state.ui = state.ui || {};
+  state.ui.unitCostsSyncState = "loading";
+  renderUnitCosts();
 
   historyDataReady_ = false;
   updateHistoryFabPosition_();
@@ -2509,8 +2547,10 @@ async function loadAll(opts={}){
   indexCosts(state.items);
 
   // Recetas desde hoja RECETAS (para costo unitario)
-  if(loadRecipesNow) await ensureRecipesLoaded_({ force:true, background:false });
-  else scheduleRecipesWarmup_(false);
+  const recipesReady = await ensureRecipesLoaded_({ force:true, background:false });
+  state.ui.unitCostsSyncState = (recipesReady && state.recipesSource === "sheet" && state.recipesByDessert && Object.keys(state.recipesByDessert||{}).length)
+    ? "ready"
+    : "error";
 
   updateMetaLine();
   renderDesserts();
@@ -2533,8 +2573,7 @@ function renderCostsBootLoadingState_(msg){
     if(dessertsMeta) dessertsMeta.textContent = "Consultando pedidos confirmados…";
     const lateMeta = el("lateMeta");
     if(lateMeta) lateMeta.textContent = "Consultando pedidos posteriores al corte…";
-    const unitRows = el("unitCostRows");
-    if(unitRows && !String(unitRows.innerHTML||"").trim()) unitRows.innerHTML = `<tr><td colspan="2">${inlineLoadHtml("Cargando costos por unidad…", "Estamos consultando recetas e ingredientes para el cálculo.", true)}</td></tr>`;
+    renderUnitCostsPendingState_("loading");
     const dessertRows = el("dessertRows");
     if(dessertRows && !String(dessertRows.innerHTML||"").trim()) dessertRows.innerHTML = `<tr><td colspan="2">${inlineLoadHtml("Cargando postres confirmados…", "Estamos reuniendo los pedidos que entran en la ventana de producción.", true)}</td></tr>`;
     const lateRows = el("lateRows");
