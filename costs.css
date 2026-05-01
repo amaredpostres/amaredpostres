@@ -564,20 +564,24 @@ select.input{
 /* Wide table: Costo unitario estimado */
 .pMiniTable.isWide{
   table-layout: fixed;
-  min-width: 760px; /* fuerza scroll en pantallas pequeñas */
+  min-width: 980px; /* fuerza scroll en pantallas pequeñas y mantiene legibles las columnas de packaging */
 }
 .pMiniTable.isWide th:nth-child(1),
 .pMiniTable.isWide td:nth-child(1){
-  width: 52%;
+  width: 30%;
   overflow-wrap: anywhere;
   word-break: break-word;
 }
 .pMiniTable.isWide th:nth-child(2),
-.pMiniTable.isWide td:nth-child(2){ width: 16%; }
+.pMiniTable.isWide td:nth-child(2){ width: 12%; }
 .pMiniTable.isWide th:nth-child(3),
-.pMiniTable.isWide td:nth-child(3){ width: 20%; }
+.pMiniTable.isWide td:nth-child(3){ width: 15%; }
 .pMiniTable.isWide th:nth-child(4),
-.pMiniTable.isWide td:nth-child(4){ width: 12%; }
+.pMiniTable.isWide td:nth-child(4){ width: 13%; }
+.pMiniTable.isWide th:nth-child(5),
+.pMiniTable.isWide td:nth-child(5){ width: 20%; }
+.pMiniTable.isWide th:nth-child(6),
+.pMiniTable.isWide td:nth-child(6){ width: 10%; }
 .pMiniTable.isWide th.num,
 .pMiniTable.isWide td.num{
   text-align:right;
@@ -608,7 +612,7 @@ select.input{
 
 @media (max-width: 560px){
   /* En móvil: compact sigue sin scroll (wrap), wide sí mantiene scroll por min-width */
-  .pMiniTable.isWide{ min-width: 720px; }
+  .pMiniTable.isWide{ min-width: 980px; }
 }
 
 
@@ -1602,4 +1606,37 @@ select.input{
 @media (min-width: 561px){
   .historyFab{ bottom:24px; }
   .historyFab.aboveBar{ bottom:108px; }
+}
+
+/* Recetas: productos sin rentabilidad */
+.recipeNoMarginBox{
+  display:flex;
+  align-items:center;
+  gap:7px;
+  border:1px solid rgba(242,91,143,.22);
+  background:rgba(242,91,143,.07);
+  border-radius:999px;
+  padding:8px 10px;
+  font-size:12px;
+  font-weight:950;
+  color:rgba(64,17,2,.78);
+  white-space:nowrap;
+}
+.recipeNoMarginBox input{accent-color:var(--pink, #f25b8f);}
+.recipeNoMarginBox.isOn{
+  background:rgba(242,91,143,.16);
+  border-color:rgba(242,91,143,.45);
+  color:var(--choco, #401102);
+}
+.recipeNoMarginInfo{
+  margin-top:10px;
+  padding:10px 12px;
+  border-radius:16px;
+  border:1px solid rgba(242,91,143,.22);
+  background:rgba(242,91,143,.07);
+}
+.recipeNoMarginTitle{font-weight:950; color:var(--choco, #401102);}
+.recipeNoMarginText{margin-top:4px; font-size:12.5px; color:rgba(64,17,2,.72); line-height:1.35;}
+@media (max-width: 520px){
+  .recipeNoMarginBox{ width:100%; justify-content:center; }
 }
