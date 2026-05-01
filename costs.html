@@ -685,7 +685,14 @@ body.is-app .costsLoginTopbar{ display:none !important; }
 <div class="hint" style="margin-top:4px;">Los productos sin rentabilidad se suman al precio final al mismo costo de compra, sin margen adicional.</div>
 <div class="pMiniTableWrap unitDesktopOnly" style="margin-top:8px;">
 <table class="pMiniTable isWide">
-<thead><tr><th>Postre</th><th class="num">$/u producción</th><th class="num">Precio 60%</th><th class="num">Sin rentabilidad / complementos</th><th class="num">Precio 60% + sin rentabilidad</th><th class="num">Lote</th></tr></thead>
+<thead><tr>
+<th>Postre</th>
+<th class="num"><span class="unitThMain">$/u producción</span></th>
+<th class="num"><span class="unitThMain">Precio 60%</span></th>
+<th class="num"><span class="unitThMain">Sin rentabilidad</span><span class="unitThSub">Complementos</span></th>
+<th class="num"><span class="unitThMain">Precio final</span><span class="unitThSub">60% + sin rentabilidad</span></th>
+<th class="num"><span class="unitThMain">Lote</span></th>
+</tr></thead>
 <tbody id="unitCostRows"></tbody>
 </table>
 </div>
