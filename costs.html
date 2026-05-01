@@ -340,6 +340,34 @@
 .pRecipeRow.isOn{background:rgba(255,255,255,.92);}
 .pRecipeRow.isOff{background:rgba(255,255,255,.60);}
 .pRecipeRow .qty{max-width:140px;}
+.recipeNoMarginBox{
+  display:flex;
+  align-items:center;
+  gap:7px;
+  border:1px solid rgba(242,91,143,.22);
+  background:rgba(242,91,143,.07);
+  border-radius:999px;
+  padding:8px 10px;
+  font-size:12px;
+  font-weight:950;
+  color:rgba(64,17,2,.78);
+  white-space:nowrap;
+}
+.recipeNoMarginBox input{accent-color:var(--pink, #f25b8f);}
+.recipeNoMarginBox.isOn{
+  background:rgba(242,91,143,.16);
+  border-color:rgba(242,91,143,.45);
+  color:var(--choco, #401102);
+}
+.recipeNoMarginInfo{
+  margin-top:10px;
+  padding:10px 12px;
+  border-radius:16px;
+  border:1px solid rgba(242,91,143,.22);
+  background:rgba(242,91,143,.07);
+}
+.recipeNoMarginTitle{font-weight:950; color:var(--choco, #401102);}
+.recipeNoMarginText{margin-top:4px; font-size:12.5px; color:rgba(64,17,2,.72); line-height:1.35;}
 @media (max-width: 520px){
   .pRecipeRow{flex-wrap:wrap; align-items:flex-start;}
   .pRecipeRow .qty{width:100%; max-width:none;}
@@ -654,9 +682,10 @@ body.is-app .costsLoginTopbar{ display:none !important; }
 </section>
 <section class="card" style="margin-top:14px;">
 <h2 class="cardTitle">Costo unitario estimado</h2>
+<div class="hint" style="margin-top:4px;">Los productos sin rentabilidad se suman al precio final al mismo costo de compra, sin margen adicional.</div>
 <div class="pMiniTableWrap unitDesktopOnly" style="margin-top:8px;">
 <table class="pMiniTable isWide">
-<thead><tr><th>Postre</th><th class="num">$/u</th><th class="num">Precio 60%</th><th class="num">Lote</th></tr></thead>
+<thead><tr><th>Postre</th><th class="num">$/u producción</th><th class="num">Precio 60%</th><th class="num">Sin rentabilidad / complementos</th><th class="num">Precio 60% + sin rentabilidad</th><th class="num">Lote</th></tr></thead>
 <tbody id="unitCostRows"></tbody>
 </table>
 </div>
@@ -729,7 +758,7 @@ body.is-app .costsLoginTopbar{ display:none !important; }
 <div class="pCostsHead">
 <div>
 <div class="pMetaTitle">Recetas</div>
-<div class="hint" style="margin-top:6px;">Selecciona un postre, marca ingredientes y define cantidades por unidad. Se guarda en <b>RECETAS</b>.</div>
+<div class="hint" style="margin-top:6px;">Selecciona un postre, marca ingredientes, define cantidades por unidad y marca los productos <b>sin rentabilidad</b> que se cobran al costo. Se guarda en <b>RECETAS</b>.</div>
 <div class="hint" style="margin-top:6px;">⚠️ Este módulo requiere un <b>código adicional</b> para editar.</div>
 </div>
 <div class="pTopBtns recipesActions" style="justify-content:flex-end;">
