@@ -562,30 +562,63 @@ select.input{
 }
 
 /* Wide table: Costo unitario estimado */
+/* Costo unitario: tabla de escritorio más legible */
+.pMiniTableWrap.unitDesktopOnly{
+  overflow-x: auto;
+  overflow-y: hidden;
+  border-radius: 18px;
+}
 .pMiniTable.isWide{
   table-layout: fixed;
-  min-width: 980px; /* fuerza scroll en pantallas pequeñas y mantiene legibles las columnas de packaging */
+  min-width: 1120px; /* evita que los títulos largos se monten entre columnas */
+}
+.pMiniTable.isWide th,
+.pMiniTable.isWide td{
+  vertical-align: middle;
+}
+.pMiniTable.isWide th{
+  white-space: normal;
+  line-height: 1.15;
+  letter-spacing: .06em;
 }
 .pMiniTable.isWide th:nth-child(1),
 .pMiniTable.isWide td:nth-child(1){
-  width: 30%;
+  width: 27%;
   overflow-wrap: anywhere;
   word-break: break-word;
 }
 .pMiniTable.isWide th:nth-child(2),
-.pMiniTable.isWide td:nth-child(2){ width: 12%; }
+.pMiniTable.isWide td:nth-child(2){ width: 14%; }
 .pMiniTable.isWide th:nth-child(3),
-.pMiniTable.isWide td:nth-child(3){ width: 15%; }
+.pMiniTable.isWide td:nth-child(3){ width: 14%; }
 .pMiniTable.isWide th:nth-child(4),
-.pMiniTable.isWide td:nth-child(4){ width: 13%; }
+.pMiniTable.isWide td:nth-child(4){ width: 16%; }
 .pMiniTable.isWide th:nth-child(5),
-.pMiniTable.isWide td:nth-child(5){ width: 20%; }
+.pMiniTable.isWide td:nth-child(5){ width: 19%; }
 .pMiniTable.isWide th:nth-child(6),
 .pMiniTable.isWide td:nth-child(6){ width: 10%; }
-.pMiniTable.isWide th.num,
+.pMiniTable.isWide th.num{
+  text-align:center;
+}
 .pMiniTable.isWide td.num{
   text-align:right;
   white-space: nowrap;
+}
+.unitThMain,
+.unitThSub{
+  display:block;
+}
+.unitThSub{
+  margin-top:3px;
+  font-size:10.5px;
+  letter-spacing:.04em;
+  text-transform:none;
+  color:rgba(64,17,2,.52);
+}
+@media (min-width: 1180px){
+  .pMiniTable.isWide{
+    min-width: 100%;
+  }
 }
 
 /* Compact tables: Postres confirmados / Pedidos después de las 3pm */
@@ -612,7 +645,7 @@ select.input{
 
 @media (max-width: 560px){
   /* En móvil: compact sigue sin scroll (wrap), wide sí mantiene scroll por min-width */
-  .pMiniTable.isWide{ min-width: 980px; }
+  .pMiniTable.isWide{ min-width: 1120px; }
 }
 
 
