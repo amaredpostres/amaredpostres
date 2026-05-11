@@ -8,7 +8,7 @@
   <link rel="icon" href="assets/favicon.ico" type="image/x-icon">
   <link rel="preload" href="assets/Logo-Amared.svg" as="image" type="image/svg+xml">
   <link rel="preload" href="assets/Logo-Isotipo-Amared.svg" as="image" type="image/svg+xml">
-  <link rel="stylesheet" href="styles.css?v=20260505-fonts-v1" />
+  <link rel="stylesheet" href="styles.css?v=20260511-routes-v1" />
 </head>
 <body>
   <div class="page">
@@ -122,6 +122,13 @@
               <label id="addressLabel" class="label" for="address">Dirección <span class="req">*</span></label>
               <input id="address" class="input" type="text" placeholder="Ej: Calle 53, número 8-2, Ibagué, Tolima" />
               <div id="addressHint" class="muted small addressHint hidden">Este campo cambia según el tipo de entrega que elijas.</div>
+            </div>
+
+            <div id="neighborhoodField" class="field neighborhoodField">
+              <label id="neighborhoodLabel" class="label" for="neighborhood">Barrio o sector <span class="req">*</span></label>
+              <input id="neighborhood" class="input" type="text" list="neighborhoodOptions" placeholder="Ej: Jordán, Centro, El Salado" autocomplete="address-level3" />
+              <datalist id="neighborhoodOptions"></datalist>
+              <div id="neighborhoodHint" class="muted small neighborhoodHint">Busca tu barrio y selecciónalo. Si no aparece, escríbelo manualmente para que podamos asignar la ruta correcta.</div>
             </div>
 
             <div class="miniCard deliveryCard">
