@@ -5,6 +5,47 @@
 console.log("AMARED delivery v14");
 
 const API_URL = "https://amared-orders.amaredpostres.workers.dev/";
+const AMARED_ROUTE_ORIGIN_LABEL = "Edificio Kiwana";
+const AMARED_ROUTE_ORIGIN_ADDRESS = "Edificio Kiwana, Cl. 53 #6A-21, Ibagué, Tolima";
+const AMARED_ROUTE_UNKNOWN = {
+  id: "por_asignar",
+  label: "Ruta por asignar",
+  short: "Por asignar",
+  description: "Revisar manualmente el barrio o la ubicación del cliente.",
+  score: 50
+};
+const AMARED_ROUTE_DEFINITIONS = {
+  occidente: {
+    id: "occidente",
+    label: "Ruta 1 · Centro / Occidente / Sur",
+    short: "Ruta 1",
+    description: "Centro, occidente, sur y sectores cercanos al punto de producción.",
+    score: 30
+  },
+  oriente: {
+    id: "oriente",
+    label: "Ruta 2 · Oriente / Salado / Aeropuerto",
+    short: "Ruta 2",
+    description: "Oriente de Ibagué, salida al Salado, aeropuerto y zonas cercanas.",
+    score: 70
+  },
+  por_asignar: AMARED_ROUTE_UNKNOWN
+};
+const AMARED_NEIGHBORHOOD_ROUTES = [
+  { name:"Edificio Kiwana", aliases:["kiwana", "edificio kiwana", "calle 53", "cl 53"], route:"occidente", score:1 },
+  { name:"Centro", aliases:["centro", "la pola", "belen", "belén", "interlaken", "cadiz", "cádiz", "la macarena", "la soledad"], route:"occidente", score:4 },
+  { name:"Calambeo", aliases:["calambeo", "clarita botero", "parque biosaludable clarita botero"], route:"occidente", score:5 },
+  { name:"Jordán", aliases:["jordan", "jordán", "jordan 1", "jordan 2", "jordan 3", "jordan 4", "jordán 1", "jordán 2", "jordán 3", "jordán 4"], route:"occidente", score:6 },
+  { name:"Piedra Pintada", aliases:["piedra pintada", "piedrapintada", "piedra pintada alta", "piedra pintada baja"], route:"occidente", score:6 },
+  { name:"Ricaurte", aliases:["ricaurte", "gaitan", "gaitán", "la reforma", "boqueron", "boquerón", "cocora", "san francisco", "la floresta"], route:"occidente", score:8 },
+  { name:"Ambalá", aliases:["ambala", "ambalá", "universidad de ibague", "universidad de ibagué", "varsovia", "los mandriles", "la castellana"], route:"occidente", score:5 },
+  { name:"El Vergel", aliases:["vergel", "el vergel", "multicentro", "acqua", "mercacentro 4", "la toscana", "panamericano"], route:"occidente", score:3 },
+  { name:"Mirolindo", aliases:["mirolindo", "avenida mirolindo", "parque deportivo", "la samaria", "clinica medimas", "clinica medimás"], route:"oriente", score:6 },
+  { name:"Picaleña", aliases:["picalena", "picaleña", "cauchitos", "aparco", "aparcó", "terrazas de campestre", "guacan", "guacán"], route:"oriente", score:8 },
+  { name:"Topacio", aliases:["topacio", "jardin", "jardín", "jardin santander", "jardín santander", "ciudadela simon bolivar", "ciudadela simón bolívar", "hato viejo", "hato de la virgen"], route:"oriente", score:7 },
+  { name:"El Salado", aliases:["salado", "el salado", "especial el salado", "la ceiba", "comfatolima lagos club", "santa elena", "aeropuerto", "aeropuerto nacional perales", "perales", "santa rita", "mega parque santa rita"], route:"oriente", score:10 }
+];
+let ROUTE_SORT_MODE = "near";
 const SS_KEY = "AMARED_DELIVERY_SESSION_V4";
 const LS_KEY = "AMARED_DELIVERY_REMEMBER_V1";
 const HUB_URL = "hub.html";
@@ -231,6 +272,8 @@ const btnLogoutTop = document.getElementById("btnLogoutTop");
 const deliveryFilterWrap = document.getElementById("deliveryFilterWrap");
 const btnFilterDelivery = document.getElementById("btnFilterDelivery");
 const btnFilterPickup = document.getElementById("btnFilterPickup");
+const routePlannerWrap = document.getElementById("routePlannerWrap");
+const routeSortMode = document.getElementById("routeSortMode");
 
 const metaLine = document.getElementById("metaLine");
 const statusEl = document.getElementById("status");
@@ -692,6 +735,151 @@ function money(n){
   return Math.round(Number(n||0)).toLocaleString("es-CO");
 }
 
+
+function normalizeRouteText(value){
+  return String(value || "")
+    .toLowerCase()
+    .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+    .replace(/[#.,;:()\[\]{}]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+function inferAmaredRouteInfo(input){
+  const text = normalizeRouteText(input);
+  if(!text){
+    return { ...AMARED_ROUTE_UNKNOWN, neighborhood:"", detected:false, score:AMARED_ROUTE_UNKNOWN.score };
+  }
+  let best = null;
+  AMARED_NEIGHBORHOOD_ROUTES.forEach(item => {
+    const aliases = [item.name].concat(item.aliases || []);
+    aliases.forEach(alias => {
+      const n = normalizeRouteText(alias);
+      if(!n) return;
+      const hit = text === n || text.includes(n) || n.includes(text);
+      if(!hit) return;
+      const weight = n.length + (text === n ? 100 : 0);
+      if(!best || weight > best.weight) best = { item, weight };
+    });
+  });
+  if(!best){
+    return { ...AMARED_ROUTE_UNKNOWN, neighborhood:"", detected:false, score:AMARED_ROUTE_UNKNOWN.score };
+  }
+  const def = AMARED_ROUTE_DEFINITIONS[best.item.route] || AMARED_ROUTE_UNKNOWN;
+  return { ...def, neighborhood:best.item.name, detected:true, score:Number(best.item.score || def.score || 50) };
+}
+function getOrderNeighborhood(order){
+  return String(order?.neighborhood_text || order?.barrio || order?.neighborhood || "").trim();
+}
+function getOrderRouteInfo(order){
+  const storedId = String(order?.route_zone || "").trim().toLowerCase();
+  const storedLabel = String(order?.route_label || "").trim();
+  const storedScore = Number(order?.route_order_score || 0) || 0;
+  const inferred = inferAmaredRouteInfo(`${getOrderNeighborhood(order)} ${order?.address_text || ""}`);
+  const def = AMARED_ROUTE_DEFINITIONS[storedId] || inferred || AMARED_ROUTE_UNKNOWN;
+  return {
+    ...def,
+    id: (AMARED_ROUTE_DEFINITIONS[storedId] ? storedId : inferred.id) || "por_asignar",
+    label: storedLabel || def.label || inferred.label || AMARED_ROUTE_UNKNOWN.label,
+    short: def.short || inferred.short || AMARED_ROUTE_UNKNOWN.short,
+    description: def.description || inferred.description || AMARED_ROUTE_UNKNOWN.description,
+    neighborhood: getOrderNeighborhood(order) || String(order?.route_detected_neighborhood || inferred.neighborhood || "").trim(),
+    detected: storedId ? storedId !== "por_asignar" : !!inferred.detected,
+    score: storedScore || Number(inferred.score || def.score || 50)
+  };
+}
+function groupOrdersByRoute(orders){
+  const groups = {
+    occidente: { ...AMARED_ROUTE_DEFINITIONS.occidente, orders: [] },
+    oriente: { ...AMARED_ROUTE_DEFINITIONS.oriente, orders: [] },
+    por_asignar: { ...AMARED_ROUTE_DEFINITIONS.por_asignar, orders: [] }
+  };
+  (Array.isArray(orders) ? orders : []).forEach(order => {
+    const info = getOrderRouteInfo(order);
+    const key = groups[info.id] ? info.id : "por_asignar";
+    groups[key].orders.push({ order, routeInfo: info });
+  });
+  Object.values(groups).forEach(group => {
+    group.orders.sort((a,b) => {
+      const da = Number(a.routeInfo.score || 50);
+      const db = Number(b.routeInfo.score || 50);
+      if(ROUTE_SORT_MODE === "far") return db - da;
+      return da - db;
+    });
+  });
+  return groups;
+}
+function cleanOrderStopText(value){
+  return String(value || "").replace(/\s+/g, " ").trim();
+}
+function isExternalMapLink(value){
+  const s = String(value || "").trim().toLowerCase();
+  if(!s) return false;
+  if(s === "whatsapp" || s === "ubicacion_por_whatsapp" || s === "recogida_presencial") return false;
+  return /^https?:\/\//.test(s);
+}
+function looksLikeLocationLink(value){
+  const s = String(value || "").trim().toLowerCase();
+  if(!/^https?:\/\//.test(s)) return false;
+  return s.includes("maps") || s.includes("goo.gl") || s.includes("waze") || s.includes("wa.me") || s.includes("google") || s.includes("q=");
+}
+function getOrderStopQuery(order){
+  const maps = String(order?.maps_link || "").trim();
+  if(isExternalMapLink(maps)) return maps;
+  const parts = [order?.address_text, getOrderNeighborhood(order), "Ibagué, Tolima"].map(cleanOrderStopText).filter(Boolean);
+  return parts.join(", ");
+}
+function getOrderAddressQuery(order){
+  const parts = [order?.address_text, getOrderNeighborhood(order), "Ibagué, Tolima"].map(cleanOrderStopText).filter(Boolean);
+  return parts.join(", ");
+}
+function buildGoogleMapsRouteUrl(routeOrders){
+  const stops = (Array.isArray(routeOrders) ? routeOrders : [])
+    .map(x => getOrderStopQuery(x.order || x))
+    .filter(Boolean)
+    .slice(0, 10);
+  const base = "https://www.google.com/maps/dir/?api=1";
+  const origin = encodeURIComponent(AMARED_ROUTE_ORIGIN_ADDRESS);
+  if(!stops.length){
+    return `${base}&origin=${origin}&destination=${origin}&travelmode=driving`;
+  }
+  const destination = encodeURIComponent(stops[stops.length - 1]);
+  const waypoints = stops.slice(0, -1).map(encodeURIComponent).join("%7C");
+  return `${base}&origin=${origin}&destination=${destination}${waypoints ? `&waypoints=${waypoints}` : ""}&travelmode=driving`;
+}
+function buildGoogleMapsSingleUrl(order){
+  const q = getOrderStopQuery(order) || getOrderAddressQuery(order);
+  if(isExternalMapLink(q)) return q;
+  return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(q || AMARED_ROUTE_ORIGIN_ADDRESS)}`;
+}
+function buildWazeSingleUrl(order){
+  const q = getOrderAddressQuery(order) || getOrderStopQuery(order) || AMARED_ROUTE_ORIGIN_ADDRESS;
+  return `https://waze.com/ul?q=${encodeURIComponent(q)}&navigate=yes`;
+}
+function routeSummaryText(group){
+  const rows = (group?.orders || []).map((item, idx) => {
+    const o = item.order;
+    const nb = item.routeInfo.neighborhood || getOrderNeighborhood(o) || "Barrio por revisar";
+    return `${idx+1}. ${o.customer_name || "Cliente"} · ${nb} · ${o.address_text || "Sin dirección"} · Tel: ${o.phone || "—"}`;
+  });
+  return `${group.label}\nSalida: ${AMARED_ROUTE_ORIGIN_LABEL} · ${AMARED_ROUTE_ORIGIN_ADDRESS}\nPedidos: ${rows.length}\n\n${rows.join("\n")}`;
+}
+async function copyTextToClipboard(text){
+  try{
+    await navigator.clipboard.writeText(String(text || ""));
+    return true;
+  }catch(_e){
+    const ta = document.createElement("textarea");
+    ta.value = String(text || "");
+    document.body.appendChild(ta);
+    ta.select();
+    try{ document.execCommand("copy"); return true; }catch(_e2){ return false; }
+    finally{ document.body.removeChild(ta); }
+  }
+}
+function openRouteUrl(url){
+  if(!url) return;
+  window.open(url, "_blank", "noopener,noreferrer");
+}
 function classifyDeliveryType(order){
   const method = String(order?.location_method || "").trim().toLowerCase();
   const address = String(order?.address_text || "").trim().toLowerCase();
@@ -757,6 +945,7 @@ function renderOrders(orders){
   const filtered = getFilteredPendingOrders(ORDERS);
   const title = DELIVERY_VIEW_FILTER === 'pickup' ? 'Pedidos para recoger' : 'Pedidos para domicilio';
   const subtitleCount = `${filtered.length} pedido${filtered.length === 1 ? '' : 's'}`;
+  if(routePlannerWrap) setDisplayIfChanged(routePlannerWrap, DELIVERY_VIEW_FILTER === 'delivery' ? "" : "none");
 
   if(filtered.length === 0){
     listEl.innerHTML = `
@@ -769,7 +958,7 @@ function renderOrders(orders){
     return;
   }
 
-  const cards = filtered.map(o=>{
+  function renderOrderCard(o, extra={}){
     const items = normalizeItemsFromAnyOrder(o);
     const summary = itemsSummary(items) || (o.items || "");
     const units = calcUnits(o);
@@ -777,16 +966,19 @@ function renderOrders(orders){
     const type = classifyDeliveryType(o);
     const typeLabel = type === 'pickup' ? 'Recoger' : 'Domicilio';
     const typeClass = type === 'pickup' ? 'isPickupType' : 'isDeliveryType';
+    const routeInfo = type === 'pickup' ? null : getOrderRouteInfo(o);
+    const neighborhood = routeInfo?.neighborhood || getOrderNeighborhood(o) || "Por revisar";
 
     return `
-      <div class="orderCard">
+      <div class="orderCard ${extra.routeClass || ''}">
         <div class="orderHead">
           <div>
-            <div class="orderId">${escapeHtml(o.order_id || "")}</div>
+            <div class="orderId">${extra.index ? `<span class="routeStopNumber">${escapeHtml(String(extra.index))}</span>` : ''}${escapeHtml(o.order_id || "")}</div>
             <div class="orderMeta">${escapeHtml(o.customer_name || "")} · ${escapeHtml(formatDate(o.created_at))}</div>
           </div>
           <div class="row" style="gap:10px; flex-wrap:wrap; justify-content:flex-end;">
             <span class="pill ${typeClass}">${type === 'pickup' ? '🛍️' : '🛵'} ${typeLabel}</span>
+            ${routeInfo ? `<span class="pill routePill">🧭 ${escapeHtml(routeInfo.short || 'Ruta')}</span>` : ''}
             <span class="pill">🧁 ${escapeHtml(String(units))} u</span>
             <span class="pill">💰 $${escapeHtml(money(o.subtotal||0))}</span>
             ${canWa ? "" : '<span class="pill">📵 Sin WhatsApp</span>'}
@@ -810,20 +1002,85 @@ function renderOrders(orders){
             </div>
           </div>
 
+          ${type === 'pickup' ? '' : `
+          <div class="grid2">
+            <div class="kv">
+              <label>Barrio / sector</label>
+              <div class="v">${escapeHtml(neighborhood)}</div>
+            </div>
+            <div class="kv">
+              <label>Ruta sugerida</label>
+              <div class="v">${escapeHtml(routeInfo?.label || 'Por asignar')}</div>
+            </div>
+          </div>`}
+
+          ${type === 'pickup' ? '' : `
+          <div class="routeExactBox">
+            <label for="exactLoc-${escapeHtml(o.order_id || '')}">Ubicación exacta compartida por el cliente</label>
+            <div class="routeExactRow">
+              <input id="exactLoc-${escapeHtml(o.order_id || '')}" class="input routeExactInput" data-id="${escapeHtml(o.order_id)}" type="url" placeholder="Pega aquí el link de Google Maps o ubicación de WhatsApp" value="${escapeHtml(isExternalMapLink(o.maps_link) ? o.maps_link : '')}" />
+              <button class="btn secondary btnSaveExactLocation" data-id="${escapeHtml(o.order_id)}" type="button">Guardar ubicación</button>
+            </div>
+            <div class="routeExactHint">Si el cliente comparte su ubicación exacta por WhatsApp, pégala aquí para que la ruta use ese punto en Maps.</div>
+          </div>`}
+
           <div class="btnRow">
-            <button class="btn secondary btnSend" data-id="${escapeHtml(o.order_id)}">Ver mensaje</button>
+            ${type === 'pickup' ? '' : `
+              <button class="btn secondary btnOrderMaps" data-id="${escapeHtml(o.order_id)}" type="button">Abrir Maps</button>
+              <button class="btn secondary btnOrderWaze" data-id="${escapeHtml(o.order_id)}" type="button">Waze</button>
+              <button class="btn secondary btnCopyLocation" data-id="${escapeHtml(o.order_id)}" type="button">Copiar ubicación</button>
+            `}
+            <button class="btn secondary btnSend" data-id="${escapeHtml(o.order_id)}" type="button">Ver mensaje</button>
           </div>
         </div>
       </div>
     `;
+  }
+
+  if(DELIVERY_VIEW_FILTER !== 'delivery'){
+    const cards = filtered.map(o => renderOrderCard(o)).join('');
+    listEl.innerHTML = `
+      <div>
+        <div class="deliveryGroupTitle">${title}</div>
+        <div class="deliveryGroupCount">${subtitleCount}</div>
+      </div>
+      ${cards}`;
+    return;
+  }
+
+  const groups = groupOrdersByRoute(filtered);
+  const routeOrder = ['occidente','oriente','por_asignar'];
+  const sections = routeOrder.map(key => {
+    const group = groups[key];
+    if(!group || !group.orders.length) return '';
+    const routeUrl = buildGoogleMapsRouteUrl(group.orders);
+    const firstOrder = group.orders[0]?.order;
+    return `
+      <section class="routeGroup" data-route="${escapeHtml(key)}">
+        <div class="routeGroupHead">
+          <div>
+            <div class="deliveryGroupTitle">${escapeHtml(group.label)}</div>
+            <div class="deliveryGroupCount">${group.orders.length} pedido${group.orders.length === 1 ? '' : 's'} · ${escapeHtml(group.description || '')}</div>
+          </div>
+          <div class="routeActions">
+            <button class="btn secondary btnRouteMaps" data-route="${escapeHtml(key)}" type="button">Abrir ruta en Maps</button>
+            ${firstOrder ? `<button class="btn secondary btnRouteWaze" data-route="${escapeHtml(key)}" type="button">Waze: primer punto</button>` : ''}
+            <button class="btn secondary btnCopyRouteSummary" data-route="${escapeHtml(key)}" type="button">Copiar resumen</button>
+          </div>
+        </div>
+        <div class="routeMapHint">Orden actual: ${ROUTE_SORT_MODE === 'far' ? 'lejanos primero' : 'cercanos primero'} · Salida desde ${escapeHtml(AMARED_ROUTE_ORIGIN_LABEL)}.</div>
+        <div class="routeCards">
+          ${group.orders.map((item, idx) => renderOrderCard(item.order, { index: idx + 1, routeClass:'isRouteCard' })).join('')}
+        </div>
+      </section>`;
   }).join('');
 
   listEl.innerHTML = `
     <div>
       <div class="deliveryGroupTitle">${title}</div>
-      <div class="deliveryGroupCount">${subtitleCount}</div>
+      <div class="deliveryGroupCount">${subtitleCount} organizados por ruta</div>
     </div>
-    ${cards}`;
+    ${sections}`;
 }
 
 async function loadOrders(force = false, opts = {}){
@@ -1329,8 +1586,99 @@ btnRefreshTop?.addEventListener("click", ()=> loadOrders(true));
 btnLogoutTop?.addEventListener("click", logout);
 btnFilterDelivery?.addEventListener("click", ()=> setDeliveryViewFilter('delivery'));
 btnFilterPickup?.addEventListener("click", ()=> setDeliveryViewFilter('pickup'));
+routeSortMode?.addEventListener("change", ()=>{
+  ROUTE_SORT_MODE = routeSortMode.value === "far" ? "far" : "near";
+  renderOrders(ORDERS);
+});
 
-listEl?.addEventListener("click", (ev)=>{
+listEl?.addEventListener("click", async (ev)=>{
+  const btnRouteMaps = ev.target?.closest?.(".btnRouteMaps");
+  if(btnRouteMaps){
+    const key = String(btnRouteMaps.getAttribute("data-route") || "").trim();
+    const groups = groupOrdersByRoute(getFilteredPendingOrders(ORDERS));
+    const group = groups[key];
+    if(group) openRouteUrl(buildGoogleMapsRouteUrl(group.orders));
+    return;
+  }
+
+  const btnRouteWaze = ev.target?.closest?.(".btnRouteWaze");
+  if(btnRouteWaze){
+    const key = String(btnRouteWaze.getAttribute("data-route") || "").trim();
+    const groups = groupOrdersByRoute(getFilteredPendingOrders(ORDERS));
+    const first = groups[key]?.orders?.[0]?.order;
+    if(first) openRouteUrl(buildWazeSingleUrl(first));
+    return;
+  }
+
+  const btnCopyRouteSummary = ev.target?.closest?.(".btnCopyRouteSummary");
+  if(btnCopyRouteSummary){
+    const key = String(btnCopyRouteSummary.getAttribute("data-route") || "").trim();
+    const groups = groupOrdersByRoute(getFilteredPendingOrders(ORDERS));
+    const group = groups[key];
+    if(group){
+      await copyTextToClipboard(routeSummaryText(group));
+      setStatus("Resumen de ruta copiado.");
+    }
+    return;
+  }
+
+  const btnSaveExactLocation = ev.target?.closest?.(".btnSaveExactLocation");
+  if(btnSaveExactLocation){
+    const id = String(btnSaveExactLocation.getAttribute("data-id")||"").trim();
+    const input = Array.from(listEl.querySelectorAll(".routeExactInput")).find(el => String(el.getAttribute("data-id") || "") === id);
+    const raw = String(input?.value || "").trim();
+    if(!id) return;
+    if(!raw){
+      setStatus("Pega primero el link de ubicación exacta.");
+      return;
+    }
+    if(!looksLikeLocationLink(raw)){
+      setStatus("El enlace no parece ser una ubicación válida. Pega un link de Google Maps, Waze o ubicación compartida.");
+      return;
+    }
+    showLoading("Guardando ubicación…", "Actualizando el punto exacto para la ruta.");
+    try{
+      await api({ action:"delivery_update_location", order_id:id, maps_link:raw, updated_by: SESSION?.operator?.label || "DELIVERY" });
+      const o = ORDERS.find(x => String(x.order_id) === id);
+      if(o) o.maps_link = raw;
+      renderOrders(ORDERS);
+      setStatus("Ubicación exacta guardada para la ruta.");
+    }catch(e){
+      setStatus(e?.message || "No se pudo guardar la ubicación exacta.");
+    }finally{
+      hideLoading();
+    }
+    return;
+  }
+
+  const btnOrderMaps = ev.target?.closest?.(".btnOrderMaps");
+  if(btnOrderMaps){
+    const id = String(btnOrderMaps.getAttribute("data-id")||"").trim();
+    const o = ORDERS.find(x => String(x.order_id) === id);
+    if(o) openRouteUrl(buildGoogleMapsSingleUrl(o));
+    return;
+  }
+
+  const btnOrderWaze = ev.target?.closest?.(".btnOrderWaze");
+  if(btnOrderWaze){
+    const id = String(btnOrderWaze.getAttribute("data-id")||"").trim();
+    const o = ORDERS.find(x => String(x.order_id) === id);
+    if(o) openRouteUrl(buildWazeSingleUrl(o));
+    return;
+  }
+
+  const btnCopyLocation = ev.target?.closest?.(".btnCopyLocation");
+  if(btnCopyLocation){
+    const id = String(btnCopyLocation.getAttribute("data-id")||"").trim();
+    const o = ORDERS.find(x => String(x.order_id) === id);
+    if(o){
+      const txt = `${o.customer_name || "Cliente"}\nBarrio/sector: ${getOrderNeighborhood(o) || "Por revisar"}\nDirección: ${o.address_text || "—"}\nUbicación: ${isExternalMapLink(o.maps_link) ? o.maps_link : getOrderAddressQuery(o)}\nTel: ${o.phone || "—"}`;
+      await copyTextToClipboard(txt);
+      setStatus("Ubicación copiada.");
+    }
+    return;
+  }
+
   const btnSend = ev.target?.closest?.(".btnSend");
   if(!btnSend) return;
 

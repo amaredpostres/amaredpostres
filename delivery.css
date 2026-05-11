@@ -717,3 +717,179 @@ body.deliveryOverlayOpen .amDeliveryMobileBar{
     min-height:36px;
   }
 }
+
+
+/* ===== AMARED rutas de envío ===== */
+.routePlannerWrap{
+  margin-top: 14px;
+  padding: 14px;
+  border-radius: 22px;
+  border: 1px solid rgba(242,91,143,.14);
+  background: linear-gradient(180deg, rgba(255,255,255,.82), rgba(255,244,249,.72));
+  box-shadow: 0 14px 34px rgba(64,17,2,.06);
+}
+.routePlannerHeader{
+  display:flex;
+  align-items:flex-start;
+  justify-content:space-between;
+  gap:16px;
+}
+.routePlannerKicker{
+  display:inline-flex;
+  align-items:center;
+  width:fit-content;
+  padding: 5px 10px;
+  border-radius: 999px;
+  background: rgba(242,91,143,.10);
+  color: rgba(64,17,2,.76);
+  font-size: 12px;
+  font-weight: 950;
+  letter-spacing:.02em;
+}
+.routePlannerWrap h3{
+  margin: 8px 0 4px;
+  font-size: 20px;
+  color: var(--choco);
+}
+.routePlannerWrap p{
+  margin:0;
+  color: rgba(64,17,2,.68);
+  font-size: 13.5px;
+  font-weight: 800;
+  line-height: 1.35;
+}
+.routePlannerControls{
+  min-width: 220px;
+  display:grid;
+  gap:6px;
+}
+.routePlannerControls label{
+  font-size:12px;
+  font-weight:950;
+  color:rgba(64,17,2,.62);
+}
+.routePlannerControls .input{
+  min-height:42px;
+  border-radius: 16px;
+}
+.routePlannerHint,
+.routeMapHint{
+  margin-top: 10px;
+  padding: 10px 12px;
+  border-radius: 16px;
+  background: rgba(255,255,255,.70);
+  border: 1px solid rgba(64,17,2,.08);
+  font-size: 12.8px;
+  line-height: 1.35;
+  font-weight: 800;
+  color: rgba(64,17,2,.68);
+}
+.routeGroup{
+  display:grid;
+  gap: 12px;
+  padding: 14px;
+  border-radius: 24px;
+  border: 1px solid rgba(64,17,2,.10);
+  background: rgba(255,255,255,.52);
+  box-shadow: 0 12px 28px rgba(64,17,2,.045);
+}
+.routeGroupHead{
+  display:flex;
+  justify-content:space-between;
+  align-items:flex-start;
+  gap:14px;
+}
+.routeActions{
+  display:flex;
+  justify-content:flex-end;
+  gap:8px;
+  flex-wrap:wrap;
+}
+.routeActions .btn{
+  min-height: 40px;
+  padding: 9px 12px;
+  border-radius: 15px;
+  font-size: 12.5px;
+}
+.routeCards{
+  display:grid;
+  gap: 10px;
+}
+.routeStopNumber{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  width: 26px;
+  height: 26px;
+  margin-right:8px;
+  border-radius:999px;
+  background: rgba(242,91,143,.13);
+  color: var(--choco);
+  border:1px solid rgba(242,91,143,.18);
+  font-size: 12px;
+  font-weight: 950;
+}
+.orderCard.isRouteCard{
+  border-color: rgba(242,91,143,.12);
+}
+.routePill{
+  background: rgba(242,91,143,.12);
+  border-color: rgba(242,91,143,.16);
+}
+@media (max-width: 720px){
+  .routePlannerHeader,
+  .routeGroupHead{
+    flex-direction: column;
+  }
+  .routePlannerControls{
+    width:100%;
+    min-width:0;
+  }
+  .routeActions{
+    width:100%;
+    justify-content:stretch;
+  }
+  .routeActions .btn{
+    flex:1 1 100%;
+  }
+}
+
+.routeExactBox{
+  display:grid;
+  gap:8px;
+  padding: 10px 12px;
+  border-radius: 16px;
+  border: 1px dashed rgba(242,91,143,.22);
+  background: rgba(255,255,255,.62);
+}
+.routeExactBox label{
+  font-size:12px;
+  font-weight:950;
+  color:rgba(64,17,2,.62);
+}
+.routeExactRow{
+  display:flex;
+  gap:8px;
+  align-items:center;
+}
+.routeExactRow .input{
+  min-width:0;
+  flex:1;
+  min-height:42px;
+  border-radius:15px;
+}
+.routeExactRow .btn{
+  min-height:42px;
+  border-radius:15px;
+  white-space:nowrap;
+}
+.routeExactHint{
+  font-size:12.4px;
+  line-height:1.35;
+  font-weight:800;
+  color:rgba(64,17,2,.62);
+}
+@media (max-width: 720px){
+  .routeExactRow{ flex-direction:column; align-items:stretch; }
+  .routeExactRow .btn{ width:100%; }
+}

@@ -84,8 +84,8 @@
   <title>AMARED · Envíos</title>
 
   <link rel="icon" href="assets/favicon.ico" type="image/x-icon">
-  <link rel="stylesheet" href="styles.css?v=20260505-fonts-v1" />
-  <link rel="stylesheet" href="delivery.css?v=20260401-delivery-syncbadge-v3" />
+  <link rel="stylesheet" href="styles.css?v=20260511-routes-v1" />
+  <link rel="stylesheet" href="delivery.css?v=20260511-routes-v1" />
 
   <style>
     /* HISTORIAL FIXES */
@@ -201,6 +201,25 @@
         <button id="btnFilterDelivery" class="deliveryFilterBtn isActive" type="button">Domicilio</button>
         <button id="btnFilterPickup" class="deliveryFilterBtn" type="button">Recoger</button>
       </div>
+
+      <div id="routePlannerWrap" class="routePlannerWrap" style="display:none;">
+        <div class="routePlannerHeader">
+          <div>
+            <div class="routePlannerKicker">Rutas sugeridas</div>
+            <h3>Organización de domicilios</h3>
+            <p>Las rutas se agrupan usando el barrio/sector escrito por el cliente y el punto de salida de AMARED.</p>
+          </div>
+          <div class="routePlannerControls">
+            <label for="routeSortMode">Orden de entrega</label>
+            <select id="routeSortMode" class="input">
+              <option value="near">Cercanos primero</option>
+              <option value="far">Lejanos primero</option>
+            </select>
+          </div>
+        </div>
+        <div class="routePlannerHint">Punto de salida: <strong>Edificio Kiwana · Cl. 53 #6A-21, Ibagué</strong>. Los pedidos sin barrio reconocido quedan en “Por asignar”.</div>
+      </div>
+
       <div id="list" class="deliveryList" style="margin-top:12px;"></div>
     </section>
   </main>

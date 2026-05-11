@@ -3409,3 +3409,26 @@ p,
 .formHint{
   font-family: var(--font-main);
 }
+
+
+/* ===== AMARED rutas: barrio/sector en pedido ===== */
+.neighborhoodField{
+  position: relative;
+}
+.neighborhoodField .input{
+  padding-right: 16px;
+}
+.neighborhoodHint{
+  padding: 9px 11px;
+  border-radius: 14px;
+  background: rgba(242,91,143,.07);
+  border: 1px solid rgba(242,91,143,.12);
+  color: rgba(64,17,2,.68);
+  font-weight: 800;
+}
+@media (max-width: 720px){
+  .neighborhoodHint{
+    font-size: 12.5px;
+    line-height: 1.35;
+  }
+}

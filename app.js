@@ -11,6 +11,46 @@ const WHATSAPP_TUTORIAL_URL = "";
 
 const WHATSAPP_NUMBER = "573028473086";
 const ORDER_API_URL = "https://amared-orders.amaredpostres.workers.dev/";
+const AMARED_ROUTE_ORIGIN_LABEL = "Edificio Kiwana";
+const AMARED_ROUTE_ORIGIN_ADDRESS = "Edificio Kiwana, Cl. 53 #6A-21, Ibagué, Tolima";
+const AMARED_ROUTE_UNKNOWN = {
+  id: "por_asignar",
+  label: "Ruta por asignar",
+  short: "Por asignar",
+  description: "Se revisa manualmente cuando el barrio escrito no coincide con la base de sectores.",
+  score: 50
+};
+const AMARED_ROUTE_DEFINITIONS = {
+  occidente: {
+    id: "occidente",
+    label: "Ruta 1 · Centro / Occidente / Sur",
+    short: "Ruta 1",
+    description: "Sectores hacia el centro, occidente, sur y alrededores del punto de producción.",
+    score: 30
+  },
+  oriente: {
+    id: "oriente",
+    label: "Ruta 2 · Oriente / Salado / Aeropuerto",
+    short: "Ruta 2",
+    description: "Sectores hacia el oriente de Ibagué, salida al Salado, aeropuerto y zonas cercanas.",
+    score: 70
+  },
+  por_asignar: AMARED_ROUTE_UNKNOWN
+};
+const AMARED_NEIGHBORHOOD_ROUTES = [
+  { name:"Edificio Kiwana", aliases:["kiwana", "edificio kiwana", "calle 53", "cl 53"], route:"occidente", score:1 },
+  { name:"Centro", aliases:["centro", "la pola", "belén", "belen", "interlaken", "cadiz", "cádiz", "la macarena", "la soledad"], route:"occidente", score:4 },
+  { name:"Calambeo", aliases:["calambeo", "clarita botero", "parque biosaludable clarita botero"], route:"occidente", score:5 },
+  { name:"Jordán", aliases:["jordan", "jordán", "jordan 1", "jordan 2", "jordan 3", "jordan 4", "jordán 1", "jordán 2", "jordán 3", "jordán 4"], route:"occidente", score:6 },
+  { name:"Piedra Pintada", aliases:["piedra pintada", "piedrapintada", "piedra pintada alta", "piedra pintada baja"], route:"occidente", score:6 },
+  { name:"Ricaurte", aliases:["ricaurte", "gaitan", "gaitán", "la reforma", "boqueron", "boquerón", "cocora", "san francisco", "la floresta"], route:"occidente", score:8 },
+  { name:"Ambalá", aliases:["ambala", "ambalá", "universidad de ibague", "universidad de ibagué", "varsovia", "los mandriles", "la castellana", "cadiz"], route:"occidente", score:5 },
+  { name:"El Vergel", aliases:["vergel", "el vergel", "multicentro", "acqua", "mercacentro 4", "la toscana", "panamericano"], route:"occidente", score:3 },
+  { name:"Mirolindo", aliases:["mirolindo", "avenida mirolindo", "parque deportivo", "la samaria", "clinica medimás", "clinica medimas"], route:"oriente", score:6 },
+  { name:"Picaleña", aliases:["picaleña", "picalena", "cauchitos", "aparcó", "aparco", "terrazas de campestre", "guacan", "guacán"], route:"oriente", score:8 },
+  { name:"Topacio", aliases:["topacio", "jardin", "jardín", "jardin santander", "jardín santander", "ciudadela simon bolivar", "ciudadela simón bolívar", "hato viejo", "hato de la virgen"], route:"oriente", score:7 },
+  { name:"El Salado", aliases:["salado", "el salado", "especial el salado", "la ceiba", "comfatolima lagos club", "santa elena", "aeropuerto", "aeropuerto nacional perales", "perales", "santa rita", "mega parque santa rita"], route:"oriente", score:10 }
+];
 
 // 👇 Asegúrate que estos nombres coincidan con tus archivos en /assets/
 const DEFAULT_PRODUCTS = [
@@ -67,6 +107,52 @@ function saveProductPriceOverrides(map){
 }
 function clearProductPriceOverrides(){
   try{ localStorage.removeItem(PRODUCT_PRICES_STORAGE_KEY); }catch(_e){}
+}
+
+function normalizeRouteText(value){
+  return String(value || "")
+    .toLowerCase()
+    .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+    .replace(/[#.,;:()\[\]{}]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+function inferAmaredRouteInfo(input){
+  const text = normalizeRouteText(input);
+  if(!text){
+    return { ...AMARED_ROUTE_UNKNOWN, neighborhood:"", detected:false, score:AMARED_ROUTE_UNKNOWN.score };
+  }
+  let best = null;
+  AMARED_NEIGHBORHOOD_ROUTES.forEach(item => {
+    const aliases = [item.name].concat(item.aliases || []);
+    aliases.forEach(alias => {
+      const n = normalizeRouteText(alias);
+      if(!n) return;
+      const hit = text === n || text.includes(n) || n.includes(text);
+      if(!hit) return;
+      const weight = n.length + (text === n ? 100 : 0);
+      if(!best || weight > best.weight){
+        best = { item, weight };
+      }
+    });
+  });
+  if(!best){
+    return { ...AMARED_ROUTE_UNKNOWN, neighborhood:"", detected:false, score:AMARED_ROUTE_UNKNOWN.score };
+  }
+  const def = AMARED_ROUTE_DEFINITIONS[best.item.route] || AMARED_ROUTE_UNKNOWN;
+  return {
+    ...def,
+    neighborhood: best.item.name,
+    detected:true,
+    score: Number(best.item.score || def.score || 50)
+  };
+}
+function populateNeighborhoodOptions(){
+  const dl = document.getElementById("neighborhoodOptions");
+  if(!dl || dl.dataset.loaded === "1") return;
+  const names = Array.from(new Set(AMARED_NEIGHBORHOOD_ROUTES.map(x => x.name).filter(Boolean))).sort((a,b)=>a.localeCompare(b, "es"));
+  dl.innerHTML = names.map(name => `<option value="${escapeHtml(name)}"></option>`).join("");
+  dl.dataset.loaded = "1";
 }
 function applyStoredProductPrices(){
   const overrides = loadProductPriceOverrides();
@@ -269,6 +355,9 @@ const addressInput = document.getElementById("address");
 const mapsInput = document.getElementById("maps");
 const addressLabel = document.getElementById("addressLabel");
 const addressHint = document.getElementById("addressHint");
+const neighborhoodField = document.getElementById("neighborhoodField");
+const neighborhoodInput = document.getElementById("neighborhood");
+const neighborhoodHint = document.getElementById("neighborhoodHint");
 const waOptHint = document.getElementById("waOptHint");
 
 // Alerta central
@@ -444,6 +533,13 @@ function syncLocationUI() {
   if (mapsBlock) mapsBlock.style.display = showMaps ? "" : "none";
   if (waLocBlock) waLocBlock.style.display = showWhatsApp ? "" : "none";
   if (pickupBlock) pickupBlock.classList.toggle("hidden", !showPickup);
+  if (neighborhoodField) neighborhoodField.classList.toggle("hidden", showPickup);
+  if (neighborhoodInput) neighborhoodInput.required = !showPickup;
+  if (neighborhoodHint){
+    neighborhoodHint.textContent = showPickup
+      ? ""
+      : "Busca tu barrio y selecciónalo. Si no aparece, escríbelo manualmente para que podamos asignar la ruta correcta.";
+  }
 
   if(mapsInput && !showMaps){
     if(mapsInput.value && !mapsInput.dataset.prevValue){
@@ -1190,6 +1286,12 @@ function getFormData() {
   const address_text = location_method === "pickup"
     ? PICKUP_ADDRESS_TEXT
     : document.getElementById("address").value.trim();
+  const neighborhood_text = location_method === "pickup"
+    ? ""
+    : (neighborhoodInput ? neighborhoodInput.value.trim() : "");
+  const routeInfo = location_method === "pickup"
+    ? { ...AMARED_ROUTE_UNKNOWN, id:"pickup", label:"Recogida presencial", short:"Recoger", neighborhood:"", detected:true, score:0 }
+    : inferAmaredRouteInfo(`${neighborhood_text} ${address_text}`);
   const maps_link = location_method === "pickup"
     ? PICKUP_MAPS_TEXT
     : location_method === "whatsapp"
@@ -1211,6 +1313,12 @@ function getFormData() {
     customer_name,
     phone,
     address_text,
+    neighborhood_text,
+    route_zone: routeInfo.id || "por_asignar",
+    route_label: routeInfo.label || AMARED_ROUTE_UNKNOWN.label,
+    route_order_score: Number(routeInfo.score || 50),
+    route_detected_neighborhood: routeInfo.neighborhood || "",
+    route_detected: !!routeInfo.detected,
     maps_link,
     notes,
     location_method,
@@ -1229,6 +1337,7 @@ function validate(data) {
   if (!isValidEmail(data.email)) return "El correo no parece válido. Revisa el formato (ej: correo@dominio.com).";
 
   if ((data.location_method === "maps" || data.location_method === "whatsapp") && !data.address_text) return "Escribe tu dirección.";
+  if ((data.location_method === "maps" || data.location_method === "whatsapp") && !data.neighborhood_text) return "Escribe el barrio o sector de entrega. Si no aparece en la lista, puedes escribirlo manualmente.";
 
   if (data.location_method === "maps") {
     if (!data.maps_link) return "Pega el link de Google Maps o selecciona “Enviar ubicación desde WhatsApp”.";
@@ -1268,11 +1377,13 @@ function buildWhatsAppMessage(data, orderId) {
     lines.push(`Domicilio: lo cubre el cliente. (Se debe confirmar mediante WhatsApp)`);
     lines.push("");
     lines.push(`Dirección: ${data.address_text}`);
+    if (data.neighborhood_text) lines.push(`Barrio/sector: ${data.neighborhood_text}`);
     lines.push(`Ubicación (Google Maps): ${data.maps_link}`);
   } else {
     lines.push(`Domicilio: lo cubre el cliente. (Se debe confirmar mediante WhatsApp)`);
     lines.push("");
     lines.push(`Dirección de referencia: ${data.address_text}`);
+    if (data.neighborhood_text) lines.push(`Barrio/sector: ${data.neighborhood_text}`);
     lines.push(`Ubicación exacta: la compartiré por WhatsApp dentro del chat.`);
   }
 
@@ -1372,6 +1483,7 @@ function resetAll() {
   document.getElementById("phone").value = "";
   document.getElementById("address").value = "";
   document.getElementById("maps").value = "";
+  if (neighborhoodInput) neighborhoodInput.value = "";
   document.getElementById("notes").value = "";
 
   const emailEl = document.getElementById("email");
@@ -1551,6 +1663,7 @@ btnWhatsApp?.addEventListener("click", () => {
   showModal();
 });// =================== INIT ===================
 setCatalogLoadingState(true);
+populateNeighborhoodOptions();
 warmProductImages();
 renderProducts(true);
 updateSummary();
