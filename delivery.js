@@ -2,7 +2,7 @@
 // delivery.js — AMARED Envíos (v4 UX + Historial + Opt-in fix)
 "use strict";
 
-console.log("AMARED delivery v17 · exact Maps links + coords + copy coordinates");
+console.log("AMARED delivery v18 · links exactos Maps/Waze + rutas simplificadas");
 
 const API_URL = "https://amared-orders.amaredpostres.workers.dev/";
 const AMARED_ROUTE_ORIGIN_LABEL = "Edificio Kiwana";
@@ -571,7 +571,6 @@ function hydrateDeliveryOrdersFromCache_(cache){
   ORDERS = Array.isArray(cache?.orders) ? cache.orders : [];
   renderOrders(ORDERS);
   setStatus(`${ORDERS.length} pedidos listos para envío (caché de la sesión).`);
-  resolveMissingCoordinatesInBackground(ORDERS).catch(()=>{});
 }
 function hydrateDeliveryHistoryFromCache_(cache){
   HIST = Array.isArray(cache?.history) ? cache.history : [];
@@ -1036,37 +1035,30 @@ function getOrderAddressQuery(order){
   const parts = [order?.address_text, getOrderNeighborhood(order), "Ibagué, Tolima"].map(cleanOrderStopText).filter(Boolean);
   return parts.join(", ");
 }
-function getOrderRouteStopQuery(order){
-  const coords = getOrderSavedCoords(order);
-  if(coords?.query) return coords.query;
-  return getOrderAddressQuery(order);
-}
-function getOrderStopQuery(order){
-  const coords = getOrderSavedCoords(order);
-  if(coords?.query) return coords.query;
-  const maps = String(order?.maps_link || "").trim();
-  if(isExternalMapLink(maps)) return maps;
-  return getOrderAddressQuery(order);
-}
 function getOrderPrimaryMapsLink(order){
   const maps = String(order?.maps_link || "").trim();
   return isExternalMapLink(maps) ? maps : "";
 }
-function getOrderLocationPrecisionLabel(order){
-  const coords = getOrderSavedCoords(order);
-  if(coords?.query) return `Coordenadas detectadas: ${coords.query}`;
+function getOrderLinkCoords(order){
   const maps = getOrderPrimaryMapsLink(order);
-  if(maps) return "Link de Google Maps guardado · coordenadas pendientes de detectar.";
-  return "Dirección escrita";
+  return maps ? extractLatLngFromText(maps) : null;
 }
-function getOrderCoordinatesDisplay(order){
-  const coords = getOrderSavedCoords(order);
-  if(!coords?.query) return null;
-  return {
-    lat: Number(coords.lat).toFixed(7),
-    lng: Number(coords.lng).toFixed(7),
-    query: coords.query
-  };
+function getOrderRouteStopQuery(order){
+  const maps = getOrderPrimaryMapsLink(order);
+  const linkCoords = maps ? extractLatLngFromText(maps) : null;
+  if(linkCoords?.query) return linkCoords.query;
+  if(maps) return maps;
+  const saved = getOrderSavedCoords(order);
+  if(saved?.query) return saved.query;
+  return getOrderAddressQuery(order);
+}
+function getOrderStopQuery(order){
+  return getOrderRouteStopQuery(order);
+}
+function getOrderLocationPrecisionLabel(order){
+  const maps = getOrderPrimaryMapsLink(order);
+  if(maps) return "Link de Google Maps guardado";
+  return "Dirección escrita";
 }
 async function resolveOrderCoordinates(order, opts = {}){
   if(!order) return null;
@@ -1131,24 +1123,27 @@ function buildGoogleMapsRouteUrl(routeOrders){
 }
 function buildGoogleMapsSingleUrl(order){
   const maps = getOrderPrimaryMapsLink(order);
-  // Para pedidos individuales se abre el mismo link compartido por el cliente,
-  // así Google Maps muestra exactamente el punto original guardado.
+  // En pedidos individuales se abre exactamente el link guardado por el cliente.
+  // Así evitamos que coordenadas calculadas o guardadas previamente cambien el punto real.
   if(maps) return maps;
-  const coords = getOrderSavedCoords(order);
-  if(coords?.query) return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(coords.query)}`;
   const q = getOrderAddressQuery(order);
   return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(q || AMARED_ROUTE_ORIGIN_ADDRESS)}`;
 }
 function buildWazeSingleUrl(order){
-  const coords = getOrderSavedCoords(order);
-  if(coords?.query){
-    const ll = `${Number(coords.lat).toFixed(7)},${Number(coords.lng).toFixed(7)}`;
-    return `https://www.waze.com/ul?ll=${ll}&navigate=yes&zoom=17`;
-  }
   const maps = getOrderPrimaryMapsLink(order);
   const fromMapsLink = maps ? extractLatLngFromText(maps) : null;
   if(fromMapsLink?.query){
     const ll = `${Number(fromMapsLink.lat).toFixed(7)},${Number(fromMapsLink.lng).toFixed(7)}`;
+    return `https://www.waze.com/ul?ll=${ll}&navigate=yes&zoom=17`;
+  }
+  if(maps){
+    // Waze no abre enlaces de Google Maps de forma nativa como Google Maps,
+    // pero se usa ese mismo link como búsqueda base para evitar cambiar el dato del pedido.
+    return `https://www.waze.com/ul?q=${encodeURIComponent(maps)}&navigate=yes`;
+  }
+  const saved = getOrderSavedCoords(order);
+  if(saved?.query){
+    const ll = `${Number(saved.lat).toFixed(7)},${Number(saved.lng).toFixed(7)}`;
     return `https://www.waze.com/ul?ll=${ll}&navigate=yes&zoom=17`;
   }
   const q = getOrderAddressQuery(order) || AMARED_ROUTE_ORIGIN_ADDRESS;
@@ -1295,8 +1290,6 @@ function renderOrders(orders){
     const expanded = !isRouteCard || isRouteCardExpanded(orderId);
     const compactAddress = type === 'pickup' ? pickupLocationLine() : (o.address_text || "Sin dirección");
     const precision = type === 'pickup' ? "" : getOrderLocationPrecisionLabel(o);
-    const coordsDisplay = type === 'pickup' ? null : getOrderCoordinatesDisplay(o);
-    const hasMapsLink = type === 'pickup' ? false : !!getOrderPrimaryMapsLink(o);
 
     return `
       <div class="orderCard ${extra.routeClass || ''} ${isRouteCard && !expanded ? 'isOrderCollapsed' : ''}" ${isRouteCard ? `data-route="${escapeHtml(extra.routeKey)}" data-id="${escapeHtml(orderId)}"` : ''}>
@@ -1362,28 +1355,8 @@ function renderOrders(orders){
               <input id="exactLoc-${escapeHtml(orderId)}" class="input routeExactInput" data-id="${escapeHtml(orderId)}" type="url" placeholder="Pega aquí el link de Google Maps o ubicación de WhatsApp" value="${escapeHtml(isExternalMapLink(o.maps_link) ? o.maps_link : '')}" />
               <button class="btn secondary btnSaveExactLocation" data-id="${escapeHtml(orderId)}" type="button">Guardar ubicación</button>
             </div>
-            <div class="routeExactHint">Si el cliente comparte una ubicación por WhatsApp, pega aquí el link de Google Maps. Para crear rutas, AMARED usará las coordenadas del link cuando estén disponibles.</div>
+            <div class="routeExactHint">Si el cliente comparte una ubicación por WhatsApp, pega aquí el link de Google Maps para usar ese punto como referencia del domicilio.</div>
             <div class="routePrecisionHint">${escapeHtml(getOrderLocationPrecisionLabel(o))}</div>
-            ${coordsDisplay ? `
-              <div class="routeCoordsBox">
-                <div>
-                  <span class="routeCoordsLabel">Coordenadas detectadas</span>
-                  <strong>${escapeHtml(coordsDisplay.query)}</strong>
-                </div>
-                <button class="btn secondary btnCopyCoords" data-id="${escapeHtml(orderId)}" type="button">Copiar coordenadas</button>
-              </div>` : hasMapsLink ? `
-              <div class="routeCoordsBox isPending">
-                <div>
-                  <span class="routeCoordsLabel">Coordenadas</span>
-                  <strong>Pendientes de detectar</strong>
-                </div>
-              </div>` : ''}
-          </div>`}
-
-          ${type === 'pickup' || !extra.routeKey ? '' : `
-          <div class="routeOrderTools" aria-label="Ajustar orden de la ruta">
-            <span>Orden personalizado</span>
-            <div class="routeDragHint">Mantén presionado el agarre <strong>⋮⋮</strong> y arrastra el pedido a la posición correcta.</div>
           </div>`}
 
           <div class="btnRow">
@@ -1483,8 +1456,7 @@ async function loadOrders(force = false, opts = {}){
 
     renderOrders(orders);
     saveDeliveryDataCache_();
-    resolveMissingCoordinatesInBackground(ORDERS).catch(()=>{});
-  }catch(e){
+    }catch(e){
     console.error("loadOrders error:", e);
     const msg = e?.message || "Error cargando pedidos.";
     if(/unauthorized/i.test(String(msg))){
@@ -2099,15 +2071,7 @@ listEl?.addEventListener("click", async (ev)=>{
     const groups = groupOrdersByRoute(getFilteredPendingOrders(ORDERS));
     const group = groups[key];
     if(group){
-      showLoading("Preparando ruta…", "Validando coordenadas de Google Maps para usar los puntos exactos disponibles.");
-      try{
-        const changed = await resolveCoordinatesForRouteItems(group.orders);
-        if(changed) renderOrders(ORDERS);
-        const freshGroups = groupOrdersByRoute(getFilteredPendingOrders(ORDERS));
-        openRouteUrl(buildGoogleMapsRouteUrl(freshGroups[key]?.orders || group.orders));
-      }finally{
-        hideLoading();
-      }
+      openRouteUrl(buildGoogleMapsRouteUrl(group.orders));
     }
     return;
   }
@@ -2139,22 +2103,13 @@ listEl?.addEventListener("click", async (ev)=>{
       setStatus("El enlace no parece ser una ubicación válida. Pega un link de Google Maps, Waze o ubicación compartida.");
       return;
     }
-    showLoading("Guardando ubicación…", "Actualizando el punto exacto para la ruta.");
+    showLoading("Guardando ubicación…", "Actualizando el link exacto del domicilio.");
     try{
-      const localCoords = extractLatLngFromText(raw);
-      const payload = { action:"delivery_update_location", order_id:id, maps_link:raw, updated_by: SESSION?.operator?.label || "DELIVERY" };
-      if(localCoords?.query){
-        payload.maps_lat = localCoords.lat;
-        payload.maps_lng = localCoords.lng;
-        payload.maps_query = localCoords.query;
-      }
-      const out = await api(payload);
-      const backendCoords = normalizeLatLng(out?.maps_lat, out?.maps_lng) || extractLatLngFromText(out?.maps_query || "");
-      const coords = backendCoords || localCoords;
+      await api({ action:"delivery_update_location", order_id:id, maps_link:raw, updated_by: SESSION?.operator?.label || "DELIVERY" });
       const o = ORDERS.find(x => String(x.order_id) === id);
-      if(o) setOrderExactLocationFields(o, raw, coords);
+      if(o) setOrderExactLocationFields(o, raw, null);
       renderOrders(ORDERS);
-      setStatus(coords?.query ? "Ubicación exacta guardada con coordenadas para Google Maps y Waze." : "Ubicación guardada. Si el enlace corto no permite leer coordenadas, la ruta usará la dirección escrita como respaldo.");
+      setStatus("Ubicación exacta guardada. Maps abrirá el link original y Waze lo usará como referencia del domicilio.");
     }catch(e){
       setStatus(e?.message || "No se pudo guardar la ubicación exacta.");
     }finally{
@@ -2175,33 +2130,7 @@ listEl?.addEventListener("click", async (ev)=>{
   if(btnOrderWaze){
     const id = String(btnOrderWaze.getAttribute("data-id")||"").trim();
     const o = ORDERS.find(x => String(x.order_id) === id);
-    if(o){
-      if(getOrderPrimaryMapsLink(o) && !getOrderSavedCoords(o)){
-        showLoading("Abriendo Waze…", "Obteniendo coordenadas del link de Google Maps.");
-        try{
-          const before = getOrderSavedCoords(o);
-          const coords = await resolveOrderCoordinates(o);
-          if(!before?.query && coords?.query) renderOrders(ORDERS);
-        }finally{
-          hideLoading();
-        }
-      }
-      openRouteUrl(buildWazeSingleUrl(o));
-    }
-    return;
-  }
-
-  const btnCopyCoords = ev.target?.closest?.(".btnCopyCoords");
-  if(btnCopyCoords){
-    const id = String(btnCopyCoords.getAttribute("data-id")||"").trim();
-    const o = ORDERS.find(x => String(x.order_id) === id);
-    const coords = o ? getOrderSavedCoords(o) : null;
-    if(coords?.query){
-      await copyTextToClipboard(coords.query);
-      setStatus("Coordenadas copiadas.");
-    }else{
-      setStatus("Este pedido todavía no tiene coordenadas detectadas.");
-    }
+    if(o) openRouteUrl(buildWazeSingleUrl(o));
     return;
   }
 
@@ -2210,12 +2139,10 @@ listEl?.addEventListener("click", async (ev)=>{
     const id = String(btnCopyLocation.getAttribute("data-id")||"").trim();
     const o = ORDERS.find(x => String(x.order_id) === id);
     if(o){
-      const coords = getOrderSavedCoords(o);
       const txt = `${o.customer_name || "Cliente"}
 Barrio/sector: ${getOrderNeighborhood(o) || "Por revisar"}
 Dirección: ${o.address_text || "—"}
 Ubicación guardada: ${isExternalMapLink(o.maps_link) ? o.maps_link : "—"}
-Coordenadas: ${coords?.query || "Pendientes"}
 Punto usado para ruta: ${getOrderRouteStopQuery(o) || "—"}
 Tel: ${o.phone || "—"}`;
       await copyTextToClipboard(txt);
