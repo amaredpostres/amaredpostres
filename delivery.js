@@ -2,7 +2,7 @@
 // delivery.js — AMARED Envíos (v4 UX + Historial + Opt-in fix)
 "use strict";
 
-console.log("AMARED delivery v19 · Google Maps como navegación principal");
+console.log("AMARED delivery v20 · Rutas Maps con paradas limpias");
 
 const API_URL = "https://amared-orders.amaredpostres.workers.dev/";
 const AMARED_ROUTE_ORIGIN_LABEL = "Edificio Kiwana";
@@ -1043,14 +1043,22 @@ function getOrderLinkCoords(order){
   const maps = getOrderPrimaryMapsLink(order);
   return maps ? extractLatLngFromText(maps) : null;
 }
-function getOrderRouteStopQuery(order){
+function getOrderRouteStopInfo(order){
+  const saved = getOrderSavedCoords(order);
+  if(saved?.query) return { query:saved.query, source:"coords" };
+
   const maps = getOrderPrimaryMapsLink(order);
   const linkCoords = maps ? extractLatLngFromText(maps) : null;
-  if(linkCoords?.query) return linkCoords.query;
-  if(maps) return maps;
-  const saved = getOrderSavedCoords(order);
-  if(saved?.query) return saved.query;
-  return getOrderAddressQuery(order);
+  if(linkCoords?.query) return { query:linkCoords.query, source:"coords" };
+
+  // Importante: para rutas con varias paradas Google Maps no debe recibir el link
+  // compartido como parada, porque termina mostrándolo como texto. Si no hay
+  // coordenadas disponibles, usamos la dirección escrita como respaldo limpio.
+  const addressQuery = getOrderAddressQuery(order);
+  return { query:addressQuery, source:addressQuery ? "address" : "empty" };
+}
+function getOrderRouteStopQuery(order){
+  return getOrderRouteStopInfo(order).query || "";
 }
 function getOrderStopQuery(order){
   return getOrderRouteStopQuery(order);
@@ -1107,11 +1115,26 @@ async function resolveCoordinatesForRouteItems(routeOrders){
   }
   return changed;
 }
+function getGoogleMapsRouteStopStats(routeOrders){
+  const stats = { total:0, coords:0, address:0, empty:0 };
+  (Array.isArray(routeOrders) ? routeOrders : []).forEach(item => {
+    const info = getOrderRouteStopInfo(item?.order || item);
+    if(!info.query){
+      stats.empty += 1;
+      return;
+    }
+    stats.total += 1;
+    if(info.source === "coords") stats.coords += 1;
+    else stats.address += 1;
+  });
+  return stats;
+}
 function buildGoogleMapsRouteUrl(routeOrders){
   const stops = (Array.isArray(routeOrders) ? routeOrders : [])
-    .map(x => getOrderRouteStopQuery(x.order || x))
-    .filter(Boolean)
-    .slice(0, 10);
+    .map(x => getOrderRouteStopInfo(x.order || x))
+    .filter(info => info.query)
+    .slice(0, 10)
+    .map(info => info.query);
   const base = "https://www.google.com/maps/dir/?api=1";
   const origin = encodeURIComponent(AMARED_ROUTE_ORIGIN_ADDRESS);
   if(!stops.length){
@@ -2050,7 +2073,24 @@ listEl?.addEventListener("click", async (ev)=>{
     const groups = groupOrdersByRoute(getFilteredPendingOrders(ORDERS));
     const group = groups[key];
     if(group){
-      openRouteUrl(buildGoogleMapsRouteUrl(group.orders));
+      showLoading("Preparando ruta…", "Validando coordenadas y direcciones antes de abrir Google Maps.");
+      try{
+        const changed = await resolveCoordinatesForRouteItems(group.orders);
+        const stats = getGoogleMapsRouteStopStats(group.orders);
+        openRouteUrl(buildGoogleMapsRouteUrl(group.orders));
+        if(changed) renderOrders(ORDERS);
+        if(stats.address > 0){
+          setStatus(`Ruta abierta en Google Maps. ${stats.coords} parada(s) usan coordenadas y ${stats.address} parada(s) usan dirección escrita porque el link no entregó coordenadas.`);
+        }else{
+          setStatus("Ruta abierta en Google Maps con paradas basadas en coordenadas disponibles.");
+        }
+      }catch(e){
+        console.warn("No se pudo preparar la ruta", e);
+        openRouteUrl(buildGoogleMapsRouteUrl(group.orders));
+        setStatus("Ruta abierta en Google Maps con la información disponible.");
+      }finally{
+        hideLoading();
+      }
     }
     return;
   }
@@ -2084,11 +2124,14 @@ listEl?.addEventListener("click", async (ev)=>{
     }
     showLoading("Guardando ubicación…", "Actualizando el link exacto del domicilio.");
     try{
-      await api({ action:"delivery_update_location", order_id:id, maps_link:raw, updated_by: SESSION?.operator?.label || "DELIVERY" });
+      const out = await api({ action:"delivery_update_location", order_id:id, maps_link:raw, updated_by: SESSION?.operator?.label || "DELIVERY" });
       const o = ORDERS.find(x => String(x.order_id) === id);
-      if(o) setOrderExactLocationFields(o, raw, null);
+      const resolvedCoords = normalizeLatLng(out?.maps_lat, out?.maps_lng) || extractLatLngFromText(out?.maps_query || raw);
+      if(o) setOrderExactLocationFields(o, raw, resolvedCoords);
       renderOrders(ORDERS);
-      setStatus("Ubicación exacta guardada. Google Maps abrirá el link original del domicilio.");
+      setStatus(resolvedCoords?.query
+        ? "Ubicación exacta guardada. La ruta usará las coordenadas detectadas del link."
+        : "Ubicación exacta guardada. Maps individual abrirá el link original; la ruta usará la dirección escrita si no hay coordenadas disponibles.");
     }catch(e){
       setStatus(e?.message || "No se pudo guardar la ubicación exacta.");
     }finally{
