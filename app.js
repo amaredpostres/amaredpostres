@@ -157,8 +157,12 @@ function getNeighborhoodNames(){
 function setNeighborhoodSuggestOpen(open){
   const box = document.getElementById("neighborhoodSuggest");
   const input = document.getElementById("neighborhood");
+  const field = document.getElementById("neighborhoodField");
+  const toggle = document.getElementById("neighborhoodToggle");
   if(!box) return;
   box.classList.toggle("hidden", !open);
+  field?.classList.toggle("is-open", !!open);
+  toggle?.setAttribute("aria-expanded", open ? "true" : "false");
   if(input) input.setAttribute("aria-expanded", open ? "true" : "false");
 }
 
