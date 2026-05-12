@@ -2,7 +2,7 @@
 // delivery.js — AMARED Envíos (v4 UX + Historial + Opt-in fix)
 "use strict";
 
-console.log("AMARED delivery v14");
+console.log("AMARED delivery v15 · routes coords/order ux");
 
 const API_URL = "https://amared-orders.amaredpostres.workers.dev/";
 const AMARED_ROUTE_ORIGIN_LABEL = "Edificio Kiwana";
@@ -40,7 +40,17 @@ const AMARED_NEIGHBORHOOD_ROUTES = Array.isArray(window.AMARED_IBAGUE_NEIGHBORHO
       { name:"Mirolindo", aliases:["mirolindo", "avenida mirolindo"], route:"oriente", score:7 },
       { name:"El Salado", aliases:["salado", "el salado", "aeropuerto", "perales"], route:"oriente", score:10 }
     ];
-let ROUTE_SORT_MODE = "near";
+const ROUTE_SORT_MODE_KEY = "AMARED_DELIVERY_ROUTE_SORT_MODE_V1";
+function loadRouteSortMode(){
+  try{
+    const saved = String(localStorage.getItem(ROUTE_SORT_MODE_KEY) || "near");
+    return saved === "far" || saved === "manual" ? saved : "near";
+  }catch(_e){ return "near"; }
+}
+function saveRouteSortMode(){
+  try{ localStorage.setItem(ROUTE_SORT_MODE_KEY, ROUTE_SORT_MODE); }catch(_e){}
+}
+let ROUTE_SORT_MODE = loadRouteSortMode();
 const ROUTE_COLLAPSED_KEY = "AMARED_DELIVERY_ROUTE_COLLAPSED_V1";
 function loadRouteCollapsedState(){
   try{
@@ -54,6 +64,19 @@ function saveRouteCollapsedState(){
   try{ localStorage.setItem(ROUTE_COLLAPSED_KEY, JSON.stringify(Array.from(ROUTE_COLLAPSED || []))); }catch(_e){}
 }
 let ROUTE_COLLAPSED = loadRouteCollapsedState();
+const ROUTE_MANUAL_ORDER_KEY = "AMARED_DELIVERY_ROUTE_MANUAL_ORDER_V1";
+function loadRouteManualOrderState(){
+  try{
+    const raw = JSON.parse(localStorage.getItem(ROUTE_MANUAL_ORDER_KEY) || "{}");
+    return raw && typeof raw === "object" && !Array.isArray(raw) ? raw : {};
+  }catch(_e){
+    return {};
+  }
+}
+function saveRouteManualOrderState(){
+  try{ localStorage.setItem(ROUTE_MANUAL_ORDER_KEY, JSON.stringify(ROUTE_MANUAL_ORDER || {})); }catch(_e){}
+}
+let ROUTE_MANUAL_ORDER = loadRouteManualOrderState();
 const SS_KEY = "AMARED_DELIVERY_SESSION_V4";
 const LS_KEY = "AMARED_DELIVERY_REMEMBER_V1";
 const HUB_URL = "hub.html";
@@ -282,6 +305,7 @@ const btnFilterDelivery = document.getElementById("btnFilterDelivery");
 const btnFilterPickup = document.getElementById("btnFilterPickup");
 const routePlannerWrap = document.getElementById("routePlannerWrap");
 const routeSortMode = document.getElementById("routeSortMode");
+if(routeSortMode) routeSortMode.value = ROUTE_SORT_MODE;
 
 const metaLine = document.getElementById("metaLine");
 const statusEl = document.getElementById("status");
@@ -796,6 +820,56 @@ function getOrderRouteInfo(order){
     score: storedScore || Number(inferred.score || def.score || 50)
   };
 }
+function normalizeManualOrderList(routeKey, ids){
+  const currentIds = new Set((Array.isArray(ids) ? ids : []).map(String));
+  const stored = Array.isArray(ROUTE_MANUAL_ORDER?.[routeKey]) ? ROUTE_MANUAL_ORDER[routeKey].map(String) : [];
+  const clean = stored.filter(id => currentIds.has(id));
+  ids.forEach(id => { if(!clean.includes(String(id))) clean.push(String(id)); });
+  ROUTE_MANUAL_ORDER[routeKey] = clean;
+  return clean;
+}
+function sortRouteItems(routeKey, items){
+  const list = Array.isArray(items) ? items : [];
+  const ids = list.map(item => String(item?.order?.order_id || "")).filter(Boolean);
+  const manualOrder = normalizeManualOrderList(routeKey, ids);
+  if(ROUTE_SORT_MODE === "manual"){
+    const pos = new Map(manualOrder.map((id, idx) => [id, idx]));
+    list.sort((a,b) => {
+      const ia = pos.has(String(a?.order?.order_id || "")) ? pos.get(String(a.order.order_id)) : 9999;
+      const ib = pos.has(String(b?.order?.order_id || "")) ? pos.get(String(b.order.order_id)) : 9999;
+      if(ia !== ib) return ia - ib;
+      return Number(a.routeInfo.score || 50) - Number(b.routeInfo.score || 50);
+    });
+    return;
+  }
+  list.sort((a,b) => {
+    const da = Number(a.routeInfo.score || 50);
+    const db = Number(b.routeInfo.score || 50);
+    if(ROUTE_SORT_MODE === "far") return db - da;
+    return da - db;
+  });
+}
+function moveOrderInRoute(routeKey, orderId, direction){
+  const groups = groupOrdersByRoute(getFilteredPendingOrders(ORDERS));
+  const group = groups[routeKey];
+  if(!group || !group.orders.length) return false;
+  const visibleIds = group.orders.map(item => String(item?.order?.order_id || "")).filter(Boolean);
+  const order = normalizeManualOrderList(routeKey, visibleIds);
+  const id = String(orderId || "").trim();
+  const idx = order.indexOf(id);
+  if(idx < 0) return false;
+  const nextIdx = direction === "up" ? idx - 1 : idx + 1;
+  if(nextIdx < 0 || nextIdx >= order.length) return false;
+  const tmp = order[idx];
+  order[idx] = order[nextIdx];
+  order[nextIdx] = tmp;
+  ROUTE_MANUAL_ORDER[routeKey] = order;
+  ROUTE_SORT_MODE = "manual";
+  if(routeSortMode) routeSortMode.value = "manual";
+  saveRouteSortMode();
+  saveRouteManualOrderState();
+  return true;
+}
 function groupOrdersByRoute(orders){
   const groups = {
     occidente: { ...AMARED_ROUTE_DEFINITIONS.occidente, orders: [] },
@@ -807,14 +881,7 @@ function groupOrdersByRoute(orders){
     const key = groups[info.id] ? info.id : "por_asignar";
     groups[key].orders.push({ order, routeInfo: info });
   });
-  Object.values(groups).forEach(group => {
-    group.orders.sort((a,b) => {
-      const da = Number(a.routeInfo.score || 50);
-      const db = Number(b.routeInfo.score || 50);
-      if(ROUTE_SORT_MODE === "far") return db - da;
-      return da - db;
-    });
-  });
+  Object.entries(groups).forEach(([routeKey, group]) => sortRouteItems(routeKey, group.orders));
   return groups;
 }
 function cleanOrderStopText(value){
@@ -833,7 +900,7 @@ function looksLikeLocationLink(value){
 }
 function safeDecodeLocationText(value){
   let s = String(value || "").trim();
-  for(let i = 0; i < 3; i += 1){
+  for(let i = 0; i < 4; i += 1){
     try{
       const next = decodeURIComponent(s);
       if(next === s) break;
@@ -847,46 +914,87 @@ function safeDecodeLocationText(value){
 function isValidLatLngPair(lat, lng){
   return Number.isFinite(lat) && Number.isFinite(lng) && lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180;
 }
+function normalizeLatLng(lat, lng){
+  lat = Number(lat);
+  lng = Number(lng);
+  if(!isValidLatLngPair(lat, lng)) return null;
+  const query = `${Number(lat.toFixed(7))},${Number(lng.toFixed(7))}`;
+  return { lat, lng, query };
+}
 function extractLatLngFromText(value){
   const decoded = safeDecodeLocationText(value);
   if(!decoded) return null;
+  const variants = [decoded, decoded.replace(/\\u003d/g, "=").replace(/\\u0026/g, "&")];
   const patterns = [
     /!3d(-?\d+(?:\.\d+)?)!4d(-?\d+(?:\.\d+)?)/i,
-    /@(-?\d+(?:\.\d+)?),\s*(-?\d+(?:\.\d+)?)(?:,|z|\/|$)/i,
-    /[?&](?:q|query|ll|center|destination|daddr|saddr)=(-?\d+(?:\.\d+)?),\s*(-?\d+(?:\.\d+)?)/i,
+    /!2d(-?\d+(?:\.\d+)?)!3d(-?\d+(?:\.\d+)?)/i, // lng,lat in some Google data URLs
+    /@(-?\d+(?:\.\d+)?),\s*(-?\d+(?:\.\d+)?)(?:[,z\/]|$)/i,
+    /[?&#](?:q|query|ll|center|destination|daddr|saddr)=(-?\d+(?:\.\d+)?),\s*(-?\d+(?:\.\d+)?)/i,
     /(?:^|[^0-9-])(-?\d{1,2}\.\d{4,})\s*,\s*(-?\d{1,3}\.\d{4,})(?:[^0-9]|$)/i
   ];
-  for(const pattern of patterns){
-    const m = decoded.match(pattern);
-    if(!m) continue;
-    const lat = Number(m[1]);
-    const lng = Number(m[2]);
-    if(isValidLatLngPair(lat, lng)) return { lat, lng, query:`${lat},${lng}` };
+  for(const text of variants){
+    for(const pattern of patterns){
+      const m = text.match(pattern);
+      if(!m) continue;
+      if(pattern.source.startsWith("!2d")){
+        const lng = Number(m[1]);
+        const lat = Number(m[2]);
+        const normalized = normalizeLatLng(lat, lng);
+        if(normalized) return normalized;
+      }else{
+        const lat = Number(m[1]);
+        const lng = Number(m[2]);
+        const normalized = normalizeLatLng(lat, lng);
+        if(normalized) return normalized;
+      }
+    }
   }
   return null;
+}
+function getOrderSavedCoords(order){
+  const lat = Number(order?.maps_lat ?? order?.map_lat ?? order?.location_lat ?? order?.lat);
+  const lng = Number(order?.maps_lng ?? order?.map_lng ?? order?.location_lng ?? order?.lng);
+  const normalized = normalizeLatLng(lat, lng);
+  if(normalized) return normalized;
+  const storedQuery = String(order?.maps_query || order?.location_query || "").trim();
+  const fromStoredQuery = extractLatLngFromText(storedQuery);
+  if(fromStoredQuery) return fromStoredQuery;
+  return extractLatLngFromText(order?.maps_link || "");
+}
+function setOrderExactLocationFields(order, rawLink, coords){
+  if(!order) return;
+  order.maps_link = String(rawLink || "").trim();
+  if(coords?.query){
+    order.maps_lat = coords.lat;
+    order.maps_lng = coords.lng;
+    order.maps_query = coords.query;
+  }else{
+    order.maps_lat = "";
+    order.maps_lng = "";
+    order.maps_query = "";
+  }
 }
 function getOrderAddressQuery(order){
   const parts = [order?.address_text, getOrderNeighborhood(order), "Ibagué, Tolima"].map(cleanOrderStopText).filter(Boolean);
   return parts.join(", ");
 }
 function getOrderRouteStopQuery(order){
-  const maps = String(order?.maps_link || "").trim();
-  const coords = extractLatLngFromText(maps);
+  const coords = getOrderSavedCoords(order);
   if(coords?.query) return coords.query;
   return getOrderAddressQuery(order);
 }
 function getOrderStopQuery(order){
+  const coords = getOrderSavedCoords(order);
+  if(coords?.query) return coords.query;
   const maps = String(order?.maps_link || "").trim();
-  if(isExternalMapLink(maps)){
-    const coords = extractLatLngFromText(maps);
-    return coords?.query || maps;
-  }
+  if(isExternalMapLink(maps)) return maps;
   return getOrderAddressQuery(order);
 }
 function getOrderLocationPrecisionLabel(order){
+  const coords = getOrderSavedCoords(order);
+  if(coords?.query) return `Coordenadas detectadas: ${coords.query}`;
   const maps = String(order?.maps_link || "").trim();
-  if(extractLatLngFromText(maps)?.query) return "Coordenadas detectadas";
-  if(isExternalMapLink(maps)) return "Link guardado · ruta usa dirección si no trae coordenadas";
+  if(isExternalMapLink(maps)) return "Link guardado · si es un enlace corto sin coordenadas visibles, usa la dirección como respaldo.";
   return "Dirección escrita";
 }
 function buildGoogleMapsRouteUrl(routeOrders){
@@ -904,15 +1012,17 @@ function buildGoogleMapsRouteUrl(routeOrders){
   return `${base}&origin=${origin}&destination=${destination}${waypoints ? `&waypoints=${waypoints}` : ""}&travelmode=driving`;
 }
 function buildGoogleMapsSingleUrl(order){
+  const coords = getOrderSavedCoords(order);
+  if(coords?.query) return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(coords.query)}`;
   const maps = String(order?.maps_link || "").trim();
   if(isExternalMapLink(maps)) return maps;
   const q = getOrderAddressQuery(order);
   return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(q || AMARED_ROUTE_ORIGIN_ADDRESS)}`;
 }
 function buildWazeSingleUrl(order){
-  const maps = String(order?.maps_link || "").trim();
-  const coords = extractLatLngFromText(maps);
-  const q = coords?.query || getOrderAddressQuery(order) || AMARED_ROUTE_ORIGIN_ADDRESS;
+  const coords = getOrderSavedCoords(order);
+  if(coords?.query) return `https://waze.com/ul?ll=${encodeURIComponent(coords.query)}&navigate=yes`;
+  const q = getOrderAddressQuery(order) || AMARED_ROUTE_ORIGIN_ADDRESS;
   return `https://waze.com/ul?q=${encodeURIComponent(q)}&navigate=yes`;
 }
 function routeSummaryText(group){
@@ -1085,6 +1195,15 @@ function renderOrders(orders){
             <div class="routePrecisionHint">${escapeHtml(getOrderLocationPrecisionLabel(o))}</div>
           </div>`}
 
+          ${type === 'pickup' || !extra.routeKey ? '' : `
+          <div class="routeOrderTools" aria-label="Ajustar orden de la ruta">
+            <span>Orden de ruta</span>
+            <div>
+              <button class="btn secondary btnRouteMove" data-route="${escapeHtml(extra.routeKey)}" data-id="${escapeHtml(o.order_id)}" data-dir="up" type="button" ${extra.routeIndex <= 0 ? 'disabled' : ''}>Subir</button>
+              <button class="btn secondary btnRouteMove" data-route="${escapeHtml(extra.routeKey)}" data-id="${escapeHtml(o.order_id)}" data-dir="down" type="button" ${extra.routeIndex >= extra.routeCount - 1 ? 'disabled' : ''}>Bajar</button>
+            </div>
+          </div>`}
+
           <div class="btnRow">
             ${type === 'pickup' ? '' : `
               <button class="btn secondary btnOrderMaps" data-id="${escapeHtml(o.order_id)}" type="button">Abrir Maps</button>
@@ -1124,16 +1243,17 @@ function renderOrders(orders){
           </div>
           <div class="routeActions">
             <button class="btn secondary btnRouteToggle" data-route="${escapeHtml(key)}" type="button" aria-expanded="${collapsed ? 'false' : 'true'}">
-              <span class="routeToggleIcon">⌄</span> ${collapsed ? 'Mostrar pedidos' : 'Ocultar pedidos'}
+              <span class="routeToggleIcon" aria-hidden="true"></span>
+              <span>${collapsed ? 'Mostrar pedidos' : 'Ocultar pedidos'}</span>
             </button>
             <button class="btn secondary btnRouteMaps" data-route="${escapeHtml(key)}" type="button">Abrir ruta en Google Maps</button>
             <button class="btn secondary btnCopyRouteSummary" data-route="${escapeHtml(key)}" type="button">Copiar resumen</button>
           </div>
         </div>
         <div class="routeCollapsible">
-          <div class="routeMapHint">Orden actual: ${ROUTE_SORT_MODE === 'far' ? 'lejanos primero' : 'cercanos primero'} · Salida desde ${escapeHtml(AMARED_ROUTE_ORIGIN_LABEL)}. Waze queda disponible de forma individual en cada pedido.</div>
+          <div class="routeMapHint">Orden actual: ${ROUTE_SORT_MODE === 'manual' ? 'personalizado' : ROUTE_SORT_MODE === 'far' ? 'lejanos primero' : 'cercanos primero'} · Salida desde ${escapeHtml(AMARED_ROUTE_ORIGIN_LABEL)}. Waze queda disponible de forma individual en cada pedido.</div>
           <div class="routeCards">
-            ${group.orders.map((item, idx) => renderOrderCard(item.order, { index: idx + 1, routeClass:'isRouteCard' })).join('')}
+            ${group.orders.map((item, idx) => renderOrderCard(item.order, { index: idx + 1, routeClass:'isRouteCard', routeKey:key, routeIndex:idx, routeCount:group.orders.length })).join('')}
           </div>
         </div>
       </section>`;
@@ -1651,7 +1771,9 @@ btnLogoutTop?.addEventListener("click", logout);
 btnFilterDelivery?.addEventListener("click", ()=> setDeliveryViewFilter('delivery'));
 btnFilterPickup?.addEventListener("click", ()=> setDeliveryViewFilter('pickup'));
 routeSortMode?.addEventListener("change", ()=>{
-  ROUTE_SORT_MODE = routeSortMode.value === "far" ? "far" : "near";
+  const val = String(routeSortMode.value || "near");
+  ROUTE_SORT_MODE = val === "far" ? "far" : val === "manual" ? "manual" : "near";
+  saveRouteSortMode();
   renderOrders(ORDERS);
 });
 
@@ -1663,6 +1785,18 @@ listEl?.addEventListener("click", async (ev)=>{
       if(ROUTE_COLLAPSED.has(key)) ROUTE_COLLAPSED.delete(key);
       else ROUTE_COLLAPSED.add(key);
       saveRouteCollapsedState();
+      renderOrders(ORDERS);
+    }
+    return;
+  }
+
+  const btnRouteMove = ev.target?.closest?.(".btnRouteMove");
+  if(btnRouteMove){
+    const key = String(btnRouteMove.getAttribute("data-route") || "").trim();
+    const id = String(btnRouteMove.getAttribute("data-id") || "").trim();
+    const dir = String(btnRouteMove.getAttribute("data-dir") || "").trim();
+    if(key && id && moveOrderInRoute(key, id, dir)){
+      setStatus("Orden de ruta actualizado manualmente.");
       renderOrders(ORDERS);
     }
     return;
@@ -1706,12 +1840,20 @@ listEl?.addEventListener("click", async (ev)=>{
     }
     showLoading("Guardando ubicación…", "Actualizando el punto exacto para la ruta.");
     try{
-      await api({ action:"delivery_update_location", order_id:id, maps_link:raw, updated_by: SESSION?.operator?.label || "DELIVERY" });
+      const localCoords = extractLatLngFromText(raw);
+      const payload = { action:"delivery_update_location", order_id:id, maps_link:raw, updated_by: SESSION?.operator?.label || "DELIVERY" };
+      if(localCoords?.query){
+        payload.maps_lat = localCoords.lat;
+        payload.maps_lng = localCoords.lng;
+        payload.maps_query = localCoords.query;
+      }
+      const out = await api(payload);
+      const backendCoords = normalizeLatLng(out?.maps_lat, out?.maps_lng) || extractLatLngFromText(out?.maps_query || "");
+      const coords = backendCoords || localCoords;
       const o = ORDERS.find(x => String(x.order_id) === id);
-      if(o) o.maps_link = raw;
+      if(o) setOrderExactLocationFields(o, raw, coords);
       renderOrders(ORDERS);
-      const coords = extractLatLngFromText(raw);
-      setStatus(coords?.query ? "Ubicación exacta guardada con coordenadas para Google Maps." : "Ubicación guardada. Si el link no trae coordenadas visibles, la ruta usará la dirección escrita.");
+      setStatus(coords?.query ? "Ubicación exacta guardada con coordenadas para Google Maps y Waze." : "Ubicación guardada. Si el enlace corto no permite leer coordenadas, la ruta usará la dirección escrita como respaldo.");
     }catch(e){
       setStatus(e?.message || "No se pudo guardar la ubicación exacta.");
     }finally{

@@ -824,25 +824,43 @@ body.deliveryOverlayOpen .amDeliveryMobileBar{
   display:none;
 }
 .btnRouteToggle{
-  background: rgba(255,244,249,.92) !important;
-  border-color: rgba(242,91,143,.18) !important;
-}
-.routeToggleIcon{
   display:inline-flex;
   align-items:center;
   justify-content:center;
-  width:18px;
-  height:18px;
+  gap:8px;
+  background: linear-gradient(180deg, rgba(255,246,250,.98), rgba(255,235,244,.92)) !important;
+  border-color: rgba(242,91,143,.24) !important;
+  box-shadow: 0 8px 18px rgba(242,91,143,.10);
+}
+.routeToggleIcon{
+  position:relative;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  width:22px;
+  height:22px;
+  flex:0 0 22px;
   border-radius:999px;
-  background: rgba(242,91,143,.12);
-  color: var(--pink);
-  font-size:15px;
-  line-height:1;
-  transform: rotate(180deg);
-  transition: transform .18s ease;
+  background: rgba(242,91,143,.14);
+  border:1px solid rgba(242,91,143,.18);
+  transition: transform .18s ease, background .18s ease, box-shadow .18s ease;
+}
+.routeToggleIcon::before{
+  content:"";
+  width:7px;
+  height:7px;
+  border-right:2px solid var(--pink);
+  border-bottom:2px solid var(--pink);
+  transform: translateY(2px) rotate(225deg);
 }
 .routeGroup.isCollapsed .routeToggleIcon{
-  transform: rotate(0deg);
+  background: rgba(242,91,143,.10);
+}
+.routeGroup.isCollapsed .routeToggleIcon::before{
+  transform: translateY(-1px) rotate(45deg);
+}
+.btnRouteToggle:hover .routeToggleIcon{
+  box-shadow: 0 0 0 4px rgba(242,91,143,.08);
 }
 .routePrecisionHint{
   margin-top: -2px;
@@ -871,6 +889,38 @@ body.deliveryOverlayOpen .amDeliveryMobileBar{
   background: rgba(242,91,143,.12);
   border-color: rgba(242,91,143,.16);
 }
+.routeOrderTools{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:10px;
+  padding:9px 11px;
+  border-radius:15px;
+  background: rgba(255,244,249,.72);
+  border:1px solid rgba(242,91,143,.14);
+}
+.routeOrderTools span{
+  font-size:12px;
+  font-weight:950;
+  color:rgba(64,17,2,.62);
+}
+.routeOrderTools > div{
+  display:flex;
+  gap:8px;
+  flex-wrap:wrap;
+  justify-content:flex-end;
+}
+.routeOrderTools .btn{
+  min-height:34px;
+  padding:7px 10px;
+  border-radius:12px;
+  font-size:12px;
+}
+.routeOrderTools .btn:disabled{
+  opacity:.42;
+  cursor:not-allowed;
+  transform:none;
+}
 @media (max-width: 720px){
   .routePlannerHeader,
   .routeGroupHead{
@@ -893,6 +943,16 @@ body.deliveryOverlayOpen .amDeliveryMobileBar{
   }
   .btnRouteToggle{
     order:-1;
+  }
+  .routeOrderTools{
+    align-items:stretch;
+    flex-direction:column;
+  }
+  .routeOrderTools > div{
+    justify-content:stretch;
+  }
+  .routeOrderTools .btn{
+    flex:1 1 0;
   }
 }
 
