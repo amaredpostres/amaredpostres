@@ -2,7 +2,7 @@
 // delivery.js — AMARED Envíos (v4 UX + Historial + Opt-in fix)
 "use strict";
 
-console.log("AMARED delivery v18 · links exactos Maps/Waze + rutas simplificadas");
+console.log("AMARED delivery v19 · Google Maps como navegación principal");
 
 const API_URL = "https://amared-orders.amaredpostres.workers.dev/";
 const AMARED_ROUTE_ORIGIN_LABEL = "Edificio Kiwana";
@@ -943,7 +943,7 @@ function isExternalMapLink(value){
 function looksLikeLocationLink(value){
   const s = String(value || "").trim().toLowerCase();
   if(!/^https?:\/\//.test(s)) return false;
-  return s.includes("maps") || s.includes("goo.gl") || s.includes("waze") || s.includes("wa.me") || s.includes("google") || s.includes("q=");
+  return s.includes("maps") || s.includes("goo.gl") || s.includes("wa.me") || s.includes("google") || s.includes("q=");
 }
 function safeDecodeLocationText(value){
   let s = String(value || "").trim();
@@ -1129,26 +1129,6 @@ function buildGoogleMapsSingleUrl(order){
   const q = getOrderAddressQuery(order);
   return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(q || AMARED_ROUTE_ORIGIN_ADDRESS)}`;
 }
-function buildWazeSingleUrl(order){
-  const maps = getOrderPrimaryMapsLink(order);
-  const fromMapsLink = maps ? extractLatLngFromText(maps) : null;
-  if(fromMapsLink?.query){
-    const ll = `${Number(fromMapsLink.lat).toFixed(7)},${Number(fromMapsLink.lng).toFixed(7)}`;
-    return `https://www.waze.com/ul?ll=${ll}&navigate=yes&zoom=17`;
-  }
-  if(maps){
-    // Waze no abre enlaces de Google Maps de forma nativa como Google Maps,
-    // pero se usa ese mismo link como búsqueda base para evitar cambiar el dato del pedido.
-    return `https://www.waze.com/ul?q=${encodeURIComponent(maps)}&navigate=yes`;
-  }
-  const saved = getOrderSavedCoords(order);
-  if(saved?.query){
-    const ll = `${Number(saved.lat).toFixed(7)},${Number(saved.lng).toFixed(7)}`;
-    return `https://www.waze.com/ul?ll=${ll}&navigate=yes&zoom=17`;
-  }
-  const q = getOrderAddressQuery(order) || AMARED_ROUTE_ORIGIN_ADDRESS;
-  return `https://www.waze.com/ul?q=${encodeURIComponent(q)}&navigate=yes`;
-}
 function shouldResolveOrderCoords(order){
   if(!order || getOrderSavedCoords(order)) return false;
   const link = String(order?.maps_link || "").trim();
@@ -1169,7 +1149,7 @@ async function resolveMissingCoordinatesInBackground(orders){
   if(changed){
     renderOrders(ORDERS);
     saveDeliveryDataCache_();
-    setStatus("Coordenadas de ubicación actualizadas para mejorar Google Maps y Waze.");
+    setStatus("Ubicaciones actualizadas para mejorar la ruta en Google Maps.");
   }
 }
 function routeSummaryText(group){
@@ -1362,7 +1342,6 @@ function renderOrders(orders){
           <div class="btnRow">
             ${type === 'pickup' ? '' : `
               <button class="btn secondary btnOrderMaps" data-id="${escapeHtml(orderId)}" type="button">Abrir Maps</button>
-              <button class="btn secondary btnOrderWaze" data-id="${escapeHtml(orderId)}" type="button">Waze</button>
               <button class="btn secondary btnCopyLocation" data-id="${escapeHtml(orderId)}" type="button">Copiar ubicación</button>
             `}
             <button class="btn secondary btnSend" data-id="${escapeHtml(orderId)}" type="button">Ver mensaje</button>
@@ -1406,7 +1385,7 @@ function renderOrders(orders){
           </div>
         </div>
         <div class="routeCollapsible">
-          <div class="routeMapHint">Orden actual: ${ROUTE_SORT_MODE === 'manual' ? 'personalizado' : ROUTE_SORT_MODE === 'far' ? 'lejanos primero' : 'cercanos primero'} · Salida desde ${escapeHtml(AMARED_ROUTE_ORIGIN_LABEL)}. Waze queda disponible de forma individual en cada pedido.</div>
+          <div class="routeMapHint">Orden actual: ${ROUTE_SORT_MODE === 'manual' ? 'personalizado' : ROUTE_SORT_MODE === 'far' ? 'lejanos primero' : 'cercanos primero'} · Salida desde ${escapeHtml(AMARED_ROUTE_ORIGIN_LABEL)}. La navegación se realiza desde Google Maps.</div>
           <div class="routeCards">
             ${group.orders.map((item, idx) => renderOrderCard(item.order, { index: idx + 1, routeClass:'isRouteCard', routeKey:key, routeIndex:idx, routeCount:group.orders.length })).join('')}
           </div>
@@ -2100,7 +2079,7 @@ listEl?.addEventListener("click", async (ev)=>{
       return;
     }
     if(!looksLikeLocationLink(raw)){
-      setStatus("El enlace no parece ser una ubicación válida. Pega un link de Google Maps, Waze o ubicación compartida.");
+      setStatus("El enlace no parece ser una ubicación válida. Pega un link de Google Maps o ubicación compartida por WhatsApp.");
       return;
     }
     showLoading("Guardando ubicación…", "Actualizando el link exacto del domicilio.");
@@ -2109,7 +2088,7 @@ listEl?.addEventListener("click", async (ev)=>{
       const o = ORDERS.find(x => String(x.order_id) === id);
       if(o) setOrderExactLocationFields(o, raw, null);
       renderOrders(ORDERS);
-      setStatus("Ubicación exacta guardada. Maps abrirá el link original y Waze lo usará como referencia del domicilio.");
+      setStatus("Ubicación exacta guardada. Google Maps abrirá el link original del domicilio.");
     }catch(e){
       setStatus(e?.message || "No se pudo guardar la ubicación exacta.");
     }finally{
@@ -2126,13 +2105,6 @@ listEl?.addEventListener("click", async (ev)=>{
     return;
   }
 
-  const btnOrderWaze = ev.target?.closest?.(".btnOrderWaze");
-  if(btnOrderWaze){
-    const id = String(btnOrderWaze.getAttribute("data-id")||"").trim();
-    const o = ORDERS.find(x => String(x.order_id) === id);
-    if(o) openRouteUrl(buildWazeSingleUrl(o));
-    return;
-  }
 
   const btnCopyLocation = ev.target?.closest?.(".btnCopyLocation");
   if(btnCopyLocation){
