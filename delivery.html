@@ -85,7 +85,7 @@
 
   <link rel="icon" href="assets/favicon.ico" type="image/x-icon">
   <link rel="stylesheet" href="styles.css?v=20260511-routes-v1" />
-  <link rel="stylesheet" href="delivery.css?v=20260511-routes-v1" />
+  <link rel="stylesheet" href="delivery.css?v=20260512-routes-maps-collapse" />
 
   <style>
     /* HISTORIAL FIXES */
@@ -207,7 +207,7 @@
           <div>
             <div class="routePlannerKicker">Rutas sugeridas</div>
             <h3>Organización de domicilios</h3>
-            <p>Las rutas se agrupan usando el barrio/sector escrito por el cliente y el punto de salida de AMARED.</p>
+            <p>Las rutas se agrupan por barrio/sector tomando como punto de salida AMARED. Google Maps se usa para crear la ruta con varias paradas.</p>
           </div>
           <div class="routePlannerControls">
             <label for="routeSortMode">Orden de entrega</label>
@@ -217,7 +217,7 @@
             </select>
           </div>
         </div>
-        <div class="routePlannerHint">Punto de salida: <strong>Edificio Kiwana · Cl. 53 #6A-21, Ibagué</strong>. Los pedidos sin barrio reconocido quedan en “Por asignar”.</div>
+        <div class="routePlannerHint">Punto de salida: <strong>Edificio Kiwana · Cl. 53 #6A-21, Ibagué</strong>. Ruta 1 agrupa comunas 1, 2, 3, 4, 10, 11, 12 y 13. Ruta 2 agrupa comunas 5, 6, 7, 8 y 9. Los pedidos sin barrio reconocido quedan en “Por asignar”.</div>
       </div>
 
       <div id="list" class="deliveryList" style="margin-top:12px;"></div>
@@ -319,6 +319,6 @@
   </div>
 
   <script src="routes-data.js?v=20260512-barrios-u15"></script>
-  <script src="delivery.js?v=20260512-barrios-u15"></script>
+  <script src="delivery.js?v=20260512-routes-maps-collapse"></script>
 </body>
 </html>

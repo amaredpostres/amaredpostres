@@ -815,6 +815,41 @@ body.deliveryOverlayOpen .amDeliveryMobileBar{
   display:grid;
   gap: 10px;
 }
+
+.routeCollapsible{
+  display:grid;
+  gap:12px;
+}
+.routeGroup.isCollapsed .routeCollapsible{
+  display:none;
+}
+.btnRouteToggle{
+  background: rgba(255,244,249,.92) !important;
+  border-color: rgba(242,91,143,.18) !important;
+}
+.routeToggleIcon{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  width:18px;
+  height:18px;
+  border-radius:999px;
+  background: rgba(242,91,143,.12);
+  color: var(--pink);
+  font-size:15px;
+  line-height:1;
+  transform: rotate(180deg);
+  transition: transform .18s ease;
+}
+.routeGroup.isCollapsed .routeToggleIcon{
+  transform: rotate(0deg);
+}
+.routePrecisionHint{
+  margin-top: -2px;
+  font-size: 11.8px;
+  font-weight: 900;
+  color: rgba(64,17,2,.58);
+}
 .routeStopNumber{
   display:inline-flex;
   align-items:center;
@@ -851,6 +886,13 @@ body.deliveryOverlayOpen .amDeliveryMobileBar{
   }
   .routeActions .btn{
     flex:1 1 100%;
+  }
+  .routeGroup{
+    padding:12px;
+    border-radius:20px;
+  }
+  .btnRouteToggle{
+    order:-1;
   }
 }
 

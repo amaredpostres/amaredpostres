@@ -23,16 +23,16 @@ const AMARED_ROUTE_UNKNOWN = {
 const AMARED_ROUTE_DEFINITIONS = {
   occidente: {
     id: "occidente",
-    label: "Ruta 1 · Centro / Occidente / Sur",
+    label: "Ruta 1 · Comunas 1, 2, 3, 4, 10, 11, 12 y 13",
     short: "Ruta 1",
-    description: "Sectores hacia el centro, occidente, sur y zonas que quedan hacia el lado izquierdo del punto de producción.",
+    description: "Zona centro/base y sectores hacia centro, occidente y sur de Ibagué.",
     score: 30
   },
   oriente: {
     id: "oriente",
-    label: "Ruta 2 · Oriente / Jordán / Salado",
+    label: "Ruta 2 · Comunas 5, 6, 7, 8 y 9",
     short: "Ruta 2",
-    description: "Sectores hacia Jordán, Mirolindo, Picaleña, Salado, aeropuerto y zonas al lado derecho del punto de producción.",
+    description: "Sectores hacia Jordán, Vergel, Mirolindo, Picaleña, Salado y aeropuerto.",
     score: 70
   },
   por_asignar: AMARED_ROUTE_UNKNOWN
