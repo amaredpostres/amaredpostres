@@ -19,32 +19,27 @@ const AMARED_ROUTE_DEFINITIONS = {
     id: "occidente",
     label: "Ruta 1 · Centro / Occidente / Sur",
     short: "Ruta 1",
-    description: "Centro, occidente, sur y sectores cercanos al punto de producción.",
+    description: "Centro, occidente, sur y zonas que quedan hacia el lado izquierdo del punto de producción.",
     score: 30
   },
   oriente: {
     id: "oriente",
-    label: "Ruta 2 · Oriente / Salado / Aeropuerto",
+    label: "Ruta 2 · Oriente / Jordán / Salado",
     short: "Ruta 2",
-    description: "Oriente de Ibagué, salida al Salado, aeropuerto y zonas cercanas.",
+    description: "Sectores hacia Jordán, Mirolindo, Picaleña, Salado, aeropuerto y zonas al lado derecho del punto de producción.",
     score: 70
   },
   por_asignar: AMARED_ROUTE_UNKNOWN
 };
-const AMARED_NEIGHBORHOOD_ROUTES = [
-  { name:"Edificio Kiwana", aliases:["kiwana", "edificio kiwana", "calle 53", "cl 53"], route:"occidente", score:1 },
-  { name:"Centro", aliases:["centro", "la pola", "belen", "belén", "interlaken", "cadiz", "cádiz", "la macarena", "la soledad"], route:"occidente", score:4 },
-  { name:"Calambeo", aliases:["calambeo", "clarita botero", "parque biosaludable clarita botero"], route:"occidente", score:5 },
-  { name:"Jordán", aliases:["jordan", "jordán", "jordan 1", "jordan 2", "jordan 3", "jordan 4", "jordán 1", "jordán 2", "jordán 3", "jordán 4"], route:"occidente", score:6 },
-  { name:"Piedra Pintada", aliases:["piedra pintada", "piedrapintada", "piedra pintada alta", "piedra pintada baja"], route:"occidente", score:6 },
-  { name:"Ricaurte", aliases:["ricaurte", "gaitan", "gaitán", "la reforma", "boqueron", "boquerón", "cocora", "san francisco", "la floresta"], route:"occidente", score:8 },
-  { name:"Ambalá", aliases:["ambala", "ambalá", "universidad de ibague", "universidad de ibagué", "varsovia", "los mandriles", "la castellana"], route:"occidente", score:5 },
-  { name:"El Vergel", aliases:["vergel", "el vergel", "multicentro", "acqua", "mercacentro 4", "la toscana", "panamericano"], route:"occidente", score:3 },
-  { name:"Mirolindo", aliases:["mirolindo", "avenida mirolindo", "parque deportivo", "la samaria", "clinica medimas", "clinica medimás"], route:"oriente", score:6 },
-  { name:"Picaleña", aliases:["picalena", "picaleña", "cauchitos", "aparco", "aparcó", "terrazas de campestre", "guacan", "guacán"], route:"oriente", score:8 },
-  { name:"Topacio", aliases:["topacio", "jardin", "jardín", "jardin santander", "jardín santander", "ciudadela simon bolivar", "ciudadela simón bolívar", "hato viejo", "hato de la virgen"], route:"oriente", score:7 },
-  { name:"El Salado", aliases:["salado", "el salado", "especial el salado", "la ceiba", "comfatolima lagos club", "santa elena", "aeropuerto", "aeropuerto nacional perales", "perales", "santa rita", "mega parque santa rita"], route:"oriente", score:10 }
-];
+const AMARED_NEIGHBORHOOD_ROUTES = Array.isArray(window.AMARED_IBAGUE_NEIGHBORHOODS) && window.AMARED_IBAGUE_NEIGHBORHOODS.length
+  ? window.AMARED_IBAGUE_NEIGHBORHOODS
+  : [
+      { name:"Edificio Kiwana", aliases:["kiwana", "edificio kiwana", "calle 53", "cl 53"], route:"occidente", score:1 },
+      { name:"Centro", aliases:["centro", "la pola", "belén", "belen", "interlaken"], route:"occidente", score:4 },
+      { name:"Jordán", aliases:["jordan", "jordán", "jordan 1", "jordán 1"], route:"oriente", score:5 },
+      { name:"Mirolindo", aliases:["mirolindo", "avenida mirolindo"], route:"oriente", score:7 },
+      { name:"El Salado", aliases:["salado", "el salado", "aeropuerto", "perales"], route:"oriente", score:10 }
+    ];
 let ROUTE_SORT_MODE = "near";
 const SS_KEY = "AMARED_DELIVERY_SESSION_V4";
 const LS_KEY = "AMARED_DELIVERY_REMEMBER_V1";
