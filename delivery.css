@@ -995,3 +995,178 @@ body.deliveryOverlayOpen .amDeliveryMobileBar{
   .routeExactRow{ flex-direction:column; align-items:stretch; }
   .routeExactRow .btn{ width:100%; }
 }
+
+/* Route UX v16: tarjetas desplegables + orden por arrastre */
+.orderHeadMain{
+  flex:1 1 auto;
+  min-width:0;
+}
+.orderHeadActions{
+  display:grid;
+  justify-items:end;
+  gap:8px;
+  min-width:0;
+}
+.orderPillRow{ max-width:100%; }
+.routeCardCompact{
+  margin-top:5px;
+  font-size:12.2px;
+  font-weight:850;
+  line-height:1.35;
+  color:rgba(64,17,2,.58);
+  display:-webkit-box;
+  -webkit-line-clamp:2;
+  -webkit-box-orient:vertical;
+  overflow:hidden;
+}
+.orderCard.isRouteCard.isOrderCollapsed .orderBody{
+  display:none;
+}
+.orderCard.isRouteCard{
+  transition: box-shadow .18s ease, transform .18s ease, border-color .18s ease, background .18s ease;
+}
+.orderCard.isRouteCard:hover{
+  border-color:rgba(242,91,143,.20);
+  box-shadow:0 14px 32px rgba(64,17,2,.075);
+}
+.routeDragHandle{
+  width:40px;
+  height:40px;
+  flex:0 0 40px;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  border:1px solid rgba(242,91,143,.18);
+  border-radius:16px;
+  background:linear-gradient(180deg, rgba(255,248,251,.98), rgba(255,235,244,.94));
+  box-shadow:0 8px 18px rgba(242,91,143,.10);
+  cursor:grab;
+  touch-action:none;
+  user-select:none;
+  -webkit-user-select:none;
+  color:var(--pink);
+  transition:transform .18s ease, box-shadow .18s ease, background .18s ease;
+}
+.routeDragHandle:hover,
+.routeDragHandle:focus-visible{
+  transform:translateY(-1px);
+  box-shadow:0 12px 24px rgba(242,91,143,.16);
+  outline:none;
+}
+.routeDragHandle:active{ cursor:grabbing; }
+.routeDragHandle span{
+  width:18px;
+  height:22px;
+  position:relative;
+  display:block;
+  background-image:radial-gradient(circle, currentColor 2px, transparent 2.7px);
+  background-size:8px 8px;
+  background-position:1px 1px;
+  opacity:.86;
+}
+.btnRouteCardToggle{
+  min-height:34px;
+  padding:7px 10px !important;
+  border-radius:13px !important;
+  font-size:12px !important;
+  display:inline-flex;
+  align-items:center;
+  gap:7px;
+  background:linear-gradient(180deg, rgba(255,247,251,.98), rgba(255,239,246,.94)) !important;
+  border-color:rgba(242,91,143,.18) !important;
+}
+.routeCardToggleIcon,
+.routeToggleIcon{
+  position:relative;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  width:24px;
+  height:24px;
+  flex:0 0 24px;
+  border-radius:999px;
+  background:linear-gradient(180deg, rgba(255,255,255,.98), rgba(255,226,239,.96));
+  border:1px solid rgba(242,91,143,.20);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.90), 0 8px 14px rgba(242,91,143,.10);
+  transition:transform .18s ease, background .18s ease, box-shadow .18s ease;
+}
+.routeCardToggleIcon::before,
+.routeToggleIcon::before{
+  content:"";
+  width:8px;
+  height:8px;
+  border-right:2px solid var(--pink);
+  border-bottom:2px solid var(--pink);
+  transform:translateY(-1px) rotate(45deg);
+  transition:transform .18s ease;
+}
+.btnRouteCardToggle[aria-expanded="true"] .routeCardToggleIcon::before,
+.btnRouteToggle[aria-expanded="true"] .routeToggleIcon::before{
+  transform:translateY(2px) rotate(225deg);
+}
+.btnRouteToggle:hover .routeToggleIcon,
+.btnRouteCardToggle:hover .routeCardToggleIcon{
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.92), 0 0 0 5px rgba(242,91,143,.075);
+}
+.routeDragHint{
+  font-size:12.2px;
+  font-weight:850;
+  color:rgba(64,17,2,.62);
+  line-height:1.35;
+  text-align:right;
+}
+.routeDragHint strong{
+  color:var(--pink);
+  letter-spacing:1px;
+}
+.routeDragPlaceholder{
+  border:2px dashed rgba(242,91,143,.32);
+  border-radius:18px;
+  background:linear-gradient(180deg, rgba(255,235,244,.52), rgba(255,248,251,.72));
+  box-shadow:inset 0 0 0 4px rgba(255,255,255,.42);
+  animation:routePlaceholderPulse .95s ease-in-out infinite alternate;
+}
+@keyframes routePlaceholderPulse{
+  from{ opacity:.72; transform:scale(.992); }
+  to{ opacity:1; transform:scale(1); }
+}
+.orderCard.isRouteCard.isDragging{
+  background:rgba(255,255,255,.96);
+  border-color:rgba(242,91,143,.34);
+  box-shadow:0 22px 48px rgba(64,17,2,.18), 0 0 0 6px rgba(242,91,143,.08);
+  cursor:grabbing;
+  opacity:.98;
+}
+.routeDraggingActive{
+  cursor:grabbing;
+}
+.routeDraggingActive *{
+  user-select:none !important;
+}
+@media (max-width: 720px){
+  .orderHead{
+    align-items:flex-start;
+  }
+  .orderHeadActions{
+    width:100%;
+    justify-items:stretch;
+  }
+  .orderHead .orderHeadActions .row{
+    justify-content:flex-start !important;
+  }
+  .btnRouteCardToggle{
+    width:100%;
+    justify-content:center;
+  }
+  .routeDragHandle{
+    width:38px;
+    height:38px;
+    border-radius:15px;
+  }
+  .routeCardCompact{
+    -webkit-line-clamp:3;
+  }
+  .routeDragHint{
+    text-align:left;
+  }
+}

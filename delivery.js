@@ -2,7 +2,7 @@
 // delivery.js — AMARED Envíos (v4 UX + Historial + Opt-in fix)
 "use strict";
 
-console.log("AMARED delivery v15 · routes coords/order ux");
+console.log("AMARED delivery v16 · route drag cards + maps coords/waze");
 
 const API_URL = "https://amared-orders.amaredpostres.workers.dev/";
 const AMARED_ROUTE_ORIGIN_LABEL = "Edificio Kiwana";
@@ -77,6 +77,22 @@ function saveRouteManualOrderState(){
   try{ localStorage.setItem(ROUTE_MANUAL_ORDER_KEY, JSON.stringify(ROUTE_MANUAL_ORDER || {})); }catch(_e){}
 }
 let ROUTE_MANUAL_ORDER = loadRouteManualOrderState();
+
+const ROUTE_CARD_EXPANDED_KEY = "AMARED_DELIVERY_ROUTE_CARD_EXPANDED_V1";
+function loadRouteCardExpandedState(){
+  try{
+    const raw = JSON.parse(localStorage.getItem(ROUTE_CARD_EXPANDED_KEY) || "[]");
+    return new Set(Array.isArray(raw) ? raw.map(String) : []);
+  }catch(_e){
+    return new Set();
+  }
+}
+function saveRouteCardExpandedState(){
+  try{ localStorage.setItem(ROUTE_CARD_EXPANDED_KEY, JSON.stringify(Array.from(ROUTE_CARD_EXPANDED || []))); }catch(_e){}
+}
+let ROUTE_CARD_EXPANDED = loadRouteCardExpandedState();
+let ROUTE_DRAG_STATE = null;
+const COORDS_RESOLVE_IN_FLIGHT = new Set();
 const SS_KEY = "AMARED_DELIVERY_SESSION_V4";
 const LS_KEY = "AMARED_DELIVERY_REMEMBER_V1";
 const HUB_URL = "hub.html";
@@ -555,6 +571,7 @@ function hydrateDeliveryOrdersFromCache_(cache){
   ORDERS = Array.isArray(cache?.orders) ? cache.orders : [];
   renderOrders(ORDERS);
   setStatus(`${ORDERS.length} pedidos listos para envío (caché de la sesión).`);
+  resolveMissingCoordinatesInBackground(ORDERS).catch(()=>{});
 }
 function hydrateDeliveryHistoryFromCache_(cache){
   HIST = Array.isArray(cache?.history) ? cache.history : [];
@@ -870,6 +887,37 @@ function moveOrderInRoute(routeKey, orderId, direction){
   saveRouteManualOrderState();
   return true;
 }
+function setRouteManualOrderFromIds(routeKey, ids){
+  const clean = (Array.isArray(ids) ? ids : []).map(String).filter(Boolean);
+  if(!routeKey || clean.length < 1) return false;
+  ROUTE_MANUAL_ORDER[routeKey] = clean;
+  ROUTE_SORT_MODE = "manual";
+  if(routeSortMode) routeSortMode.value = "manual";
+  saveRouteSortMode();
+  saveRouteManualOrderState();
+  return true;
+}
+function isRouteCardExpanded(orderId){
+  const id = String(orderId || "").trim();
+  return !!id && ROUTE_CARD_EXPANDED.has(id);
+}
+function toggleRouteCardExpanded(orderId){
+  const id = String(orderId || "").trim();
+  if(!id) return false;
+  if(ROUTE_CARD_EXPANDED.has(id)) ROUTE_CARD_EXPANDED.delete(id);
+  else ROUTE_CARD_EXPANDED.add(id);
+  saveRouteCardExpandedState();
+  return true;
+}
+function routeCardDomIds(container){
+  return Array.from(container?.querySelectorAll?.(".orderCard.isRouteCard") || [])
+    .map(card => String(card.getAttribute("data-id") || "").trim())
+    .filter(Boolean);
+}
+function ensureRouteManualFromDom(routeKey, container){
+  const ids = routeCardDomIds(container);
+  return setRouteManualOrderFromIds(routeKey, ids);
+}
 function groupOrdersByRoute(orders){
   const groups = {
     occidente: { ...AMARED_ROUTE_DEFINITIONS.occidente, orders: [] },
@@ -930,6 +978,7 @@ function extractLatLngFromText(value){
     /!2d(-?\d+(?:\.\d+)?)!3d(-?\d+(?:\.\d+)?)/i, // lng,lat in some Google data URLs
     /@(-?\d+(?:\.\d+)?),\s*(-?\d+(?:\.\d+)?)(?:[,z\/]|$)/i,
     /[?&#](?:q|query|ll|center|destination|daddr|saddr)=(-?\d+(?:\.\d+)?),\s*(-?\d+(?:\.\d+)?)/i,
+    /[?&#](?:q|query|ll|center|destination|daddr|saddr)=loc:(-?\d+(?:\.\d+)?),\s*(-?\d+(?:\.\d+)?)/i,
     /(?:^|[^0-9-])(-?\d{1,2}\.\d{4,})\s*,\s*(-?\d{1,3}\.\d{4,})(?:[^0-9]|$)/i
   ];
   for(const text of variants){
@@ -1021,9 +1070,59 @@ function buildGoogleMapsSingleUrl(order){
 }
 function buildWazeSingleUrl(order){
   const coords = getOrderSavedCoords(order);
-  if(coords?.query) return `https://waze.com/ul?ll=${encodeURIComponent(coords.query)}&navigate=yes`;
+  if(coords?.query){
+    const ll = `${Number(coords.lat).toFixed(7)},${Number(coords.lng).toFixed(7)}`;
+    return `https://www.waze.com/ul?ll=${ll}&navigate=yes&zoom=17`;
+  }
+  const maps = String(order?.maps_link || "").trim();
+  const fromMapsLink = isExternalMapLink(maps) ? extractLatLngFromText(maps) : null;
+  if(fromMapsLink?.query){
+    const ll = `${Number(fromMapsLink.lat).toFixed(7)},${Number(fromMapsLink.lng).toFixed(7)}`;
+    return `https://www.waze.com/ul?ll=${ll}&navigate=yes&zoom=17`;
+  }
   const q = getOrderAddressQuery(order) || AMARED_ROUTE_ORIGIN_ADDRESS;
-  return `https://waze.com/ul?q=${encodeURIComponent(q)}&navigate=yes`;
+  return `https://www.waze.com/ul?q=${encodeURIComponent(q)}&navigate=yes`;
+}
+function shouldResolveOrderCoords(order){
+  if(!order || getOrderSavedCoords(order)) return false;
+  const link = String(order?.maps_link || "").trim();
+  return isExternalMapLink(link) && looksLikeLocationLink(link);
+}
+async function resolveMissingCoordinatesInBackground(orders){
+  const targets = (Array.isArray(orders) ? orders : [])
+    .filter(o => classifyDeliveryType(o) === "delivery")
+    .filter(shouldResolveOrderCoords)
+    .slice(0, 8);
+  if(!targets.length) return;
+  let changed = false;
+  for(const order of targets){
+    const id = String(order?.order_id || "").trim();
+    const link = String(order?.maps_link || "").trim();
+    if(!id || !link || COORDS_RESOLVE_IN_FLIGHT.has(id)) continue;
+    COORDS_RESOLVE_IN_FLIGHT.add(id);
+    try{
+      const out = await api({
+        action:"delivery_update_location",
+        order_id:id,
+        maps_link:link,
+        updated_by: SESSION?.operator?.label || "DELIVERY"
+      });
+      const coords = normalizeLatLng(out?.maps_lat, out?.maps_lng) || extractLatLngFromText(out?.maps_query || "");
+      if(coords?.query){
+        setOrderExactLocationFields(order, link, coords);
+        changed = true;
+      }
+    }catch(e){
+      console.warn("No se pudieron resolver coordenadas para", id, e);
+    }finally{
+      COORDS_RESOLVE_IN_FLIGHT.delete(id);
+    }
+  }
+  if(changed){
+    renderOrders(ORDERS);
+    saveDeliveryDataCache_();
+    setStatus("Coordenadas de ubicación actualizadas para mejorar Google Maps y Waze.");
+  }
 }
 function routeSummaryText(group){
   const rows = (group?.orders || []).map((item, idx) => {
@@ -1138,20 +1237,37 @@ function renderOrders(orders){
     const typeClass = type === 'pickup' ? 'isPickupType' : 'isDeliveryType';
     const routeInfo = type === 'pickup' ? null : getOrderRouteInfo(o);
     const neighborhood = routeInfo?.neighborhood || getOrderNeighborhood(o) || "Por revisar";
+    const orderId = String(o.order_id || "");
+    const isRouteCard = !!extra.routeKey;
+    const expanded = !isRouteCard || isRouteCardExpanded(orderId);
+    const compactAddress = type === 'pickup' ? pickupLocationLine() : (o.address_text || "Sin dirección");
+    const precision = type === 'pickup' ? "" : getOrderLocationPrecisionLabel(o);
 
     return `
-      <div class="orderCard ${extra.routeClass || ''}">
+      <div class="orderCard ${extra.routeClass || ''} ${isRouteCard && !expanded ? 'isOrderCollapsed' : ''}" ${isRouteCard ? `data-route="${escapeHtml(extra.routeKey)}" data-id="${escapeHtml(orderId)}"` : ''}>
         <div class="orderHead">
-          <div>
-            <div class="orderId">${extra.index ? `<span class="routeStopNumber">${escapeHtml(String(extra.index))}</span>` : ''}${escapeHtml(o.order_id || "")}</div>
+          ${isRouteCard ? `
+            <button class="routeDragHandle" data-route="${escapeHtml(extra.routeKey)}" data-id="${escapeHtml(orderId)}" type="button" aria-label="Mantén presionado para mover este pedido" title="Mantén presionado y arrastra para ordenar">
+              <span aria-hidden="true"></span>
+            </button>` : ''}
+          <div class="orderHeadMain">
+            <div class="orderId">${extra.index ? `<span class="routeStopNumber">${escapeHtml(String(extra.index))}</span>` : ''}${escapeHtml(orderId)}</div>
             <div class="orderMeta">${escapeHtml(o.customer_name || "")} · ${escapeHtml(formatDate(o.created_at))}</div>
+            ${isRouteCard ? `<div class="routeCardCompact">${escapeHtml(neighborhood)} · ${escapeHtml(compactAddress)}${precision ? ` · ${escapeHtml(precision)}` : ''}</div>` : ''}
           </div>
-          <div class="row" style="gap:10px; flex-wrap:wrap; justify-content:flex-end;">
-            <span class="pill ${typeClass}">${type === 'pickup' ? '🛍️' : '🛵'} ${typeLabel}</span>
-            ${routeInfo ? `<span class="pill routePill">🧭 ${escapeHtml(routeInfo.short || 'Ruta')}</span>` : ''}
-            <span class="pill">🧁 ${escapeHtml(String(units))} u</span>
-            <span class="pill">💰 $${escapeHtml(money(o.subtotal||0))}</span>
-            ${canWa ? "" : '<span class="pill">📵 Sin WhatsApp</span>'}
+          <div class="orderHeadActions">
+            <div class="row orderPillRow" style="gap:10px; flex-wrap:wrap; justify-content:flex-end;">
+              <span class="pill ${typeClass}">${type === 'pickup' ? '🛍️' : '🛵'} ${typeLabel}</span>
+              ${routeInfo ? `<span class="pill routePill">🧭 ${escapeHtml(routeInfo.short || 'Ruta')}</span>` : ''}
+              <span class="pill">🧁 ${escapeHtml(String(units))} u</span>
+              <span class="pill">💰 $${escapeHtml(money(o.subtotal||0))}</span>
+              ${canWa ? "" : '<span class="pill">📵 Sin WhatsApp</span>'}
+            </div>
+            ${isRouteCard ? `
+              <button class="btn secondary btnRouteCardToggle" data-id="${escapeHtml(orderId)}" type="button" aria-expanded="${expanded ? 'true' : 'false'}">
+                <span class="routeCardToggleIcon" aria-hidden="true"></span>
+                <span>${expanded ? 'Ocultar detalle' : 'Ver detalle'}</span>
+              </button>` : ''}
           </div>
         </div>
 
@@ -1186,10 +1302,10 @@ function renderOrders(orders){
 
           ${type === 'pickup' ? '' : `
           <div class="routeExactBox">
-            <label for="exactLoc-${escapeHtml(o.order_id || '')}">Ubicación exacta compartida por el cliente</label>
+            <label for="exactLoc-${escapeHtml(orderId)}">Ubicación exacta compartida por el cliente</label>
             <div class="routeExactRow">
-              <input id="exactLoc-${escapeHtml(o.order_id || '')}" class="input routeExactInput" data-id="${escapeHtml(o.order_id)}" type="url" placeholder="Pega aquí el link de Google Maps o ubicación de WhatsApp" value="${escapeHtml(isExternalMapLink(o.maps_link) ? o.maps_link : '')}" />
-              <button class="btn secondary btnSaveExactLocation" data-id="${escapeHtml(o.order_id)}" type="button">Guardar ubicación</button>
+              <input id="exactLoc-${escapeHtml(orderId)}" class="input routeExactInput" data-id="${escapeHtml(orderId)}" type="url" placeholder="Pega aquí el link de Google Maps o ubicación de WhatsApp" value="${escapeHtml(isExternalMapLink(o.maps_link) ? o.maps_link : '')}" />
+              <button class="btn secondary btnSaveExactLocation" data-id="${escapeHtml(orderId)}" type="button">Guardar ubicación</button>
             </div>
             <div class="routeExactHint">Si el cliente comparte una ubicación por WhatsApp, pega aquí el link de Google Maps. Para crear rutas, AMARED usará las coordenadas del link cuando estén disponibles.</div>
             <div class="routePrecisionHint">${escapeHtml(getOrderLocationPrecisionLabel(o))}</div>
@@ -1197,20 +1313,17 @@ function renderOrders(orders){
 
           ${type === 'pickup' || !extra.routeKey ? '' : `
           <div class="routeOrderTools" aria-label="Ajustar orden de la ruta">
-            <span>Orden de ruta</span>
-            <div>
-              <button class="btn secondary btnRouteMove" data-route="${escapeHtml(extra.routeKey)}" data-id="${escapeHtml(o.order_id)}" data-dir="up" type="button" ${extra.routeIndex <= 0 ? 'disabled' : ''}>Subir</button>
-              <button class="btn secondary btnRouteMove" data-route="${escapeHtml(extra.routeKey)}" data-id="${escapeHtml(o.order_id)}" data-dir="down" type="button" ${extra.routeIndex >= extra.routeCount - 1 ? 'disabled' : ''}>Bajar</button>
-            </div>
+            <span>Orden personalizado</span>
+            <div class="routeDragHint">Mantén presionado el agarre <strong>⋮⋮</strong> y arrastra el pedido a la posición correcta.</div>
           </div>`}
 
           <div class="btnRow">
             ${type === 'pickup' ? '' : `
-              <button class="btn secondary btnOrderMaps" data-id="${escapeHtml(o.order_id)}" type="button">Abrir Maps</button>
-              <button class="btn secondary btnOrderWaze" data-id="${escapeHtml(o.order_id)}" type="button">Waze</button>
-              <button class="btn secondary btnCopyLocation" data-id="${escapeHtml(o.order_id)}" type="button">Copiar ubicación</button>
+              <button class="btn secondary btnOrderMaps" data-id="${escapeHtml(orderId)}" type="button">Abrir Maps</button>
+              <button class="btn secondary btnOrderWaze" data-id="${escapeHtml(orderId)}" type="button">Waze</button>
+              <button class="btn secondary btnCopyLocation" data-id="${escapeHtml(orderId)}" type="button">Copiar ubicación</button>
             `}
-            <button class="btn secondary btnSend" data-id="${escapeHtml(o.order_id)}" type="button">Ver mensaje</button>
+            <button class="btn secondary btnSend" data-id="${escapeHtml(orderId)}" type="button">Ver mensaje</button>
           </div>
         </div>
       </div>
@@ -1301,6 +1414,7 @@ async function loadOrders(force = false, opts = {}){
 
     renderOrders(orders);
     saveDeliveryDataCache_();
+    resolveMissingCoordinatesInBackground(ORDERS).catch(()=>{});
   }catch(e){
     console.error("loadOrders error:", e);
     const msg = e?.message || "Error cargando pedidos.";
@@ -1770,12 +1884,113 @@ btnRefreshTop?.addEventListener("click", ()=> loadOrders(true));
 btnLogoutTop?.addEventListener("click", logout);
 btnFilterDelivery?.addEventListener("click", ()=> setDeliveryViewFilter('delivery'));
 btnFilterPickup?.addEventListener("click", ()=> setDeliveryViewFilter('pickup'));
+function cleanupRouteDragState(commit = false){
+  const st = ROUTE_DRAG_STATE;
+  if(!st) return;
+  const { card, placeholder, routeKey, container } = st;
+  if(commit && placeholder && card){
+    placeholder.parentNode?.insertBefore(card, placeholder);
+  }
+  if(card){
+    card.classList.remove("isDragging", "isDragReady");
+    card.style.position = "";
+    card.style.left = "";
+    card.style.top = "";
+    card.style.width = "";
+    card.style.zIndex = "";
+    card.style.pointerEvents = "";
+    card.style.transform = "";
+  }
+  placeholder?.remove?.();
+  document.body.classList.remove("routeDraggingActive");
+  if(commit && routeKey && container){
+    ensureRouteManualFromDom(routeKey, container);
+    setStatus("Orden de ruta actualizado manualmente.");
+    renderOrders(ORDERS);
+  }
+  ROUTE_DRAG_STATE = null;
+}
+function startRouteCardDrag(ev, handle){
+  const card = handle?.closest?.(".orderCard.isRouteCard");
+  const container = card?.closest?.(".routeCards");
+  const routeKey = String(card?.getAttribute("data-route") || handle?.getAttribute("data-route") || "").trim();
+  const orderId = String(card?.getAttribute("data-id") || handle?.getAttribute("data-id") || "").trim();
+  if(!card || !container || !routeKey || !orderId) return;
+  ev.preventDefault();
+  const rect = card.getBoundingClientRect();
+  const placeholder = document.createElement("div");
+  placeholder.className = "routeDragPlaceholder";
+  placeholder.style.height = `${Math.max(54, rect.height)}px`;
+  card.parentNode.insertBefore(placeholder, card);
+  card.classList.add("isDragging");
+  document.body.classList.add("routeDraggingActive");
+  card.style.position = "fixed";
+  card.style.left = `${rect.left}px`;
+  card.style.top = `${rect.top}px`;
+  card.style.width = `${rect.width}px`;
+  card.style.zIndex = "9999";
+  card.style.pointerEvents = "none";
+  handle.setPointerCapture?.(ev.pointerId);
+  ROUTE_DRAG_STATE = {
+    pointerId: ev.pointerId,
+    routeKey,
+    orderId,
+    card,
+    container,
+    placeholder,
+    offsetX: ev.clientX - rect.left,
+    offsetY: ev.clientY - rect.top,
+    startY: ev.clientY,
+    moved: false
+  };
+}
+function onRouteCardDragMove(ev){
+  const st = ROUTE_DRAG_STATE;
+  if(!st || ev.pointerId !== st.pointerId) return;
+  ev.preventDefault();
+  const y = ev.clientY - st.offsetY;
+  st.card.style.top = `${y}px`;
+  st.card.style.left = `${ev.clientX - st.offsetX}px`;
+  st.card.style.transform = "scale(1.015) rotate(-.4deg)";
+  if(Math.abs(ev.clientY - st.startY) > 4) st.moved = true;
+  const siblings = Array.from(st.container.querySelectorAll(".orderCard.isRouteCard:not(.isDragging)"));
+  let placed = false;
+  for(const target of siblings){
+    const rect = target.getBoundingClientRect();
+    const before = ev.clientY < rect.top + rect.height / 2;
+    if(before){
+      st.container.insertBefore(st.placeholder, target);
+      placed = true;
+      break;
+    }
+  }
+  if(!placed) st.container.appendChild(st.placeholder);
+}
+function onRouteCardDragEnd(ev){
+  const st = ROUTE_DRAG_STATE;
+  if(!st || ev.pointerId !== st.pointerId) return;
+  ev.preventDefault();
+  cleanupRouteDragState(true);
+}
+function onRouteCardDragCancel(){
+  cleanupRouteDragState(false);
+}
+
 routeSortMode?.addEventListener("change", ()=>{
   const val = String(routeSortMode.value || "near");
   ROUTE_SORT_MODE = val === "far" ? "far" : val === "manual" ? "manual" : "near";
   saveRouteSortMode();
   renderOrders(ORDERS);
 });
+
+
+listEl?.addEventListener("pointerdown", (ev)=>{
+  const handle = ev.target?.closest?.(".routeDragHandle");
+  if(handle) startRouteCardDrag(ev, handle);
+});
+document.addEventListener("pointermove", onRouteCardDragMove, { passive:false });
+document.addEventListener("pointerup", onRouteCardDragEnd, { passive:false });
+document.addEventListener("pointercancel", onRouteCardDragCancel, { passive:true });
 
 listEl?.addEventListener("click", async (ev)=>{
   const btnRouteToggle = ev.target?.closest?.(".btnRouteToggle");
@@ -1787,6 +2002,13 @@ listEl?.addEventListener("click", async (ev)=>{
       saveRouteCollapsedState();
       renderOrders(ORDERS);
     }
+    return;
+  }
+
+  const btnRouteCardToggle = ev.target?.closest?.(".btnRouteCardToggle");
+  if(btnRouteCardToggle){
+    const id = String(btnRouteCardToggle.getAttribute("data-id") || "").trim();
+    if(id && toggleRouteCardExpanded(id)) renderOrders(ORDERS);
     return;
   }
 
