@@ -149,6 +149,69 @@ function populateNeighborhoodOptions(){
   dl.innerHTML = names.map(name => `<option value="${escapeHtml(name)}"></option>`).join("");
   dl.dataset.loaded = "1";
 }
+function getNeighborhoodNames(){
+  return Array.from(new Set(AMARED_NEIGHBORHOOD_ROUTES.map(x => String(x.name || "").trim()).filter(Boolean)))
+    .sort((a,b)=>a.localeCompare(b, "es"));
+}
+
+function setNeighborhoodSuggestOpen(open){
+  const box = document.getElementById("neighborhoodSuggest");
+  const input = document.getElementById("neighborhood");
+  if(!box) return;
+  box.classList.toggle("hidden", !open);
+  if(input) input.setAttribute("aria-expanded", open ? "true" : "false");
+}
+
+function renderNeighborhoodSuggestions(query = "", showAll = false){
+  const box = document.getElementById("neighborhoodSuggest");
+  const input = document.getElementById("neighborhood");
+  if(!box || !input) return;
+
+  const rawQuery = String(query || "").trim();
+  const normalizedQuery = normalizeRouteText(rawQuery);
+  const names = getNeighborhoodNames();
+  const filtered = (!normalizedQuery || showAll)
+    ? names
+    : names.filter(name => normalizeRouteText(name).includes(normalizedQuery));
+
+  const exactMatch = !!normalizedQuery && names.some(name => normalizeRouteText(name) === normalizedQuery);
+  const visible = filtered.slice(0, 90);
+  const manualOption = rawQuery && !exactMatch
+    ? `<button type="button" class="neighborhoodSuggestItem neighborhoodSuggestManual" data-name="${escapeHtml(rawQuery)}" role="option">
+        <span>Usar “${escapeHtml(rawQuery)}”</span>
+        <small>No aparece en el listado; se revisará para la entrega.</small>
+      </button>`
+    : "";
+
+  const items = visible.map(name => `
+    <button type="button" class="neighborhoodSuggestItem" data-name="${escapeHtml(name)}" role="option">
+      <span>${escapeHtml(name)}</span>
+    </button>
+  `).join("");
+
+  const limitNote = filtered.length > visible.length
+    ? `<div class="neighborhoodSuggestNote">Mostrando ${visible.length} de ${filtered.length}. Escribe más letras para filtrar.</div>`
+    : "";
+
+  const emptyNote = (!items && !manualOption)
+    ? `<div class="neighborhoodSuggestEmpty">No encontramos coincidencias. Puedes escribir tu barrio manualmente.</div>`
+    : "";
+
+  box.innerHTML = `${manualOption}${items}${limitNote}${emptyNote}`;
+  setNeighborhoodSuggestOpen(true);
+}
+
+function hideNeighborhoodSuggestions(){
+  setNeighborhoodSuggestOpen(false);
+}
+
+function chooseNeighborhoodValue(value){
+  const input = document.getElementById("neighborhood");
+  if(!input) return;
+  input.value = String(value || "").trim();
+  hideNeighborhoodSuggestions();
+  input.dispatchEvent(new Event("change", { bubbles:true }));
+}
 function applyStoredProductPrices(){
   const overrides = loadProductPriceOverrides();
   PRODUCTS.forEach((product, idx) => {
@@ -353,6 +416,8 @@ const addressHint = document.getElementById("addressHint");
 const neighborhoodField = document.getElementById("neighborhoodField");
 const neighborhoodInput = document.getElementById("neighborhood");
 const neighborhoodHint = document.getElementById("neighborhoodHint");
+const neighborhoodSuggest = document.getElementById("neighborhoodSuggest");
+const neighborhoodToggle = document.getElementById("neighborhoodToggle");
 const waOptHint = document.getElementById("waOptHint");
 
 // Alerta central
@@ -529,11 +594,12 @@ function syncLocationUI() {
   if (waLocBlock) waLocBlock.style.display = showWhatsApp ? "" : "none";
   if (pickupBlock) pickupBlock.classList.toggle("hidden", !showPickup);
   if (neighborhoodField) neighborhoodField.classList.toggle("hidden", showPickup);
+  if (showPickup) hideNeighborhoodSuggestions();
   if (neighborhoodInput) neighborhoodInput.required = !showPickup;
   if (neighborhoodHint){
     neighborhoodHint.textContent = showPickup
       ? ""
-      : "Busca tu barrio en la lista oficial de Ibagué. Si no aparece, escríbelo manualmente y lo revisaremos en envíos.";
+      : "Busca tu barrio en el listado. Si no aparece, puedes escribirlo manualmente para revisar la entrega.";
   }
 
   if(mapsInput && !showMaps){
@@ -1332,7 +1398,7 @@ function validate(data) {
   if (!isValidEmail(data.email)) return "El correo no parece válido. Revisa el formato (ej: correo@dominio.com).";
 
   if ((data.location_method === "maps" || data.location_method === "whatsapp") && !data.address_text) return "Escribe tu dirección.";
-  if ((data.location_method === "maps" || data.location_method === "whatsapp") && !data.neighborhood_text) return "Escribe el barrio o sector de entrega. Si no aparece en la lista, puedes escribirlo manualmente.";
+  if ((data.location_method === "maps" || data.location_method === "whatsapp") && !data.neighborhood_text) return "Escribe el barrio o sector de entrega.";
 
   if (data.location_method === "maps") {
     if (!data.maps_link) return "Pega el link de Google Maps o selecciona “Enviar ubicación desde WhatsApp”.";
@@ -1516,6 +1582,69 @@ btnPickupTutorial?.addEventListener("click", ()=> openTutorial("pickup"));
 
 document.querySelectorAll('input[name="locMethod"]').forEach(r => {
   r.addEventListener("change", syncLocationUI);
+});
+
+neighborhoodInput?.addEventListener("focus", () => renderNeighborhoodSuggestions(neighborhoodInput.value, true));
+neighborhoodInput?.addEventListener("click", () => renderNeighborhoodSuggestions(neighborhoodInput.value, true));
+neighborhoodInput?.addEventListener("input", () => renderNeighborhoodSuggestions(neighborhoodInput.value, false));
+neighborhoodInput?.addEventListener("keydown", (event) => {
+  if(event.key === "Escape"){
+    hideNeighborhoodSuggestions();
+    return;
+  }
+  if(event.key === "ArrowDown"){
+    event.preventDefault();
+    renderNeighborhoodSuggestions(neighborhoodInput.value, !neighborhoodInput.value.trim());
+    const first = neighborhoodSuggest?.querySelector(".neighborhoodSuggestItem");
+    first?.focus();
+  }
+});
+
+neighborhoodToggle?.addEventListener("click", (event) => {
+  event.preventDefault();
+  if(neighborhoodSuggest && !neighborhoodSuggest.classList.contains("hidden")){
+    hideNeighborhoodSuggestions();
+    return;
+  }
+  renderNeighborhoodSuggestions(neighborhoodInput?.value || "", true);
+  neighborhoodInput?.focus();
+});
+
+neighborhoodSuggest?.addEventListener("click", (event) => {
+  const item = event.target.closest(".neighborhoodSuggestItem");
+  if(!item) return;
+  chooseNeighborhoodValue(item.dataset.name || "");
+});
+
+neighborhoodSuggest?.addEventListener("keydown", (event) => {
+  const items = Array.from(neighborhoodSuggest.querySelectorAll(".neighborhoodSuggestItem"));
+  const currentIndex = items.indexOf(document.activeElement);
+  if(event.key === "Escape"){
+    hideNeighborhoodSuggestions();
+    neighborhoodInput?.focus();
+  }
+  if(event.key === "ArrowDown"){
+    event.preventDefault();
+    const next = items[Math.min(currentIndex + 1, items.length - 1)] || items[0];
+    next?.focus();
+  }
+  if(event.key === "ArrowUp"){
+    event.preventDefault();
+    if(currentIndex <= 0){
+      neighborhoodInput?.focus();
+    }else{
+      items[currentIndex - 1]?.focus();
+    }
+  }
+  if(event.key === "Enter" && document.activeElement?.classList?.contains("neighborhoodSuggestItem")){
+    event.preventDefault();
+    chooseNeighborhoodValue(document.activeElement.dataset.name || "");
+  }
+});
+
+document.addEventListener("click", (event) => {
+  if(!neighborhoodField || neighborhoodField.classList.contains("hidden")) return;
+  if(!neighborhoodField.contains(event.target)) hideNeighborhoodSuggestions();
 });
 
 btnAlertOk?.addEventListener("click", () => {

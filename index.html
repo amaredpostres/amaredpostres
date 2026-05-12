@@ -126,9 +126,13 @@
 
             <div id="neighborhoodField" class="field neighborhoodField">
               <label id="neighborhoodLabel" class="label" for="neighborhood">Barrio o sector <span class="req">*</span></label>
-              <input id="neighborhood" class="input" type="text" list="neighborhoodOptions" placeholder="Ej: Jordán, Centro, El Salado" autocomplete="address-level3" />
+              <div class="neighborhoodCombo">
+                <input id="neighborhood" class="input" type="text" placeholder="Ej: Jordán, Centro, El Salado" autocomplete="off" role="combobox" aria-expanded="false" aria-controls="neighborhoodSuggest" aria-autocomplete="list" />
+                <button id="neighborhoodToggle" class="neighborhoodToggle" type="button" aria-label="Mostrar barrios disponibles" aria-controls="neighborhoodSuggest">⌄</button>
+              </div>
+              <div id="neighborhoodSuggest" class="neighborhoodSuggest hidden" role="listbox" aria-label="Barrios sugeridos"></div>
               <datalist id="neighborhoodOptions"></datalist>
-              <div id="neighborhoodHint" class="muted small neighborhoodHint">Busca tu barrio y selecciónalo. Si no aparece, escríbelo manualmente para que podamos asignar la ruta correcta.</div>
+              <div id="neighborhoodHint" class="muted small neighborhoodHint">Busca tu barrio en el listado. Si no aparece, puedes escribirlo manualmente para revisar la entrega.</div>
             </div>
 
             <div class="miniCard deliveryCard">
@@ -509,6 +513,6 @@
   </div>
 
   <script src="routes-data.js?v=20260512-barrios-u15"></script>
-  <script src="app.js?v=20260512-barrios-u15" defer></script>
+  <script src="app.js?v=20260512-barrio-combo" defer></script>
 </body>
 </html>
