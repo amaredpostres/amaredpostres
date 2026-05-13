@@ -1324,3 +1324,126 @@ body.deliveryOverlayOpen .amDeliveryMobileBar{
     min-width:0;
   }
 }
+
+/* Route visual hierarchy v24 */
+.routePlannerWrap{
+  border-color: rgba(242,91,143,.20);
+  background: linear-gradient(180deg, rgba(255,255,255,.92), rgba(255,239,247,.78));
+}
+.routeGroup{
+  border: 1px solid rgba(242,91,143,.20);
+  background: linear-gradient(180deg, rgba(255,247,251,.88), rgba(255,255,255,.72));
+  box-shadow: 0 16px 36px rgba(64,17,2,.07);
+}
+.routeGroupHead{
+  padding: 4px 4px 10px;
+  border-bottom: 1px solid rgba(242,91,143,.12);
+}
+.routeGroup.isCollapsed .routeGroupHead{
+  border-bottom-color: transparent;
+  padding-bottom: 4px;
+}
+.routeGroup .deliveryGroupTitle{
+  font-size: 19px;
+  color: var(--choco);
+}
+.routeGroup .deliveryGroupCount{
+  color: rgba(64,17,2,.62);
+}
+.routeOverviewBox{
+  padding: 12px;
+  border-radius: 18px;
+  background: linear-gradient(180deg, rgba(255,255,255,.92), rgba(255,248,251,.82));
+  border: 1px solid rgba(242,91,143,.16);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.80);
+}
+.routeOverviewKicker,
+.routeOrdersLabel{
+  width: fit-content;
+  display: inline-flex;
+  align-items: center;
+  padding: 5px 10px;
+  border-radius: 999px;
+  background: rgba(242,91,143,.11);
+  border: 1px solid rgba(242,91,143,.14);
+  color: var(--choco);
+  font-size: 12px;
+  font-weight: 950;
+  letter-spacing: .02em;
+}
+.routeOverviewBox .routeMapHint{
+  margin-top: 8px;
+  background: rgba(255,255,255,.72);
+}
+.routeOrdersLabel{
+  margin: 2px 0 -2px;
+  background: rgba(64,17,2,.055);
+  border-color: rgba(64,17,2,.08);
+  color: rgba(64,17,2,.70);
+}
+.routeCards{
+  padding: 4px;
+  border-radius: 20px;
+  background: rgba(255,255,255,.35);
+  border: 1px dashed rgba(64,17,2,.09);
+}
+.orderCard.isRouteCard{
+  background: rgba(255,255,255,.86);
+  border-color: rgba(64,17,2,.10);
+  box-shadow: 0 10px 24px rgba(64,17,2,.045);
+}
+.orderCard.isRouteCard .orderHead{
+  background: linear-gradient(180deg, rgba(255,255,255,.72), rgba(255,250,252,.66));
+}
+.orderCard.isRouteCard .orderBody{
+  background: rgba(255,255,255,.62);
+}
+.kitchenStatePill.isKitchenReady,
+.productionStateBadge.isKitchenReady{
+  background: rgba(76,175,80,.12);
+  border-color: rgba(76,175,80,.20);
+  color: #336b3b;
+}
+.kitchenStatePill.isKitchenProcess,
+.productionStateBadge.isKitchenProcess{
+  background: rgba(242,158,75,.13);
+  border-color: rgba(242,158,75,.24);
+  color: #7a4b12;
+}
+.productionStateBox{
+  padding: 9px 10px;
+  border-radius: 14px;
+  background: rgba(255,255,255,.62);
+  border: 1px solid rgba(64,17,2,.07);
+}
+.productionStateBadge{
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  padding: 6px 10px;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  font-size: 12.2px;
+  font-weight: 950;
+}
+.btnOrderWaze:disabled{
+  opacity: .46;
+  cursor: not-allowed;
+  transform: none !important;
+  box-shadow: none !important;
+}
+@media (max-width: 720px){
+  .routeGroup{
+    padding: 12px;
+  }
+  .routeGroup .deliveryGroupTitle{
+    font-size: 17px;
+    line-height: 1.15;
+  }
+  .routeOverviewBox{
+    padding: 10px;
+  }
+  .routeCards{
+    padding: 3px;
+  }
+}

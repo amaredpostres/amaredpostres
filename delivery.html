@@ -85,7 +85,7 @@
 
   <link rel="icon" href="assets/favicon.ico" type="image/x-icon">
   <link rel="stylesheet" href="styles.css?v=20260511-routes-v1" />
-  <link rel="stylesheet" href="delivery.css?v=20260512-manual-coordinates-db" />
+  <link rel="stylesheet" href="delivery.css?v=20260513-route-visual-waze" />
 
   <style>
     /* HISTORIAL FIXES */
@@ -136,7 +136,7 @@
         <img class="amSectionBrandLogo" src="assets/Logo-Isotipo-Amared.svg" alt="AMARED">
         <div class="amSectionBrandMeta deliveryBrandMeta">
           <div class="amSectionTitle deliveryBrandTitle">Envíos</div>
-          <div class="amSectionSubtitle deliveryBrandSubtitle">Pedidos listos para entregar</div>
+          <div class="amSectionSubtitle deliveryBrandSubtitle">Pedidos pagados para enviar</div>
         </div>
       </div>
 
@@ -207,7 +207,7 @@
           <div>
             <div class="routePlannerKicker">Rutas sugeridas</div>
             <h3>Organización de domicilios</h3>
-            <p>Organiza los domicilios por ruta y abre las paradas en Google Maps.</p>
+            <p>Revisa pedidos pagados, completa coordenadas y organiza la ruta.</p>
           </div>
           <div class="routePlannerControls">
             <label for="routeSortMode">Orden de entrega</label>
@@ -218,13 +218,12 @@
             </select>
           </div>
         </div>
-        <div class="routePlannerHint">Salida: <strong>Edificio Kiwana · Cl. 53 #6A-21</strong>. Ruta 1: comunas 1, 2, 3, 4, 10, 11, 12 y 13. Ruta 2: comunas 5, 6, 7, 8 y 9.</div>
-        <div class="routePlannerHint routeMapManualHint"><strong>Rutas exactas:</strong> abre Maps individual, copia las coordenadas del punto del cliente y guárdalas en el pedido.</div>
+        <div class="routePlannerHint"><strong>Salida:</strong> Edificio Kiwana · Cl. 53 #6A-21. Guarda coordenadas manuales para rutas exactas.</div>
         <div class="routeDragGuide routeDragGuideTop">
           <div class="routeDragGuideIcon" aria-hidden="true">⋮⋮</div>
           <div>
             <strong>Orden personalizado</strong>
-            <span>Arrastra cada pedido para definir el orden antes de abrir la ruta.</span>
+            <span>Arrastra los pedidos cuando necesites personalizar el orden.</span>
           </div>
         </div>
       </div>
@@ -328,6 +327,6 @@
   </div>
 
   <script src="routes-data.js?v=20260512-barrios-u15"></script>
-  <script src="delivery.js?v=20260512-manual-coordinates-db"></script>
+  <script src="delivery.js?v=20260513-route-visual-waze"></script>
 </body>
 </html>

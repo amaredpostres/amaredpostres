@@ -2,7 +2,7 @@
 // delivery.js — AMARED Envíos (v4 UX + Historial + Opt-in fix)
 "use strict";
 
-console.log("AMARED delivery v23 · Coordenadas manuales persistentes");
+console.log("AMARED delivery v24 · Rutas visuales + Waze con coordenadas");
 
 const API_URL = "https://amared-orders.amaredpostres.workers.dev/";
 const AMARED_ROUTE_ORIGIN_LABEL = "Edificio Kiwana";
@@ -63,7 +63,7 @@ function loadRouteCollapsedState(){
 function saveRouteCollapsedState(){
   try{ localStorage.setItem(ROUTE_COLLAPSED_KEY, JSON.stringify(Array.from(ROUTE_COLLAPSED || []))); }catch(_e){}
 }
-let ROUTE_COLLAPSED = loadRouteCollapsedState();
+let ROUTE_COLLAPSED = new Set(["occidente", "oriente", "por_asignar"]);
 const ROUTE_MANUAL_ORDER_KEY = "AMARED_DELIVERY_ROUTE_MANUAL_ORDER_V1";
 function loadRouteManualOrderState(){
   try{
@@ -90,7 +90,7 @@ function loadRouteCardExpandedState(){
 function saveRouteCardExpandedState(){
   try{ localStorage.setItem(ROUTE_CARD_EXPANDED_KEY, JSON.stringify(Array.from(ROUTE_CARD_EXPANDED || []))); }catch(_e){}
 }
-let ROUTE_CARD_EXPANDED = loadRouteCardExpandedState();
+let ROUTE_CARD_EXPANDED = new Set();
 let ROUTE_DRAG_STATE = null;
 const COORDS_RESOLVE_IN_FLIGHT = new Set();
 const SS_KEY = "AMARED_DELIVERY_SESSION_V4";
@@ -662,7 +662,7 @@ async function doLogin(){
     showPanel();
     const cached = loadDeliveryDataCache_(String(id || ""));
     if(cached) hydrateDeliveryOrdersFromCache_(cached);
-    else setInlineLoading_(listEl, "Cargando pedidos…", "Estamos trayendo los pedidos listos para envío.");
+    else setInlineLoading_(listEl, "Cargando pedidos…", "Estamos trayendo los pedidos pagados con envío pendiente.");
     scheduleDeliveryBackgroundRefresh_("Actualizando envíos en segundo plano…");
     if(loginErr) loginErr.textContent = '';
   }catch(e){
@@ -1174,6 +1174,14 @@ function buildGoogleMapsSingleUrl(order){
   const q = getOrderAddressQuery(order);
   return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(q || AMARED_ROUTE_ORIGIN_ADDRESS)}`;
 }
+function buildWazeSingleUrl(order){
+  const coords = getOrderManualCoordinates(order);
+  if(!coords?.query) return "";
+  return `https://waze.com/ul?ll=${encodeURIComponent(coords.query)}&navigate=yes`;
+}
+function canOpenWaze(order){
+  return !!getOrderManualCoordinates(order)?.query;
+}
 function shouldResolveOrderCoords(order){
   if(!order || getOrderSavedCoords(order) || getOrderManualRouteStop(order)) return false;
   const link = String(order?.maps_link || "").trim();
@@ -1218,9 +1226,23 @@ async function copyTextToClipboard(text){
     finally{ document.body.removeChild(ta); }
   }
 }
-function openRouteUrl(url){
+function isMobileNavigationContext(){
+  try{
+    return window.matchMedia?.("(max-width: 780px)")?.matches || /Android|iPhone|iPad|iPod/i.test(navigator.userAgent || "");
+  }catch(_e){
+    return false;
+  }
+}
+function openNavigationUrl(url){
   if(!url) return;
+  if(isMobileNavigationContext()){
+    window.location.href = url;
+    return;
+  }
   window.open(url, "_blank", "noopener,noreferrer");
+}
+function openRouteUrl(url){
+  openNavigationUrl(url);
 }
 function classifyDeliveryType(order){
   const method = String(order?.location_method || "").trim().toLowerCase();
@@ -1228,6 +1250,17 @@ function classifyDeliveryType(order){
   const maps = String(order?.maps_link || "").trim().toLowerCase();
   if(method === "pickup" || address === "recogida presencial" || maps === "recogida_presencial") return "pickup";
   return "delivery";
+}
+function getKitchenProcessInfo(order){
+  const raw = String(order?.kitchen_status || order?.production_status || "").trim();
+  const normalized = normStatus(raw);
+  const ready = normalized === "listo" || normalized === "finalizado" || normalized === "elaborado" || normalized === "ready";
+  return {
+    raw: raw || "En proceso",
+    ready,
+    label: ready ? "Elaborado" : "En proceso",
+    className: ready ? "isKitchenReady" : "isKitchenProcess"
+  };
 }
 
 function getPendingCounts(orders){
@@ -1285,7 +1318,7 @@ function renderOrders(orders){
 
   if(!listEl) return;
   const filtered = getFilteredPendingOrders(ORDERS);
-  const title = DELIVERY_VIEW_FILTER === 'pickup' ? 'Pedidos para recoger' : 'Pedidos para domicilio';
+  const title = DELIVERY_VIEW_FILTER === 'pickup' ? 'Pedidos para recoger' : 'Pedidos pagados para domicilio';
   const subtitleCount = `${filtered.length} pedido${filtered.length === 1 ? '' : 's'}`;
   if(routePlannerWrap) setDisplayIfChanged(routePlannerWrap, DELIVERY_VIEW_FILTER === 'delivery' ? "" : "none");
 
@@ -1309,6 +1342,7 @@ function renderOrders(orders){
     const typeLabel = type === 'pickup' ? 'Recoger' : 'Domicilio';
     const typeClass = type === 'pickup' ? 'isPickupType' : 'isDeliveryType';
     const routeInfo = type === 'pickup' ? null : getOrderRouteInfo(o);
+    const kitchenInfo = getKitchenProcessInfo(o);
     const neighborhood = routeInfo?.neighborhood || getOrderNeighborhood(o) || "Por revisar";
     const orderId = String(o.order_id || "");
     const isRouteCard = !!extra.routeKey;
@@ -1331,6 +1365,7 @@ function renderOrders(orders){
           <div class="orderHeadActions">
             <div class="row orderPillRow" style="gap:10px; flex-wrap:wrap; justify-content:flex-end;">
               <span class="pill ${typeClass}">${type === 'pickup' ? '🛍️' : '🛵'} ${typeLabel}</span>
+              <span class="pill kitchenStatePill ${escapeHtml(kitchenInfo.className)}">${kitchenInfo.ready ? '✅' : '⏳'} ${escapeHtml(kitchenInfo.label)}</span>
               ${routeInfo ? `<span class="pill routePill">🧭 ${escapeHtml(routeInfo.short || 'Ruta')}</span>` : ''}
               <span class="pill">🧁 ${escapeHtml(String(units))} u</span>
               <span class="pill">💰 $${escapeHtml(money(o.subtotal||0))}</span>
@@ -1361,6 +1396,11 @@ function renderOrders(orders){
             </div>
           </div>
 
+          <div class="kv productionStateBox">
+            <label>Estado de elaboración</label>
+            <div class="v"><span class="productionStateBadge ${escapeHtml(kitchenInfo.className)}">${kitchenInfo.ready ? 'Listo para enviar' : 'En proceso de preparación'}</span></div>
+          </div>
+
           ${type === 'pickup' ? '' : `
           <div class="grid2">
             <div class="kv">
@@ -1385,13 +1425,14 @@ function renderOrders(orders){
               <input id="routeStop-${escapeHtml(orderId)}" class="input routeStopInput" data-id="${escapeHtml(orderId)}" type="text" inputmode="decimal" placeholder="Ej: 4.437123,-75.200456" value="${escapeHtml(getOrderManualRouteStop(o))}" />
               <button class="btn secondary btnSaveRouteStop" data-id="${escapeHtml(orderId)}" type="button">Guardar coordenadas</button>
             </div>
-            <div class="routeExactHint">Abre Maps, copia las coordenadas exactas y guárdalas aquí para crear la ruta.</div>
+            <div class="routeExactHint">Guarda las coordenadas para rutas exactas y para activar Waze.</div>
             <div class="routePrecisionHint ${getOrderManualCoordinates(o)?.query ? 'isReady' : 'isPending'}">${escapeHtml(getOrderLocationPrecisionLabel(o))}</div>
           </div>`}
 
           <div class="btnRow">
             ${type === 'pickup' ? '' : `
               <button class="btn secondary btnOrderMaps" data-id="${escapeHtml(orderId)}" type="button">Abrir Maps</button>
+              <button class="btn secondary btnOrderWaze" data-id="${escapeHtml(orderId)}" type="button" ${canOpenWaze(o) ? '' : 'disabled'} title="${canOpenWaze(o) ? 'Abrir Waze con coordenadas guardadas' : 'Guarda coordenadas manuales para usar Waze'}">Abrir Waze</button>
               <button class="btn secondary btnCopyLocation" data-id="${escapeHtml(orderId)}" type="button">Copiar ubicación</button>
             `}
             <button class="btn secondary btnSend" data-id="${escapeHtml(orderId)}" type="button">Ver mensaje</button>
@@ -1435,7 +1476,11 @@ function renderOrders(orders){
           </div>
         </div>
         <div class="routeCollapsible">
-          <div class="routeMapHint">Orden actual: ${ROUTE_SORT_MODE === 'manual' ? 'personalizado' : ROUTE_SORT_MODE === 'far' ? 'lejanos primero' : 'cercanos primero'} · Salida desde ${escapeHtml(AMARED_ROUTE_ORIGIN_LABEL)}. La ruta usa primero las coordenadas manuales guardadas de cada pedido.</div>
+          <div class="routeOverviewBox">
+            <div class="routeOverviewKicker">Resumen de ruta</div>
+            <div class="routeMapHint">Orden actual: ${ROUTE_SORT_MODE === 'manual' ? 'personalizado' : ROUTE_SORT_MODE === 'far' ? 'lejanos primero' : 'cercanos primero'} · Salida desde ${escapeHtml(AMARED_ROUTE_ORIGIN_LABEL)}. La ruta usa primero las coordenadas manuales guardadas de cada pedido.</div>
+          </div>
+          <div class="routeOrdersLabel">Pedidos de esta ruta</div>
           <div class="routeCards">
             ${group.orders.map((item, idx) => renderOrderCard(item.order, { index: idx + 1, routeClass:'isRouteCard', routeKey:key, routeIndex:idx, routeCount:group.orders.length })).join('')}
           </div>
@@ -1463,9 +1508,9 @@ async function loadOrders(force = false, opts = {}){
   setStatus("");
   if(silent){
     setStatus(String(opts.reason || "Actualizando envíos en segundo plano…"));
-    if(listEl && !String(listEl.innerHTML || "").trim()) setInlineLoading_(listEl, "Cargando pedidos…", "Estamos trayendo los pedidos listos para envío.");
+    if(listEl && !String(listEl.innerHTML || "").trim()) setInlineLoading_(listEl, "Cargando pedidos…", "Estamos trayendo los pedidos pagados con envío pendiente.");
   }else{
-    showLoading("Cargando pedidos…","Buscando Pagado + Listo + delivery Pendiente…");
+    showLoading("Cargando pedidos…","Buscando pedidos pagados con envío pendiente…");
   }
   try{
     let out = await api({ action:"delivery_list", hours: 72, view:"pending" });
@@ -1479,7 +1524,7 @@ async function loadOrders(force = false, opts = {}){
         const kit = normStatus(o.kitchen_status);
         const del = normStatus(o.delivery_status || "pendiente");
         const pay = normStatus(o.payment_status);
-        return pay === "pagado" && kit === "listo" && (del === "pendiente" || del === "");
+        return pay === "pagado" && (del === "pendiente" || del === "");
       });
     }
 
@@ -2011,7 +2056,7 @@ async function saveDeliveryLocationForOrder(id, opts = {}){
     if(stopInput && hasStopInput) stopInput.value = finalStop;
     renderOrders(ORDERS);
     setStatus(hasStopInput
-      ? "Coordenadas guardadas. La ruta general usará este punto y respetará el orden actual."
+      ? "Coordenadas guardadas. Google Maps y Waze usarán este punto."
       : "Link exacto guardado. Agrega coordenadas manuales si necesitas una ruta con paradas más precisa.");
     return true;
   }catch(e){
@@ -2203,7 +2248,7 @@ listEl?.addEventListener("click", async (ev)=>{
     const group = groups[key];
     if(group){
       const stats = getGoogleMapsRouteStopStats(group.orders);
-      openRouteUrl(buildGoogleMapsRouteUrl(group.orders));
+      openNavigationUrl(buildGoogleMapsRouteUrl(group.orders));
       setStatus(`Ruta abierta en Google Maps. ${stats.coords + stats.manual} parada(s) usan coordenadas guardadas y ${stats.address} usan dirección como respaldo.`);
     }
     return;
@@ -2239,10 +2284,22 @@ listEl?.addEventListener("click", async (ev)=>{
   if(btnOrderMaps){
     const id = String(btnOrderMaps.getAttribute("data-id")||"").trim();
     const o = ORDERS.find(x => String(x.order_id) === id);
-    if(o) openRouteUrl(buildGoogleMapsSingleUrl(o));
+    if(o) openNavigationUrl(buildGoogleMapsSingleUrl(o));
     return;
   }
 
+  const btnOrderWaze = ev.target?.closest?.(".btnOrderWaze");
+  if(btnOrderWaze){
+    const id = String(btnOrderWaze.getAttribute("data-id")||"").trim();
+    const o = ORDERS.find(x => String(x.order_id) === id);
+    const url = o ? buildWazeSingleUrl(o) : "";
+    if(!url){
+      setStatus("Guarda coordenadas manuales en este pedido antes de abrir Waze.");
+      return;
+    }
+    openNavigationUrl(url);
+    return;
+  }
 
   const btnCopyLocation = ev.target?.closest?.(".btnCopyLocation");
   if(btnCopyLocation){
@@ -2361,7 +2418,7 @@ histBack?.addEventListener("click", (ev)=>{ if(ev.target === histBack) closeHist
       if(cached){
         hydrateDeliveryOrdersFromCache_(cached);
       }else{
-        setInlineLoading_(listEl, "Cargando pedidos…", "Estamos trayendo los pedidos listos para envío.");
+        setInlineLoading_(listEl, "Cargando pedidos…", "Estamos trayendo los pedidos pagados con envío pendiente.");
       }
       scheduleDeliveryBackgroundRefresh_("Actualizando envíos en segundo plano…");
 
@@ -2380,7 +2437,7 @@ histBack?.addEventListener("click", (ev)=>{ if(ev.target === histBack) closeHist
         if(cached){
           hydrateDeliveryOrdersFromCache_(cached);
         }else{
-          setInlineLoading_(listEl, "Cargando pedidos…", "Estamos trayendo los pedidos listos para envío.");
+          setInlineLoading_(listEl, "Cargando pedidos…", "Estamos trayendo los pedidos pagados con envío pendiente.");
         }
         scheduleDeliveryBackgroundRefresh_("Actualizando envíos en segundo plano…");
       }else{
