@@ -85,7 +85,7 @@
 
   <link rel="icon" href="assets/favicon.ico" type="image/x-icon">
   <link rel="stylesheet" href="styles.css?v=20260511-routes-v1" />
-  <link rel="stylesheet" href="delivery.css?v=20260512-route-manual-stops" />
+  <link rel="stylesheet" href="delivery.css?v=20260512-manual-coordinates" />
 
   <style>
     /* HISTORIAL FIXES */
@@ -219,7 +219,7 @@
           </div>
         </div>
         <div class="routePlannerHint">Punto de salida: <strong>Edificio Kiwana · Cl. 53 #6A-21, Ibagué</strong>. Ruta 1 agrupa comunas 1, 2, 3, 4, 10, 11, 12 y 13. Ruta 2 agrupa comunas 5, 6, 7, 8 y 9. Los pedidos sin barrio reconocido quedan en “Por asignar”.</div>
-        <div class="routePlannerHint routeMapManualHint"><strong>Para rutas exactas:</strong> el botón individual “Abrir Maps” conserva el link original del cliente. Para “Abrir ruta en Google Maps”, cada pedido puede tener una <strong>parada limpia</strong> con coordenadas lat,lng o una dirección clara. Si el link corto no entrega coordenadas, abre el Maps individual, copia las coordenadas o dirección y guárdalas en “Parada usada para crear rutas”.</div>
+        <div class="routePlannerHint routeMapManualHint"><strong>Para rutas exactas:</strong> abre el botón individual “Abrir Maps”, copia las coordenadas exactas del punto compartido por el cliente y pégalas en <strong>“Coordenadas manuales para la ruta”</strong>. Al presionar “Abrir ruta en Google Maps”, la ruta usará esas coordenadas y respetará el orden actual, incluido el orden personalizado por arrastre.</div>
         <div class="routeDragGuide routeDragGuideTop">
           <div class="routeDragGuideIcon" aria-hidden="true">⋮⋮</div>
           <div>
@@ -328,6 +328,6 @@
   </div>
 
   <script src="routes-data.js?v=20260512-barrios-u15"></script>
-  <script src="delivery.js?v=20260512-route-manual-stops"></script>
+  <script src="delivery.js?v=20260512-manual-coordinates"></script>
 </body>
 </html>

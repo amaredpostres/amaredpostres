@@ -1286,3 +1286,30 @@ body.deliveryOverlayOpen .amDeliveryMobileBar{
   .routeMapManualHint{ font-size: 12.4px; }
   .routeStopRow .btn{ width: 100%; }
 }
+
+.routePrecisionHint{
+  display:inline-flex;
+  align-items:center;
+  width:fit-content;
+  max-width:100%;
+  padding:7px 10px;
+  border-radius:999px;
+  font-size:12px;
+  line-height:1.25;
+  font-weight:900;
+  color:rgba(64,17,2,.68);
+  background:rgba(64,17,2,.055);
+  border:1px solid rgba(64,17,2,.08);
+}
+.routePrecisionHint.isReady{
+  color:#6f2a43;
+  background:rgba(242,91,143,.13);
+  border-color:rgba(242,91,143,.24);
+}
+.routePrecisionHint.isPending{
+  color:rgba(64,17,2,.66);
+}
+.routeStopInput{
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+  letter-spacing:.01em;
+}
