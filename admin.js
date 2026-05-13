@@ -67,6 +67,83 @@ async function syncAdminIndexCatalogFromBackend_(force = false){
 }
 applyProductPriceOverrides_();
 
+
+// =================== ROUTES / BARRIO HELPERS ===================
+const ADMIN_ROUTE_UNKNOWN = {
+  id: "por_asignar",
+  label: "Ruta por asignar",
+  short: "Por asignar",
+  score: 50
+};
+const ADMIN_ROUTE_DEFINITIONS = {
+  occidente: {
+    id: "occidente",
+    label: "Ruta 1 · Comunas 1, 2, 3, 4, 10, 11, 12 y 13",
+    short: "Ruta 1",
+    score: 30
+  },
+  oriente: {
+    id: "oriente",
+    label: "Ruta 2 · Comunas 5, 6, 7, 8 y 9",
+    short: "Ruta 2",
+    score: 70
+  },
+  por_asignar: ADMIN_ROUTE_UNKNOWN
+};
+const ADMIN_NEIGHBORHOOD_ROUTES = Array.isArray(window.AMARED_IBAGUE_NEIGHBORHOODS) && window.AMARED_IBAGUE_NEIGHBORHOODS.length
+  ? window.AMARED_IBAGUE_NEIGHBORHOODS
+  : [
+      { name:"Edificio Kiwana", aliases:["kiwana", "edificio kiwana", "calle 53", "cl 53"], route:"occidente", score:1 },
+      { name:"Centro", aliases:["centro", "la pola", "belén", "belen", "interlaken"], route:"occidente", score:4 },
+      { name:"Jordán", aliases:["jordan", "jordán", "jordan 1", "jordán 1"], route:"oriente", score:5 },
+      { name:"Mirolindo", aliases:["mirolindo", "avenida mirolindo"], route:"oriente", score:7 },
+      { name:"El Salado", aliases:["salado", "el salado", "aeropuerto", "perales"], route:"oriente", score:10 }
+    ];
+function normalizeAdminRouteText_(value){
+  return String(value || "")
+    .toLowerCase()
+    .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9ñ\s]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+function inferAdminRouteInfo_(value){
+  const text = normalizeAdminRouteText_(value);
+  if(!text) return { ...ADMIN_ROUTE_UNKNOWN, neighborhood:"", detected:false };
+  let best = null;
+  ADMIN_NEIGHBORHOOD_ROUTES.forEach(item => {
+    const names = [item.name].concat(Array.isArray(item.aliases) ? item.aliases : []);
+    names.forEach(alias => {
+      const n = normalizeAdminRouteText_(alias);
+      if(!n) return;
+      const hit = text === n || text.includes(n) || n.includes(text);
+      if(!hit) return;
+      const score = Number(item.score || 50) + Math.max(0, 20 - n.length) / 100;
+      if(!best || score < best.score) best = { item, score };
+    });
+  });
+  if(!best) return { ...ADMIN_ROUTE_UNKNOWN, neighborhood:"", detected:false };
+  const def = ADMIN_ROUTE_DEFINITIONS[best.item.route] || ADMIN_ROUTE_UNKNOWN;
+  return {
+    ...def,
+    score: Number(best.item.score || def.score || 50) || 50,
+    neighborhood: String(best.item.name || "").trim(),
+    detected:true
+  };
+}
+function getAdminRoutePayloadFromNeighborhood_(neighborhoodText){
+  const raw = String(neighborhoodText || "").trim();
+  const info = inferAdminRouteInfo_(raw);
+  return {
+    neighborhood_text: raw,
+    route_zone: info.id || "por_asignar",
+    route_label: info.label || ADMIN_ROUTE_UNKNOWN.label,
+    route_order_score: info.score || ADMIN_ROUTE_UNKNOWN.score,
+    route_detected_neighborhood: info.neighborhood || "",
+    route_detected: !!info.detected
+  };
+}
+
 // =================== SESSION / STATE ===================
 let SESSION = { operator: null, operatorId: null, pin: null };
 let LOGIN_PROFILES = [];
@@ -1009,6 +1086,7 @@ function renderHistBody(order) {
   wrap.innerHTML = `
     <div style="display:flex; flex-direction:column; gap:8px;">
       <div><strong>Dirección:</strong> ${escapeHtml(order.address_text || "")}</div>
+      <div><strong>Barrio / sector:</strong> ${escapeHtml(order.neighborhood_text || order.route_detected_neighborhood || "Por revisar")}</div>
       <div><strong>Ubicación:</strong> ${escapeHtml(order.maps_link || "")}</div>
       <div><strong>Tel:</strong> ${escapeHtml(order.phone || "")}</div>
       <div><strong>Notas:</strong> ${escapeHtml(order.notes || "")}</div>
@@ -1035,6 +1113,7 @@ function renderPendingBody(order) {
     phone: String(order.phone || ""),
     address_text: String(order.address_text || ""),
     maps_link: String(order.maps_link || ""),
+    neighborhood_text: String(order.neighborhood_text || order.neighborhood || order.route_detected_neighborhood || ""),
     notes: String(order.notes || ""),
     email: String(order.email || ""),
     wa_opt_in: Boolean(order.wa_opt_in),
@@ -1068,6 +1147,7 @@ function renderPendingBody(order) {
           <div><strong>Nombre:</strong> ${escapeHtml(fields.customer_name)}</div>
           <div><strong>Tel:</strong> ${escapeHtml(fields.phone)}</div>
           <div><strong>Dirección:</strong> ${escapeHtml(fields.address_text)}</div>
+          <div><strong>Barrio / sector:</strong> ${escapeHtml(fields.neighborhood_text || "Por revisar")}</div>
           <div><strong>Ubicación:</strong> ${escapeHtml(fields.maps_link)}</div>
           <div><strong>Email:</strong> ${escapeHtml(fields.email)}</div>
           <div><strong>Opt-in WhatsApp:</strong> ${fields.wa_opt_in ? "Sí" : "No"}</div>
@@ -1087,6 +1167,12 @@ function renderPendingBody(order) {
           <div>
             <div class="mutedSmall" style="font-weight:900;">Dirección</div>
             <input id="ed_addr" class="input" type="text" value="${escapeHtml(fields.address_text)}" />
+          </div>
+
+          <div>
+            <div class="mutedSmall" style="font-weight:900;">Barrio o sector</div>
+            <input id="ed_neighborhood" class="input" type="text" value="${escapeHtml(fields.neighborhood_text)}" placeholder="Ej: Jordán, Centro, El Salado" />
+            <div class="mutedSmall">Se usará para organizar las rutas de envío.</div>
           </div>
 
           <div>
@@ -1151,6 +1237,7 @@ function renderPendingBody(order) {
       const ed_name = wrap.querySelector("#ed_name");
       const ed_phone = wrap.querySelector("#ed_phone");
       const ed_addr = wrap.querySelector("#ed_addr");
+      const ed_neighborhood = wrap.querySelector("#ed_neighborhood");
       const ed_maps = wrap.querySelector("#ed_maps");
       const ed_email = wrap.querySelector("#ed_email");
       const ed_notes = wrap.querySelector("#ed_notes");
@@ -1160,13 +1247,14 @@ function renderPendingBody(order) {
         fields.customer_name = (ed_name?.value || "").trim();
         fields.phone = (ed_phone?.value || "").trim();
         fields.address_text = (ed_addr?.value || "").trim();
+        fields.neighborhood_text = (ed_neighborhood?.value || "").trim();
         fields.maps_link = (ed_maps?.value || "").trim();
         fields.email = (ed_email?.value || "").trim();
         fields.notes = (ed_notes?.value || "").trim();
         fields.wa_opt_in = !!ed_optin?.checked;
       };
 
-      [ed_name, ed_phone, ed_addr, ed_maps, ed_email, ed_notes].forEach(el => {
+      [ed_name, ed_phone, ed_addr, ed_neighborhood, ed_maps, ed_email, ed_notes].forEach(el => {
         el?.addEventListener("input", syncFields);
       });
       ed_optin?.addEventListener("change", syncFields);
@@ -1214,6 +1302,8 @@ function renderPendingBody(order) {
           }))
           .filter(it => it.qty > 0);
 
+        const routePayload = getAdminRoutePayloadFromNeighborhood_(fields.neighborhood_text);
+
         await api({
           action: "update_order",
           admin_pin: SESSION.pin,
@@ -1225,6 +1315,12 @@ function renderPendingBody(order) {
           phone: fields.phone,
           address_text: fields.address_text,
           maps_link: fields.maps_link,
+          neighborhood_text: routePayload.neighborhood_text,
+          route_zone: routePayload.route_zone,
+          route_label: routePayload.route_label,
+          route_order_score: routePayload.route_order_score,
+          route_detected_neighborhood: routePayload.route_detected_neighborhood,
+          route_detected: routePayload.route_detected,
           notes: fields.notes,
           email: fields.email,
           wa_opt_in: fields.wa_opt_in,
@@ -1236,8 +1332,15 @@ function renderPendingBody(order) {
         // Actualiza el objeto local para que al cerrar edición se vea lo nuevo
         order.customer_name = fields.customer_name;
         order.phone = fields.phone;
+        const routePayloadLocal = getAdminRoutePayloadFromNeighborhood_(fields.neighborhood_text);
         order.address_text = fields.address_text;
         order.maps_link = fields.maps_link;
+        order.neighborhood_text = routePayloadLocal.neighborhood_text;
+        order.route_zone = routePayloadLocal.route_zone;
+        order.route_label = routePayloadLocal.route_label;
+        order.route_order_score = routePayloadLocal.route_order_score;
+        order.route_detected_neighborhood = routePayloadLocal.route_detected_neighborhood;
+        order.route_detected = routePayloadLocal.route_detected;
         order.notes = fields.notes;
         order.email = fields.email;
         order.wa_opt_in = fields.wa_opt_in;
@@ -1258,6 +1361,7 @@ function renderPendingBody(order) {
         initialFields.phone = fields.phone;
         initialFields.address_text = fields.address_text;
         initialFields.maps_link = fields.maps_link;
+        initialFields.neighborhood_text = fields.neighborhood_text;
         initialFields.notes = fields.notes;
         initialFields.email = fields.email;
         initialFields.wa_opt_in = fields.wa_opt_in;

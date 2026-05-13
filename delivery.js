@@ -2,7 +2,7 @@
 // delivery.js — AMARED Envíos (v4 UX + Historial + Opt-in fix)
 "use strict";
 
-console.log("AMARED delivery v24 · Rutas visuales + Waze con coordenadas");
+console.log("AMARED delivery v25 · Envíos listos + UX rutas diferenciadas");
 
 const API_URL = "https://amared-orders.amaredpostres.workers.dev/";
 const AMARED_ROUTE_ORIGIN_LABEL = "Edificio Kiwana";
@@ -1425,7 +1425,7 @@ function renderOrders(orders){
               <input id="routeStop-${escapeHtml(orderId)}" class="input routeStopInput" data-id="${escapeHtml(orderId)}" type="text" inputmode="decimal" placeholder="Ej: 4.437123,-75.200456" value="${escapeHtml(getOrderManualRouteStop(o))}" />
               <button class="btn secondary btnSaveRouteStop" data-id="${escapeHtml(orderId)}" type="button">Guardar coordenadas</button>
             </div>
-            <div class="routeExactHint">Guarda las coordenadas para rutas exactas y para activar Waze.</div>
+            <div class="routeExactHint">Usa coordenadas manuales para ruta exacta y Waze.</div>
             <div class="routePrecisionHint ${getOrderManualCoordinates(o)?.query ? 'isReady' : 'isPending'}">${escapeHtml(getOrderLocationPrecisionLabel(o))}</div>
           </div>`}
 
@@ -1435,7 +1435,7 @@ function renderOrders(orders){
               <button class="btn secondary btnOrderWaze" data-id="${escapeHtml(orderId)}" type="button" ${canOpenWaze(o) ? '' : 'disabled'} title="${canOpenWaze(o) ? 'Abrir Waze con coordenadas guardadas' : 'Guarda coordenadas manuales para usar Waze'}">Abrir Waze</button>
               <button class="btn secondary btnCopyLocation" data-id="${escapeHtml(orderId)}" type="button">Copiar ubicación</button>
             `}
-            <button class="btn secondary btnSend" data-id="${escapeHtml(orderId)}" type="button">Ver mensaje</button>
+            <button class="btn secondary btnSend ${kitchenInfo.ready ? '' : 'isDisabled'}" data-id="${escapeHtml(orderId)}" type="button" ${kitchenInfo.ready ? '' : 'disabled'} title="${kitchenInfo.ready ? 'Ver mensaje para el cliente' : 'Disponible cuando el pedido esté elaborado'}">${kitchenInfo.ready ? 'Ver mensaje' : 'Mensaje no disponible'}</button>
           </div>
         </div>
       </div>
@@ -1462,7 +1462,8 @@ function renderOrders(orders){
     return `
       <section class="routeGroup ${collapsed ? 'isCollapsed' : ''}" data-route="${escapeHtml(key)}">
         <div class="routeGroupHead">
-          <div>
+          <div class="routeGroupInfo">
+            <div class="routeScopeBadge">Ruta completa</div>
             <div class="deliveryGroupTitle">${escapeHtml(group.label)}</div>
             <div class="deliveryGroupCount">${group.orders.length} pedido${group.orders.length === 1 ? '' : 's'} · ${escapeHtml(group.description || '')}</div>
           </div>
@@ -1477,10 +1478,10 @@ function renderOrders(orders){
         </div>
         <div class="routeCollapsible">
           <div class="routeOverviewBox">
-            <div class="routeOverviewKicker">Resumen de ruta</div>
-            <div class="routeMapHint">Orden actual: ${ROUTE_SORT_MODE === 'manual' ? 'personalizado' : ROUTE_SORT_MODE === 'far' ? 'lejanos primero' : 'cercanos primero'} · Salida desde ${escapeHtml(AMARED_ROUTE_ORIGIN_LABEL)}. La ruta usa primero las coordenadas manuales guardadas de cada pedido.</div>
+            <div class="routeOverviewKicker">Resumen general de ruta</div>
+            <div class="routeMapHint">Orden: ${ROUTE_SORT_MODE === 'manual' ? 'personalizado' : ROUTE_SORT_MODE === 'far' ? 'lejanos primero' : 'cercanos primero'} · Salida: ${escapeHtml(AMARED_ROUTE_ORIGIN_LABEL)} · Google Maps usa las coordenadas manuales guardadas.</div>
           </div>
-          <div class="routeOrdersLabel">Pedidos de esta ruta</div>
+          <div class="routeOrdersLabel">Pedidos individuales</div>
           <div class="routeCards">
             ${group.orders.map((item, idx) => renderOrderCard(item.order, { index: idx + 1, routeClass:'isRouteCard', routeKey:key, routeIndex:idx, routeCount:group.orders.length })).join('')}
           </div>
@@ -1696,6 +1697,11 @@ const TEMPLATES = [
 ];
 
 function openSendModal(order, opts={}){
+  const kitchenState = getKitchenProcessInfo(order);
+  if(!opts?.fromHistory && !kitchenState.ready){
+    setStatus("El mensaje se habilita cuando el pedido esté elaborado.");
+    return;
+  }
   SEND_ORDER = order;
   SEND_CONTEXT = opts?.fromHistory ? "history" : "pending";
   sendErr.textContent = "";
@@ -2324,6 +2330,10 @@ Tel: ${o.phone || "—"}`;
   const id = String(btnSend.getAttribute("data-id")||"").trim();
   const o = ORDERS.find(x => String(x.order_id) === id);
   if(!o) return;
+  if(!getKitchenProcessInfo(o).ready){
+    setStatus("El mensaje se habilita cuando el pedido esté elaborado.");
+    return;
+  }
 
   openSendModal(o);
 });

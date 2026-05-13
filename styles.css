@@ -3544,3 +3544,29 @@ p,
     line-height: 1.35;
   }
 }
+
+/* ===== Fondo continuo AMARED v38 ===== */
+html{
+  min-height:100%;
+  background:#fff9f5;
+}
+body{
+  min-height:100vh;
+  min-height:100dvh;
+  background-color:#fff9f5;
+  background-repeat:no-repeat;
+  background-size:100% 100%;
+}
+body::before{
+  min-height:100vh;
+  min-height:100dvh;
+}
+body.costsPage,
+body.kitchenPage,
+body.deliveryPage,
+body.adminPage,
+body.hubPage,
+body.profilesPage{
+  min-height:100vh;
+  min-height:100dvh;
+}

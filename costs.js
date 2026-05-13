@@ -4267,23 +4267,30 @@ function renderRecipeEditor_(editorEl){
 
     return `
       <div class="pRecipeRow ${checked?"isOn":"isOff"}" data-nk="${escapeHtmlAttr(nk)}" data-kraw="${escapeHtmlAttr(kRaw)}">
-        <label class="switchWrap ${checked?"isOn":"isOff"}">
-          <input class="switchInput" type="checkbox" data-act="r_toggle" ${checked?"checked":""} />
-          <span class="switch" aria-hidden="true"></span>
-          <span class="meta">${checked ? "Incluido" : "No"}</span>
-        </label>
+        <div class="pRecipeRowTop">
+          <label class="switchWrap ${checked?"isOn":"isOff"}" title="Activar o desactivar ingrediente">
+            <input class="switchInput" type="checkbox" data-act="r_toggle" ${checked?"checked":""} />
+            <span class="switch" aria-hidden="true"></span>
+            <span class="meta">${checked ? "Incluido" : "No"}</span>
+          </label>
 
-        <div class="name">
-          ${escapeHtml(kRaw)}
-          <div class="meta">Unidad: <b>${escapeHtml(unit)}</b></div>
+          <div class="pRecipeInfo">
+            <div class="recipeIngredientName">${escapeHtml(kRaw)}</div>
+            <div class="recipeIngredientMeta">Unidad: <b>${escapeHtml(unit)}</b></div>
+          </div>
         </div>
 
-        <input class="input qty" data-act="r_qty" type="text" inputmode="decimal" placeholder="Cantidad" value="${escapeHtmlAttr(qtyVal)}" ${checked?"":"disabled"} />
+        <div class="pRecipeRowBottom">
+          <label class="pRecipeQtyField">
+            <span>Cantidad por unidad</span>
+            <input class="input qty" data-act="r_qty" type="text" inputmode="decimal" placeholder="Cantidad" value="${escapeHtmlAttr(qtyVal)}" ${checked?"":"disabled"} />
+          </label>
 
-        <label class="recipeNoMarginBox ${noMargin?"isOn":""}" title="Cobrar este producto al costo real, sin aplicarle el margen del 60%">
-          <input type="checkbox" data-act="r_no_margin" ${noMargin?"checked":""} ${checked?"":"disabled"} />
-          <span>Sin rentabilidad</span>
-        </label>
+          <label class="recipeNoMarginBox ${noMargin?"isOn":""}" title="Cobrar este producto al costo real, sin aplicarle el margen del 60%">
+            <input type="checkbox" data-act="r_no_margin" ${noMargin?"checked":""} ${checked?"":"disabled"} />
+            <span>Sin rentabilidad</span>
+          </label>
+        </div>
       </div>`;
   }).join("");
 

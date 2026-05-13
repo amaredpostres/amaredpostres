@@ -1673,3 +1673,112 @@ select.input{
 @media (max-width: 520px){
   .recipeNoMarginBox{ width:100%; justify-content:center; }
 }
+
+/* ===== Recetas UX v38: ingredientes más legibles ===== */
+.pRecipeRow{
+  display:grid;
+  grid-template-columns:minmax(260px, 1fr) minmax(330px, 440px);
+  gap:12px;
+  align-items:center;
+  padding:12px;
+  border:1px solid rgba(64,17,2,.09);
+  border-radius:18px;
+  background:rgba(255,255,255,.96);
+  box-shadow:0 8px 18px rgba(64,17,2,.035);
+}
+.pRecipeRow.isOff{
+  background:rgba(255,255,255,.72);
+  opacity:.78;
+}
+.pRecipeRow.isOn{
+  border-color:rgba(242,91,143,.20);
+  background:linear-gradient(180deg, rgba(255,255,255,.98), rgba(255,248,251,.92));
+}
+.pRecipeRowTop{
+  display:flex;
+  align-items:center;
+  gap:12px;
+  min-width:0;
+}
+.pRecipeInfo{ min-width:0; }
+.recipeIngredientName{
+  font-size:16px;
+  line-height:1.18;
+  font-weight:950;
+  color:var(--choco, #401102);
+  word-break:break-word;
+}
+.recipeIngredientMeta{
+  margin-top:4px;
+  font-size:12.5px;
+  font-weight:850;
+  color:rgba(64,17,2,.62);
+}
+.pRecipeRowBottom{
+  display:grid;
+  grid-template-columns:minmax(140px, 180px) minmax(150px, 1fr);
+  gap:10px;
+  align-items:end;
+}
+.pRecipeQtyField{
+  display:grid;
+  gap:6px;
+  min-width:0;
+}
+.pRecipeQtyField > span{
+  font-size:11.5px;
+  line-height:1.1;
+  font-weight:950;
+  color:rgba(64,17,2,.58);
+  text-transform:uppercase;
+  letter-spacing:.04em;
+}
+.pRecipeQtyField .qty{
+  width:100%;
+  min-height:46px;
+  text-align:center;
+  font-weight:950;
+}
+.pRecipeRow .recipeNoMarginBox{
+  min-height:46px;
+  justify-content:center;
+  white-space:normal;
+  text-align:center;
+}
+@media (max-width:860px){
+  .pRecipeRow{
+    grid-template-columns:1fr;
+    gap:10px;
+  }
+  .pRecipeRowBottom{
+    grid-template-columns:1fr;
+  }
+  .pRecipeRow .recipeNoMarginBox{ width:100%; }
+}
+@media (max-width:520px){
+  .pRecipeRow{
+    padding:12px 10px;
+    border-radius:18px;
+  }
+  .pRecipeRowTop{
+    align-items:flex-start;
+  }
+  .recipeIngredientName{ font-size:15.5px; }
+  .switchWrap{ min-width:98px; }
+}
+
+/* ===== Fondo continuo en Costs v38 ===== */
+html{ background:#fff9f5; }
+body.costsPage{
+  min-height:100vh !important;
+  min-height:100dvh !important;
+  background-color:#fff9f5 !important;
+  background-repeat:no-repeat, no-repeat, repeat-y !important;
+  background-size:auto, auto, 100% 100% !important;
+}
+@media (max-width:760px){
+  body.costsPage{
+    background-repeat:no-repeat, no-repeat, repeat-y !important;
+    background-size:auto, auto, 100% 100% !important;
+  }
+}
