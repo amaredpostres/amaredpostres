@@ -2,7 +2,7 @@
 // delivery.js — AMARED Envíos (v4 UX + Historial + Opt-in fix)
 "use strict";
 
-console.log("AMARED delivery v20 · Rutas Maps con paradas limpias");
+console.log("AMARED delivery v21 · Rutas Maps con parada manual limpia");
 
 const API_URL = "https://amared-orders.amaredpostres.workers.dev/";
 const AMARED_ROUTE_ORIGIN_LABEL = "Edificio Kiwana";
@@ -1039,11 +1039,35 @@ function getOrderPrimaryMapsLink(order){
   const maps = String(order?.maps_link || "").trim();
   return isExternalMapLink(maps) ? maps : "";
 }
+function isRouteStopLink(value){
+  return isExternalMapLink(value) || looksLikeLocationLink(value);
+}
+function getOrderManualRouteStop(order){
+  const raw = cleanOrderStopText(order?.route_stop_query || order?.route_stop || order?.manual_route_stop || "");
+  if(!raw) return "";
+  const coords = extractLatLngFromText(raw);
+  if(coords?.query) return coords.query;
+  // Para la ruta con varias paradas no usamos links completos como parada.
+  // Si el usuario pega un link aquí, solo se aprovecha si trae coordenadas visibles;
+  // de lo contrario se usa la dirección escrita como respaldo.
+  if(isRouteStopLink(raw)) return "";
+  return raw;
+}
+function setOrderManualRouteStop(order, value){
+  if(!order) return;
+  order.route_stop_query = cleanOrderStopText(value || "");
+}
 function getOrderLinkCoords(order){
   const maps = getOrderPrimaryMapsLink(order);
   return maps ? extractLatLngFromText(maps) : null;
 }
 function getOrderRouteStopInfo(order){
+  const manualStop = getOrderManualRouteStop(order);
+  if(manualStop){
+    const manualCoords = extractLatLngFromText(manualStop);
+    return { query: manualCoords?.query || manualStop, source: manualCoords?.query ? "coords" : "manual" };
+  }
+
   const saved = getOrderSavedCoords(order);
   if(saved?.query) return { query:saved.query, source:"coords" };
 
@@ -1064,6 +1088,8 @@ function getOrderStopQuery(order){
   return getOrderRouteStopQuery(order);
 }
 function getOrderLocationPrecisionLabel(order){
+  const manual = getOrderManualRouteStop(order);
+  if(manual) return "Parada limpia para ruta guardada";
   const maps = getOrderPrimaryMapsLink(order);
   if(maps) return "Link de Google Maps guardado";
   return "Dirección escrita";
@@ -1108,7 +1134,7 @@ async function resolveCoordinatesForRouteItems(routeOrders){
   let changed = false;
   for(const item of items){
     const order = item?.order || item;
-    if(!order || classifyDeliveryType(order) !== "delivery") continue;
+    if(!order || classifyDeliveryType(order) !== "delivery" || getOrderManualRouteStop(order)) continue;
     const before = getOrderSavedCoords(order);
     const after = await resolveOrderCoordinates(order);
     if(!before?.query && after?.query) changed = true;
@@ -1116,7 +1142,7 @@ async function resolveCoordinatesForRouteItems(routeOrders){
   return changed;
 }
 function getGoogleMapsRouteStopStats(routeOrders){
-  const stats = { total:0, coords:0, address:0, empty:0 };
+  const stats = { total:0, coords:0, manual:0, address:0, empty:0 };
   (Array.isArray(routeOrders) ? routeOrders : []).forEach(item => {
     const info = getOrderRouteStopInfo(item?.order || item);
     if(!info.query){
@@ -1125,6 +1151,7 @@ function getGoogleMapsRouteStopStats(routeOrders){
     }
     stats.total += 1;
     if(info.source === "coords") stats.coords += 1;
+    else if(info.source === "manual") stats.manual += 1;
     else stats.address += 1;
   });
   return stats;
@@ -1153,7 +1180,7 @@ function buildGoogleMapsSingleUrl(order){
   return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(q || AMARED_ROUTE_ORIGIN_ADDRESS)}`;
 }
 function shouldResolveOrderCoords(order){
-  if(!order || getOrderSavedCoords(order)) return false;
+  if(!order || getOrderSavedCoords(order) || getOrderManualRouteStop(order)) return false;
   const link = String(order?.maps_link || "").trim();
   return isExternalMapLink(link) && looksLikeLocationLink(link);
 }
@@ -1353,12 +1380,17 @@ function renderOrders(orders){
 
           ${type === 'pickup' ? '' : `
           <div class="routeExactBox">
-            <label for="exactLoc-${escapeHtml(orderId)}">Ubicación exacta compartida por el cliente</label>
+            <label for="exactLoc-${escapeHtml(orderId)}">Link exacto de Google Maps</label>
             <div class="routeExactRow">
               <input id="exactLoc-${escapeHtml(orderId)}" class="input routeExactInput" data-id="${escapeHtml(orderId)}" type="url" placeholder="Pega aquí el link de Google Maps o ubicación de WhatsApp" value="${escapeHtml(isExternalMapLink(o.maps_link) ? o.maps_link : '')}" />
               <button class="btn secondary btnSaveExactLocation" data-id="${escapeHtml(orderId)}" type="button">Guardar ubicación</button>
             </div>
-            <div class="routeExactHint">Si el cliente comparte una ubicación por WhatsApp, pega aquí el link de Google Maps para usar ese punto como referencia del domicilio.</div>
+            <label class="routeStopLabel" for="routeStop-${escapeHtml(orderId)}">Parada usada para crear rutas</label>
+            <div class="routeExactRow routeStopRow">
+              <input id="routeStop-${escapeHtml(orderId)}" class="input routeStopInput" data-id="${escapeHtml(orderId)}" type="text" placeholder="Coordenadas lat,lng o dirección limpia para Google Maps" value="${escapeHtml(o.route_stop_query || '')}" />
+              <button class="btn secondary btnUseAddressStop" data-id="${escapeHtml(orderId)}" type="button">Usar dirección</button>
+            </div>
+            <div class="routeExactHint">Maps individual abre el link exacto. La ruta con varias paradas usa la parada limpia; si está vacía, se usa la dirección escrita del pedido.</div>
             <div class="routePrecisionHint">${escapeHtml(getOrderLocationPrecisionLabel(o))}</div>
           </div>`}
 
@@ -2079,8 +2111,8 @@ listEl?.addEventListener("click", async (ev)=>{
         const stats = getGoogleMapsRouteStopStats(group.orders);
         openRouteUrl(buildGoogleMapsRouteUrl(group.orders));
         if(changed) renderOrders(ORDERS);
-        if(stats.address > 0){
-          setStatus(`Ruta abierta en Google Maps. ${stats.coords} parada(s) usan coordenadas y ${stats.address} parada(s) usan dirección escrita porque el link no entregó coordenadas.`);
+        if(stats.address > 0 || stats.manual > 0){
+          setStatus(`Ruta abierta en Google Maps. ${stats.coords} parada(s) usan coordenadas, ${stats.manual} parada(s) usan parada manual y ${stats.address} parada(s) usan dirección escrita.`);
         }else{
           setStatus("Ruta abierta en Google Maps con paradas basadas en coordenadas disponibles.");
         }
@@ -2108,30 +2140,63 @@ listEl?.addEventListener("click", async (ev)=>{
     return;
   }
 
+  const btnUseAddressStop = ev.target?.closest?.(".btnUseAddressStop");
+  if(btnUseAddressStop){
+    const id = String(btnUseAddressStop.getAttribute("data-id")||"").trim();
+    const o = ORDERS.find(x => String(x.order_id) === id);
+    const input = Array.from(listEl.querySelectorAll(".routeStopInput")).find(el => String(el.getAttribute("data-id") || "") === id);
+    if(o && input){
+      input.value = getOrderAddressQuery(o);
+      setStatus("Parada de ruta preparada con la dirección escrita. Presiona “Guardar ubicación” para dejarla guardada.");
+    }
+    return;
+  }
+
   const btnSaveExactLocation = ev.target?.closest?.(".btnSaveExactLocation");
   if(btnSaveExactLocation){
     const id = String(btnSaveExactLocation.getAttribute("data-id")||"").trim();
     const input = Array.from(listEl.querySelectorAll(".routeExactInput")).find(el => String(el.getAttribute("data-id") || "") === id);
+    const stopInput = Array.from(listEl.querySelectorAll(".routeStopInput")).find(el => String(el.getAttribute("data-id") || "") === id);
     const raw = String(input?.value || "").trim();
+    let routeStop = cleanOrderStopText(stopInput?.value || "");
     if(!id) return;
-    if(!raw){
-      setStatus("Pega primero el link de ubicación exacta.");
+    if(!raw && !routeStop){
+      setStatus("Pega el link exacto o escribe una parada limpia para la ruta.");
       return;
     }
-    if(!looksLikeLocationLink(raw)){
+    if(raw && !looksLikeLocationLink(raw)){
       setStatus("El enlace no parece ser una ubicación válida. Pega un link de Google Maps o ubicación compartida por WhatsApp.");
       return;
     }
-    showLoading("Guardando ubicación…", "Actualizando el link exacto del domicilio.");
+    const localCoords = raw ? extractLatLngFromText(raw) : null;
+    if(!routeStop && localCoords?.query) routeStop = localCoords.query;
+
+    showLoading("Guardando ubicación…", "Actualizando el link exacto y la parada limpia para rutas.");
     try{
-      const out = await api({ action:"delivery_update_location", order_id:id, maps_link:raw, updated_by: SESSION?.operator?.label || "DELIVERY" });
+      const payload = {
+        action:"delivery_update_location",
+        order_id:id,
+        updated_by: SESSION?.operator?.label || "DELIVERY",
+        route_stop_query: routeStop
+      };
+      if(raw) payload.maps_link = raw;
+      if(localCoords?.query){
+        payload.maps_lat = localCoords.lat;
+        payload.maps_lng = localCoords.lng;
+        payload.maps_query = localCoords.query;
+      }
+      const out = await api(payload);
       const o = ORDERS.find(x => String(x.order_id) === id);
       const resolvedCoords = normalizeLatLng(out?.maps_lat, out?.maps_lng) || extractLatLngFromText(out?.maps_query || raw);
-      if(o) setOrderExactLocationFields(o, raw, resolvedCoords);
+      const finalStop = cleanOrderStopText(out?.route_stop_query || routeStop || resolvedCoords?.query || "");
+      if(o){
+        if(raw) setOrderExactLocationFields(o, raw, resolvedCoords);
+        setOrderManualRouteStop(o, finalStop);
+      }
       renderOrders(ORDERS);
-      setStatus(resolvedCoords?.query
-        ? "Ubicación exacta guardada. La ruta usará las coordenadas detectadas del link."
-        : "Ubicación exacta guardada. Maps individual abrirá el link original; la ruta usará la dirección escrita si no hay coordenadas disponibles.");
+      setStatus(finalStop
+        ? "Ubicación guardada. La ruta general usará la parada limpia guardada."
+        : "Ubicación exacta guardada. Maps individual abrirá el link original; la ruta general usará la dirección escrita como respaldo.");
     }catch(e){
       setStatus(e?.message || "No se pudo guardar la ubicación exacta.");
     }finally{

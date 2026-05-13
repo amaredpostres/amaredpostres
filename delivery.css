@@ -1253,3 +1253,36 @@ body.deliveryOverlayOpen .amDeliveryMobileBar{
     text-align:left;
   }
 }
+
+/* Route manual stops v21 */
+.routeMapManualHint{
+  background: linear-gradient(180deg, rgba(255,252,249,.88), rgba(255,245,238,.78));
+  border-color: rgba(242,91,143,.16);
+  color: rgba(64,17,2,.72);
+}
+.routeMapManualHint strong{
+  color: var(--choco);
+  font-weight: 950;
+}
+.routeStopLabel{
+  margin-top: 4px;
+}
+.routeStopRow .input{
+  border-color: rgba(242,91,143,.18);
+  background: rgba(255,255,255,.84);
+}
+.routePrecisionHint{
+  width: fit-content;
+  max-width: 100%;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: rgba(242,91,143,.10);
+  color: rgba(64,17,2,.68);
+  font-size: 12px;
+  line-height: 1.25;
+  font-weight: 900;
+}
+@media (max-width: 720px){
+  .routeMapManualHint{ font-size: 12.4px; }
+  .routeStopRow .btn{ width: 100%; }
+}
