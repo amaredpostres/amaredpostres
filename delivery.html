@@ -85,7 +85,7 @@
 
   <link rel="icon" href="assets/favicon.ico" type="image/x-icon">
   <link rel="stylesheet" href="styles.css?v=20260511-routes-v1" />
-  <link rel="stylesheet" href="delivery.css?v=20260512-manual-coordinates" />
+  <link rel="stylesheet" href="delivery.css?v=20260512-manual-coordinates-db" />
 
   <style>
     /* HISTORIAL FIXES */
@@ -207,7 +207,7 @@
           <div>
             <div class="routePlannerKicker">Rutas sugeridas</div>
             <h3>Organización de domicilios</h3>
-            <p>Las rutas se agrupan por barrio/sector tomando como punto de salida AMARED. Google Maps se usa para crear la ruta con varias paradas.</p>
+            <p>Organiza los domicilios por ruta y abre las paradas en Google Maps.</p>
           </div>
           <div class="routePlannerControls">
             <label for="routeSortMode">Orden de entrega</label>
@@ -218,13 +218,13 @@
             </select>
           </div>
         </div>
-        <div class="routePlannerHint">Punto de salida: <strong>Edificio Kiwana · Cl. 53 #6A-21, Ibagué</strong>. Ruta 1 agrupa comunas 1, 2, 3, 4, 10, 11, 12 y 13. Ruta 2 agrupa comunas 5, 6, 7, 8 y 9. Los pedidos sin barrio reconocido quedan en “Por asignar”.</div>
-        <div class="routePlannerHint routeMapManualHint"><strong>Para rutas exactas:</strong> abre el botón individual “Abrir Maps”, copia las coordenadas exactas del punto compartido por el cliente y pégalas en <strong>“Coordenadas manuales para la ruta”</strong>. Al presionar “Abrir ruta en Google Maps”, la ruta usará esas coordenadas y respetará el orden actual, incluido el orden personalizado por arrastre.</div>
+        <div class="routePlannerHint">Salida: <strong>Edificio Kiwana · Cl. 53 #6A-21</strong>. Ruta 1: comunas 1, 2, 3, 4, 10, 11, 12 y 13. Ruta 2: comunas 5, 6, 7, 8 y 9.</div>
+        <div class="routePlannerHint routeMapManualHint"><strong>Rutas exactas:</strong> abre Maps individual, copia las coordenadas del punto del cliente y guárdalas en el pedido.</div>
         <div class="routeDragGuide routeDragGuideTop">
           <div class="routeDragGuideIcon" aria-hidden="true">⋮⋮</div>
           <div>
             <strong>Orden personalizado</strong>
-            <span>Mantén presionado el agarre de cada pedido y arrástralo a la posición correcta dentro de su ruta.</span>
+            <span>Arrastra cada pedido para definir el orden antes de abrir la ruta.</span>
           </div>
         </div>
       </div>
@@ -328,6 +328,6 @@
   </div>
 
   <script src="routes-data.js?v=20260512-barrios-u15"></script>
-  <script src="delivery.js?v=20260512-manual-coordinates"></script>
+  <script src="delivery.js?v=20260512-manual-coordinates-db"></script>
 </body>
 </html>

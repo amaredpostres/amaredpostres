@@ -904,7 +904,7 @@ body.deliveryOverlayOpen .amDeliveryMobileBar{
   box-shadow: 0 0 0 4px rgba(242,91,143,.08);
 }
 .routePrecisionHint{
-  margin-top: -2px;
+  margin-top: 2px;
   font-size: 11.8px;
   font-weight: 900;
   color: rgba(64,17,2,.58);
@@ -1312,4 +1312,15 @@ body.deliveryOverlayOpen .amDeliveryMobileBar{
 .routeStopInput{
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
   letter-spacing:.01em;
+}
+
+.routeStopRow .btnSaveRouteStop{
+  white-space:nowrap;
+  min-width:150px;
+}
+@media (max-width: 640px){
+  .routeStopRow .btnSaveRouteStop{
+    width:100%;
+    min-width:0;
+  }
 }
