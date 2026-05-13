@@ -112,6 +112,44 @@ function normalizeRouteText(value){
     .replace(/\s+/g, " ")
     .trim();
 }
+const ROUTE_SEARCH_STOPWORDS = new Set(["de","del","la","las","el","los","y","en","al","a","por","para","urbanizacion","urb","barrio","sector"]);
+function routeSearchTokens(value){
+  return normalizeRouteText(value)
+    .split(" ")
+    .map(x => x.trim())
+    .filter(x => x && !ROUTE_SEARCH_STOPWORDS.has(x));
+}
+function routeCompactText(value){
+  return routeSearchTokens(value).join(" ");
+}
+function routeNeighborhoodMatchScore(name, query, aliases=[]){
+  const rawQuery = String(query || "").trim();
+  if(!rawQuery) return 1000;
+  const qNorm = normalizeRouteText(rawQuery);
+  const qCompact = routeCompactText(rawQuery);
+  const qTokens = routeSearchTokens(rawQuery);
+  if(!qNorm && !qCompact) return 1000;
+  let best = Infinity;
+  [name].concat(Array.isArray(aliases) ? aliases : []).forEach(candidate => {
+    const nNorm = normalizeRouteText(candidate);
+    const nCompact = routeCompactText(candidate);
+    const nTokens = routeSearchTokens(candidate);
+    if(!nNorm && !nCompact) return;
+    let score = 999;
+    if(qNorm === nNorm || (qCompact && qCompact === nCompact)) score = 0;
+    else if(nNorm.startsWith(qNorm) || (qCompact && nCompact.startsWith(qCompact))) score = 5;
+    else if(nNorm.includes(qNorm) || qNorm.includes(nNorm) || (qCompact && (nCompact.includes(qCompact) || qCompact.includes(nCompact)))) score = 12;
+    else if(qTokens.length){
+      const matched = qTokens.filter(t => nTokens.some(nt => nt.includes(t) || t.includes(nt))).length;
+      if(matched){
+        const coverage = matched / Math.max(1, qTokens.length);
+        score = 35 - coverage * 20 + Math.max(0, nTokens.length - matched) * 1.2;
+      }
+    }
+    if(score < best) best = score;
+  });
+  return best;
+}
 function inferAmaredRouteInfo(input){
   const text = normalizeRouteText(input);
   if(!text){
@@ -119,17 +157,12 @@ function inferAmaredRouteInfo(input){
   }
   let best = null;
   AMARED_NEIGHBORHOOD_ROUTES.forEach(item => {
-    const aliases = [item.name].concat(item.aliases || []);
-    aliases.forEach(alias => {
-      const n = normalizeRouteText(alias);
-      if(!n) return;
-      const hit = text === n || text.includes(n) || n.includes(text);
-      if(!hit) return;
-      const weight = n.length + (text === n ? 100 : 0);
-      if(!best || weight > best.weight){
-        best = { item, weight };
-      }
-    });
+    const score = routeNeighborhoodMatchScore(item.name, input, item.aliases || []);
+    if(!Number.isFinite(score) || score > 38) return;
+    const weight = 1000 - score + (normalizeRouteText(input) === normalizeRouteText(item.name) ? 100 : 0);
+    if(!best || weight > best.weight){
+      best = { item, weight };
+    }
   });
   if(!best){
     return { ...AMARED_ROUTE_UNKNOWN, neighborhood:"", detected:false, score:AMARED_ROUTE_UNKNOWN.score };
@@ -174,11 +207,19 @@ function renderNeighborhoodSuggestions(query = "", showAll = false){
   const rawQuery = String(query || "").trim();
   const normalizedQuery = normalizeRouteText(rawQuery);
   const names = getNeighborhoodNames();
+  const routeByName = new Map(AMARED_NEIGHBORHOOD_ROUTES.map(item => [String(item.name || "").trim(), item]));
   const filtered = (!normalizedQuery || showAll)
     ? names
-    : names.filter(name => normalizeRouteText(name).includes(normalizedQuery));
+    : names
+        .map(name => {
+          const item = routeByName.get(name) || { name };
+          return { name, score: routeNeighborhoodMatchScore(name, rawQuery, item.aliases || []) };
+        })
+        .filter(item => Number.isFinite(item.score) && item.score <= 38)
+        .sort((a,b) => a.score - b.score || a.name.localeCompare(b.name, "es"))
+        .map(item => item.name);
 
-  const exactMatch = !!normalizedQuery && names.some(name => normalizeRouteText(name) === normalizedQuery);
+  const exactMatch = !!normalizedQuery && names.some(name => normalizeRouteText(name) === normalizedQuery || routeCompactText(name) === routeCompactText(rawQuery));
   const visible = filtered.slice(0, 90);
   const manualOption = rawQuery && !exactMatch
     ? `<button type="button" class="neighborhoodSuggestItem neighborhoodSuggestManual" data-name="${escapeHtml(rawQuery)}" role="option">

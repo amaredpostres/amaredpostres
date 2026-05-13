@@ -1372,10 +1372,13 @@ function renderOrders(orders){
               ${canWa ? "" : '<span class="pill">📵 Sin WhatsApp</span>'}
             </div>
             ${isRouteCard ? `
-              <button class="btn secondary btnRouteCardToggle" data-id="${escapeHtml(orderId)}" type="button" aria-expanded="${expanded ? 'true' : 'false'}">
-                <span class="routeCardToggleIcon" aria-hidden="true"></span>
-                <span>${expanded ? 'Ocultar detalle' : 'Ver detalle'}</span>
-              </button>` : ''}
+              <div class="routeCardQuickActions">
+                <button class="btn secondary btnRouteCardToggle" data-id="${escapeHtml(orderId)}" type="button" aria-expanded="${expanded ? 'true' : 'false'}">
+                  <span class="routeCardToggleIcon" aria-hidden="true"></span>
+                  <span>${expanded ? 'Ocultar detalle' : 'Ver detalle'}</span>
+                </button>
+                <button class="btn secondary btnSend btnSendQuick ${kitchenInfo.ready ? '' : 'isDisabled'}" data-id="${escapeHtml(orderId)}" type="button" ${kitchenInfo.ready ? '' : 'disabled'} title="${kitchenInfo.ready ? 'Ver mensaje para el cliente' : 'Disponible cuando el pedido esté elaborado'}">${kitchenInfo.ready ? 'Ver mensaje' : 'Mensaje no disponible'}</button>
+              </div>` : ''}
           </div>
         </div>
 

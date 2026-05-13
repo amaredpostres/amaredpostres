@@ -107,20 +107,53 @@ function normalizeAdminRouteText_(value){
     .replace(/\s+/g, " ")
     .trim();
 }
+const ADMIN_ROUTE_SEARCH_STOPWORDS = new Set(["de","del","la","las","el","los","y","en","al","a","por","para","urbanizacion","urb","barrio","sector"]);
+function adminRouteTokens_(value){
+  return normalizeAdminRouteText_(value).split(" ").map(x=>x.trim()).filter(x => x && !ADMIN_ROUTE_SEARCH_STOPWORDS.has(x));
+}
+function adminRouteCompact_(value){
+  return adminRouteTokens_(value).join(" ");
+}
+function adminRouteMatchScore_(name, query, aliases){
+  const raw = String(query || "").trim();
+  if(!raw) return 1000;
+  const qNorm = normalizeAdminRouteText_(raw);
+  const qCompact = adminRouteCompact_(raw);
+  const qTokens = adminRouteTokens_(raw);
+  let best = Infinity;
+  [name].concat(Array.isArray(aliases) ? aliases : []).forEach(candidate => {
+    const nNorm = normalizeAdminRouteText_(candidate);
+    const nCompact = adminRouteCompact_(candidate);
+    const nTokens = adminRouteTokens_(candidate);
+    if(!nNorm && !nCompact) return;
+    let score = 999;
+    if(qNorm === nNorm || (qCompact && qCompact === nCompact)) score = 0;
+    else if(nNorm.startsWith(qNorm) || (qCompact && nCompact.startsWith(qCompact))) score = 5;
+    else if(nNorm.includes(qNorm) || qNorm.includes(nNorm) || (qCompact && (nCompact.includes(qCompact) || qCompact.includes(nCompact)))) score = 12;
+    else if(qTokens.length){
+      const matched = qTokens.filter(t => nTokens.some(nt => nt.includes(t) || t.includes(nt))).length;
+      if(matched){
+        const coverage = matched / Math.max(1, qTokens.length);
+        score = 35 - coverage * 20 + Math.max(0, nTokens.length - matched) * 1.2;
+      }
+    }
+    if(score < best) best = score;
+  });
+  return best;
+}
+function adminNeighborhoodOptionsHtml_(){
+  const names = Array.from(new Set(ADMIN_NEIGHBORHOOD_ROUTES.map(x => String(x.name || "").trim()).filter(Boolean))).sort((a,b)=>a.localeCompare(b,"es"));
+  return names.map(name => `<option value="${escapeHtml(name)}"></option>`).join("");
+}
 function inferAdminRouteInfo_(value){
   const text = normalizeAdminRouteText_(value);
   if(!text) return { ...ADMIN_ROUTE_UNKNOWN, neighborhood:"", detected:false };
   let best = null;
   ADMIN_NEIGHBORHOOD_ROUTES.forEach(item => {
-    const names = [item.name].concat(Array.isArray(item.aliases) ? item.aliases : []);
-    names.forEach(alias => {
-      const n = normalizeAdminRouteText_(alias);
-      if(!n) return;
-      const hit = text === n || text.includes(n) || n.includes(text);
-      if(!hit) return;
-      const score = Number(item.score || 50) + Math.max(0, 20 - n.length) / 100;
-      if(!best || score < best.score) best = { item, score };
-    });
+    const matchScore = adminRouteMatchScore_(item.name, value, item.aliases || []);
+    if(!Number.isFinite(matchScore) || matchScore > 38) return;
+    const score = Number(item.score || 50) + matchScore / 100;
+    if(!best || score < best.score) best = { item, score };
   });
   if(!best) return { ...ADMIN_ROUTE_UNKNOWN, neighborhood:"", detected:false };
   const def = ADMIN_ROUTE_DEFINITIONS[best.item.route] || ADMIN_ROUTE_UNKNOWN;
@@ -1171,13 +1204,15 @@ function renderPendingBody(order) {
 
           <div>
             <div class="mutedSmall" style="font-weight:900;">Barrio o sector</div>
-            <input id="ed_neighborhood" class="input" type="text" value="${escapeHtml(fields.neighborhood_text)}" placeholder="Ej: Jordán, Centro, El Salado" />
-            <div class="mutedSmall">Se usará para organizar las rutas de envío.</div>
+            <input id="ed_neighborhood" class="input" type="text" list="adminNeighborhoodOptions" value="${escapeHtml(fields.neighborhood_text)}" placeholder="Busca o escribe el barrio" autocomplete="off" />
+            <datalist id="adminNeighborhoodOptions">${adminNeighborhoodOptionsHtml_()}</datalist>
+            <div class="mutedSmall">Selecciona del listado o escribe el sector para revisar la ruta.</div>
           </div>
 
           <div>
-            <div class="mutedSmall" style="font-weight:900;">Ubicación (Maps/WhatsApp)</div>
-            <input id="ed_maps" class="input" type="text" value="${escapeHtml(fields.maps_link)}" />
+            <div class="mutedSmall" style="font-weight:900;">Link de Google Maps / ubicación de WhatsApp</div>
+            <input id="ed_maps" class="input" type="url" value="${escapeHtml(fields.maps_link)}" placeholder="Pega aquí el link exacto de Google Maps" />
+            <div class="mutedSmall">Puedes anexarlo antes de confirmar el pago para agilizar envíos.</div>
           </div>
 
           <div>

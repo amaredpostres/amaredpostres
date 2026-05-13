@@ -1549,3 +1549,27 @@ body.deliveryOverlayOpen .amDeliveryMobileBar{
   .orderCard.isRouteCard::before{ display:none; }
   .orderCard.isRouteCard .orderHead{ padding-right:0; }
 }
+
+/* Delivery UX v26: mensaje rápido en tarjeta cerrada */
+.routeCardQuickActions{
+  display:grid;
+  gap:8px;
+  width:min(190px, 100%);
+  justify-items:stretch;
+}
+.routeCardQuickActions .btn{
+  width:100%;
+  justify-content:center;
+  min-height:38px;
+}
+.btnSendQuick{
+  background:linear-gradient(180deg, rgba(255,248,251,.98), rgba(255,235,244,.94)) !important;
+  border-color:rgba(242,91,143,.24) !important;
+}
+.btnSendQuick:not(:disabled){
+  color:#401102 !important;
+  box-shadow:0 8px 18px rgba(242,91,143,.10);
+}
+@media (max-width:720px){
+  .routeCardQuickActions{ width:100%; }
+}
