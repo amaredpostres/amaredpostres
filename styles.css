@@ -3570,3 +3570,55 @@ body.profilesPage{
   min-height:100vh;
   min-height:100dvh;
 }
+
+/* ===== Admin: selector de barrio y link Maps para pagos v27 ===== */
+.adminNeighborhoodField{
+  z-index: 40;
+}
+.adminNeighborhoodField .adminNeighborhoodHelp{
+  margin-top: 7px;
+  padding: 8px 10px;
+  border-radius: 13px;
+  background: rgba(242,91,143,.06);
+  border: 1px solid rgba(242,91,143,.10);
+  color: rgba(64,17,2,.68);
+  font-weight: 800;
+  line-height: 1.35;
+}
+.adminLocationMethodPill,
+.adminLocationLinkBlock{
+  border: 1px solid rgba(242,91,143,.14);
+  border-radius: 18px;
+  background: rgba(255,246,250,.72);
+  padding: 12px 14px;
+}
+.adminLocationMethodPill{
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.adminLocationMethodPill span{
+  color: rgba(64,17,2,.62);
+  font-size: 12px;
+  font-weight: 900;
+}
+.adminLocationMethodPill strong{
+  color: var(--brand-dark, #a72f62);
+  font-weight: 950;
+}
+.adminLocationLinkBlock.is-whatsapp{
+  background: linear-gradient(180deg, rgba(255,246,250,.92), rgba(255,238,246,.78));
+  border-color: rgba(242,91,143,.22);
+}
+.adminLocationLinkBlock .input{
+  margin-top: 7px;
+}
+@media (max-width: 720px){
+  .adminLocationMethodPill,
+  .adminLocationLinkBlock{
+    border-radius: 16px;
+    padding: 11px 12px;
+  }
+}

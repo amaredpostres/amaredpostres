@@ -145,6 +145,142 @@ function adminNeighborhoodOptionsHtml_(){
   const names = Array.from(new Set(ADMIN_NEIGHBORHOOD_ROUTES.map(x => String(x.name || "").trim()).filter(Boolean))).sort((a,b)=>a.localeCompare(b,"es"));
   return names.map(name => `<option value="${escapeHtml(name)}"></option>`).join("");
 }
+function adminNeighborhoodNames_(){
+  return Array.from(new Set(ADMIN_NEIGHBORHOOD_ROUTES.map(x => String(x.name || "").trim()).filter(Boolean)))
+    .sort((a,b)=>a.localeCompare(b,"es"));
+}
+function adminLocationMethodLabel_(method){
+  const m = String(method || "").toLowerCase();
+  if(m === "whatsapp") return "Ubicación por WhatsApp";
+  if(m === "maps") return "Link de Google Maps";
+  if(m === "pickup") return "Recogida presencial";
+  return method ? String(method) : "No indicado";
+}
+function adminNeighborhoodSuggestionNames_(query = "", showAll = false){
+  const rawQuery = String(query || "").trim();
+  const normalizedQuery = normalizeAdminRouteText_(rawQuery);
+  const names = adminNeighborhoodNames_();
+  if(!normalizedQuery || showAll) return names;
+  const routeByName = new Map(ADMIN_NEIGHBORHOOD_ROUTES.map(item => [String(item.name || "").trim(), item]));
+  return names
+    .map(name => {
+      const item = routeByName.get(name) || { name };
+      return { name, score: adminRouteMatchScore_(name, rawQuery, item.aliases || []) };
+    })
+    .filter(item => Number.isFinite(item.score) && item.score <= 38)
+    .sort((a,b) => a.score - b.score || a.name.localeCompare(b.name,"es"))
+    .map(item => item.name);
+}
+function setAdminNeighborhoodComboOpen_(field, open){
+  if(!field) return;
+  const box = field.querySelector(".adminNeighborhoodSuggest");
+  const input = field.querySelector(".adminNeighborhoodInput");
+  const toggle = field.querySelector(".adminNeighborhoodToggle");
+  box?.classList.toggle("hidden", !open);
+  field.classList.toggle("is-open", !!open);
+  input?.setAttribute("aria-expanded", open ? "true" : "false");
+  toggle?.setAttribute("aria-expanded", open ? "true" : "false");
+}
+function renderAdminNeighborhoodSuggestions_(field, query = "", showAll = false){
+  if(!field) return;
+  const box = field.querySelector(".adminNeighborhoodSuggest");
+  if(!box) return;
+  const rawQuery = String(query || "").trim();
+  const names = adminNeighborhoodNames_();
+  const filtered = adminNeighborhoodSuggestionNames_(rawQuery, showAll);
+  const exactMatch = !!rawQuery && names.some(name => normalizeAdminRouteText_(name) === normalizeAdminRouteText_(rawQuery) || adminRouteCompact_(name) === adminRouteCompact_(rawQuery));
+  const visible = filtered.slice(0, 90);
+  const manualOption = rawQuery && !exactMatch
+    ? `<button type="button" class="neighborhoodSuggestItem neighborhoodSuggestManual" data-name="${escapeHtml(rawQuery)}" role="option">
+        <span>Usar “${escapeHtml(rawQuery)}”</span>
+        <small>No aparece en el listado; se revisará para la entrega.</small>
+      </button>`
+    : "";
+  const items = visible.map(name => `
+    <button type="button" class="neighborhoodSuggestItem" data-name="${escapeHtml(name)}" role="option">
+      <span>${escapeHtml(name)}</span>
+    </button>
+  `).join("");
+  const limitNote = filtered.length > visible.length
+    ? `<div class="neighborhoodSuggestNote">Mostrando ${visible.length} de ${filtered.length}. Escribe más letras para filtrar.</div>`
+    : "";
+  const emptyNote = (!items && !manualOption)
+    ? `<div class="neighborhoodSuggestEmpty">No encontramos coincidencias. Puedes escribir el barrio manualmente.</div>`
+    : "";
+  box.innerHTML = `${manualOption}${items}${limitNote}${emptyNote}`;
+  setAdminNeighborhoodComboOpen_(field, true);
+}
+function attachAdminNeighborhoodCombo_(wrap, syncFields){
+  const field = wrap?.querySelector?.("[data-admin-neighborhood-field]");
+  if(!field || field.dataset.ready === "1") return;
+  field.dataset.ready = "1";
+  const input = field.querySelector(".adminNeighborhoodInput");
+  const toggle = field.querySelector(".adminNeighborhoodToggle");
+  const box = field.querySelector(".adminNeighborhoodSuggest");
+  const choose = (value) => {
+    if(!input) return;
+    input.value = String(value || "").trim();
+    setAdminNeighborhoodComboOpen_(field, false);
+    syncFields?.();
+    input.dispatchEvent(new Event("change", { bubbles:true }));
+  };
+  input?.addEventListener("focus", () => renderAdminNeighborhoodSuggestions_(field, input.value, true));
+  input?.addEventListener("click", () => renderAdminNeighborhoodSuggestions_(field, input.value, true));
+  input?.addEventListener("input", () => {
+    syncFields?.();
+    renderAdminNeighborhoodSuggestions_(field, input.value, false);
+  });
+  input?.addEventListener("keydown", (event) => {
+    if(event.key === "Escape"){
+      setAdminNeighborhoodComboOpen_(field, false);
+      return;
+    }
+    if(event.key === "ArrowDown"){
+      event.preventDefault();
+      renderAdminNeighborhoodSuggestions_(field, input.value, !input.value.trim());
+      const first = box?.querySelector(".neighborhoodSuggestItem");
+      first?.focus();
+    }
+  });
+  toggle?.addEventListener("click", (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    if(box && !box.classList.contains("hidden")){
+      setAdminNeighborhoodComboOpen_(field, false);
+      return;
+    }
+    renderAdminNeighborhoodSuggestions_(field, input?.value || "", true);
+    input?.focus();
+  });
+  box?.addEventListener("click", (event) => {
+    const item = event.target.closest(".neighborhoodSuggestItem");
+    if(!item) return;
+    choose(item.dataset.name || item.textContent || "");
+  });
+  box?.addEventListener("keydown", (event) => {
+    const items = Array.from(box.querySelectorAll(".neighborhoodSuggestItem"));
+    const idx = items.indexOf(document.activeElement);
+    if(event.key === "Escape"){
+      setAdminNeighborhoodComboOpen_(field, false);
+      input?.focus();
+    }else if(event.key === "ArrowDown"){
+      event.preventDefault();
+      items[Math.min(items.length - 1, idx + 1)]?.focus();
+    }else if(event.key === "ArrowUp"){
+      event.preventDefault();
+      if(idx <= 0) input?.focus();
+      else items[idx - 1]?.focus();
+    }else if(event.key === "Enter" && document.activeElement?.classList?.contains("neighborhoodSuggestItem")){
+      event.preventDefault();
+      choose(document.activeElement.dataset.name || document.activeElement.textContent || "");
+    }
+  });
+  field.addEventListener("focusout", () => {
+    setTimeout(() => {
+      if(!field.contains(document.activeElement)) setAdminNeighborhoodComboOpen_(field, false);
+    }, 120);
+  });
+}
 function inferAdminRouteInfo_(value){
   const text = normalizeAdminRouteText_(value);
   if(!text) return { ...ADMIN_ROUTE_UNKNOWN, neighborhood:"", detected:false };
@@ -1119,8 +1255,9 @@ function renderHistBody(order) {
   wrap.innerHTML = `
     <div style="display:flex; flex-direction:column; gap:8px;">
       <div><strong>Dirección:</strong> ${escapeHtml(order.address_text || "")}</div>
+      <div><strong>Método ubicación:</strong> ${escapeHtml(adminLocationMethodLabel_(order.location_method))}</div>
       <div><strong>Barrio / sector:</strong> ${escapeHtml(order.neighborhood_text || order.route_detected_neighborhood || "Por revisar")}</div>
-      <div><strong>Ubicación:</strong> ${escapeHtml(order.maps_link || "")}</div>
+      ${String(order.location_method || "").toLowerCase() !== "pickup" ? `<div><strong>Link de Google Maps:</strong> ${order.maps_link ? escapeHtml(order.maps_link) : "No agregado"}</div>` : ""}
       <div><strong>Tel:</strong> ${escapeHtml(order.phone || "")}</div>
       <div><strong>Notas:</strong> ${escapeHtml(order.notes || "")}</div>
       <div><strong>Items:</strong><div style="margin-top:6px;">${lines}</div></div>
@@ -1146,6 +1283,7 @@ function renderPendingBody(order) {
     phone: String(order.phone || ""),
     address_text: String(order.address_text || ""),
     maps_link: String(order.maps_link || ""),
+    location_method: String(order.location_method || ""),
     neighborhood_text: String(order.neighborhood_text || order.neighborhood || order.route_detected_neighborhood || ""),
     notes: String(order.notes || ""),
     email: String(order.email || ""),
@@ -1180,8 +1318,9 @@ function renderPendingBody(order) {
           <div><strong>Nombre:</strong> ${escapeHtml(fields.customer_name)}</div>
           <div><strong>Tel:</strong> ${escapeHtml(fields.phone)}</div>
           <div><strong>Dirección:</strong> ${escapeHtml(fields.address_text)}</div>
+          <div><strong>Método ubicación:</strong> ${escapeHtml(adminLocationMethodLabel_(fields.location_method))}</div>
           <div><strong>Barrio / sector:</strong> ${escapeHtml(fields.neighborhood_text || "Por revisar")}</div>
-          <div><strong>Ubicación:</strong> ${escapeHtml(fields.maps_link)}</div>
+          ${fields.location_method !== "pickup" ? `<div><strong>Link de Google Maps:</strong> ${fields.maps_link ? escapeHtml(fields.maps_link) : "No agregado"}</div>` : ""}
           <div><strong>Email:</strong> ${escapeHtml(fields.email)}</div>
           <div><strong>Opt-in WhatsApp:</strong> ${fields.wa_opt_in ? "Sí" : "No"}</div>
           <div><strong>Notas:</strong> ${escapeHtml(fields.notes)}</div>
@@ -1202,18 +1341,28 @@ function renderPendingBody(order) {
             <input id="ed_addr" class="input" type="text" value="${escapeHtml(fields.address_text)}" />
           </div>
 
-          <div>
-            <div class="mutedSmall" style="font-weight:900;">Barrio o sector</div>
-            <input id="ed_neighborhood" class="input" type="text" list="adminNeighborhoodOptions" value="${escapeHtml(fields.neighborhood_text)}" placeholder="Busca o escribe el barrio" autocomplete="off" />
-            <datalist id="adminNeighborhoodOptions">${adminNeighborhoodOptionsHtml_()}</datalist>
-            <div class="mutedSmall">Selecciona del listado o escribe el sector para revisar la ruta.</div>
+          <div class="adminLocationMethodPill">
+            <span>Método elegido por el cliente</span>
+            <strong>${escapeHtml(adminLocationMethodLabel_(fields.location_method))}</strong>
           </div>
 
-          <div>
-            <div class="mutedSmall" style="font-weight:900;">Link de Google Maps / ubicación de WhatsApp</div>
-            <input id="ed_maps" class="input" type="url" value="${escapeHtml(fields.maps_link)}" placeholder="Pega aquí el link exacto de Google Maps" />
-            <div class="mutedSmall">Puedes anexarlo antes de confirmar el pago para agilizar envíos.</div>
+          <div class="neighborhoodField adminNeighborhoodField" data-admin-neighborhood-field>
+            <div class="mutedSmall" style="font-weight:900;">Barrio o sector</div>
+            <div class="neighborhoodCombo">
+              <input id="ed_neighborhood" class="input adminNeighborhoodInput" type="text" value="${escapeHtml(fields.neighborhood_text)}" placeholder="Busca o escribe el barrio" autocomplete="off" role="combobox" aria-expanded="false" aria-controls="adminNeighborhoodSuggest" aria-autocomplete="list" />
+              <button class="neighborhoodToggle adminNeighborhoodToggle" type="button" aria-label="Mostrar barrios disponibles" aria-controls="adminNeighborhoodSuggest"></button>
+            </div>
+            <div class="neighborhoodSuggest adminNeighborhoodSuggest hidden" role="listbox" aria-label="Barrios sugeridos"></div>
+            <div class="mutedSmall adminNeighborhoodHelp">Busca y selecciona el barrio. Si no aparece, puedes escribirlo manualmente.</div>
           </div>
+
+          ${fields.location_method === "pickup" ? "" : `
+          <div class="adminLocationLinkBlock ${fields.location_method === "whatsapp" ? "is-whatsapp" : ""}">
+            <div class="mutedSmall" style="font-weight:900;">${fields.location_method === "whatsapp" ? "Link de Google Maps enviado por WhatsApp" : "Link de Google Maps"}</div>
+            <input id="ed_maps" class="input" type="url" value="${escapeHtml(fields.maps_link)}" placeholder="Pega aquí el link exacto de Google Maps" />
+            <div class="mutedSmall">${fields.location_method === "whatsapp" ? "Se guarda como link adicional sin cambiar el método elegido por el cliente." : "Puedes corregir o agregar el link exacto para envíos."}</div>
+          </div>
+          `}
 
           <div>
             <div class="mutedSmall" style="font-weight:900;">Email (opcional)</div>
@@ -1289,9 +1438,10 @@ function renderPendingBody(order) {
         fields.wa_opt_in = !!ed_optin?.checked;
       };
 
-      [ed_name, ed_phone, ed_addr, ed_neighborhood, ed_maps, ed_email, ed_notes].forEach(el => {
+      [ed_name, ed_phone, ed_addr, ed_maps, ed_email, ed_notes].forEach(el => {
         el?.addEventListener("input", syncFields);
       });
+      attachAdminNeighborhoodCombo_(wrap, syncFields);
       ed_optin?.addEventListener("change", syncFields);
     }
 
