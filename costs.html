@@ -150,6 +150,16 @@
   .unitMobileOnly{ display:none !important; }
 }
 
+/* ===== Costo unitario escritorio: desglose desplegable ===== */
+.unitDesktopRow{ cursor:pointer; }
+.unitDesktopRow:hover td{ background:rgba(255,241,246,.45); }
+.unitDesktopDessertCell{ display:flex; align-items:center; gap:10px; min-width:0; font-weight:950; }
+.unitDesktopChevron{ flex:0 0 auto; width:28px; height:28px; border-radius:999px; display:inline-flex; align-items:center; justify-content:center; border:1px solid rgba(242,91,143,.24); background:rgba(255,241,246,.92); color:var(--choco); transition:transform .18s ease, background .18s ease; }
+.unitDesktopRow.isOpen .unitDesktopChevron{ transform:rotate(180deg); background:rgba(242,91,143,.16); }
+.unitDesktopBreakRow.hidden{ display:none; }
+.unitDesktopBreakRow td{ padding:0 !important; background:rgba(255,253,251,.98); }
+.unitDesktopBreakRow > td > div{ border-top:1px solid rgba(64,17,2,.08); }
+
 
 /* ===== Aviso flotante de carga no bloqueante ===== */
 .costsSyncBadge{
@@ -196,7 +206,7 @@
 <!-- ✅ estilos globales AMARED -->
 <link href="styles.css?v=20260513-bg-recipes-admin-v38" rel="stylesheet"/>
 <!-- ✅ estilos de Compras / Recetas -->
-<link href="costs.css?v=20260515-unit-cost-recipes-fix-v39" rel="stylesheet"/>
+<link href="costs.css?v=20260515-unit-cost-recipes-fix-v40" rel="stylesheet"/>
 <style>
 /* ===== Ingredientes modal responsive ===== */
 #ingModalBack .pCatGrid.ingGrid{grid-template-columns: 1fr 1fr;}
@@ -1161,6 +1171,6 @@ body.is-app .costsLoginTopbar{ display:none !important; }
 </div>
 
 <script src="kitchen-costs.js?v=30-costs-mobile-ux"></script>
-<script src="costs.js?v=20260515-unit-cost-recipes-fix-v39"></script>
+<script src="costs.js?v=20260515-unit-cost-recipes-fix-v40"></script>
 </body>
 </html>

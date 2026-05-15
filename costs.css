@@ -1782,3 +1782,59 @@ body.costsPage{
     background-size:auto, auto, 100% 100% !important;
   }
 }
+
+
+/* ===== Costo unitario escritorio: desglose desplegable v40 ===== */
+.costsPage .unitDesktopRow{
+  cursor:pointer;
+  transition:background .18s ease;
+}
+.costsPage .unitDesktopRow:hover td{
+  background:rgba(255,241,246,.46);
+}
+.costsPage .unitDesktopDessertCell{
+  display:flex;
+  align-items:center;
+  gap:10px;
+  min-width:0;
+  font-weight:950;
+}
+.costsPage .unitDesktopChevron{
+  flex:0 0 auto;
+  width:28px;
+  height:28px;
+  border-radius:999px;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  border:1px solid rgba(242,91,143,.24);
+  background:rgba(255,241,246,.92);
+  color:var(--choco);
+  box-shadow:0 6px 14px rgba(64,17,2,.045);
+  transition:transform .18s ease, background .18s ease, border-color .18s ease;
+}
+.costsPage .unitDesktopRow.isOpen .unitDesktopChevron{
+  transform:rotate(180deg);
+  background:rgba(242,91,143,.16);
+  border-color:rgba(242,91,143,.34);
+}
+.costsPage .unitDesktopBreakRow.hidden{
+  display:none;
+}
+.costsPage .unitDesktopBreakRow td{
+  padding:0 !important;
+  background:rgba(255,253,251,.98);
+  border-top:1px solid rgba(64,17,2,.08);
+}
+.costsPage .unitDesktopBreakRow > td > div{
+  padding:14px 18px !important;
+}
+.costsPage .unitDesktopBreakRow .hint{
+  margin-bottom:10px;
+}
+.costsPage .unitDesktopBreakRow [style*="display:flex"]{
+  min-width:0;
+}
+.costsPage .unitDesktopBreakRow [style*="min-width:0"]{
+  overflow-wrap:anywhere;
+}

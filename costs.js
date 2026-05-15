@@ -898,12 +898,36 @@ function recipeLineIsDirectCost_(line){
   return !!(line.direct_cost || line.no_margin || line.noMargin || isNoMarginMode_(line.pricing_mode || line.pricingMode || line.price_mode || line.margin_mode));
 }
 
+function recipeRowUpdatedTime_(row){
+  const v = row?.updated_at ?? row?.updatedAt ?? row?.recipe_updated_at ?? row?.updated ?? row?.modified_at ?? row?.modifiedAt ?? "";
+  if(v instanceof Date) return v.getTime();
+  const s = String(v || "").trim();
+  if(!s) return 0;
+  const t = Date.parse(s);
+  return Number.isFinite(t) ? t : 0;
+}
+
+function recipeRowIsInactive_(row){
+  const values = [
+    row?.active, row?.is_active, row?.enabled, row?.included, row?.use,
+    row?.activo, row?.incluido
+  ];
+  for(const v of values){
+    if(v === undefined || v === null || v === "") continue;
+    const t = String(v).trim().toLowerCase();
+    if(["0","false","no","n","off","inactivo","inactive","desactivado"].includes(t)) return true;
+  }
+  return false;
+}
+
 function buildRecipesIndex_(items){
   const rows = Array.isArray(items) ? items : [];
   const normalized = [];
   const hasExactDessertRows = {};
 
   for(const r of rows){
+    if(recipeRowIsInactive_(r)) continue;
+
     const didRaw = String(r?.dessert_id || r?.dessertId || "").trim();
     const dname = String(r?.dessert_name || r?.dessertName || "").trim();
     const didFromName = DESSERT_NAME_TO_ID_[normText_(dname)] || "";
@@ -923,7 +947,7 @@ function buildRecipesIndex_(items){
     if(exactDessertId) hasExactDessertRows[did] = true;
 
     const pricingMode = normalizeRecipePricingMode_(r?.pricing_mode ?? r?.pricingMode ?? r?.price_mode ?? r?.margin_mode ?? r?.no_margin ?? r?.noMargin ?? "");
-    const directCost = pricingMode === "direct_cost" || isPackagingIngredientName_(ing);
+    const directCost = pricingMode === "direct_cost";
 
     normalized.push({
       dessert_id: did,
@@ -933,8 +957,19 @@ function buildRecipesIndex_(items){
       qty_per_unit: qty,
       unit,
       pricing_mode: directCost ? "direct_cost" : "margin_60",
-      no_margin: directCost
+      no_margin: directCost,
+      updated_ts: recipeRowUpdatedTime_(r),
+      row_order: normalized.length
     });
+  }
+
+  // Si quedaron filas antiguas en RECETAS por errores previos, usamos el último
+  // lote guardado por postre. Así los ingredientes desactivados dejan de afectar
+  // el costo unitario aunque existan registros viejos en la hoja.
+  const latestByDessert = {};
+  for(const r of normalized){
+    if(!r.exactDessertId || !(r.updated_ts > 0)) continue;
+    latestByDessert[r.dessert_id] = Math.max(latestByDessert[r.dessert_id] || 0, r.updated_ts);
   }
 
   const byDessertAndIngredient = {};
@@ -943,6 +978,9 @@ function buildRecipesIndex_(items){
     // que solo venían por dessert_name. Así evitamos que ingredientes eliminados
     // anteriormente sigan apareciendo en el costo unitario.
     if(hasExactDessertRows[r.dessert_id] && !r.exactDessertId) continue;
+
+    const latestTs = latestByDessert[r.dessert_id] || 0;
+    if(latestTs && r.exactDessertId && r.updated_ts && r.updated_ts < latestTs) continue;
 
     const ingredientKey = r.ingredient_canon || canonicalKey(r.ingredient_key);
     if(!ingredientKey) continue;
@@ -956,7 +994,9 @@ function buildRecipesIndex_(items){
       qty_per_unit: r.qty_per_unit,
       unit: r.unit,
       pricing_mode: r.pricing_mode,
-      no_margin: r.no_margin
+      no_margin: r.no_margin,
+      updated_ts: r.updated_ts,
+      row_order: r.row_order
     };
   }
 
@@ -1598,7 +1638,7 @@ function resolveCostForRecipe_(ingredientKey, recipeUnit){
     }
   }
 
-  return { ok:true, ingredient_key: ik, cpu: Number(base.cpu), base_unit: have || base.base_unit || "", note };
+  return { ok:true, ingredient_key: ik, cpu: Number(base.cpu), base_unit: have || base.base_unit || "", note, updated_at: spec?.updated_at || spec?.updatedAt || "" };
 }
 
 
@@ -1621,7 +1661,7 @@ function dessertUnitBreakdown_(dessertId, lotQty){
   const packagingCanonSeen = new Set();
 
   const pushRecipeLine = (line)=>{
-    const directCost = recipeLineIsDirectCost_(line) || isPackagingIngredientName_(line.ingredient_key);
+    const directCost = recipeLineIsDirectCost_(line);
     if(directCost){
       const pLine = { ...line, direct_cost:true, pricing_mode:"direct_cost", packaging_type: line.packaging_type || packagingTypeLabel_(line.ingredient_key) };
       packagingCanonSeen.add(canonicalKey(line.ingredient_key));
@@ -1641,7 +1681,7 @@ function dessertUnitBreakdown_(dessertId, lotQty){
       const unit = normRecipeUnit_(r.unit);
       if(!ik || !(qty>0) || !unit) continue;
 
-      const directCost = recipeLineIsDirectCost_(r) || isPackagingIngredientName_(ik);
+      const directCost = recipeLineIsDirectCost_(r);
       const rc = resolveCostForRecipe_(ik, unit);
       if(!rc.ok){
         if(directCost) packagingMissing.push(ik);
@@ -1649,7 +1689,7 @@ function dessertUnitBreakdown_(dessertId, lotQty){
         continue;
       }
       const sub = qty * rc.cpu;
-      pushRecipeLine({ ingredient_key: rc.ingredient_key, qty, unit, cpu: rc.cpu, cpu_unit: rc.base_unit || unit, note: rc.note || "", subtotal: sub, direct_cost: directCost, pricing_mode: directCost ? "direct_cost" : "margin_60" });
+      pushRecipeLine({ ingredient_key: rc.ingredient_key, qty, unit, cpu: rc.cpu, cpu_unit: rc.base_unit || unit, note: rc.note || "", subtotal: sub, direct_cost: directCost, pricing_mode: directCost ? "direct_cost" : "margin_60", cost_updated_at: rc.updated_at || "" });
     }
   } else {
     const rec = AMARED_RECIPES_PER_UNIT[dessertId] || [];
@@ -1681,6 +1721,21 @@ function dessertUnitBreakdown_(dessertId, lotQty){
       else packagingSum += Number(pLine.subtotal || 0);
     }
   }
+
+  // Evita que productos equivalentes de complemento aparezcan duplicados
+  // (por ejemplo: “Bolsa hermética” y una fila antigua “Bolsa plástica”).
+  // Gana el registro con costo más reciente; si no hay fecha, gana el último recibido.
+  const packByType = new Map();
+  packagingLines.forEach((x, idx)=>{
+    const typeKey = canonicalKey(x?.packaging_type || packagingTypeLabel_(x?.ingredient_key) || x?.ingredient_key);
+    const key = typeKey || canonicalKey(x?.ingredient_key) || `pack_${idx}`;
+    const ts = Date.parse(String(x?.cost_updated_at || x?.updated_at || x?.updatedAt || "")) || 0;
+    const prev = packByType.get(key);
+    const prevTs = prev ? (Date.parse(String(prev?.cost_updated_at || prev?.updated_at || prev?.updatedAt || "")) || 0) : 0;
+    if(!prev || ts >= prevTs) packByType.set(key, x);
+  });
+  packagingLines = Array.from(packByType.values());
+  packagingSum = packagingLines.reduce((acc, x)=> acc + (Number(x?.subtotal) > 0 ? Number(x.subtotal) : 0), 0);
 
   lines.sort((a,b)=> (b.subtotal||0) - (a.subtotal||0));
   packagingLines.sort((a,b)=> String(a.packaging_type||a.ingredient_key||"").localeCompare(String(b.packaging_type||b.ingredient_key||""),"es"));
@@ -1736,7 +1791,7 @@ function unitBreakdownHtml_(b){
       ${packagingLines.map(x=>`
         <div style="display:flex; justify-content:space-between; gap:12px; align-items:flex-start; margin-top:6px;">
           <div style="min-width:0;">
-            <div style="font-weight:900;">${escapeHtml(x.packaging_type || packagingTypeLabel_(x.ingredient_key))}</div>
+            <div style="font-weight:900;">${escapeHtml(x.ingredient_key || x.packaging_type || packagingTypeLabel_(x.ingredient_key))}</div>
             <div style="opacity:.75; font-weight:850; font-size:12.5px; margin-top:2px;">
               ${escapeHtml(x.ingredient_key)} · ${fmtNum(x.qty)} ${escapeHtml(x.unit || "unidad")}
               ${x.cpu ? (` · ${moneyCOP2(x.cpu)}/${escapeHtml(x.cpu_unit || x.unit || "unidad")}`) : ""}
@@ -1818,7 +1873,7 @@ function unitBreakdownMobileHtml_(row){
         ${packagingLines.map(x=>`
           <div class="unitIngItem">
             <div style="min-width:0;">
-              <div class="unitIngName">${escapeHtml(x.packaging_type || packagingTypeLabel_(x.ingredient_key))}</div>
+              <div class="unitIngName">${escapeHtml(x.ingredient_key || x.packaging_type || packagingTypeLabel_(x.ingredient_key))}</div>
               <div class="unitIngMeta">
                 ${escapeHtml(x.ingredient_key)} · ${fmtNum(x.qty)} ${escapeHtml(x.unit || 'unidad')}
                 ${x.cpu ? (` · ${moneyCOP2(x.cpu)}/${escapeHtml(x.cpu_unit || x.unit || 'unidad')}`) : ''}
@@ -1950,16 +2005,26 @@ function renderUnitCosts(){
   }
 
   if(tbody){
-    tbody.innerHTML = rows.map(r=>`
-      <tr>
-        <td>${escapeHtml(prettyDessertName(r.id))}</td>
-        <td class="num">${r.unit!==null ? moneyCOP2(r.unit) : "$—"}</td>
-        <td class="num">${r.price60!==null ? moneyCOP2(r.price60) : "$—"}</td>
-        <td class="num">${r.packaging!==null ? moneyCOP2(r.packaging) : "$—"}</td>
-        <td class="num">${r.price60WithPackaging!==null ? moneyCOP2(r.price60WithPackaging) : "$—"}</td>
-        <td class="num">${r.lote!==null ? moneyCOP2(r.lote) : "$—"}</td>
-      </tr>
-    `).join("");
+    tbody.innerHTML = rows.map(r=>{
+      const isOpen = !!state.ui.unitOpen[r.id];
+      return `
+        <tr class="unitDesktopRow ${isOpen ? 'isOpen' : ''}" data-act="unit_desktop_toggle" data-did="${escapeHtmlAttr(r.id)}" tabindex="0" aria-expanded="${isOpen ? 'true' : 'false'}">
+          <td>
+            <div class="unitDesktopDessertCell">
+              <span class="unitDesktopChevron" aria-hidden="true">▾</span>
+              <span>${escapeHtml(prettyDessertName(r.id))}</span>
+            </div>
+          </td>
+          <td class="num">${r.unit!==null ? moneyCOP2(r.unit) : "$—"}</td>
+          <td class="num">${r.price60!==null ? moneyCOP2(r.price60) : "$—"}</td>
+          <td class="num">${r.packaging!==null ? moneyCOP2(r.packaging) : "$—"}</td>
+          <td class="num">${r.price60WithPackaging!==null ? moneyCOP2(r.price60WithPackaging) : "$—"}</td>
+          <td class="num">${r.lote!==null ? moneyCOP2(r.lote) : "$—"}</td>
+        </tr>
+        <tr class="unitDesktopBreakRow ${isOpen ? '' : 'hidden'}" data-breakdown-for="${escapeHtmlAttr(r.id)}">
+          <td colspan="6">${unitBreakdownHtml_(r.breakdown)}</td>
+        </tr>`;
+    }).join("");
   }
 
   if(mobileList){
@@ -1982,6 +2047,35 @@ function renderUnitCosts(){
   if(meta) meta.textContent = parts.join(" · ");
 }
 
+
+
+function toggleUnitCostDesktopRow_(dessertId){
+  const id = String(dessertId || "").trim();
+  if(!id) return;
+  state.ui = state.ui || {};
+  state.ui.unitOpen = state.ui.unitOpen || {};
+  state.ui.unitOpen[id] = !state.ui.unitOpen[id];
+  renderUnitCosts();
+}
+
+function bindUnitCostDesktopToggle_(){
+  if(document.__amUnitDesktopToggleBound) return;
+  document.__amUnitDesktopToggleBound = true;
+  document.addEventListener('click', (e)=>{
+    const row = e.target.closest?.('[data-act="unit_desktop_toggle"]');
+    if(!row) return;
+    toggleUnitCostDesktopRow_(row.getAttribute('data-did'));
+  });
+  document.addEventListener('keydown', (e)=>{
+    if(e.key !== 'Enter' && e.key !== ' ') return;
+    const row = e.target.closest?.('[data-act="unit_desktop_toggle"]');
+    if(!row) return;
+    e.preventDefault();
+    toggleUnitCostDesktopRow_(row.getAttribute('data-did'));
+  });
+}
+
+bindUnitCostDesktopToggle_();
 
 
 function renderDesserts(){
@@ -4364,7 +4458,7 @@ async function saveRecipe_(){
     const unit = String(v.unit || "").trim().toLowerCase();
     const kRaw = String(v.rawKey || "").trim();
     if(!kRaw || !unit) continue;
-    const directCost = !!v.noMargin || isPackagingIngredientName_(kRaw);
+    const directCost = !!v.noMargin;
     const key = canonicalKey(kRaw) || String(nk||"").trim().toLowerCase();
     if(!key) continue;
     itemsByIngredient.set(key, {
