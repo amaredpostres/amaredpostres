@@ -899,12 +899,15 @@ function recipeLineIsDirectCost_(line){
 }
 
 function buildRecipesIndex_(items){
-  const out = {};
   const rows = Array.isArray(items) ? items : [];
+  const normalized = [];
+  const hasExactDessertRows = {};
+
   for(const r of rows){
     const didRaw = String(r?.dessert_id || r?.dessertId || "").trim();
     const dname = String(r?.dessert_name || r?.dessertName || "").trim();
-    const did = didRaw || (DESSERT_NAME_TO_ID_[normText_(dname)] || "");
+    const didFromName = DESSERT_NAME_TO_ID_[normText_(dname)] || "";
+    const did = didRaw || didFromName;
     if(!did) continue;
 
     const ing = String(r?.ingredient_key || r?.ingredientKey || r?.key || "").trim();
@@ -916,17 +919,52 @@ function buildRecipesIndex_(items){
     const unit = normRecipeUnit_(r?.unit);
     if(!unit) continue;
 
+    const exactDessertId = !!didRaw;
+    if(exactDessertId) hasExactDessertRows[did] = true;
+
     const pricingMode = normalizeRecipePricingMode_(r?.pricing_mode ?? r?.pricingMode ?? r?.price_mode ?? r?.margin_mode ?? r?.no_margin ?? r?.noMargin ?? "");
     const directCost = pricingMode === "direct_cost" || isPackagingIngredientName_(ing);
 
-    if(!out[did]) out[did] = [];
-    out[did].push({
+    normalized.push({
+      dessert_id: did,
+      exactDessertId,
       ingredient_key: ing,
+      ingredient_canon: canonicalKey(ing),
       qty_per_unit: qty,
       unit,
       pricing_mode: directCost ? "direct_cost" : "margin_60",
       no_margin: directCost
     });
+  }
+
+  const byDessertAndIngredient = {};
+  for(const r of normalized){
+    // Si la hoja ya tiene filas con dessert_id para ese postre, ignoramos filas legacy
+    // que solo venían por dessert_name. Así evitamos que ingredientes eliminados
+    // anteriormente sigan apareciendo en el costo unitario.
+    if(hasExactDessertRows[r.dessert_id] && !r.exactDessertId) continue;
+
+    const ingredientKey = r.ingredient_canon || canonicalKey(r.ingredient_key);
+    if(!ingredientKey) continue;
+    const mapKey = `${r.dessert_id}::${ingredientKey}`;
+
+    // Si hay duplicados del mismo producto en el mismo postre, gana la última fila
+    // recibida desde la hoja. Esto evita duplicar costos cuando se corrige un precio
+    // o se re-guarda una receta.
+    byDessertAndIngredient[mapKey] = {
+      ingredient_key: r.ingredient_key,
+      qty_per_unit: r.qty_per_unit,
+      unit: r.unit,
+      pricing_mode: r.pricing_mode,
+      no_margin: r.no_margin
+    };
+  }
+
+  const out = {};
+  for(const mapKey of Object.keys(byDessertAndIngredient)){
+    const did = mapKey.split("::")[0];
+    if(!out[did]) out[did] = [];
+    out[did].push(byDessertAndIngredient[mapKey]);
   }
 
   // ordenar por nombre ingrediente para consistencia visual
@@ -1630,13 +1668,18 @@ function dessertUnitBreakdown_(dessertId, lotQty){
     }
   }
 
-  for(const rule of packagingRulesForDessert_(dessertId)){
-    const pLine = packagingLineFromRule_(rule, packagingCanonSeen);
-    if(!pLine) continue;
-    packagingCanonSeen.add(canonicalKey(pLine.ingredient_key));
-    packagingLines.push(pLine);
-    if(pLine.missing) packagingMissing.push(pLine.ingredient_key);
-    else packagingSum += Number(pLine.subtotal || 0);
+  // En modo RECETAS, el costo unitario debe respetar únicamente lo que está
+  // activo en la receta del postre. Las reglas automáticas de caja/cuchara/bolsa
+  // solo se usan como respaldo cuando no hay receta en hoja y se cae a la receta embebida.
+  if(source !== "sheet"){
+    for(const rule of packagingRulesForDessert_(dessertId)){
+      const pLine = packagingLineFromRule_(rule, packagingCanonSeen);
+      if(!pLine) continue;
+      packagingCanonSeen.add(canonicalKey(pLine.ingredient_key));
+      packagingLines.push(pLine);
+      if(pLine.missing) packagingMissing.push(pLine.ingredient_key);
+      else packagingSum += Number(pLine.subtotal || 0);
+    }
   }
 
   lines.sort((a,b)=> (b.subtotal||0) - (a.subtotal||0));
@@ -4313,7 +4356,7 @@ async function saveRecipe_(){
   if(!did) return;
   const draft = getDraftMap_(did);
 
-  const items = [];
+  const itemsByIngredient = new Map();
   for(const [nk,v] of Object.entries(draft)){
     if(!v || !v.use) continue;
     const qty = parseNumFlex_(v.qty);
@@ -4322,7 +4365,9 @@ async function saveRecipe_(){
     const kRaw = String(v.rawKey || "").trim();
     if(!kRaw || !unit) continue;
     const directCost = !!v.noMargin || isPackagingIngredientName_(kRaw);
-    items.push({
+    const key = canonicalKey(kRaw) || String(nk||"").trim().toLowerCase();
+    if(!key) continue;
+    itemsByIngredient.set(key, {
       ingredient_key: kRaw,
       qty_per_unit: qty,
       unit,
@@ -4330,6 +4375,7 @@ async function saveRecipe_(){
       no_margin: directCost
     });
   }
+  const items = Array.from(itemsByIngredient.values());
 
   showLoading("Guardando…","Actualizando RECETAS.");
   try{
