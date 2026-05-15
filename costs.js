@@ -963,41 +963,36 @@ function buildRecipesIndex_(items){
     });
   }
 
-  // Si quedaron filas antiguas en RECETAS por errores previos, usamos el último
-  // lote guardado por postre. Así los ingredientes desactivados dejan de afectar
-  // el costo unitario aunque existan registros viejos en la hoja.
-  const latestByDessert = {};
-  for(const r of normalized){
-    if(!r.exactDessertId || !(r.updated_ts > 0)) continue;
-    latestByDessert[r.dessert_id] = Math.max(latestByDessert[r.dessert_id] || 0, r.updated_ts);
-  }
-
   const byDessertAndIngredient = {};
   for(const r of normalized){
-    // Si la hoja ya tiene filas con dessert_id para ese postre, ignoramos filas legacy
-    // que solo venían por dessert_name. Así evitamos que ingredientes eliminados
-    // anteriormente sigan apareciendo en el costo unitario.
+    // Si ya existe información actual con dessert_id, ignoramos filas legacy que
+    // solo venían por nombre. Importante: NO filtramos todo el postre por el
+    // timestamp más reciente, porque cuando una hoja se edita manualmente puede
+    // quedar un ingrediente con fecha distinta y eso ocultaba ingredientes activos
+    // como Bolsa hermética en el costo unitario.
     if(hasExactDessertRows[r.dessert_id] && !r.exactDessertId) continue;
-
-    const latestTs = latestByDessert[r.dessert_id] || 0;
-    if(latestTs && r.exactDessertId && r.updated_ts && r.updated_ts < latestTs) continue;
 
     const ingredientKey = r.ingredient_canon || canonicalKey(r.ingredient_key);
     if(!ingredientKey) continue;
     const mapKey = `${r.dessert_id}::${ingredientKey}`;
 
-    // Si hay duplicados del mismo producto en el mismo postre, gana la última fila
-    // recibida desde la hoja. Esto evita duplicar costos cuando se corrige un precio
-    // o se re-guarda una receta.
-    byDessertAndIngredient[mapKey] = {
-      ingredient_key: r.ingredient_key,
-      qty_per_unit: r.qty_per_unit,
-      unit: r.unit,
-      pricing_mode: r.pricing_mode,
-      no_margin: r.no_margin,
-      updated_ts: r.updated_ts,
-      row_order: r.row_order
-    };
+    const prev = byDessertAndIngredient[mapKey] || null;
+    const prevTs = Number(prev?.updated_ts || 0) || 0;
+    const ts = Number(r.updated_ts || 0) || 0;
+
+    // Si hay duplicados del mismo producto en el mismo postre, gana la fila más
+    // reciente de ese producto; si no hay fecha, gana la última recibida.
+    if(!prev || (ts && ts >= prevTs) || (!ts && !prevTs && r.row_order >= (prev.row_order || 0))){
+      byDessertAndIngredient[mapKey] = {
+        ingredient_key: r.ingredient_key,
+        qty_per_unit: r.qty_per_unit,
+        unit: r.unit,
+        pricing_mode: r.pricing_mode,
+        no_margin: r.no_margin,
+        updated_ts: r.updated_ts,
+        row_order: r.row_order
+      };
+    }
   }
 
   const out = {};
@@ -1663,7 +1658,10 @@ function dessertUnitBreakdown_(dessertId, lotQty){
   const pushRecipeLine = (line)=>{
     const directCost = recipeLineIsDirectCost_(line);
     if(directCost){
-      const pLine = { ...line, direct_cost:true, pricing_mode:"direct_cost", packaging_type: line.packaging_type || packagingTypeLabel_(line.ingredient_key) };
+      // En RECETAS mostramos y cobramos exactamente el producto activo. No se
+      // agrupa por tipo genérico, porque eso ocultaba productos activos o
+      // reemplazaba una bolsa por otra con precio diferente.
+      const pLine = { ...line, direct_cost:true, pricing_mode:"direct_cost", packaging_type: line.packaging_type || line.ingredient_key || packagingTypeLabel_(line.ingredient_key) };
       packagingCanonSeen.add(canonicalKey(line.ingredient_key));
       packagingLines.push(pLine);
       if(Number(line.subtotal) > 0) packagingSum += Number(line.subtotal || 0);
@@ -1722,19 +1720,18 @@ function dessertUnitBreakdown_(dessertId, lotQty){
     }
   }
 
-  // Evita que productos equivalentes de complemento aparezcan duplicados
-  // (por ejemplo: “Bolsa hermética” y una fila antigua “Bolsa plástica”).
-  // Gana el registro con costo más reciente; si no hay fecha, gana el último recibido.
-  const packByType = new Map();
+  // Dedupe final solo por producto exacto/canónico, no por tipo genérico.
+  // Así, si la receta activa “Bolsa hermética”, esa línea se conserva aunque
+  // exista otro producto parecido como “Bolsa plástica” en la base de datos.
+  const packByIngredient = new Map();
   packagingLines.forEach((x, idx)=>{
-    const typeKey = canonicalKey(x?.packaging_type || packagingTypeLabel_(x?.ingredient_key) || x?.ingredient_key);
-    const key = typeKey || canonicalKey(x?.ingredient_key) || `pack_${idx}`;
+    const key = canonicalKey(x?.ingredient_key) || `pack_${idx}`;
     const ts = Date.parse(String(x?.cost_updated_at || x?.updated_at || x?.updatedAt || "")) || 0;
-    const prev = packByType.get(key);
+    const prev = packByIngredient.get(key);
     const prevTs = prev ? (Date.parse(String(prev?.cost_updated_at || prev?.updated_at || prev?.updatedAt || "")) || 0) : 0;
-    if(!prev || ts >= prevTs) packByType.set(key, x);
+    if(!prev || (ts && ts >= prevTs) || (!ts && !prevTs)) packByIngredient.set(key, x);
   });
-  packagingLines = Array.from(packByType.values());
+  packagingLines = Array.from(packByIngredient.values());
   packagingSum = packagingLines.reduce((acc, x)=> acc + (Number(x?.subtotal) > 0 ? Number(x.subtotal) : 0), 0);
 
   lines.sort((a,b)=> (b.subtotal||0) - (a.subtotal||0));
@@ -4474,7 +4471,9 @@ async function saveRecipe_(){
   showLoading("Guardando…","Actualizando RECETAS.");
   try{
     await api({ action: "recipes_set", costs_secret: UNLOCKED_SECRET, recipes_pin: state.recipesPin, dessert_id: did, dessert_name: prettyDessertName(did), items }, {timeoutMs: 45000});
-    await loadRecipesFromSheet_();
+    await loadRecipesFromSheet_({ preserveCurrent:false });
+    delete state.ui.recipeDraftByDessert[did];
+    afterRecipesRefresh_();
     // Clasificar secciones automáticamente (sin botón manual)
     try{ await autoClassifyCostsSections_(); }catch(_e){}
     setRecipesMeta_("Receta guardada con éxito.");
