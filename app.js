@@ -77,6 +77,7 @@ const DEFAULT_PRODUCTS = [
 const PRODUCT_PRICES_STORAGE_KEY = "AMARED_PRODUCT_PRICES_V1";
 const HUB_SESSION_KEY = "AMARED_HUB_SESSION_V1";
 const HUB_REMEMBER_KEY = "AMARED_HUB_REMEMBER_V1";
+const INDEX_MAPS_DRAFT_STORAGE_KEY = "AMARED_INDEX_MAPS_DRAFT_V1";
 const INDEX_ADMIN_ROLE_TAGS = new Set(["index_admin","indexadmin","pedidosweb","weborders","admin"]);
 const PRODUCTS = DEFAULT_PRODUCTS.map(p => ({ ...p }));
 let _catalogSyncInFlight = null;
@@ -541,8 +542,110 @@ function isValidMapsLink(link) {
   );
 }
 
+function getCheckedLocationMethodValue(){
+  return document.querySelector('input[name="locMethod"]:checked')?.value || "whatsapp";
+}
+
+function saveIndexMapsDraft(){
+  try{
+    const quantities = {};
+    PRODUCTS.forEach(product => {
+      quantities[product.id] = cart.get(product.id) || 0;
+    });
+
+    const draft = {
+      saved_at: Date.now(),
+      reason: "open_google_maps",
+      scroll_y: window.scrollY || 0,
+      location_method: getCheckedLocationMethodValue(),
+      quantities,
+      fields: {
+        name: document.getElementById("name")?.value || "",
+        phone: document.getElementById("phone")?.value || "",
+        email: document.getElementById("email")?.value || "",
+        address: document.getElementById("address")?.value || "",
+        neighborhood: document.getElementById("neighborhood")?.value || "",
+        maps: document.getElementById("maps")?.value || "",
+        notes: document.getElementById("notes")?.value || "",
+        wa_opt_in: !!document.getElementById("waOptIn")?.checked
+      }
+    };
+
+    sessionStorage.setItem(INDEX_MAPS_DRAFT_STORAGE_KEY, JSON.stringify(draft));
+  }catch(_e){}
+}
+
+function restoreIndexMapsDraft(){
+  let draft = null;
+  try{
+    draft = JSON.parse(sessionStorage.getItem(INDEX_MAPS_DRAFT_STORAGE_KEY) || "null");
+  }catch(_e){
+    draft = null;
+  }
+  if(!draft || draft.reason !== "open_google_maps") return false;
+
+  const isExpired = (Date.now() - Number(draft.saved_at || 0)) > (2 * 60 * 60 * 1000);
+  if(isExpired){
+    try{ sessionStorage.removeItem(INDEX_MAPS_DRAFT_STORAGE_KEY); }catch(_e){}
+    return false;
+  }
+
+  const fields = draft.fields || {};
+  const setValue = (id, value) => {
+    const el = document.getElementById(id);
+    if(el) el.value = value || "";
+  };
+
+  setValue("name", fields.name);
+  setValue("phone", fields.phone);
+  setValue("email", fields.email);
+  setValue("address", fields.address);
+  setValue("neighborhood", fields.neighborhood);
+  setValue("maps", fields.maps);
+  setValue("notes", fields.notes);
+
+  const waOpt = document.getElementById("waOptIn");
+  if(waOpt) waOpt.checked = !!fields.wa_opt_in;
+
+  const method = String(draft.location_method || "maps");
+  const radio = Array.from(document.querySelectorAll('input[name="locMethod"]')).find(input => input.value === method);
+  if(radio) radio.checked = true;
+
+  if(draft.quantities && typeof draft.quantities === "object"){
+    PRODUCTS.forEach(product => {
+      const qty = Math.max(0, Number(draft.quantities[product.id] || 0));
+      cart.set(product.id, Number.isFinite(qty) ? qty : 0);
+    });
+  }
+
+  renderProducts();
+  updateSummary();
+  syncLocationUI();
+
+  window.setTimeout(() => {
+    if(Number.isFinite(Number(draft.scroll_y))){
+      window.scrollTo({ top: Number(draft.scroll_y), behavior: "instant" });
+    }
+  }, 80);
+
+  return true;
+}
+
+function clearIndexMapsDraft(){
+  try{ sessionStorage.removeItem(INDEX_MAPS_DRAFT_STORAGE_KEY); }catch(_e){}
+}
+
 function openGoogleMaps() {
-  window.open("https://www.google.com/maps", "_blank", "noopener,noreferrer");
+  const url = "https://www.google.com/maps";
+  saveIndexMapsDraft();
+
+  if(isMobileUA()){
+    // En móvil se navega en la misma pestaña para evitar que el navegador deje una pestaña en blanco al abrir la app de Google Maps.
+    window.location.href = url;
+    return;
+  }
+
+  window.open(url, "_blank", "noopener,noreferrer");
 }
 
 function getTutorialUrl(type){
@@ -1609,6 +1712,7 @@ function resetAll() {
     delete mapsInput.dataset.prevValue;
   }
   syncLocationUI();
+  clearIndexMapsDraft();
 
   pending = null;
   elStatus.textContent = "";
@@ -1837,6 +1941,7 @@ warmProductImages();
 renderProducts(true);
 updateSummary();
 syncLocationUI();
+restoreIndexMapsDraft();
 bootProductsCatalog().catch(()=>{});
 
 
