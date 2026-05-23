@@ -803,6 +803,23 @@ function openWhatsAppUrl(url){
   }
 }
 
+function openSocialUrl(url){
+  const target = String(url || "").trim();
+  if(!target) return;
+  if(isMobileUA()){
+    // En móvil se usa la misma navegación para favorecer la apertura directa de la app y evitar pestañas en blanco.
+    window.location.href = target;
+    return;
+  }
+  window.open(target, "_blank", "noopener,noreferrer");
+}
+
+function handleSocialLinkClick(event){
+  const btn = event?.currentTarget || event?.target?.closest?.("[data-social-url]");
+  const url = btn?.getAttribute?.("data-social-url") || "";
+  openSocialUrl(url);
+}
+
 
 function openWhatsAppMobile(text){
   const enc = encodeURIComponent(String(text || ""));
@@ -1724,6 +1741,10 @@ function resetAll() {
 }
 
 // =================== EVENTS ===================
+document.querySelectorAll("[data-social-url]").forEach(btn => {
+  btn.addEventListener("click", handleSocialLinkClick);
+});
+
 btnOpenMaps?.addEventListener("click", openGoogleMaps);
 btnMapsTutorial?.addEventListener("click", ()=> openTutorial("maps"));
 btnWaTutorial?.addEventListener("click", ()=> openTutorial("whatsapp"));
