@@ -3907,3 +3907,129 @@ body.profilesPage{
     font-size: 20px;
   }
 }
+
+
+/* ===== Index: ajuste final redes sociales v42 ===== */
+.heroSocialDockTitle,
+.socialDockLabel{
+  font-family: var(--font-main, 'Nunito', system-ui, sans-serif);
+}
+
+.heroSocialDockTitle{
+  display: none;
+}
+
+.socialDockLabel{
+  display: none;
+  color: var(--choco, #401102);
+  font-size: 14px;
+  font-weight: 950;
+  letter-spacing: .01em;
+  white-space: nowrap;
+}
+
+@media (min-width: 981px){
+  .heroSocialDock{
+    margin-top: 18px;
+    margin-bottom: 4px;
+    padding: 10px 16px;
+    gap: 14px;
+  }
+  .heroPremium{
+    padding-bottom: clamp(16px, 2vw, 24px);
+  }
+}
+
+@media (max-width: 980px){
+  .heroSocialDock{
+    width: 100%;
+    display: grid;
+    grid-template-columns: 1fr;
+    align-items: stretch;
+    justify-content: stretch;
+    gap: 10px;
+    padding: 16px;
+    margin: 18px auto 14px;
+    border-radius: 26px;
+    border: 1px solid rgba(242,91,143,.16);
+    background:
+      radial-gradient(180px 110px at 98% 0%, rgba(242,91,143,.13), transparent 70%),
+      radial-gradient(170px 120px at 0% 100%, rgba(246,186,96,.13), transparent 70%),
+      linear-gradient(180deg, rgba(255,255,255,.96), rgba(255,248,251,.88));
+    box-shadow: 0 16px 36px rgba(64,17,2,.08);
+    backdrop-filter: blur(12px);
+  }
+
+  .heroSocialDockTitle{
+    display: block;
+    margin: 0 0 2px;
+    padding-left: 3px;
+    color: rgba(64,17,2,.56);
+    font-size: 12px;
+    font-weight: 950;
+    letter-spacing: .14em;
+    text-transform: uppercase;
+  }
+
+  .socialIconBtn{
+    width: 100%;
+    height: 54px;
+    display: flex;
+    justify-content: flex-start;
+    align-items: center;
+    gap: 12px;
+    padding: 0 16px;
+    border-radius: 18px;
+    background: rgba(255,255,255,.88);
+  }
+
+  .socialIconBtn i{
+    width: 36px;
+    height: 36px;
+    display: inline-grid;
+    place-items: center;
+    border-radius: 999px;
+    flex: 0 0 auto;
+    font-size: 18px;
+  }
+
+  .socialDockLabel{
+    display: inline-block;
+  }
+
+  .socialIconBtn.socialInstagram i{
+    background: linear-gradient(135deg, rgba(242,91,143,.16), rgba(246,186,96,.16));
+  }
+
+  .socialIconBtn.socialTikTok i{
+    background: rgba(64,17,2,.08);
+  }
+
+  .socialIconBtn.socialWhatsApp i{
+    background: rgba(37,211,102,.13);
+  }
+}
+
+@media (max-width: 560px){
+  .heroPremium{
+    padding-bottom: 10px;
+  }
+
+  .heroSocialDock{
+    min-height: 0;
+    margin-top: 16px;
+    margin-bottom: 14px;
+    padding: 15px;
+    border-radius: 24px;
+  }
+
+  .socialIconBtn{
+    min-height: 52px;
+    height: 52px;
+    padding: 0 14px;
+  }
+
+  .layoutPremium{
+    margin-top: 0;
+  }
+}
