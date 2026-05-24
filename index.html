@@ -9,7 +9,7 @@
   <link rel="preload" href="assets/Logo-Amared.svg" as="image" type="image/svg+xml">
   <link rel="preload" href="assets/Logo-Isotipo-Amared.svg" as="image" type="image/svg+xml">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
-  <link rel="stylesheet" href="styles.css?v=20260523-social-links-v40" />
+  <link rel="stylesheet" href="styles.css?v=20260523-social-dock-v41" />
 </head>
 <body>
   <div class="page">
@@ -60,32 +60,21 @@
               </div>
             </div>
           </aside>
-        </div>
-      </section>
 
-
-
-      <section class="card socialConnect" aria-labelledby="socialConnectTitle">
-        <div class="socialConnectCopy">
-          <div class="sectionKicker">Comunidad AMARED</div>
-          <h2 id="socialConnectTitle" class="cardTitle">Redes oficiales</h2>
-        </div>
-
-        <div class="socialActions" aria-label="Redes sociales y contacto de AMARED">
-          <button class="socialLink socialInstagram" type="button" data-social-url="https://www.instagram.com/amaredpostres" aria-label="Abrir Instagram de AMARED">
-            <span class="socialIcon" aria-hidden="true"><i class="fa-brands fa-instagram"></i></span>
-            <span class="socialLabel">Instagram</span>
-          </button>
-
-          <button class="socialLink socialTikTok" type="button" data-social-url="https://www.tiktok.com/@amaredpostres" aria-label="Abrir TikTok de AMARED">
-            <span class="socialIcon" aria-hidden="true"><i class="fa-brands fa-tiktok"></i></span>
-            <span class="socialLabel">TikTok</span>
-          </button>
-
-          <button class="socialLink socialWhatsApp" type="button" data-social-url="https://wa.me/573152077527" aria-label="Escribir a AMARED por WhatsApp">
-            <span class="socialIcon" aria-hidden="true"><i class="fa-brands fa-whatsapp"></i></span>
-            <span class="socialLabel">WhatsApp</span>
-          </button>
+          <nav class="heroSocialDock" aria-label="Redes oficiales de AMARED">
+            <button class="socialIconBtn socialInstagram" type="button" data-social-url="https://www.instagram.com/amaredpostres" aria-label="Abrir Instagram de AMARED">
+              <i class="fa-brands fa-instagram" aria-hidden="true"></i>
+              <span class="srOnly">Instagram</span>
+            </button>
+            <button class="socialIconBtn socialTikTok" type="button" data-social-url="https://www.tiktok.com/@amaredpostres" aria-label="Abrir TikTok de AMARED">
+              <i class="fa-brands fa-tiktok" aria-hidden="true"></i>
+              <span class="srOnly">TikTok</span>
+            </button>
+            <button class="socialIconBtn socialWhatsApp" type="button" data-social-url="https://wa.me/573152077527" aria-label="Escribir a AMARED por WhatsApp">
+              <i class="fa-brands fa-whatsapp" aria-hidden="true"></i>
+              <span class="srOnly">WhatsApp</span>
+            </button>
+          </nav>
         </div>
       </section>
 
@@ -540,6 +529,6 @@
   </div>
 
   <script src="routes-data.js?v=20260513-barrios-fuzzy"></script>
-  <script src="app.js?v=20260523-social-links-v40" defer></script>
+  <script src="app.js?v=20260523-social-dock-v41" defer></script>
 </body>
 </html>
