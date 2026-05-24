@@ -4033,3 +4033,43 @@ body.profilesPage{
     margin-top: 0;
   }
 }
+
+
+/* ===== Index: refinamiento desktop redes sociales v43 ===== */
+@media (min-width: 981px){
+  .heroOrderIntro{
+    row-gap: clamp(18px, 2vw, 28px);
+    padding-bottom: clamp(22px, 2.4vw, 34px);
+  }
+
+  .heroSocialDock{
+    margin-top: 0;
+    margin-bottom: 0;
+    transform: translateY(0);
+    padding: 12px 18px;
+    gap: 16px;
+    border-color: rgba(242,91,143,.18);
+    background: rgba(255,255,255,.82);
+    box-shadow: 0 18px 34px rgba(64,17,2,.075);
+  }
+
+  .heroSocialDock::before{
+    content: "";
+    position: absolute;
+    inset: -10px -18px;
+    border-radius: 999px;
+    background: linear-gradient(90deg, rgba(242,91,143,.05), rgba(246,186,96,.05));
+    z-index: -1;
+    pointer-events: none;
+  }
+
+  .socialIconBtn{
+    width: 46px;
+    height: 46px;
+    font-size: 19px;
+  }
+
+  .layoutPremium{
+    margin-top: clamp(10px, 1.3vw, 18px);
+  }
+}
