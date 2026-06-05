@@ -11,6 +11,12 @@ const WHATSAPP_TUTORIAL_URL = "";
 
 const WHATSAPP_NUMBER = "573028473086";
 const ORDER_API_URL = "https://amared-orders.amaredpostres.workers.dev/";
+const AMARED_LAUNCH_AT = "2026-06-12T00:00:00-05:00";
+const AMARED_PROMO_ENDS_AT = "2026-06-19T00:00:00-05:00";
+const AMARED_WHATSAPP_CHANNEL_URL = "https://whatsapp.com/channel/0029Vb8hXemI1rccZ7B6xc0p";
+const INAUGURAL_COMBO_ID = "combo_inaugural";
+const INAUGURAL_COMBO_PRICE = 22900;
+
 const AMARED_ROUTE_ORIGIN_LABEL = "Edificio Kiwana";
 const AMARED_ROUTE_ORIGIN_ADDRESS = "Edificio Kiwana, Cl. 53 #6A-21, Ibagué, Tolima";
 const AMARED_ROUTE_UNKNOWN = {
@@ -49,6 +55,15 @@ const AMARED_NEIGHBORHOOD_ROUTES = Array.isArray(window.AMARED_IBAGUE_NEIGHBORHO
 
 // 👇 Asegúrate que estos nombres coincidan con tus archivos en /assets/
 const DEFAULT_PRODUCTS = [
+  {
+    id: INAUGURAL_COMBO_ID,
+    name: "Combo inaugural AMARED",
+    desc: "Incluye mousse de maracuyá, cheesecake de café con panela, detalle especial y domicilio gratis durante la semana inaugural.",
+    price: INAUGURAL_COMBO_PRICE,
+    img: "assets/mousse.webp",
+    alt: "Combo inaugural AMARED",
+    promoCombo: true
+  },
   {
     id: "mousse_maracuya",
     name: "Mousse de Maracuyá",
@@ -186,6 +201,53 @@ function populateNeighborhoodOptions(){
 function getNeighborhoodNames(){
   return Array.from(new Set(AMARED_NEIGHBORHOOD_ROUTES.map(x => String(x.name || "").trim()).filter(Boolean)))
     .sort((a,b)=>a.localeCompare(b, "es"));
+}
+
+function getLaunchMs(value){
+  const t = new Date(value).getTime();
+  return Number.isFinite(t) ? t : 0;
+}
+function getLaunchNow(){ return Date.now(); }
+function isLaunchPreviewMode(){
+  try{
+    const sp = new URLSearchParams(window.location.search || "");
+    return sp.get("preview") === "1" || sp.get("admin") === "1" || sp.get("abrir") === "1";
+  }catch(_e){ return false; }
+}
+function isPrelaunchActive(){
+  const launch = getLaunchMs(AMARED_LAUNCH_AT);
+  return !!launch && getLaunchNow() < launch && !isLaunchPreviewMode();
+}
+function isInauguralPromoActive(){
+  try{
+    const sp = new URLSearchParams(window.location.search || "");
+    if(sp.get("promo") === "1") return true;
+  }catch(_e){}
+  const launch = getLaunchMs(AMARED_LAUNCH_AT);
+  const end = getLaunchMs(AMARED_PROMO_ENDS_AT);
+  const now = getLaunchNow();
+  return !!launch && !!end && now >= launch && now < end;
+}
+function getInauguralComboProduct(){
+  return PRODUCTS.find(p => p.id === INAUGURAL_COMBO_ID) || null;
+}
+function getCatalogDisplayProducts(){
+  const combo = getInauguralComboProduct();
+  const base = PRODUCTS.filter(p => p.id !== INAUGURAL_COMBO_ID);
+  return isInauguralPromoActive() && combo ? [combo, ...base] : base;
+}
+function isProductDisabledForPromo(product){
+  return !!product && isInauguralPromoActive() && product.id !== INAUGURAL_COMBO_ID && !shouldUseIndexAdminView();
+}
+function hasInauguralCombo(items){
+  return (Array.isArray(items) ? items : []).some(it => String(it.id || "") === INAUGURAL_COMBO_ID && Number(it.qty || 0) > 0);
+}
+function getProductCardClass(product, qty){
+  const classes = ["productCard"];
+  if(qty > 0) classes.push("is-selected");
+  if(product?.id === INAUGURAL_COMBO_ID) classes.push("is-inaugural-combo");
+  if(isProductDisabledForPromo(product)) classes.push("is-disabled-promo");
+  return classes.join(" ");
 }
 
 function setNeighborhoodSuggestOpen(open){
@@ -1335,18 +1397,24 @@ function renderProductBottomHtml(product, qty){
   if(!_catalogReady){
     return `<div class="productAdminNote">Espera un momento mientras cargamos el precio actualizado.</div>`;
   }
+  if(isProductDisabledForPromo(product)){
+    return `<div class="productAdminNote promoLockedNote">Disponible individualmente después de la semana inaugural.</div>`;
+  }
+  const extra = product?.id === INAUGURAL_COMBO_ID
+    ? `<div class="promoStockNote">Tiempo limitado · Hasta agotar existencias</div>`
+    : ``;
   return `
         <div class="stepper">
           <button type="button" data-action="dec" data-id="${product.id}" ${qty <= 0 ? "disabled" : ""}>−</button>
           <div class="qty" id="qty_${product.id}">${qty}</div>
           <button type="button" data-action="inc" data-id="${product.id}">+</button>
-        </div>`;
+        </div>${extra}`;
 }
 
 function updateProductCard(card, product){
   if(!card || !product) return;
   const qty = cart.get(product.id) || 0;
-  card.className = `productCard${qty > 0 ? " is-selected" : ""}`;
+  card.className = getProductCardClass(product, qty);
   card.dataset.productId = product.id;
 
   const img = card.querySelector(".productImg");
@@ -1359,6 +1427,9 @@ function updateProductCard(card, product){
 
   const nameEl = card.querySelector(".productTop .name");
   if(nameEl && nameEl.textContent !== String(product.name || "")) nameEl.textContent = String(product.name || "");
+
+  const eyebrowEl = card.querySelector(".productEyebrow");
+  if(eyebrowEl) eyebrowEl.textContent = product?.id === INAUGURAL_COMBO_ID ? "Combo inaugural" : "Postre artesanal";
 
   const descEl = card.querySelector(".productDesc");
   if(descEl && descEl.textContent !== String(product.desc || "")) descEl.textContent = String(product.desc || "");
@@ -1387,7 +1458,7 @@ function updateProductCard(card, product){
 function createProductCard(p) {
   const qty = cart.get(p.id) || 0;
   const div = document.createElement("div");
-  div.className = `productCard${qty > 0 ? " is-selected" : ""}`;
+  div.className = getProductCardClass(p, qty);
   div.dataset.productId = p.id;
 
   div.innerHTML = `
@@ -1397,7 +1468,7 @@ function createProductCard(p) {
 
     <div class="productInfo">
       <div class="productTop">
-        <div class="productEyebrow">Postre artesanal</div>
+        <div class="productEyebrow">${p.id === INAUGURAL_COMBO_ID ? "Combo inaugural" : "Postre artesanal"}</div>
         <div class="name">${p.name}</div>
         <div class="productMetaRow">
           <div class="price${_catalogReady ? '' : ' muted priceLoading'}">${renderProductPriceHtml(p)}</div>
@@ -1433,6 +1504,8 @@ function onProductsClick(e) {
   if (!btn) return;
 
   const id = btn.dataset.id;
+  const product = PRODUCTS.find(p => p.id === id);
+  if(isProductDisabledForPromo(product)) return;
   const action = btn.dataset.action;
   const current = cart.get(id) || 0;
   const next = action === "inc" ? current + 1 : Math.max(0, current - 1);
@@ -1445,7 +1518,8 @@ function onProductsClick(e) {
 function renderProducts(forceRebuild = false) {
   ensureCatalogLoadingInlineStyles();
 
-  const targetIds = PRODUCTS.map(p => p.id);
+  const displayProducts = getCatalogDisplayProducts();
+  const targetIds = displayProducts.map(p => p.id);
   const cards = Array.from(elProducts.querySelectorAll("[data-product-id]"));
   const currentIds = cards.map(card => card.dataset.productId);
   const sameStructure = !forceRebuild && cards.length === targetIds.length && currentIds.every((id, idx) => id === targetIds[idx]);
@@ -1453,12 +1527,12 @@ function renderProducts(forceRebuild = false) {
   if(!sameStructure){
     elProducts.innerHTML = "";
     const frag = document.createDocumentFragment();
-    for (const p of PRODUCTS) {
+    for (const p of displayProducts) {
       frag.appendChild(createProductCard(p));
     }
     elProducts.appendChild(frag);
   }else{
-    PRODUCTS.forEach((product, idx) => {
+    displayProducts.forEach((product, idx) => {
       updateProductCard(cards[idx], product);
     });
   }
@@ -1470,9 +1544,26 @@ function renderProducts(forceRebuild = false) {
 }
 
 function buildCartItems() {
-  return PRODUCTS
-    .map(p => ({ id: p.id, name: p.name, qty: cart.get(p.id) || 0, price: p.price }))
+  return getCatalogDisplayProducts()
+    .map(p => ({ id: p.id, name: p.name, qty: cart.get(p.id) || 0, price: p.price, promoCombo: p.id === INAUGURAL_COMBO_ID }))
     .filter(it => it.qty > 0);
+}
+
+function buildBackendOrderItems(displayItems){
+  const items = [];
+  (Array.isArray(displayItems) ? displayItems : []).forEach(it => {
+    if(String(it.id || "") === INAUGURAL_COMBO_ID){
+      const qty = Number(it.qty || 0);
+      const unit = Math.max(0, Math.round(Number(it.price || INAUGURAL_COMBO_PRICE)));
+      const mousseUnit = Math.floor(unit / 2);
+      const cheesecakeUnit = unit - mousseUnit;
+      items.push({ id:"mousse_maracuya", name:"Mousse de Maracuyá", qty, price:mousseUnit });
+      items.push({ id:"cheesecake_cafe_panela", name:"Cheesecake de café con panela", qty, price:cheesecakeUnit });
+      return;
+    }
+    items.push({ id: it.id, name: it.name, qty: it.qty, price: it.price });
+  });
+  return items;
 }
 
 function updateSummary() {
@@ -1531,9 +1622,10 @@ function getFormData() {
   const waOptEl = document.getElementById("waOptIn");
   const wa_opt_in = waOptEl ? waOptEl.checked : false;
 
-  const items = buildCartItems();
+  const display_items = buildCartItems();
+  const items = buildBackendOrderItems(display_items);
   const total_units = items.reduce((a, b) => a + b.qty, 0);
-  const subtotal = items.reduce((a, b) => a + b.qty * b.price, 0);
+  const subtotal = display_items.reduce((a, b) => a + b.qty * b.price, 0);
 
   return {
     customer_name,
@@ -1549,6 +1641,7 @@ function getFormData() {
     notes,
     location_method,
     items,
+    display_items,
     total_units,
     subtotal,
     email,
@@ -1557,7 +1650,9 @@ function getFormData() {
 }
 
 function validate(data) {
+  if (isPrelaunchActive()) return "La página estará disponible oficialmente el 12 de junio.";
   if (data.items.length === 0) return "Selecciona al menos 1 postre.";
+  if (isInauguralPromoActive() && !hasInauguralCombo(data.display_items || [])) return "Durante la semana inaugural solo está disponible el combo inaugural.";
   if (!data.customer_name) return "Escribe tu nombre.";
   if (!data.phone) return "Escribe tu número.";
   if (!isValidEmail(data.email)) return "El correo no parece válido. Revisa el formato (ej: correo@dominio.com).";
@@ -1583,8 +1678,10 @@ function buildWhatsAppMessage(data, orderId) {
   lines.push("");
   lines.push(`Quiero hacer un pedido (Código: ${orderId}):`);
 
-  for (const it of data.items) {
-    lines.push(`- ${it.name}: ${it.qty}`);
+  const messageItems = Array.isArray(data.display_items) && data.display_items.length ? data.display_items : data.items;
+  for (const it of messageItems) {
+    const suffix = String(it.id || "") === INAUGURAL_COMBO_ID ? " (incluye los 2 postres + detalle + domicilio gratis)" : "";
+    lines.push(`- ${it.name}: ${it.qty}${suffix}`);
   }
 
   lines.push("");
@@ -1600,13 +1697,13 @@ function buildWhatsAppMessage(data, orderId) {
       lines.push(`Guía de recogida presencial: ${pickupVideoUrl}`);
     }
   } else if (data.location_method === "maps") {
-    lines.push(`Domicilio: lo cubre el cliente. (Se debe confirmar mediante WhatsApp)`);
+    lines.push(hasInauguralCombo(data.display_items) ? `Domicilio incluido en el combo inaugural. (Se confirma por WhatsApp)` : `Domicilio: lo cubre el cliente. (Se debe confirmar mediante WhatsApp)`);
     lines.push("");
     lines.push(`Dirección: ${data.address_text}`);
     if (data.neighborhood_text) lines.push(`Barrio/sector: ${data.neighborhood_text}`);
     lines.push(`Ubicación (Google Maps): ${data.maps_link}`);
   } else {
-    lines.push(`Domicilio: lo cubre el cliente. (Se debe confirmar mediante WhatsApp)`);
+    lines.push(hasInauguralCombo(data.display_items) ? `Domicilio incluido en el combo inaugural. (Se confirma por WhatsApp)` : `Domicilio: lo cubre el cliente. (Se debe confirmar mediante WhatsApp)`);
     lines.push("");
     lines.push(`Dirección de referencia: ${data.address_text}`);
     if (data.neighborhood_text) lines.push(`Barrio/sector: ${data.neighborhood_text}`);
@@ -1641,7 +1738,7 @@ async function saveOrder(data) {
   const res = await fetch(ORDER_API_URL, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ action: "create_order", ...data }),
+    body: JSON.stringify({ action: "create_order", ...data, promo_context: hasInauguralCombo(data.display_items) ? "combo_inaugural" : "" }),
   });
 
   let out;
@@ -1672,7 +1769,7 @@ function hideModal() {
 
 function fillModal(data, orderId) {
   // items list
-  const items = data.items || [];
+  const items = (Array.isArray(data.display_items) && data.display_items.length ? data.display_items : data.items) || [];
   elModalItems.innerHTML = items.map(it => `
     <div class="modalItem">
       <div><b>${escapeHtml(it.name)}</b></div>
@@ -1955,7 +2052,138 @@ btnWhatsApp?.addEventListener("click", () => {
   enableHelpMessage(messageFallback, false);
   fillModal(data, orderId);
   showModal();
-});// =================== INIT ===================
+});
+// =================== LANZAMIENTO + COMBO INAUGURAL ===================
+let _launchCountdownTimer = null;
+let _promoCountdownTimer = null;
+
+function setCountdownValues(prefix, diffMs){
+  const total = Math.max(0, Math.floor(diffMs / 1000));
+  const days = Math.floor(total / 86400);
+  const hours = Math.floor((total % 86400) / 3600);
+  const minutes = Math.floor((total % 3600) / 60);
+  const seconds = total % 60;
+  const pad = n => String(n).padStart(2, "0");
+  const set = (id, value) => {
+    const el = document.getElementById(prefix + id);
+    if(el) el.textContent = pad(value);
+  };
+  set("Days", days);
+  set("Hours", hours);
+  set("Minutes", minutes);
+  set("Seconds", seconds);
+}
+
+function updateLaunchCountdown(){
+  setCountdownValues("launch", getLaunchMs(AMARED_LAUNCH_AT) - getLaunchNow());
+}
+
+function updatePromoCountdown(){
+  const banner = document.getElementById("inauguralPromoBanner");
+  const active = isInauguralPromoActive();
+  banner?.classList.toggle("hidden", !active);
+  if(active) setCountdownValues("promo", getLaunchMs(AMARED_PROMO_ENDS_AT) - getLaunchNow());
+}
+
+function normalizeSignupPhone(value){
+  return String(value || "").replace(/[^0-9+]/g, "").trim();
+}
+
+function setupLaunchExperience(){
+  const gate = document.getElementById("launchGate");
+  const page = document.querySelector(".page");
+  const locked = isPrelaunchActive();
+
+  document.body.classList.remove("launch-checking");
+  document.body.classList.toggle("prelaunch-active", locked);
+  document.body.classList.toggle("launch-live", !locked);
+  gate?.classList.toggle("hidden", !locked);
+  if(page) page.setAttribute("aria-hidden", locked ? "true" : "false");
+
+  clearInterval(_launchCountdownTimer);
+  if(locked){
+    updateLaunchCountdown();
+    _launchCountdownTimer = setInterval(updateLaunchCountdown, 1000);
+  }
+
+  const channelBtn = document.getElementById("launchChannelBtn");
+  const form = document.getElementById("launchSignupForm");
+  const hasChannel = /^https?:\/\//i.test(String(AMARED_WHATSAPP_CHANNEL_URL || ""));
+  if(channelBtn){
+    channelBtn.classList.toggle("hidden", !hasChannel);
+    channelBtn.onclick = () => { if(hasChannel) openSocialUrl(AMARED_WHATSAPP_CHANNEL_URL); };
+  }
+  if(form){
+    form.classList.toggle("launchSignupFormChannelOnly", hasChannel);
+  }
+
+  if(form && !hasChannel && !form.dataset.bound){
+    form.addEventListener("submit", submitLaunchSignup);
+    form.dataset.bound = "1";
+  }
+
+  clearInterval(_promoCountdownTimer);
+  updatePromoCountdown();
+  _promoCountdownTimer = setInterval(() => {
+    updatePromoCountdown();
+    if(_catalogReady) { renderProducts(); updateSummary(); }
+  }, 1000);
+
+  return locked;
+}
+
+async function submitLaunchSignup(e){
+  e?.preventDefault?.();
+  const form = document.getElementById("launchSignupForm");
+  const nameEl = document.getElementById("launchName");
+  const phoneEl = document.getElementById("launchPhone");
+  const consentEl = document.getElementById("launchConsent");
+  const btn = document.getElementById("launchSignupBtn");
+  const status = document.getElementById("launchSignupStatus");
+
+  const customer_name = String(nameEl?.value || "").trim();
+  const phone = normalizeSignupPhone(phoneEl?.value || "");
+  const consent = !!consentEl?.checked;
+  if(status) status.textContent = "";
+
+  if(!phone || phone.replace(/\D/g, "").length < 10){
+    if(status) status.textContent = "Escribe un número de WhatsApp válido.";
+    phoneEl?.focus?.();
+    return;
+  }
+  if(!consent){
+    if(status) status.textContent = "Debes autorizar el aviso por WhatsApp para registrarte.";
+    return;
+  }
+
+  if(btn) btn.disabled = true;
+  if(status) status.textContent = "Guardando tu registro...";
+  try{
+    const res = await fetch(ORDER_API_URL, {
+      method:"POST",
+      headers:{ "Content-Type":"application/json" },
+      body: JSON.stringify({
+        action:"launch_signup",
+        customer_name,
+        phone,
+        whatsapp_opt_in: consent,
+        source:"index_prelaunch",
+        launch_date:"2026-06-12"
+      })
+    });
+    const out = await res.json().catch(()=>({}));
+    if(!out?.ok) throw new Error(out?.error || "No se pudo guardar el registro.");
+    if(status) status.textContent = "¡Listo! Te avisaremos por WhatsApp cuando abramos.";
+    try{ form?.reset?.(); if(consentEl) consentEl.checked = true; }catch(_e){}
+  }catch(err){
+    if(status) status.textContent = String(err?.message || err || "No se pudo guardar el registro.");
+  }finally{
+    if(btn) btn.disabled = false;
+  }
+}
+
+// =================== INIT ===================
+const _isLaunchLocked = setupLaunchExperience();
 setCatalogLoadingState(true);
 populateNeighborhoodOptions();
 warmProductImages();
@@ -1963,7 +2191,11 @@ renderProducts(true);
 updateSummary();
 syncLocationUI();
 restoreIndexMapsDraft();
-bootProductsCatalog().catch(()=>{});
+if(!_isLaunchLocked || shouldUseIndexAdminView()){
+  bootProductsCatalog().catch(()=>{});
+}else{
+  setCatalogLoadingState(false);
+}
 
 
 function setLoadingProgress(value){
