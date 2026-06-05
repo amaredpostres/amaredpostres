@@ -9,9 +9,48 @@
   <link rel="preload" href="assets/Logo-Amared.svg" as="image" type="image/svg+xml">
   <link rel="preload" href="assets/Logo-Isotipo-Amared.svg" as="image" type="image/svg+xml">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
-  <link rel="stylesheet" href="styles.css?v=20260523-social-dock-v43" />
+  <link rel="stylesheet" href="styles.css?v=20260602-launch-inaugural-v44" />
 </head>
-<body>
+<body class="launch-checking">
+  <section id="launchGate" class="launchGate hidden" aria-live="polite">
+    <div class="launchGateShell">
+      <div class="launchGateCard">
+        <img class="launchGateLogo" src="assets/Logo-Amared.svg" alt="AMARED Postres" />
+        <div class="launchGateKicker">Inauguración AMARED</div>
+        <h1>La página aún no se encuentra disponible</h1>
+        <p>Estamos preparando la apertura oficial. Déjanos tu WhatsApp y te avisaremos cuando inicie la inauguración.</p>
+
+        <div class="launchCountdown" aria-label="Cuenta regresiva para la inauguración">
+          <div><strong id="launchDays">00</strong><span>Días</span></div>
+          <div><strong id="launchHours">00</strong><span>Horas</span></div>
+          <div><strong id="launchMinutes">00</strong><span>Min</span></div>
+          <div><strong id="launchSeconds">00</strong><span>Seg</span></div>
+        </div>
+
+        <form id="launchSignupForm" class="launchSignupForm">
+          <label class="label" for="launchName">Nombre</label>
+          <input id="launchName" class="input" type="text" placeholder="Ej: Cristian" autocomplete="name" />
+
+          <label class="label" for="launchPhone">WhatsApp *</label>
+          <input id="launchPhone" class="input" type="tel" placeholder="Ej: 3152077527" inputmode="tel" autocomplete="tel" />
+
+          <label class="launchConsent">
+            <input id="launchConsent" type="checkbox" checked />
+            <span>Autorizo recibir el aviso de inauguración de AMARED por WhatsApp.</span>
+          </label>
+
+          <button id="launchSignupBtn" class="btn primary launchSignupBtn" type="submit">Avisarme por WhatsApp</button>
+          <button id="launchChannelBtn" class="btn secondary launchChannelBtn hidden" type="button">Unirme al canal de WhatsApp</button>
+          <div id="launchSignupStatus" class="launchSignupStatus" role="status"></div>
+        </form>
+
+        <div class="launchGateFoot">
+          Apertura oficial: <strong>12 de junio</strong> · Combo inaugural por tiempo limitado.
+        </div>
+      </div>
+    </div>
+  </section>
+
   <div class="page">
     <header class="topbar">
       <div class="topbarInner">
@@ -87,6 +126,21 @@
               <h2 class="cardTitle">Elige tus postres</h2>
             </div>
           </div>
+
+          <div id="inauguralPromoBanner" class="inauguralPromoBanner hidden" aria-live="polite">
+            <div class="promoCopy">
+              <span class="promoKicker">Semana inaugural</span>
+              <strong>Combo inaugural por tiempo limitado</strong>
+              <small>Incluye los 2 postres, detalle especial y domicilio gratis. Disponible hasta agotar existencias.</small>
+            </div>
+            <div class="promoCountdown" aria-label="Tiempo restante del combo inaugural">
+              <div><strong id="promoDays">00</strong><span>Días</span></div>
+              <div><strong id="promoHours">00</strong><span>Horas</span></div>
+              <div><strong id="promoMinutes">00</strong><span>Min</span></div>
+              <div><strong id="promoSeconds">00</strong><span>Seg</span></div>
+            </div>
+          </div>
+
           <div id="products" class="products"></div>
         </section>
 
@@ -530,6 +584,6 @@
   </div>
 
   <script src="routes-data.js?v=20260513-barrios-fuzzy"></script>
-  <script src="app.js?v=20260523-social-dock-v41" defer></script>
+  <script src="app.js?v=20260602-launch-inaugural-v44" defer></script>
 </body>
 </html>
