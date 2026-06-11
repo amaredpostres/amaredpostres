@@ -14,6 +14,8 @@ const ORDER_API_URL = "https://amared-orders.amaredpostres.workers.dev/";
 const AMARED_LAUNCH_AT = "2026-06-12T00:00:00-05:00";
 const AMARED_PROMO_ENDS_AT = "2026-06-19T00:00:00-05:00";
 const AMARED_WHATSAPP_CHANNEL_URL = "https://whatsapp.com/channel/0029Vb8hXemI1rccZ7B6xc0p";
+const AMARED_PRIVATE_ORDER_ACCESS_KEY = "amared-interno-1206";
+const AMARED_PRIVATE_ORDER_SESSION_KEY = "amared_private_order_access_v1";
 const INAUGURAL_COMBO_ID = "combo_inaugural";
 const INAUGURAL_COMBO_PRICE = 22900;
 
@@ -208,10 +210,29 @@ function getLaunchMs(value){
   return Number.isFinite(t) ? t : 0;
 }
 function getLaunchNow(){ return Date.now(); }
+function normalizePrivateAccessValue(value){
+  return String(value || "").trim().toLowerCase();
+}
+function isPrivateOrderAccessMode(){
+  try{
+    const sp = new URLSearchParams(window.location.search || "");
+    if(sp.get("salir") === "1" || sp.get("cerrar") === "1"){
+      try{ sessionStorage.removeItem(AMARED_PRIVATE_ORDER_SESSION_KEY); }catch(_e){}
+      return false;
+    }
+    const expected = normalizePrivateAccessValue(AMARED_PRIVATE_ORDER_ACCESS_KEY);
+    const queryValue = sp.get("pedido") || sp.get("acceso") || sp.get("clave") || sp.get("private");
+    if(queryValue && normalizePrivateAccessValue(queryValue) === expected){
+      try{ sessionStorage.setItem(AMARED_PRIVATE_ORDER_SESSION_KEY, "1"); }catch(_e){}
+      return true;
+    }
+    return sessionStorage.getItem(AMARED_PRIVATE_ORDER_SESSION_KEY) === "1";
+  }catch(_e){ return false; }
+}
 function isLaunchPreviewMode(){
   try{
     const sp = new URLSearchParams(window.location.search || "");
-    return sp.get("preview") === "1" || sp.get("admin") === "1" || sp.get("abrir") === "1";
+    return isPrivateOrderAccessMode() || sp.get("preview") === "1" || sp.get("admin") === "1" || sp.get("abrir") === "1";
   }catch(_e){ return false; }
 }
 function isPrelaunchActive(){
@@ -2092,13 +2113,26 @@ function normalizeSignupPhone(value){
 function setupLaunchExperience(){
   const gate = document.getElementById("launchGate");
   const page = document.querySelector(".page");
+  const privateAccess = isPrivateOrderAccessMode();
   const locked = isPrelaunchActive();
 
   document.body.classList.remove("launch-checking");
   document.body.classList.toggle("prelaunch-active", locked);
   document.body.classList.toggle("launch-live", !locked);
+  document.body.classList.toggle("private-order-access", privateAccess && !locked);
   gate?.classList.toggle("hidden", !locked);
   if(page) page.setAttribute("aria-hidden", locked ? "true" : "false");
+
+  const privateBanner = document.getElementById("privateOrderBanner");
+  privateBanner?.classList.toggle("hidden", !(privateAccess && !locked));
+  const privateExit = document.getElementById("btnPrivateOrderExit");
+  if(privateExit && !privateExit.dataset.bound){
+    privateExit.addEventListener("click", () => {
+      try{ sessionStorage.removeItem(AMARED_PRIVATE_ORDER_SESSION_KEY); }catch(_e){}
+      window.location.href = window.location.pathname || "index.html";
+    });
+    privateExit.dataset.bound = "1";
+  }
 
   clearInterval(_launchCountdownTimer);
   if(locked){
