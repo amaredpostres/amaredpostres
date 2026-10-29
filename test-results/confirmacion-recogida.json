@@ -1,0 +1,45 @@
+{
+  "date": "2026-10-29T15:08:22.528Z",
+  "scope": "Aviso de confirmación manual para pago al recoger; API local simulada",
+  "results": [
+    {
+      "id": "C01",
+      "name": "Aviso solo al elegir pagar al recoger una o dos unidades, sin anticipo",
+      "status": "aprobado"
+    },
+    {
+      "id": "C02",
+      "name": "Pago anticipado y recogida de tres unidades mantienen sus condiciones",
+      "status": "aprobado"
+    },
+    {
+      "id": "C03",
+      "name": "Cambiar a domicilio oculta el aviso y volver restaura una elección válida",
+      "status": "aprobado"
+    },
+    {
+      "id": "C04",
+      "name": "Cruzar el umbral descarta una elección incompatible y recalcula el total",
+      "status": "aprobado"
+    },
+    {
+      "id": "C05",
+      "name": "Regreso y recarga conservan datos y aviso sin repetirlo en otras etapas",
+      "status": "aprobado"
+    },
+    {
+      "id": "C06",
+      "name": "Pago al recoger continúa por WhatsApp sin confirmación comercial automática ni duplicados",
+      "status": "aprobado"
+    },
+    {
+      "id": "C07",
+      "name": "Aviso compacto y legible en móvil y escritorio sin ocultar controles",
+      "status": "aprobado"
+    }
+  ],
+  "errors": [],
+  "external": [],
+  "passed": 7,
+  "failed": 0
+}

@@ -1,0 +1,8 @@
+PASS Inicio: resumen verificado y directorio móvil 360/390/412; panel operativo 1366
+PASS Precios: sugerencia actual sin guardar; cancelar inmediato; dos segundos y doble clic
+PASS Precios: costos incompletos y permisos denegados conservan la entrada
+PASS Envíos: distancia real desde origen, orden manual y 13 paradas sin pérdida
+PASS Envíos: ubicaciones faltantes y direcciones por revisar quedan explícitas
+PASS Costos: miniaturas correctas y recuperación de compra con la misma referencia
+PASS Teclado: barra contextual se oculta solo con reducción de pantalla y se recupera
+PASS Comprador: promoción retirada y miniaturas sin alterar cantidades ni totales

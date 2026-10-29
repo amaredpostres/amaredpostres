@@ -1,0 +1,21 @@
+PASS UI-01 Escritorio conserva cinco hitos e iconos exactos en todas las etapas
+PASS UI-02 Portada móvil con cinco hitos, sin títulos comprimidos ni duplicación
+PASS UI-03 Checkout móvil: cinco iconos numerados y una sola etiqueta de etapa
+PASS UI-04 Estados visibles también mediante marcas y subrayado, no solo color
+PASS UI-05 Descripciones accesibles y explicación completa sin saltos de navegación
+PASS UI-06 Seleccionar una cantidad interrumpe la demostración y activa el paso real 1
+PASS UI-07 Guía contextual estática, movimiento reducido y campos sin obstrucciones
+PASS UI-08 Uno y dos postres: pago sin preselección y total al recoger sin leyendas
+PASS UI-09 Tres postres: elección explícita, anticipo 40 % o pago total correctos
+PASS UI-10 Cambios de cantidades descartan solo opciones incompatibles y conservan las válidas
+PASS UI-11 Acceso del equipo visible en catálogo incluso con cantidades seleccionadas
+PASS UI-12 Acceso del equipo oculto en datos, revisión y preparación de WhatsApp
+PASS UI-13 Regresar al catálogo restaura el acceso administrativo sin tocar su ruta
+PASS UI-14 Encabezados Editar uniformes de 320 a 1440 px y con fuente aumentada
+PASS UI-15 Lápices con nombres accesibles, foco y navegación por teclado correcta
+PASS UI-16 Miniaturas asociadas a cada video real; carga voluntaria y cierre por teclado
+PASS UI-17 Miniaturas completas con texto exterior, proporción original y sin recortes
+PASS UI-18 Fotografías editoriales sin sabores inferidos; catálogo y proporciones conservados
+PASS UI-19 Sin overflow ni acciones bloqueadas en 320/360/390/412/430 y área reducida
+PASS UI-20 WhatsApp y edición mantienen referencia única, copia y etapas externas informativas
+PASS 20 criterios UI/recursos

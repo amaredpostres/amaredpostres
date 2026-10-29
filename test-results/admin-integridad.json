@@ -1,0 +1,48 @@
+{
+  "version": "7.0.0",
+  "baseline": "work/admin-20261029/baseline.json",
+  "changed": [
+    "package.json",
+    "preview.mjs",
+    "README.md",
+    "backend/Integrity.gs",
+    "backend/Webhook.gs",
+    "docs/CAMBIOS.md",
+    "docs/ESPECIFICACION.md",
+    "docs/GALERIA.html",
+    "docs/IMPLEMENTACION.md",
+    "docs/PRUEBAS.md",
+    "tests/backend.test.mjs",
+    "tests/navigation.mjs",
+    "web/admin.html",
+    "web/admin.js",
+    "web/app.js",
+    "web/costs.html",
+    "web/costs.js",
+    "web/delivery.html",
+    "web/delivery.js",
+    "web/experience.css",
+    "web/experience.js",
+    "web/hub.html",
+    "web/hub.js",
+    "web/index.html",
+    "web/kitchen.html",
+    "web/profiles.html",
+    "web/styles.css"
+  ],
+  "new_code_and_tests": [
+    "web/admin-tools.js",
+    "web/pricing.js",
+    "web/route-planner.js",
+    "tests/admin-iteration.mjs",
+    "tests/admin-models.test.mjs"
+  ],
+  "missing_baseline_files": [],
+  "assets_verified": 43,
+  "modified_assets": [],
+  "unchanged_critical": [
+    "web/config.js",
+    "backend/worker.mjs",
+    "backend/Archivado.gs"
+  ]
+}

@@ -1,0 +1,8 @@
+PASS C01 Aviso solo al elegir pagar al recoger una o dos unidades, sin anticipo
+PASS C02 Pago anticipado y recogida de tres unidades mantienen sus condiciones
+PASS C03 Cambiar a domicilio oculta el aviso y volver restaura una elección válida
+PASS C04 Cruzar el umbral descarta una elección incompatible y recalcula el total
+PASS C05 Regreso y recarga conservan datos y aviso sin repetirlo en otras etapas
+PASS C06 Pago al recoger continúa por WhatsApp sin confirmación comercial automática ni duplicados
+PASS C07 Aviso compacto y legible en móvil y escritorio sin ocultar controles
+PASS 7 verificaciones de confirmación al recoger

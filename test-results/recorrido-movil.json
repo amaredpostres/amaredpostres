@@ -1,0 +1,20 @@
+{
+  "date": "2026-10-28T21:33:52.541Z",
+  "environment": "Chromium local, API en memoria, datos ficticios. Eventos de visibilidad y altura reducida simulados; no dispositivo físico.",
+  "results": [
+    {
+      "id": "J11",
+      "name": "Barra condicional: visible tras selección, oculta con guía original, teclado, controles o ventana",
+      "status": "aprobado"
+    },
+    {
+      "id": "J14",
+      "name": "Onda móvil en una sola superficie y sin repetición al cambiar el área visible",
+      "status": "aprobado"
+    }
+  ],
+  "errors": [],
+  "external": [],
+  "passed": 2,
+  "failed": 0
+}

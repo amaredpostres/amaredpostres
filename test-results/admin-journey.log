@@ -1,0 +1,15 @@
+PASS J01 Introducción 1→5 repetida en ciclos de nueve segundos, sin estados completados
+PASS J02 Pausa y reanudación explícitas; movimiento reducido desactiva los efectos
+PASS J03 Primera selección durante etapa 4 cancela la explicación y activa inmediatamente etapa 1
+PASS J04 Selección restaurada y regreso al catálogo conservan progreso sin reiniciar demo
+PASS J05 Guía vertical: conexión alineada, una pasada por apertura y estados reales intactos
+PASS J06 Entrada a WhatsApp produce exactamente dos ondas 3→4→5, sin confirmar pago ni repetir al copiar
+PASS J07 Texto de revisión orienta a enviar WhatsApp y mantiene aclaración de cambios ya registrados
+PASS J08 Fallo de apertura y copia conserva referencia completa, selección manual y datos
+PASS J09 Código completo legible en 320/412/1440 px, mensaje y registro conservan la misma identidad
+PASS J10 Volver, abrir guía, continuar, copiar y reintentar no generan otro registro
+PASS J11 Barra condicional: visible tras selección, oculta con guía original, teclado, controles o ventana
+PASS J12 Fuera de pantalla y pestaña oculta suspende el tiempo; la animación no desplaza el contenido
+PASS J13 Movimiento reducido sin ondas y recogida de 1–2 unidades conserva cero anticipo y confirmación manual
+PASS J14 Onda móvil en una sola superficie y sin repetición al cambiar el área visible
+PASS 14 criterios

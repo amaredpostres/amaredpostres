@@ -1,0 +1,148 @@
+TAP version 13
+# Subtest: gateway: public catalog works without login
+ok 1 - gateway: public catalog works without login
+  ---
+  duration_ms: 15.528
+  type: 'test'
+  ...
+# Subtest: gateway: public profiles forwarded with minimal public flag
+ok 2 - gateway: public profiles forwarded with minimal public flag
+  ---
+  duration_ms: 0.6159
+  type: 'test'
+  ...
+# Subtest: gateway: private reads require authorization
+ok 3 - gateway: private reads require authorization
+  ---
+  duration_ms: 1.9399
+  type: 'test'
+  ...
+# Subtest: gateway: kitchen profile cannot confirm payments or delete profiles
+ok 4 - gateway: kitchen profile cannot confirm payments or delete profiles
+  ---
+  duration_ms: 2.1051
+  type: 'test'
+  ...
+# Subtest: gateway: kitchen keeps its recipe, preparation and shopping actions
+ok 5 - gateway: kitchen keeps its recipe, preparation and shopping actions
+  ---
+  duration_ms: 2.427
+  type: 'test'
+  ...
+# Subtest: gateway: delivery location requires the delivery role
+ok 6 - gateway: delivery location requires the delivery role
+  ---
+  duration_ms: 0.3671
+  type: 'test'
+  ...
+# Subtest: gateway: unknown actions and unexpected origins are rejected
+ok 7 - gateway: unknown actions and unexpected origins are rejected
+  ---
+  duration_ms: 0.2361
+  type: 'test'
+  ...
+# Subtest: gateway: a new Worker has no production origin enabled by default
+ok 8 - gateway: a new Worker has no production origin enabled by default
+  ---
+  duration_ms: 0.1402
+  type: 'test'
+  ...
+# Subtest: gateway: dessert deletion requires a role and an additional recipe PIN
+ok 9 - gateway: dessert deletion requires a role and an additional recipe PIN
+  ---
+  duration_ms: 0.6547
+  type: 'test'
+  ...
+# Subtest: dashboard: requires login and overrides client-supplied scopes
+ok 10 - dashboard: requires login and overrides client-supplied scopes
+  ---
+  duration_ms: 1.6882
+  type: 'test'
+  ...
+# Subtest: dashboard: counts orders by state, preserves rows and returns no customer details
+ok 11 - dashboard: counts orders by state, preserves rows and returns no customer details
+  ---
+  duration_ms: 4.488
+  type: 'test'
+  ...
+# Subtest: dashboard: empty data returns zero but missing headers return an error
+ok 12 - dashboard: empty data returns zero but missing headers return an error
+  ---
+  duration_ms: 2.4689
+  type: 'test'
+  ...
+# Subtest: orders: server owns prices and validates quantities and availability
+ok 13 - orders: server owns prices and validates quantities and availability
+  ---
+  duration_ms: 1.4312
+  type: 'test'
+  ...
+# Subtest: orders: repeated request creates only one row
+ok 14 - orders: repeated request creates only one row
+  ---
+  duration_ms: 1.9794
+  type: 'test'
+  ...
+# Subtest: orders: prices changed or malformed phone never append a row
+ok 15 - orders: prices changed or malformed phone never append a row
+  ---
+  duration_ms: 1.3995
+  type: 'test'
+  ...
+# Subtest: orders: reordered columns and route fields preserve their meaning
+ok 16 - orders: reordered columns and route fields preserve their meaning
+  ---
+  duration_ms: 1.9347
+  type: 'test'
+  ...
+# Subtest: orders: untrusted sheet text is literal
+ok 17 - orders: untrusted sheet text is literal
+  ---
+  duration_ms: 1.4795
+  type: 'test'
+  ...
+# Subtest: orders: serialization reports busy rather than writing without a lock
+ok 18 - orders: serialization reports busy rather than writing without a lock
+  ---
+  duration_ms: 1.37
+  type: 'test'
+  ...
+# Subtest: orders: expired promos cannot alter the price
+ok 19 - orders: expired promos cannot alter the price
+  ---
+  duration_ms: 1.5557
+  type: 'test'
+  ...
+# Subtest: orders: active combo uses the price managed in the catalog
+ok 20 - orders: active combo uses the price managed in the catalog
+  ---
+  duration_ms: 1.2819
+  type: 'test'
+  ...
+# Subtest: maps: host spoofing and scripts are rejected
+ok 21 - maps: host spoofing and scripts are rejected
+  ---
+  duration_ms: 1.3191
+  type: 'test'
+  ...
+# Subtest: archive: moves by column names, preserves active orders, and retries without duplicates
+ok 22 - archive: moves by column names, preserves active orders, and retries without duplicates
+  ---
+  duration_ms: 2.2032
+  type: 'test'
+  ...
+# Subtest: archive: legacy duplicate codes cannot remove paid or conflicting rows
+ok 23 - archive: legacy duplicate codes cannot remove paid or conflicting rows
+  ---
+  duration_ms: 1.5604
+  type: 'test'
+  ...
+1..23
+# tests 23
+# suites 0
+# pass 23
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 127.0735

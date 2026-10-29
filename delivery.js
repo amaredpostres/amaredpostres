@@ -99,7 +99,7 @@ const HUB_URL = "hub.html";
 const HUB_SESSION_KEY = "AMARED_HUB_SESSION_V1";
 const HUB_REMEMBER_KEY = "AMARED_HUB_REMEMBER_V1";
 const DELIVERY_LOGIN_CACHE_KEY = "AMARED_PAGECACHE_DELIVERY_LOGIN_V1";
-const DELIVERY_DATA_CACHE_KEY = "AMARED_PAGECACHE_DELIVERY_DATA_V1";
+const DELIVERY_DATA_CACHE_KEY = "AMARED_PAGECACHE_DELIVERY_DATA_V2";
 const FROM_HUB = (() => { try { return new URLSearchParams(window.location.search).get("hub") === "1"; } catch { return false; } })();
 function hasHubAccess_(){
   try{ return FROM_HUB || !!sessionStorage.getItem(HUB_SESSION_KEY) || !!localStorage.getItem(HUB_REMEMBER_KEY); }catch(_e){ return FROM_HUB; }
@@ -568,9 +568,10 @@ function clearDeliveryDataCache_(){
   try{ sessionStorage.removeItem(DELIVERY_DATA_CACHE_KEY); }catch(_e){}
 }
 function hydrateDeliveryOrdersFromCache_(cache){
+  deliveryUpdatedAt=Number(cache?.ts||0);
   ORDERS = Array.isArray(cache?.orders) ? cache.orders : [];
   renderOrders(ORDERS);
-  setStatus(`${ORDERS.length} pedidos listos para envío (caché de la sesión).`);
+  setStatus("Datos guardados de la sesión · Comprobando cambios…");
 }
 function hydrateDeliveryHistoryFromCache_(cache){
   HIST = Array.isArray(cache?.history) ? cache.history : [];
@@ -844,33 +845,22 @@ function normalizeManualOrderList(routeKey, ids){
   ROUTE_MANUAL_ORDER[routeKey] = clean;
   return clean;
 }
-function sortRouteItems(routeKey, items){
-  const list = Array.isArray(items) ? items : [];
-  const ids = list.map(item => String(item?.order?.order_id || "")).filter(Boolean);
-  const manualOrder = normalizeManualOrderList(routeKey, ids);
-  if(ROUTE_SORT_MODE === "manual"){
-    const pos = new Map(manualOrder.map((id, idx) => [id, idx]));
-    list.sort((a,b) => {
-      const ia = pos.has(String(a?.order?.order_id || "")) ? pos.get(String(a.order.order_id)) : 9999;
-      const ib = pos.has(String(b?.order?.order_id || "")) ? pos.get(String(b.order.order_id)) : 9999;
-      if(ia !== ib) return ia - ib;
-      return Number(a.routeInfo.score || 50) - Number(b.routeInfo.score || 50);
-    });
-    return;
-  }
-  list.sort((a,b) => {
-    const da = Number(a.routeInfo.score || 50);
-    const db = Number(b.routeInfo.score || 50);
-    if(ROUTE_SORT_MODE === "far") return db - da;
-    return da - db;
-  });
+function sortRouteItems(routeKey,items){
+ const list=Array.isArray(items)?items:[];
+ if(ROUTE_SORT_MODE==='manual'){
+  const ids=normalizeManualOrderList(routeKey,list.map(i=>String(i.order.order_id))),positions=new Map(ids.map((id,i)=>[id,i]));
+  list.sort((a,b)=>positions.get(String(a.order.order_id))-positions.get(String(b.order.order_id)));return;
+ }
+ list.sort((a,b)=>{const da=routeDistance(a.order),db=routeDistance(b.order);if(da===null)return db===null?0:1;if(db===null)return -1;return ROUTE_SORT_MODE==='far'?db-da:da-db;});
 }
+function routeDistance(order){return AMAREDRoutes.distance(getOrderManualCoordinates(order)||getOrderSavedCoords(order));}
+
 function moveOrderInRoute(routeKey, orderId, direction){
   const groups = groupOrdersByRoute(getFilteredPendingOrders(ORDERS));
   const group = groups[routeKey];
   if(!group || !group.orders.length) return false;
   const visibleIds = group.orders.map(item => String(item?.order?.order_id || "")).filter(Boolean);
-  const order = normalizeManualOrderList(routeKey, visibleIds);
+  const order = ROUTE_SORT_MODE === "manual" ? normalizeManualOrderList(routeKey, visibleIds) : visibleIds.slice();
   const id = String(orderId || "").trim();
   const idx = order.indexOf(id);
   if(idx < 0) return false;
@@ -918,19 +908,13 @@ function ensureRouteManualFromDom(routeKey, container){
   return setRouteManualOrderFromIds(routeKey, ids);
 }
 function groupOrdersByRoute(orders){
-  const groups = {
-    occidente: { ...AMARED_ROUTE_DEFINITIONS.occidente, orders: [] },
-    oriente: { ...AMARED_ROUTE_DEFINITIONS.oriente, orders: [] },
-    por_asignar: { ...AMARED_ROUTE_DEFINITIONS.por_asignar, orders: [] }
-  };
-  (Array.isArray(orders) ? orders : []).forEach(order => {
-    const info = getOrderRouteInfo(order);
-    const key = groups[info.id] ? info.id : "por_asignar";
-    groups[key].orders.push({ order, routeInfo: info });
-  });
-  Object.entries(groups).forEach(([routeKey, group]) => sortRouteItems(routeKey, group.orders));
-  return groups;
+ const rows=(Array.isArray(orders)?orders:[]).map(order=>({order,routeInfo:getOrderRouteInfo(order)}));
+ // Keep saved zone labels on each order, while arranging all deliveries from the same origin.
+ if(ROUTE_SORT_MODE==='manual' && !ROUTE_MANUAL_ORDER.recorrido){const old=['occidente','oriente','por_asignar'].flatMap(k=>ROUTE_MANUAL_ORDER[k]||[]);if(old.length)ROUTE_MANUAL_ORDER.recorrido=old;}
+ sortRouteItems('recorrido',rows);
+ return {recorrido:{id:'recorrido',label:'Recorrido de entregas',description:'Todos los domicilios pendientes',orders:rows}};
 }
+
 function cleanOrderStopText(value){
   return String(value || "").replace(/\s+/g, " ").trim();
 }
@@ -991,6 +975,8 @@ function extractLatLngFromText(value){
   ];
   for(const text of variants){
     for(const pattern of patterns){
+      // A map camera center is not necessarily the selected delivery point.
+      if(/^https?:/i.test(text) && (pattern.source.startsWith("@") || pattern.source.startsWith("(?:^")))continue;
       const m = text.match(pattern);
       if(!m) continue;
       if(pattern.source.startsWith("!2d")){
@@ -1009,8 +995,8 @@ function extractLatLngFromText(value){
   return null;
 }
 function getOrderSavedCoords(order){
-  const lat = Number(order?.maps_lat ?? order?.map_lat ?? order?.location_lat ?? order?.lat);
-  const lng = Number(order?.maps_lng ?? order?.map_lng ?? order?.location_lng ?? order?.lng);
+  const lat = parseCoordinateNumber(order?.maps_lat ?? order?.map_lat ?? order?.location_lat ?? order?.lat);
+  const lng = parseCoordinateNumber(order?.maps_lng ?? order?.map_lng ?? order?.location_lng ?? order?.lng);
   const normalized = normalizeLatLng(lat, lng);
   if(normalized) return normalized;
   const storedQuery = String(order?.maps_query || order?.location_query || "").trim();
@@ -1032,9 +1018,10 @@ function setOrderExactLocationFields(order, rawLink, coords){
   }
 }
 function getOrderAddressQuery(order){
-  const parts = [order?.address_text, getOrderNeighborhood(order), "Ibagué, Tolima"].map(cleanOrderStopText).filter(Boolean);
-  return parts.join(", ");
+ const parts=[order?.address_text,getOrderNeighborhood(order)].map(cleanOrderStopText).filter(Boolean);
+ return parts.length?parts.concat('Ibagué, Tolima').join(', '):'';
 }
+
 function getOrderPrimaryMapsLink(order){
   const maps = String(order?.maps_link || "").trim();
   return isExternalMapLink(maps) ? maps : "";
@@ -1066,18 +1053,11 @@ function getOrderLinkCoords(order){
   return maps ? extractLatLngFromText(maps) : null;
 }
 function getOrderRouteStopInfo(order){
-  const manualStop = getOrderManualRouteStop(order);
-  if(manualStop){
-    const manualCoords = extractLatLngFromText(manualStop);
-    return { query: manualCoords?.query || manualStop, source: manualCoords?.query ? "coords" : "manual" };
-  }
-
-  // Para crear rutas confiables, AMARED usa primero las coordenadas manuales
-  // guardadas en el pedido. Si no existen, se usa la dirección escrita como
-  // respaldo. No se envía el link completo de Google Maps como parada.
-  const addressQuery = getOrderAddressQuery(order);
-  return { query:addressQuery, source:addressQuery ? "address" : "empty" };
+ const coords=getOrderManualCoordinates(order)||getOrderSavedCoords(order);
+ if(coords)return {query:coords.query,source:'coords'};
+ const query=getOrderAddressQuery(order);return {query,source:query?'address':'empty'};
 }
+
 function getOrderRouteStopQuery(order){
   return getOrderRouteStopInfo(order).query || "";
 }
@@ -1085,57 +1065,10 @@ function getOrderStopQuery(order){
   return getOrderRouteStopQuery(order);
 }
 function getOrderLocationPrecisionLabel(order){
-  const manual = getOrderManualCoordinates(order);
-  if(manual?.query) return `Coordenadas guardadas: ${manual.query}`;
-  return "Pendiente: guarda coordenadas manuales para una ruta exacta.";
+ const distance=routeDistance(order);
+ return distance===null?'Ubicación por revisar · Sin distancia calculable':`${distance.toLocaleString('es-CO',{maximumFractionDigits:1})} km en línea recta desde Kiwana · Revisa el punto antes de salir`;
 }
-async function resolveOrderCoordinates(order, opts = {}){
-  if(!order) return null;
-  const existing = getOrderSavedCoords(order);
-  if(existing?.query && !opts.force) return existing;
 
-  const link = getOrderPrimaryMapsLink(order);
-  const localCoords = link ? extractLatLngFromText(link) : null;
-  if(localCoords?.query){
-    setOrderExactLocationFields(order, link, localCoords);
-    return localCoords;
-  }
-
-  const id = String(order?.order_id || "").trim();
-  if(!id || !link || COORDS_RESOLVE_IN_FLIGHT.has(id)) return existing || null;
-
-  COORDS_RESOLVE_IN_FLIGHT.add(id);
-  try{
-    const out = await api({
-      action:"delivery_update_location",
-      order_id:id,
-      maps_link:link,
-      updated_by: SESSION?.operator?.label || "DELIVERY"
-    });
-    const coords = normalizeLatLng(out?.maps_lat, out?.maps_lng) || extractLatLngFromText(out?.maps_query || "");
-    if(coords?.query){
-      setOrderExactLocationFields(order, link, coords);
-      return coords;
-    }
-  }catch(e){
-    console.warn("No se pudieron resolver coordenadas para", id, e);
-  }finally{
-    COORDS_RESOLVE_IN_FLIGHT.delete(id);
-  }
-  return existing || null;
-}
-async function resolveCoordinatesForRouteItems(routeOrders){
-  const items = Array.isArray(routeOrders) ? routeOrders : [];
-  let changed = false;
-  for(const item of items){
-    const order = item?.order || item;
-    if(!order || classifyDeliveryType(order) !== "delivery" || getOrderManualRouteStop(order)) continue;
-    const before = getOrderSavedCoords(order);
-    const after = await resolveOrderCoordinates(order);
-    if(!before?.query && after?.query) changed = true;
-  }
-  return changed;
-}
 function getGoogleMapsRouteStopStats(routeOrders){
   const stats = { total:0, coords:0, manual:0, address:0, empty:0 };
   (Array.isArray(routeOrders) ? routeOrders : []).forEach(item => {
@@ -1151,21 +1084,16 @@ function getGoogleMapsRouteStopStats(routeOrders){
   });
   return stats;
 }
-function buildGoogleMapsRouteUrl(routeOrders){
-  const stops = (Array.isArray(routeOrders) ? routeOrders : [])
-    .map(x => getOrderRouteStopInfo(x.order || x))
-    .filter(info => info.query)
-    .slice(0, 10)
-    .map(info => info.query);
-  const base = "https://www.google.com/maps/dir/?api=1";
-  const origin = encodeURIComponent(AMARED_ROUTE_ORIGIN_ADDRESS);
-  if(!stops.length){
-    return `${base}&origin=${origin}&destination=${origin}&travelmode=driving`;
-  }
-  const destination = encodeURIComponent(stops[stops.length - 1]);
-  const waypoints = stops.slice(0, -1).map(encodeURIComponent).join("%7C");
-  return `${base}&origin=${origin}&destination=${destination}${waypoints ? `&waypoints=${waypoints}` : ""}&travelmode=driving`;
+function showGoogleMapsRoute(routeOrders){
+ if(document.querySelector(".routeSegmentsDialog"))return;
+ const stops=routeOrders.map(x=>{const o=x.order||x;return {...getOrderRouteStopInfo(o),id:o.order_id,name:o.customer_name||o.order_id};});
+ const plan=AMAREDRoutes.segments(stops,matchMedia('(max-width:860px)').matches || /Android|iPhone|iPad/i.test(navigator.userAgent));
+ const dialog=document.createElement('dialog');dialog.className='routeSegmentsDialog';dialog.setAttribute('aria-labelledby','routeSegmentsTitle');
+ dialog.innerHTML=`<p class="eyebrow">GOOGLE MAPS</p><h2 id="routeSegmentsTitle">Tu recorrido, en orden</h2><p>Salida: ${escapeHtml(AMARED_ROUTE_ORIGIN_LABEL)} · ${stops.length} pedidos</p><p class="routeExplanation">Cada tramo continúa desde la última parada del anterior. Verifica los puntos al abrir Maps.</p>${stops.some(s=>s.source==='address')?'<p class="routeWarning">Las direcciones sin coordenadas quedan al final del orden automático. Confirma su ubicación en Maps.</p>':''}<div class="routeSegments">${plan.segments.map((segment,i)=>`<section><h3>Tramo ${i+1} · ${segment.stops.length} paradas</h3><ol>${segment.stops.map(stop=>`<li>${escapeHtml(stop.name)}${stop.source==='address'?' · Revisar dirección':''}</li>`).join('')}</ol><a class="btn primary" href="${escapeHtml(segment.url)}" target="_blank" rel="noopener noreferrer">Abrir tramo ${i+1} <span class="visuallyHidden">en Google Maps, otra pestaña</span></a></section>`).join('')}</div>${plan.excluded.length?`<p class="routeWarning"><strong>${plan.excluded.length} pedidos fuera de los enlaces:</strong> ${plan.excluded.map(s=>escapeHtml(s.id)+' — '+escapeHtml(s.reason)).join('; ')}. Completa su ubicación para incluirlos.</p>`:''}<button type="button" class="btn secondary routeClose">Volver a organizar</button>`;
+ const previous=document.activeElement;document.body.append(dialog);document.body.classList.add('admin-dialog-open');dialog.showModal();
+ const close=()=>{dialog.close();dialog.remove();document.body.classList.remove('admin-dialog-open');previous?.focus();};dialog.querySelector('.routeClose').onclick=close;dialog.addEventListener('cancel',e=>{e.preventDefault();close();});
 }
+
 function buildGoogleMapsSingleUrl(order){
   const maps = getOrderPrimaryMapsLink(order);
   // En pedidos individuales se abre exactamente el link guardado por el cliente.
@@ -1248,7 +1176,7 @@ function classifyDeliveryType(order){
   const method = String(order?.location_method || "").trim().toLowerCase();
   const address = String(order?.address_text || "").trim().toLowerCase();
   const maps = String(order?.maps_link || "").trim().toLowerCase();
-  if(method === "pickup" || address === "recogida presencial" || maps === "recogida_presencial") return "pickup";
+  if(method === "pickup" || /^recogida presencial(?:\s|$)/i.test(address) || maps === "recogida_presencial") return "pickup";
   return "delivery";
 }
 function getKitchenProcessInfo(order){
@@ -1282,7 +1210,7 @@ function syncDeliveryFilterUi(){
   const counts = getPendingCounts(ORDERS);
   const activeLabel = DELIVERY_VIEW_FILTER === "pickup" ? "Recoger" : "Domicilio";
   if(metaLine){
-    metaLine.textContent = `Operador: ${SESSION?.operator?.label || "—"} · Domicilio: ${counts.delivery} · Recoger: ${counts.pickup} · Mostrando: ${activeLabel}`;
+    metaLine.textContent = `Total listo: ${counts.delivery+counts.pickup} · Domicilio: ${counts.delivery} · Recogida: ${counts.pickup} · Todos los días${deliveryUpdatedAt ? " · Actualizado "+new Date(deliveryUpdatedAt).toLocaleTimeString("es-CO",{hour:"2-digit",minute:"2-digit"}) : " · Datos guardados, pendientes de actualizar"}`;
   }
   if(deliveryFilterWrap) setDisplayIfChanged(deliveryFilterWrap, "flex");
   toggleClassIfChanged(btnFilterDelivery, 'isActive', DELIVERY_VIEW_FILTER === 'delivery');
@@ -1457,7 +1385,7 @@ function renderOrders(orders){
   }
 
   const groups = groupOrdersByRoute(filtered);
-  const routeOrder = ['occidente','oriente','por_asignar'];
+  const routeOrder = ['recorrido'];
   const sections = routeOrder.map(key => {
     const group = groups[key];
     if(!group || !group.orders.length) return '';
@@ -1482,7 +1410,7 @@ function renderOrders(orders){
         <div class="routeCollapsible">
           <div class="routeOverviewBox">
             <div class="routeOverviewKicker">Resumen general de ruta</div>
-            <div class="routeMapHint">Orden: ${ROUTE_SORT_MODE === 'manual' ? 'personalizado' : ROUTE_SORT_MODE === 'far' ? 'lejanos primero' : 'cercanos primero'} · Salida: ${escapeHtml(AMARED_ROUTE_ORIGIN_LABEL)} · Google Maps usa las coordenadas manuales guardadas.</div>
+            <div class="routeMapHint">Orden: ${ROUTE_SORT_MODE === 'manual' ? 'personalizado' : ROUTE_SORT_MODE === 'far' ? 'lejanos primero' : 'cercanos primero'} · Salida: ${escapeHtml(AMARED_ROUTE_ORIGIN_LABEL)} · Distancias en línea recta desde el origen; no representan tiempo ni distancia por carretera.</div>
           </div>
           <div class="routeOrdersLabel">Pedidos individuales</div>
           <div class="routeCards">
@@ -1500,8 +1428,15 @@ function renderOrders(orders){
     ${sections}`;
 }
 
-async function loadOrders(force = false, opts = {}){
-  const silent = !!opts.silent;
+let deliveryFlight=null, deliveryUpdatedAt=0;
+const deliverySessionKey=()=>JSON.stringify([SESSION?.operator?.id,SESSION?.pin]);
+function loadOrders(force=false,opts={}){
+ const key=deliverySessionKey();if(deliveryFlight?.key===key)return deliveryFlight.promise;
+ const promise=fetchDeliveryOrders(force,opts).finally(()=>{if(deliveryFlight?.key===key)deliveryFlight=null;});deliveryFlight={key,promise};return promise;
+}
+async function fetchDeliveryOrders(force = false, opts = {}){
+  const sessionKey=deliverySessionKey();
+  const silent = opts.silent!==false;
   if(!force){
     const cached = loadDeliveryDataCache_();
     if(cached){
@@ -1517,24 +1452,18 @@ async function loadOrders(force = false, opts = {}){
     showLoading("Cargando pedidos…","Buscando pedidos pagados con envío pendiente…");
   }
   try{
-    let out = await api({ action:"delivery_list", hours: 72, view:"pending" });
-    let orders = out.orders || [];
-
-    // fallback: list_orders + client-side filter
-    if(orders.length === 0){
-      const out2 = await api({ action:"list_orders", payment_status:"Pagado" });
-      const all = out2.orders || [];
-      orders = all.filter(o=>{
-        const kit = normStatus(o.kitchen_status);
-        const del = normStatus(o.delivery_status || "pendiente");
-        const pay = normStatus(o.payment_status);
-        return pay === "pagado" && (del === "pendiente" || del === "");
-      });
-    }
-
+    const out = await api({ action:"delivery_list", view:"pending" });
+    if(sessionKey!==deliverySessionKey())return;
+    const seen=new Set();
+    const orders=(out.orders||[]).filter(o=>{
+      const id=String(o.order_id||'').trim();if(!id || seen.has(id))return false;seen.add(id);
+      return normStatus(o.payment_status)==='pagado' && normStatus(o.kitchen_status)==='listo' && ['', 'pendiente'].includes(normStatus(o.delivery_status));
+    });
+    deliveryUpdatedAt=Date.now();
     renderOrders(orders);
     saveDeliveryDataCache_();
     }catch(e){
+    if(sessionKey!==deliverySessionKey())return;
     console.error("loadOrders error:", e);
     const msg = e?.message || "Error cargando pedidos.";
     if(/unauthorized/i.test(String(msg))){
@@ -1548,7 +1477,8 @@ async function loadOrders(force = false, opts = {}){
     }else{
       showPanel();
       setStatus(msg);
-      if(listEl) listEl.innerHTML = '<div class="muted small">No se pudieron cargar los pedidos. Usa “Recargar” o vuelve a iniciar sesión.</div>';
+      if(listEl && !ORDERS.length) listEl.innerHTML = '<div class="muted small">No se pudieron cargar los pedidos. Usa “Recargar” para volver a intentar.</div>';
+      else setStatus(msg+' · Conservamos la última vista; puede haber cambios sin actualizar.');
     }
   }finally{
     hideLoading();
@@ -2256,9 +2186,7 @@ listEl?.addEventListener("click", async (ev)=>{
     const groups = groupOrdersByRoute(getFilteredPendingOrders(ORDERS));
     const group = groups[key];
     if(group){
-      const stats = getGoogleMapsRouteStopStats(group.orders);
-      openNavigationUrl(buildGoogleMapsRouteUrl(group.orders));
-      setStatus(`Ruta abierta en Google Maps. ${stats.coords + stats.manual} parada(s) usan coordenadas guardadas y ${stats.address} usan dirección como respaldo.`);
+      showGoogleMapsRoute(group.orders);
     }
     return;
   }

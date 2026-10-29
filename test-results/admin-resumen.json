@@ -1,0 +1,21 @@
+{
+  "version": "7.0.0",
+  "date": "2026-10-29",
+  "cases": 122,
+  "groups": {
+    "backend_and_models": 45,
+    "admin_scenarios": 8,
+    "module_navigation": 6,
+    "checkout": 33,
+    "recovery": 9,
+    "journey": 14,
+    "pickup_confirmation": 7
+  },
+  "javascript_errors": 0,
+  "admin_production_requests": 0,
+  "syntax_files": 16,
+  "physical_device": "no ejecutada",
+  "live_sheets_or_production": "no ejecutada",
+  "screen_reader": "no ejecutada",
+  "published": false
+}

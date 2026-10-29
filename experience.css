@@ -896,3 +896,80 @@ body.amaredV2{background:var(--cream);font-size:16px;line-height:1.55;color:var(
  .storefront .journeyMotionControls{flex-wrap:wrap;gap:4px 12px;font-size:.75rem}
 }
 @media(prefers-reduced-motion:reduce){.storefront .journeyMotionLine{transition:none}}
+
+/* Administrative refinement · 2026-10-29. Reuses AMARED typography and palette. */
+.storefront .modalItem{display:flex;align-items:center;gap:12px;min-width:0}
+.reviewProductImage,.costProductImage{display:block;flex:none;aspect-ratio:1;object-fit:cover;border-radius:12px;background:#f8eee5}
+.reviewProductImage{width:56px;height:56px}
+.storefront .modalItem .reviewItemText{flex:1;min-width:0}
+.storefront .modalItem .reviewItemText strong{overflow-wrap:anywhere}
+.storefront .modalItem>strong{flex:none;white-space:nowrap;font-variant-numeric:tabular-nums}
+.costProductImage{width:52px;height:52px}
+.unitMobileTitle{display:flex;align-items:center;gap:12px}
+.unitMobileTitle span{min-width:0;line-height:1.35}
+.workspacePage .unitDesktopDessertCell{gap:10px}
+.workspacePage .hubCard{padding:22px;text-align:left}
+.workspacePage .hubPending{line-height:1.5;white-space:normal}
+.hubDeliverySplit{display:block;font-size:13px;font-weight:600;margin-top:4px}
+.workspacePage .hubCardFoot{gap:12px;align-items:center}
+.workspacePage .hubActivityStatus{min-height:1.5em;font-size:14px}
+.hubDesktopGuidance{padding:24px;background:#fff;border:1px solid #ead9d0;border-radius:18px;line-height:1.6}
+.workspacePage #status,.workspacePage #metaLine,.workspacePage .routeMapHint{line-height:1.55;font-size:14px}
+.workspacePage .panelTop{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:12px}
+.workspacePage #panelView>.card{padding:24px}
+.workspacePage .routePlannerWrap{background:#fff9f4;border-color:#ead9d0;box-shadow:none}
+.workspacePage .routePlannerHeader h3{font-size:23px;line-height:1.2}
+.workspacePage .routeActions{gap:8px}
+.workspacePage .routeActions .btn{min-height:44px}
+.priceConfirmDialog,.routeSegmentsDialog{box-sizing:border-box;width:min(540px,calc(100vw - 28px));max-height:calc(100dvh - 32px);overflow:auto;border:1px solid #e9d7cc;border-radius:24px;padding:28px;background:#fffaf6;color:#401102;font-family:Nunito,Arial,sans-serif;box-shadow:0 24px 70px #40110235}
+.priceConfirmDialog::backdrop,.routeSegmentsDialog::backdrop{background:#30130780}
+.priceConfirmDialog h2,.routeSegmentsDialog h2{font-family:'Baloo 2',sans-serif;font-size:28px;line-height:1.15;margin:0 0 10px}
+.priceConfirmDialog p,.routeSegmentsDialog p{line-height:1.55;font-size:15px}
+.priceChanges{display:grid;gap:10px;margin:20px 0}
+.priceChanges>div{display:grid;gap:8px;border:1px solid #ecdcd3;border-radius:14px;background:white;padding:16px}
+.priceChanges>div>span{display:flex;gap:12px;align-items:center;font-size:20px;font-variant-numeric:tabular-nums}
+.priceChanges del{color:#80685e;font-size:16px}
+.priceConfirmWait{min-height:24px;color:#775347}
+.priceConfirmActions{display:flex;gap:10px;flex-wrap:wrap}
+.priceConfirmActions .btn{flex:1;min-height:48px}
+.priceConfirmActions .btn:disabled{opacity:.48;cursor:wait}
+.suggestedPriceHint{grid-column:1/-1;margin:8px 0 0!important;font-size:13px;line-height:1.5;color:#39664c}
+.suggestedPriceHint.isUnavailable{color:#9a4125}
+.purchaseRecoveryNote,.routeWarning{padding:12px 14px;border-radius:12px;background:#fff0d9;color:#713c16;font-size:14px;line-height:1.5}
+.routeSegments{display:grid;gap:14px;margin:18px 0}
+.routeSegments>section{background:white;border:1px solid #ead9d0;border-radius:16px;padding:18px}
+.routeSegments h3{margin:0;font-size:18px}
+.routeSegments ol{padding-left:24px;line-height:1.7}
+.routeSegments .btn{display:flex;min-height:46px;text-decoration:none;justify-content:center;align-items:center}
+.routeClose{width:100%;min-height:46px}
+body.admin-dialog-open :is(#adminMobileBar,#amKitchenMobileBar,#amDeliveryMobileBar,#mobileNav,#bottomBar,#profilesMobileBar,#indexAdminMobileBar,#hubMobileBar),
+body.admin-keyboard-open :is(#adminMobileBar,#amKitchenMobileBar,#amDeliveryMobileBar,#mobileNav,#bottomBar,#profilesMobileBar,#indexAdminMobileBar,#hubMobileBar){display:none!important;visibility:hidden!important;pointer-events:none!important}
+@media(min-width:861px){
+ .workspacePage .hubGrid{grid-template-columns:repeat(3,minmax(0,1fr));align-items:stretch}
+ .workspacePage .hubDirectory{display:none}
+ .workspacePage .hubOperational{display:flex;flex-direction:column;justify-content:space-between;min-height:245px;background:linear-gradient(155deg,#fff 40%,#fff2e7)}
+ .workspacePage .hubOperational .hubCardFoot{flex-direction:column;align-items:stretch;margin-top:22px}
+ .workspacePage .hubOperational .hubPending{background:transparent;padding:0;font-size:20px;min-height:65px;display:flex;flex-direction:column;justify-content:flex-start}
+ .workspacePage .hubOperational .hubCardBtn{width:100%;justify-content:center}
+ .workspacePage .hubOperational .hubCardDesc{font-weight:500;font-size:15px;line-height:1.55}
+}
+@media(max-width:860px){
+ .hubDesktopGuidance{display:none}
+ .workspacePage .hubCard{padding:18px}
+ .workspacePage #panelView>.card{padding:18px}
+ .workspacePage .hubCardTitle{font-size:21px}
+ .workspacePage .hubCardDesc{font-size:15px;line-height:1.5;font-weight:500}
+ .workspacePage .hubCardFoot .hubCardBtn{font-size:13px;min-height:40px;padding:10px 12px}
+ .priceConfirmDialog,.routeSegmentsDialog{padding:20px;border-radius:20px}
+ .storefront .modalItem{gap:9px}
+ .storefront .modalItem>strong{font-size:14px}
+ .storefront .modalItem .reviewItemText strong{font-size:14px}
+ .reviewProductImage{width:50px;height:50px}
+}
+
+@media(max-width:860px){
+ .workspacePage .unitMobilePreview{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-top:12px}
+ .workspacePage .unitMobileChip{display:block;border:0;border-radius:10px;background:#faf3ed;white-space:normal;font-size:13px;line-height:1.5;padding:9px 10px}
+ .workspacePage .unitMobileChip:last-child{grid-column:1/-1;background:#fbe9e9;font-size:15px}
+ .workspacePage #viewPurchases>.card>.hint{background:none;border:0;padding:0;font-weight:500;font-size:14px}
+}

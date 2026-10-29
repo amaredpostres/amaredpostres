@@ -1,0 +1,26 @@
+{
+  "date": "2026-10-28T21:32:53.536Z",
+  "environment": "Chromium y API local con datos ficticios; sin teléfono físico ni servicios comerciales",
+  "results": [
+    {
+      "id": "UI-03",
+      "name": "Checkout móvil: cinco iconos numerados y una sola etiqueta de etapa",
+      "status": "falló",
+      "error": "Expected values to be strictly deep-equal:\n+ actual - expected\n\n  [\n    '1',\n    '2',\n    '3',\n    '4',\n    '5',\n+   '1',\n+   '2',\n+   '3',\n+   '4',\n+   '5'\n  ]\n"
+    },
+    {
+      "id": "UI-04",
+      "name": "Estados visibles también mediante marcas y subrayado, no solo color",
+      "status": "aprobado"
+    },
+    {
+      "id": "UI-05",
+      "name": "Descripciones accesibles y explicación completa sin saltos de navegación",
+      "status": "aprobado"
+    }
+  ],
+  "errors": [],
+  "external": [],
+  "passed": 2,
+  "failed": 1
+}

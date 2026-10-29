@@ -1,0 +1,38 @@
+{
+  "changed_web_files": [
+    "app.js",
+    "experience.css",
+    "experience.js",
+    "index.html",
+    "showcase.js"
+  ],
+  "added_web_files": [
+    "assets/portada/amared-presentacion-01.webp",
+    "assets/portada/amared-presentacion-02.webp",
+    "assets/tutoriales/miniatura-maps.webp",
+    "assets/tutoriales/miniatura-recogida.webp",
+    "assets/tutoriales/miniatura-whatsapp.webp"
+  ],
+  "original_assets_unchanged": 38,
+  "supplied_images_byte_identical": 5,
+  "backend_unchanged": true,
+  "config_unchanged": true,
+  "admin_files_and_branch_unchanged": true,
+  "registration_and_dispatch_sections_unchanged": true,
+  "original_html_ids_preserved": 162,
+  "html_files_checked": 7,
+  "javascript_syntax_checked": 13,
+  "issues": [],
+  "sha256": {
+    "app.js": "0c11404e3eee2c3b2b517770863b27a3c5cd0c5ea0eac58eccf61901ee3663b4",
+    "experience.css": "6f1f6d28bf5745ba804806be08282e1914446c615371b2ebb35d6d22da1381ae",
+    "experience.js": "0a6d3fd2286be472f25dcd97af39511e9a2a14f6ed70808e3977a1ca4c5559de",
+    "index.html": "c55759949306e79ad10c3e30556ac4a2f8141b0e5b608cc18f82104d847d3472",
+    "showcase.js": "936765c9232060e48b026b821d4bd21685b0b58913332f4d0100f9a8ce46d848",
+    "assets/portada/amared-presentacion-01.webp": "6d7a06de5be3f52b3d97cb5656160c1365c0740980ba43f1045b26fee414fb0e",
+    "assets/portada/amared-presentacion-02.webp": "a2385693a43cdc17dbe9c2b6f5e281979305a9a947ab504439a5219930c180c5",
+    "assets/tutoriales/miniatura-maps.webp": "5565ecd6ac5335df5a28dae1e86a2a3b2da94d77ac23985b92120deb1e04f413",
+    "assets/tutoriales/miniatura-recogida.webp": "89d8c41b5d5dd323f6ef016cd919d884486f16d7316fabade559f802903f7d7e",
+    "assets/tutoriales/miniatura-whatsapp.webp": "c0bd5131ab6c3f5c461ab9395f6e934a85848534d97285b59403dff27ea04f72"
+  }
+}

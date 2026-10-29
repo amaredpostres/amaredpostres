@@ -1,0 +1,531 @@
+{
+  "date": "2026-10-28T21:40:40.455540+00:00",
+  "version": "6.1.0",
+  "unique_passed": 96,
+  "failed": 0,
+  "runs": [
+    {
+      "file": "aceptacion.json",
+      "date": "2026-10-28T21:31:19.520Z",
+      "passed": 33
+    },
+    {
+      "file": "recuperacion.json",
+      "date": "2026-10-28T21:31:37.419Z",
+      "passed": 9
+    },
+    {
+      "file": "recursos.json",
+      "date": "2026-10-28T21:34:22.473Z",
+      "passed": 20
+    },
+    {
+      "file": "confirmacion-recogida.json",
+      "date": "2026-10-28T21:32:19.300Z",
+      "passed": 7
+    },
+    {
+      "file": "responsive.json",
+      "date": "2026-10-28T21:34:44.393Z",
+      "passed": 13
+    },
+    {
+      "file": "recorrido.json",
+      "date": "2026-10-28T21:31:26.772Z",
+      "passed": 13
+    },
+    {
+      "file": "recorrido-movil.json",
+      "date": "2026-10-28T21:33:52.541Z",
+      "passed": 2
+    },
+    {
+      "file": "recorrido-parcial.json",
+      "date": "2026-10-28T21:39:41.498Z",
+      "passed": 2
+    }
+  ],
+  "note": "Casos repetidos contados una sola vez. Evidencia combinada de ejecuciones completas y repeticiones focalizadas. API local; no producción.",
+  "results": [
+    {
+      "id": "A01",
+      "name": "Separación del texto bajo el CTA",
+      "status": "aprobado"
+    },
+    {
+      "id": "A02",
+      "name": "Entrega inicialmente vacía y campos específicos ocultos",
+      "status": "aprobado"
+    },
+    {
+      "id": "A03",
+      "name": "Domicilio sin ubicación preseleccionada",
+      "status": "aprobado"
+    },
+    {
+      "id": "A04",
+      "name": "Recogida revela solo información pertinente",
+      "status": "aprobado"
+    },
+    {
+      "id": "A05",
+      "name": "Retroceder conserva opciones, datos y notas",
+      "status": "aprobado"
+    },
+    {
+      "id": "A06",
+      "name": "Alternar modalidades conserva y excluye datos ocultos",
+      "status": "aprobado"
+    },
+    {
+      "id": "A07",
+      "name": "WhatsApp exige ubicación desde el lugar de entrega",
+      "status": "aprobado"
+    },
+    {
+      "id": "A08",
+      "name": "Maps conserva validación real y campos propios",
+      "status": "aprobado"
+    },
+    {
+      "id": "A09",
+      "name": "Tres tutoriales voluntarios, teclado y retorno del foco",
+      "status": "aprobado"
+    },
+    {
+      "id": "A10",
+      "name": "Miniaturas locales sin bloqueo del flujo",
+      "status": "aprobado"
+    },
+    {
+      "id": "A11",
+      "name": "Pago para 1–2 unidades conserva opciones",
+      "status": "aprobado"
+    },
+    {
+      "id": "A12",
+      "name": "Pago ≥3 y total adelantado calculados correctamente",
+      "status": "aprobado"
+    },
+    {
+      "id": "A13",
+      "name": "Cruzar umbral mantiene solo elecciones válidas",
+      "status": "aprobado"
+    },
+    {
+      "id": "A14",
+      "name": "Atrás y Continuar alineados y persistencia",
+      "status": "aprobado"
+    },
+    {
+      "id": "A15",
+      "name": "Encabezado compacto impide retorno accidental",
+      "status": "aprobado"
+    },
+    {
+      "id": "A16",
+      "name": "Revisión escritorio conserva columnas y solo lectura",
+      "status": "aprobado"
+    },
+    {
+      "id": "A17",
+      "name": "Continuar registra y prepara sin abrir WhatsApp",
+      "status": "aprobado"
+    },
+    {
+      "id": "A18",
+      "name": "Apertura explícita sin confirmar envío ni pago",
+      "status": "aprobado"
+    },
+    {
+      "id": "A19",
+      "name": "Copiar y recuperación ante ventana bloqueada",
+      "status": "aprobado"
+    },
+    {
+      "id": "A20",
+      "name": "Código respaldado por registro real local y mensaje",
+      "status": "aprobado"
+    },
+    {
+      "id": "A21",
+      "name": "Doble clic, reabrir y recargar sin segundo registro",
+      "status": "aprobado"
+    },
+    {
+      "id": "A22",
+      "name": "Edición posterior conserva referencia y distingue cambios propuestos",
+      "status": "aprobado"
+    },
+    {
+      "id": "A23",
+      "name": "Nuevo pedido limpia selecciones, código y datos",
+      "status": "aprobado"
+    },
+    {
+      "id": "A24",
+      "name": "Opiniones conserva reglas de pedidos entregados",
+      "status": "aprobado"
+    },
+    {
+      "id": "A26",
+      "name": "Estados reales 1→2→3, retroceso y 4–5 informativos",
+      "status": "aprobado"
+    },
+    {
+      "id": "A28",
+      "name": "Guía completa de escritorio y controles libres",
+      "status": "aprobado"
+    },
+    {
+      "id": "A29",
+      "name": "Progreso móvil de cinco iconos y campos accesibles con altura reducida",
+      "status": "aprobado"
+    },
+    {
+      "id": "A30",
+      "name": "Barra móvil continúa directo al formulario",
+      "status": "aprobado"
+    },
+    {
+      "id": "A31",
+      "name": "Sin unidades no se puede continuar",
+      "status": "aprobado"
+    },
+    {
+      "id": "A32",
+      "name": "Tarjetas pareadas y legibles desde 320 px",
+      "status": "aprobado"
+    },
+    {
+      "id": "A33",
+      "name": "Iconos SVG y selección por teclado con etiquetas",
+      "status": "aprobado"
+    },
+    {
+      "id": "A34",
+      "name": "Sin overflow y acciones accesibles en 320–1440 px",
+      "status": "aprobado"
+    },
+    {
+      "id": "A35",
+      "name": "Carrito, tutoriales y opiniones mantienen su base funcional",
+      "status": "aprobado"
+    },
+    {
+      "id": "R01",
+      "name": "Respuesta perdida después de guardar: recarga, edición y reintento con un solo registro",
+      "status": "aprobado"
+    },
+    {
+      "id": "R02",
+      "name": "Precio cambiado por servidor obliga a revisar, sin referencia confirmada falsa",
+      "status": "aprobado"
+    },
+    {
+      "id": "R03",
+      "name": "Actualización de catálogo en revisión bloquea registro hasta nueva revisión",
+      "status": "aprobado"
+    },
+    {
+      "id": "R04",
+      "name": "Copiado denegado ofrece texto seleccionable",
+      "status": "aprobado"
+    },
+    {
+      "id": "R05",
+      "name": "Código devuelto por el servidor se usa también en el mensaje",
+      "status": "aprobado"
+    },
+    {
+      "id": "R06",
+      "name": "Recuperación de un recibo de la versión anterior mantiene su referencia",
+      "status": "aprobado"
+    },
+    {
+      "id": "R07",
+      "name": "Borrador sin entrega seleccionada sigue vacío después de recargar",
+      "status": "aprobado"
+    },
+    {
+      "id": "R08",
+      "name": "Android simulado: apertura explícita en la misma pestaña, retorno y una sola escritura",
+      "status": "aprobado"
+    },
+    {
+      "id": "R09",
+      "name": "Almacenamiento bloqueado evita enviar una solicitud irrecuperable",
+      "status": "aprobado"
+    },
+    {
+      "id": "UI-01",
+      "name": "Escritorio conserva cinco hitos e iconos exactos en todas las etapas",
+      "status": "aprobado"
+    },
+    {
+      "id": "UI-02",
+      "name": "Portada móvil con cinco hitos, sin títulos comprimidos ni duplicación",
+      "status": "aprobado"
+    },
+    {
+      "id": "UI-03",
+      "name": "Checkout móvil: cinco iconos numerados y una sola etiqueta de etapa",
+      "status": "aprobado"
+    },
+    {
+      "id": "UI-04",
+      "name": "Estados visibles también mediante marcas y subrayado, no solo color",
+      "status": "aprobado"
+    },
+    {
+      "id": "UI-05",
+      "name": "Descripciones accesibles y explicación completa sin saltos de navegación",
+      "status": "aprobado"
+    },
+    {
+      "id": "UI-06",
+      "name": "Seleccionar una cantidad interrumpe la demostración y activa el paso real 1",
+      "status": "aprobado"
+    },
+    {
+      "id": "UI-07",
+      "name": "Guía contextual estática, movimiento reducido y campos sin obstrucciones",
+      "status": "aprobado"
+    },
+    {
+      "id": "UI-08",
+      "name": "Uno y dos postres: pago sin preselección y total al recoger sin leyendas",
+      "status": "aprobado"
+    },
+    {
+      "id": "UI-09",
+      "name": "Tres postres: elección explícita, anticipo 40 % o pago total correctos",
+      "status": "aprobado"
+    },
+    {
+      "id": "UI-10",
+      "name": "Cambios de cantidades descartan solo opciones incompatibles y conservan las válidas",
+      "status": "aprobado"
+    },
+    {
+      "id": "UI-11",
+      "name": "Acceso del equipo visible en catálogo incluso con cantidades seleccionadas",
+      "status": "aprobado"
+    },
+    {
+      "id": "UI-12",
+      "name": "Acceso del equipo oculto en datos, revisión y preparación de WhatsApp",
+      "status": "aprobado"
+    },
+    {
+      "id": "UI-13",
+      "name": "Regresar al catálogo restaura el acceso administrativo sin tocar su ruta",
+      "status": "aprobado"
+    },
+    {
+      "id": "UI-14",
+      "name": "Encabezados Editar uniformes de 320 a 1440 px y con fuente aumentada",
+      "status": "aprobado"
+    },
+    {
+      "id": "UI-15",
+      "name": "Lápices con nombres accesibles, foco y navegación por teclado correcta",
+      "status": "aprobado"
+    },
+    {
+      "id": "UI-16",
+      "name": "Miniaturas asociadas a cada video real; carga voluntaria y cierre por teclado",
+      "status": "aprobado"
+    },
+    {
+      "id": "UI-17",
+      "name": "Miniaturas completas con texto exterior, proporción original y sin recortes",
+      "status": "aprobado"
+    },
+    {
+      "id": "UI-18",
+      "name": "Fotografías editoriales sin sabores inferidos; catálogo y proporciones conservados",
+      "status": "aprobado"
+    },
+    {
+      "id": "UI-19",
+      "name": "Sin overflow ni acciones bloqueadas en 320/360/390/412/430 y área reducida",
+      "status": "aprobado"
+    },
+    {
+      "id": "UI-20",
+      "name": "WhatsApp y edición mantienen referencia única, copia y etapas externas informativas",
+      "status": "aprobado"
+    },
+    {
+      "id": "C01",
+      "name": "Aviso solo al elegir pagar al recoger una o dos unidades, sin anticipo",
+      "status": "aprobado"
+    },
+    {
+      "id": "C02",
+      "name": "Pago anticipado y recogida de tres unidades mantienen sus condiciones",
+      "status": "aprobado"
+    },
+    {
+      "id": "C03",
+      "name": "Cambiar a domicilio oculta el aviso y volver restaura una elección válida",
+      "status": "aprobado"
+    },
+    {
+      "id": "C04",
+      "name": "Cruzar el umbral descarta una elección incompatible y recalcula el total",
+      "status": "aprobado"
+    },
+    {
+      "id": "C05",
+      "name": "Regreso y recarga conservan datos y aviso sin repetirlo en otras etapas",
+      "status": "aprobado"
+    },
+    {
+      "id": "C06",
+      "name": "Pago al recoger continúa por WhatsApp sin confirmación comercial automática ni duplicados",
+      "status": "aprobado"
+    },
+    {
+      "id": "C07",
+      "name": "Aviso compacto y legible en móvil y escritorio sin ocultar controles",
+      "status": "aprobado"
+    },
+    {
+      "id": "V2-09",
+      "name": "CTA del resumen ocupa exactamente el ancho útil en escritorio",
+      "status": "aprobado"
+    },
+    {
+      "id": "V2-10",
+      "name": "Fotos llenan su marco con recorte proporcional; logos intactos",
+      "status": "aprobado"
+    },
+    {
+      "id": "V2-11",
+      "name": "La preparación precede al intento de WhatsApp",
+      "status": "aprobado"
+    },
+    {
+      "id": "V2-12",
+      "name": "Referencia real destacada sin párrafo redundante",
+      "status": "aprobado"
+    },
+    {
+      "id": "V2-13",
+      "name": "Solo un Atrás en etapa 3 y edición disponible desde revisión",
+      "status": "aprobado"
+    },
+    {
+      "id": "V2-14",
+      "name": "Regreso y reentrada conservan referencia y una sola escritura",
+      "status": "aprobado"
+    },
+    {
+      "id": "V2-15",
+      "name": "Editar por revisión recalcula 40/60 conservando registro y propuesta",
+      "status": "aprobado"
+    },
+    {
+      "id": "V2-16",
+      "name": "Abrir WhatsApp prepara mensaje sin confirmar envío o pago",
+      "status": "aprobado"
+    },
+    {
+      "id": "V2-17",
+      "name": "Copia secundaria correcta y fallback manual sin crear solicitudes",
+      "status": "aprobado"
+    },
+    {
+      "id": "V2-18",
+      "name": "Nuevo pedido y opiniones en bloque independiente",
+      "status": "aprobado"
+    },
+    {
+      "id": "V2-19",
+      "name": "Pago y disfrute informativos al abrir y copiar",
+      "status": "aprobado"
+    },
+    {
+      "id": "V2-20",
+      "name": "Entrega explícita, pago, videos, cantidades y nuevo pedido conservados",
+      "status": "aprobado"
+    },
+    {
+      "id": "V2-21",
+      "name": "Controles libres de superposiciones y teclado en tamaños estrechos",
+      "status": "aprobado"
+    },
+    {
+      "id": "J01",
+      "name": "Introducción 1→5 repetida en ciclos de nueve segundos, sin estados completados",
+      "status": "aprobado"
+    },
+    {
+      "id": "J02",
+      "name": "Pausa y reanudación explícitas; movimiento reducido desactiva los efectos",
+      "status": "aprobado"
+    },
+    {
+      "id": "J03",
+      "name": "Primera selección durante etapa 4 cancela la explicación y activa inmediatamente etapa 1",
+      "status": "aprobado"
+    },
+    {
+      "id": "J04",
+      "name": "Selección restaurada y regreso al catálogo conservan progreso sin reiniciar demo",
+      "status": "aprobado"
+    },
+    {
+      "id": "J05",
+      "name": "Guía vertical: conexión alineada, una pasada por apertura y estados reales intactos",
+      "status": "aprobado"
+    },
+    {
+      "id": "J06",
+      "name": "Entrada a WhatsApp produce exactamente dos ondas 3→4→5, sin confirmar pago ni repetir al copiar",
+      "status": "aprobado"
+    },
+    {
+      "id": "J07",
+      "name": "Texto de revisión orienta a enviar WhatsApp y mantiene aclaración de cambios ya registrados",
+      "status": "aprobado"
+    },
+    {
+      "id": "J08",
+      "name": "Fallo de apertura y copia conserva referencia completa, selección manual y datos",
+      "status": "aprobado"
+    },
+    {
+      "id": "J09",
+      "name": "Código completo legible en 320/412/1440 px, mensaje y registro conservan la misma identidad",
+      "status": "aprobado"
+    },
+    {
+      "id": "J10",
+      "name": "Volver, abrir guía, continuar, copiar y reintentar no generan otro registro",
+      "status": "aprobado"
+    },
+    {
+      "id": "J11",
+      "name": "Barra condicional: visible tras selección, oculta con guía original, teclado, controles o ventana",
+      "status": "aprobado"
+    },
+    {
+      "id": "J12",
+      "name": "Fuera de pantalla y pestaña oculta suspende el tiempo; la animación no desplaza el contenido",
+      "status": "aprobado"
+    },
+    {
+      "id": "J13",
+      "name": "Movimiento reducido sin ondas y recogida de 1–2 unidades conserva cero anticipo y confirmación manual",
+      "status": "aprobado"
+    },
+    {
+      "id": "J14",
+      "name": "Onda móvil en una sola superficie y sin repetición al cambiar el área visible",
+      "status": "aprobado"
+    }
+  ]
+}

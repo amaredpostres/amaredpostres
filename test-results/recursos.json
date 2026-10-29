@@ -1,0 +1,110 @@
+{
+  "date": "2026-10-28T21:34:22.473Z",
+  "environment": "Chromium y API local con datos ficticios; sin teléfono físico ni servicios comerciales",
+  "results": [
+    {
+      "id": "UI-01",
+      "name": "Escritorio conserva cinco hitos e iconos exactos en todas las etapas",
+      "status": "aprobado"
+    },
+    {
+      "id": "UI-02",
+      "name": "Portada móvil con cinco hitos, sin títulos comprimidos ni duplicación",
+      "status": "aprobado"
+    },
+    {
+      "id": "UI-03",
+      "name": "Checkout móvil: cinco iconos numerados y una sola etiqueta de etapa",
+      "status": "aprobado"
+    },
+    {
+      "id": "UI-04",
+      "name": "Estados visibles también mediante marcas y subrayado, no solo color",
+      "status": "aprobado"
+    },
+    {
+      "id": "UI-05",
+      "name": "Descripciones accesibles y explicación completa sin saltos de navegación",
+      "status": "aprobado"
+    },
+    {
+      "id": "UI-06",
+      "name": "Seleccionar una cantidad interrumpe la demostración y activa el paso real 1",
+      "status": "aprobado"
+    },
+    {
+      "id": "UI-07",
+      "name": "Guía contextual estática, movimiento reducido y campos sin obstrucciones",
+      "status": "aprobado"
+    },
+    {
+      "id": "UI-08",
+      "name": "Uno y dos postres: pago sin preselección y total al recoger sin leyendas",
+      "status": "aprobado"
+    },
+    {
+      "id": "UI-09",
+      "name": "Tres postres: elección explícita, anticipo 40 % o pago total correctos",
+      "status": "aprobado"
+    },
+    {
+      "id": "UI-10",
+      "name": "Cambios de cantidades descartan solo opciones incompatibles y conservan las válidas",
+      "status": "aprobado"
+    },
+    {
+      "id": "UI-11",
+      "name": "Acceso del equipo visible en catálogo incluso con cantidades seleccionadas",
+      "status": "aprobado"
+    },
+    {
+      "id": "UI-12",
+      "name": "Acceso del equipo oculto en datos, revisión y preparación de WhatsApp",
+      "status": "aprobado"
+    },
+    {
+      "id": "UI-13",
+      "name": "Regresar al catálogo restaura el acceso administrativo sin tocar su ruta",
+      "status": "aprobado"
+    },
+    {
+      "id": "UI-14",
+      "name": "Encabezados Editar uniformes de 320 a 1440 px y con fuente aumentada",
+      "status": "aprobado"
+    },
+    {
+      "id": "UI-15",
+      "name": "Lápices con nombres accesibles, foco y navegación por teclado correcta",
+      "status": "aprobado"
+    },
+    {
+      "id": "UI-16",
+      "name": "Miniaturas asociadas a cada video real; carga voluntaria y cierre por teclado",
+      "status": "aprobado"
+    },
+    {
+      "id": "UI-17",
+      "name": "Miniaturas completas con texto exterior, proporción original y sin recortes",
+      "status": "aprobado"
+    },
+    {
+      "id": "UI-18",
+      "name": "Fotografías editoriales sin sabores inferidos; catálogo y proporciones conservados",
+      "status": "aprobado"
+    },
+    {
+      "id": "UI-19",
+      "name": "Sin overflow ni acciones bloqueadas en 320/360/390/412/430 y área reducida",
+      "status": "aprobado"
+    },
+    {
+      "id": "UI-20",
+      "name": "WhatsApp y edición mantienen referencia única, copia y etapas externas informativas",
+      "status": "aprobado"
+    }
+  ],
+  "errors": [],
+  "external": [],
+  "passed": 20,
+  "failed": 0
+}

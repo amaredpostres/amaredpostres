@@ -1,0 +1,58 @@
+{
+  "date_utc": "2026-10-28T19:07:05.110318+00:00",
+  "version": "6.0.0",
+  "distinct_checks_passed": 124,
+  "reports": {
+    "recursos.json": {
+      "passed": 20,
+      "sha256": "d698717361c1c6632e2d20ab58e0eac82045132c360efbe1dd6ee3b626ea2cb8"
+    },
+    "confirmacion-recogida.json": {
+      "passed": 7,
+      "sha256": "08a3ddabb52c1404e72b5c183256b8e39be026a8c3b62d5d63d5f5b1b1a016a4"
+    },
+    "aceptacion.json": {
+      "passed": 35,
+      "sha256": "ff93eafef1102c93bff24a994ae61901679d6d7a6f54e881f96e8730f927d153"
+    },
+    "recuperacion.json": {
+      "passed": 9,
+      "sha256": "a5d19e763341608f1cdaa257fee4e44d2c240c5e4d6d47145533ab919483ec43"
+    },
+    "responsive.json": {
+      "passed": 13,
+      "sha256": "3f554622d322b9adefce2a5fe75ef7a3805cc42f088442d3a5d77bf34ba05697"
+    },
+    "navegacion.json": {
+      "passed": 6,
+      "sha256": "61188b48fcf9516570a9bca167ea48299efef79b2aba004895bc47a2bda1025d"
+    },
+    "presentacion.json": {
+      "passed": 7,
+      "sha256": "b22ad7974a4011f30b891a6ea9034d5767c96b35b12360e41e22eb4fcdcf9586"
+    },
+    "zoom-videos.json": {
+      "passed": 4,
+      "sha256": "a9e0810591e4f81d71408fbe07c7f8f0647d9f34bc5a842f065bbad5399e28ce"
+    }
+  },
+  "backend_tests_passed": 23,
+  "screenshots": 34,
+  "source_sha256": {
+    "app.js": "0c11404e3eee2c3b2b517770863b27a3c5cd0c5ea0eac58eccf61901ee3663b4",
+    "experience.css": "6f1f6d28bf5745ba804806be08282e1914446c615371b2ebb35d6d22da1381ae",
+    "experience.js": "0a6d3fd2286be472f25dcd97af39511e9a2a14f6ed70808e3977a1ca4c5559de",
+    "index.html": "c55759949306e79ad10c3e30556ac4a2f8141b0e5b608cc18f82104d847d3472",
+    "showcase.js": "936765c9232060e48b026b821d4bd21685b0b58913332f4d0100f9a8ce46d848",
+    "assets/portada/amared-presentacion-01.webp": "6d7a06de5be3f52b3d97cb5656160c1365c0740980ba43f1045b26fee414fb0e",
+    "assets/portada/amared-presentacion-02.webp": "a2385693a43cdc17dbe9c2b6f5e281979305a9a947ab504439a5219930c180c5",
+    "assets/tutoriales/miniatura-maps.webp": "5565ecd6ac5335df5a28dae1e86a2a3b2da94d77ac23985b92120deb1e04f413",
+    "assets/tutoriales/miniatura-recogida.webp": "89d8c41b5d5dd323f6ef016cd919d884486f16d7316fabade559f802903f7d7e",
+    "assets/tutoriales/miniatura-whatsapp.webp": "c0bd5131ab6c3f5c461ab9395f6e934a85848534d97285b59403dff27ea04f72"
+  },
+  "gallery_links_valid": true,
+  "images_valid": true,
+  "production_published": false,
+  "real_sheets_writes": false,
+  "physical_galaxy_a55_tested": false
+}

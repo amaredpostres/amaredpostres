@@ -1,0 +1,43 @@
+{
+  "date": "2026-10-29T15:15:28.394Z",
+  "results": [
+    {
+      "name": "Inicio: resumen verificado y directorio móvil 360/390/412; panel operativo 1366",
+      "status": "aprobada"
+    },
+    {
+      "name": "Precios: sugerencia actual sin guardar; cancelar inmediato; dos segundos y doble clic",
+      "status": "aprobada"
+    },
+    {
+      "name": "Precios: costos incompletos y permisos denegados conservan la entrada",
+      "status": "aprobada"
+    },
+    {
+      "name": "Envíos: distancia real desde origen, orden manual y 13 paradas sin pérdida",
+      "status": "aprobada"
+    },
+    {
+      "name": "Envíos: ubicaciones faltantes y direcciones por revisar quedan explícitas",
+      "status": "aprobada"
+    },
+    {
+      "name": "Costos: miniaturas correctas y recuperación de compra con la misma referencia",
+      "status": "aprobada"
+    },
+    {
+      "name": "Teclado: barra contextual se oculta solo con reducción de pantalla y se recupera",
+      "status": "aprobada"
+    },
+    {
+      "name": "Comprador: promoción retirada y miniaturas sin alterar cantidades ni totales",
+      "status": "aprobada"
+    },
+    {
+      "name": "Sin errores JavaScript",
+      "status": "aprobada"
+    }
+  ],
+  "errors": [],
+  "externalBlocked": []
+}

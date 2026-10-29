@@ -1,0 +1,34 @@
+PASS A01 Separación del texto bajo el CTA
+PASS A02 Entrega inicialmente vacía y campos específicos ocultos
+PASS A03 Domicilio sin ubicación preseleccionada
+PASS A04 Recogida revela solo información pertinente
+PASS A05 Retroceder conserva opciones, datos y notas
+PASS A06 Alternar modalidades conserva y excluye datos ocultos
+PASS A07 WhatsApp exige ubicación desde el lugar de entrega
+PASS A08 Maps conserva validación real y campos propios
+PASS A09 Tres tutoriales voluntarios, teclado y retorno del foco
+PASS A10 Miniaturas locales sin bloqueo del flujo
+PASS A11 Pago para 1–2 unidades conserva opciones
+PASS A12 Pago ≥3 y total adelantado calculados correctamente
+PASS A13 Cruzar umbral mantiene solo elecciones válidas
+PASS A14 Atrás y Continuar alineados y persistencia
+PASS A15 Encabezado compacto impide retorno accidental
+PASS A16 Revisión escritorio conserva columnas y solo lectura
+PASS A17 Continuar registra y prepara sin abrir WhatsApp
+PASS A18 Apertura explícita sin confirmar envío ni pago
+PASS A19 Copiar y recuperación ante ventana bloqueada
+PASS A20 Código respaldado por registro real local y mensaje
+PASS A21 Doble clic, reabrir y recargar sin segundo registro
+PASS A22 Edición posterior conserva referencia y distingue cambios propuestos
+PASS A23 Nuevo pedido limpia selecciones, código y datos
+PASS A24 Opiniones conserva reglas de pedidos entregados
+PASS A26 Estados reales 1→2→3, retroceso y 4–5 informativos
+PASS A28 Guía completa de escritorio y controles libres
+PASS A29 Progreso móvil de cinco iconos y campos accesibles con altura reducida
+PASS A30 Barra móvil continúa directo al formulario
+PASS A31 Sin unidades no se puede continuar
+PASS A32 Tarjetas pareadas y legibles desde 320 px
+PASS A33 Iconos SVG y selección por teclado con etiquetas
+PASS A34 Sin overflow y acciones accesibles en 320–1440 px
+PASS A35 Carrito, tutoriales y opiniones mantienen su base funcional
+PASS 33 criterios, sin errores JavaScript ni llamadas al servicio real

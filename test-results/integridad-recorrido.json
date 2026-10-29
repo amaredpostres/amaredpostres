@@ -1,0 +1,27 @@
+{
+  "date": "2026-10-28T21:39:37.644230+00:00",
+  "base": "6.0.0 antes de la revisión de animaciones",
+  "current": "6.1.0, misma carpeta de trabajo",
+  "changed": [
+    "web/app.js",
+    "web/experience.css",
+    "web/experience.js",
+    "web/index.html"
+  ],
+  "added_web_backend": [],
+  "removed": [],
+  "unchanged_assets": 43,
+  "unchanged_backend_files": 6,
+  "html_ids_preserved": 165,
+  "admin_branch_unchanged": true,
+  "app_logic_unchanged_except_two_review_texts": true,
+  "config_unchanged": true,
+  "sha256": {
+    "web/app.js": "bbc674929a91ec598598d4726b846ffb88c16b35496b351b6664353f1d23c842",
+    "web/experience.css": "bff6c4bf52c1d1d87f17e9778d31c38e402e777ef62aba4bbfd450279bb1a0f4",
+    "web/experience.js": "8cace31aec58f0efd480d44e6be7014d951c67a7a690e8c2e54f38bf1afa6aa3",
+    "web/index.html": "7de954bc31f8f26a50704a593b47f6cef62198f11e9f121b6b49c8a72a7af0a6"
+  },
+  "backup": "work/recorrido-animado-20261028/backup",
+  "published": false
+}

@@ -1,0 +1,43 @@
+{
+  "date": "2026-10-28T19:01:55.192Z",
+  "results": [
+    {
+      "id": "Z01",
+      "name": "Revisión con zoom CSS 200 % a 1440 px: sin desbordamiento y acciones alcanzables",
+      "status": "aprobado"
+    },
+    {
+      "id": "VIDEO-pickup",
+      "name": "Reproducción voluntaria del video pickup",
+      "status": "aprobado",
+      "duration": 37.233333,
+      "width": 720,
+      "height": 1280,
+      "time": 0.219534,
+      "src": "assets/tutoriales/recogida-presencial.mp4"
+    },
+    {
+      "id": "VIDEO-whatsapp",
+      "name": "Reproducción voluntaria del video whatsapp",
+      "status": "aprobado",
+      "duration": 27.233333,
+      "width": 720,
+      "height": 1280,
+      "time": 0.209452,
+      "src": "assets/tutoriales/ubicacion-whatsapp.mp4"
+    },
+    {
+      "id": "VIDEO-maps",
+      "name": "Reproducción voluntaria del video maps",
+      "status": "aprobado",
+      "duration": 33.557,
+      "width": 720,
+      "height": 1280,
+      "time": 0.211024,
+      "src": "assets/tutoriales/ubicacion-google-maps.mp4"
+    }
+  ],
+  "errors": [],
+  "passed": 4,
+  "failed": 0
+}

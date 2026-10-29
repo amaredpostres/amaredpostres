@@ -1,0 +1,20 @@
+{
+  "date": "2026-10-28T21:39:41.498Z",
+  "environment": "Chromium local, API en memoria, datos ficticios. Eventos de visibilidad y altura reducida simulados; no dispositivo físico.",
+  "results": [
+    {
+      "id": "J07",
+      "name": "Texto de revisión orienta a enviar WhatsApp y mantiene aclaración de cambios ya registrados",
+      "status": "aprobado"
+    },
+    {
+      "id": "J11",
+      "name": "Barra condicional: visible tras selección, oculta con guía original, teclado, controles o ventana",
+      "status": "aprobado"
+    }
+  ],
+  "errors": [],
+  "external": [],
+  "passed": 2,
+  "failed": 0
+}

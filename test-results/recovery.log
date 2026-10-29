@@ -1,0 +1,10 @@
+PASS R01 Respuesta perdida después de guardar: recarga, edición y reintento con un solo registro
+PASS R02 Precio cambiado por servidor obliga a revisar, sin referencia confirmada falsa
+PASS R03 Actualización de catálogo en revisión bloquea registro hasta nueva revisión
+PASS R04 Copiado denegado ofrece texto seleccionable
+PASS R05 Código devuelto por el servidor se usa también en el mensaje
+PASS R06 Recuperación de un recibo de la versión anterior mantiene su referencia
+PASS R07 Borrador sin entrega seleccionada sigue vacío después de recargar
+PASS R08 Android simulado: apertura explícita en la misma pestaña, retorno y una sola escritura
+PASS R09 Almacenamiento bloqueado evita enviar una solicitud irrecuperable
+PASS 9 verificaciones de recuperación

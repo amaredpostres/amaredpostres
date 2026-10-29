@@ -1,0 +1,8 @@
+PASS editorial cover rotates to the second photograph
+PASS pause and manual photograph selection
+PASS all three original social destinations visible in the upper page
+PASS 6 and 10 units remain legible from 360 to 1440 pixels
+PASS reduced-motion preference starts without autoplay
+PASS editorial cover stays independent of catalog availability
+PASS unconfigured copy cannot fall back to the old Worker
+PASS 7 presentation checks; no JavaScript errors

@@ -840,7 +840,7 @@ async function api(body, {timeoutMs=30000} = {}){
   catch{ out = {ok:false, error: raw || `HTTP ${res.status}`}; }
 
   if(!res.ok) throw new Error(out?.error || out?.message || `HTTP ${res.status}`);
-  if(!out || out.ok !== true) throw new Error(out?.error || "Error");
+  if(!out || out.ok !== true){const error=new Error(out?.error||"Error");error.code=out?.code;throw error;}
   return out;
 }
 
@@ -920,94 +920,7 @@ function recipeRowIsInactive_(row){
   return false;
 }
 
-function buildRecipesIndex_(items){
-  const rows = Array.isArray(items) ? items : [];
-  const normalized = [];
-  const hasExactDessertRows = {};
-
-  for(const r of rows){
-    if(recipeRowIsInactive_(r)) continue;
-
-    const didRaw = String(r?.dessert_id || r?.dessertId || "").trim();
-    const dname = String(r?.dessert_name || r?.dessertName || "").trim();
-    const didFromName = DESSERT_NAME_TO_ID_[normText_(dname)] || "";
-    const did = didRaw || didFromName;
-    if(!did) continue;
-
-    const ing = String(r?.ingredient_key || r?.ingredientKey || r?.key || "").trim();
-    if(!ing) continue;
-
-    const qty = parseNumFlex_(r?.qty_per_unit ?? r?.qtyPerUnit ?? r?.qty ?? 0);
-    if(!(qty > 0)) continue;
-
-    const unit = normRecipeUnit_(r?.unit);
-    if(!unit) continue;
-
-    const exactDessertId = !!didRaw;
-    if(exactDessertId) hasExactDessertRows[did] = true;
-
-    const pricingMode = normalizeRecipePricingMode_(r?.pricing_mode ?? r?.pricingMode ?? r?.price_mode ?? r?.margin_mode ?? r?.no_margin ?? r?.noMargin ?? "");
-    const directCost = pricingMode === "direct_cost";
-
-    normalized.push({
-      dessert_id: did,
-      exactDessertId,
-      ingredient_key: ing,
-      ingredient_canon: canonicalKey(ing),
-      qty_per_unit: qty,
-      unit,
-      pricing_mode: directCost ? "direct_cost" : "margin_60",
-      no_margin: directCost,
-      updated_ts: recipeRowUpdatedTime_(r),
-      row_order: normalized.length
-    });
-  }
-
-  const byDessertAndIngredient = {};
-  for(const r of normalized){
-    // Si ya existe información actual con dessert_id, ignoramos filas legacy que
-    // solo venían por nombre. Importante: NO filtramos todo el postre por el
-    // timestamp más reciente, porque cuando una hoja se edita manualmente puede
-    // quedar un ingrediente con fecha distinta y eso ocultaba ingredientes activos
-    // como Bolsa hermética en el costo unitario.
-    if(hasExactDessertRows[r.dessert_id] && !r.exactDessertId) continue;
-
-    const ingredientKey = r.ingredient_canon || canonicalKey(r.ingredient_key);
-    if(!ingredientKey) continue;
-    const mapKey = `${r.dessert_id}::${ingredientKey}`;
-
-    const prev = byDessertAndIngredient[mapKey] || null;
-    const prevTs = Number(prev?.updated_ts || 0) || 0;
-    const ts = Number(r.updated_ts || 0) || 0;
-
-    // Si hay duplicados del mismo producto en el mismo postre, gana la fila más
-    // reciente de ese producto; si no hay fecha, gana la última recibida.
-    if(!prev || (ts && ts >= prevTs) || (!ts && !prevTs && r.row_order >= (prev.row_order || 0))){
-      byDessertAndIngredient[mapKey] = {
-        ingredient_key: r.ingredient_key,
-        qty_per_unit: r.qty_per_unit,
-        unit: r.unit,
-        pricing_mode: r.pricing_mode,
-        no_margin: r.no_margin,
-        updated_ts: r.updated_ts,
-        row_order: r.row_order
-      };
-    }
-  }
-
-  const out = {};
-  for(const mapKey of Object.keys(byDessertAndIngredient)){
-    const did = mapKey.split("::")[0];
-    if(!out[did]) out[did] = [];
-    out[did].push(byDessertAndIngredient[mapKey]);
-  }
-
-  // ordenar por nombre ingrediente para consistencia visual
-  for(const k of Object.keys(out)){
-    out[k].sort((a,b)=> String(a.ingredient_key||"").localeCompare(String(b.ingredient_key||""),"es"));
-  }
-  return out;
-}
+function buildRecipesIndex_(items){return AMAREDPricing.buildRecipesIndex_(items);}
 
 async function loadRecipesFromSheet_(opts={}){
   const preserveCurrent = opts.preserveCurrent !== false;
@@ -1644,6 +1557,7 @@ function moneyCOP2(n){
 }
 
 function dessertUnitBreakdown_(dessertId, lotQty){
+  if(state.recipesByDessert?.[dessertId]?.length)return AMAREDPricing.breakdown(dessertId,state.recipesByDessert[dessertId],state.costsByKey,lotQty);
   const bySheet = state.recipesByDessert?.[dessertId] || null;
 
   let lines = [];
@@ -1892,12 +1806,12 @@ function unitBreakdownMobileHtml_(row){
     <details class="unitMobileCard">
       <summary>
         <div class="unitMobileHead">
-          <div class="unitMobileTitle">${escapeHtml(prettyDessertName(row.id))}</div>
+          <div class="unitMobileTitle">${costProductImage_(row.id)}<span>${escapeHtml(prettyDessertName(row.id))}</span></div>
           <div class="unitMobileSub">${escapeHtml(sourceLabel)} · ${escapeHtml(formatPackagingTypes_(b.packagingLines))}</div>
           <div class="unitMobilePreview">
-            <span class="unitMobileChip">$/u producción: ${row.unit!==null ? moneyCOP2(row.unit) : '$—'}</span>
-            <span class="unitMobileChip">Pack/comp.: ${row.packaging!==null && row.packaging!==undefined ? moneyCOP2(row.packaging) : '$—'}</span>
-            <span class="unitMobileChip">Precio + comp.: ${row.price60WithPackaging!==null && row.price60WithPackaging!==undefined ? moneyCOP2(row.price60WithPackaging) : '$—'}</span>
+            <span class="unitMobileChip">Producción: ${row.unit!==null ? moneyCOP2(row.unit) : '$—'}</span>
+            <span class="unitMobileChip">Complementos: ${row.packaging!==null && row.packaging!==undefined ? moneyCOP2(row.packaging) : '$—'}</span>
+            <span class="unitMobileChip">Precio calculado: ${row.price60WithPackaging!==null && row.price60WithPackaging!==undefined ? moneyCOP2(row.price60WithPackaging) : '$—'}</span>
           </div>
         </div>
         <div class="unitMobileChevron" aria-hidden="true">▾</div>
@@ -2007,7 +1921,7 @@ function renderUnitCosts(){
       return `
         <tr class="unitDesktopRow ${isOpen ? 'isOpen' : ''}" data-act="unit_desktop_toggle" data-did="${escapeHtmlAttr(r.id)}" tabindex="0" aria-expanded="${isOpen ? 'true' : 'false'}">
           <td>
-            <div class="unitDesktopDessertCell">
+            <div class="unitDesktopDessertCell">${costProductImage_(r.id)}
               <span class="unitDesktopChevron" aria-hidden="true">▾</span>
               <span>${escapeHtml(prettyDessertName(r.id))}</span>
             </div>
@@ -2625,10 +2539,11 @@ function refreshBottom(){
   if(el("totalHint")) el("totalHint").textContent = `${n} ingrediente(s) marcados`;
 
   const btn = el("btnRegister");
-  if(btn) btn.disabled = (n === 0);
+  const pending = getPendingPurchase_();
+  if(btn){btn.disabled=(n===0 && !pending);btn.textContent=pending?"Comprobar compra pendiente":"Registrar compra";}
 
   const bar = el("bottomBar");
-  const visible = (state.view === "purchases") && (n > 0);
+  const visible = (state.view === "purchases") && (n > 0 || !!pending);
   if(bar){
     bar.classList.toggle("isVisible", visible);
     bar.setAttribute("aria-hidden", visible ? "false" : "true");
@@ -2654,11 +2569,13 @@ function openConfirm(){
     rows.push({ k, qty, unit, cpu, est });
   }
 
+  const pending=getPendingPurchase_();
+  if(pending){rows.length=0;pending.items.forEach(i=>rows.push({k:i.ingredient_key,qty:i.qty,unit:i.unit,cpu:i.cop_per_unit,est:i.qty*i.cop_per_unit}));}
   const sum = rows.reduce((s,r)=> s + (r.est||0), 0);
   if(totalEl) totalEl.textContent = rows.some(r=>r.est!==null) ? moneyCOP(sum) : "$—";
 
   if(list){
-    list.innerHTML = rows.length ? rows.map(r=>`
+    list.innerHTML = (pending?`<p class="purchaseRecoveryNote">Comprobaremos la compra anterior con sus cantidades originales, sin duplicarla. Los nuevos cambios no se incluyen.</p>`:"") + (rows.length ? rows.map(r=>`
       <div class="pConfirmItem">
         <div class="pConfirmItemTop">
           <div class="pConfirmItemName">${escapeHtml(r.k)}</div>
@@ -2669,7 +2586,7 @@ function openConfirm(){
           ${r.cpu!==null ? (` · Costo/u: ${moneyCOP(r.cpu)}`) : ""}
         </div>
       </div>
-    `).join("") : `<div class="hint">No hay cantidades planeadas (revisa empaques/cantidad).</div>`;
+    `).join("") : `<div class="hint">No hay cantidades planeadas (revisa empaques/cantidad).</div>`);
   }
 
   show(back);
@@ -2692,38 +2609,32 @@ function buildPurchaseBatch(){
   return entries;
 }
 
+let purchaseInFlight=false;
+const PURCHASE_DRAFT_KEY='AMARED_PURCHASE_PENDING_V1';
 async function registerPurchases(){
-  if(!UNLOCKED_SECRET){
-    openUnlock("Ingresa tu clave para continuar.");
-    return;
+  if(purchaseInFlight)return;
+  if(!UNLOCKED_SECRET){openUnlock('Ingresa tu clave para continuar.');return;}
+  let draft;
+  try{draft=JSON.parse(sessionStorage.getItem(PURCHASE_DRAFT_KEY)||'null');}catch{setMeta('No podemos conservar la referencia. Habilita el almacenamiento de esta pestaña antes de registrar.');return;}
+  if(draft && draft.profile!==UNLOCKED_PROFILE.id){setMeta('Hay una compra pendiente de otro perfil en esta pestaña. Regresa con ese perfil para comprobarla.');return;}
+  if(!draft){
+    const items=buildPurchaseBatch();
+    if(!items.length){setMeta('Selecciona ingredientes y cantidades antes de registrar.');return;}
+    if(items.some(it=>!(it.cop_per_unit>0))){setMeta('Completa el costo de cada ingrediente seleccionado antes de registrar la compra.');return;}
+    draft={purchase_id:'PUR-'+crypto.randomUUID(),profile:UNLOCKED_PROFILE.id,items};
+    try{sessionStorage.setItem(PURCHASE_DRAFT_KEY,JSON.stringify(draft));}catch{setMeta('No podemos conservar la referencia de compra. No se enviaron cambios.');return;}
   }
-
-  const items = buildPurchaseBatch();
-  if(items.length === 0){
-    setMeta("No hay ingredientes con cantidad planeada.");
-    return;
-  }
-
-  showLoading("Registrando compras…", "Actualizando inventario en la base de datos.");
+  purchaseInFlight=true;showLoading('Registrando compra…','Conservamos la referencia para que puedas reintentar sin duplicarla.');
   try{
-    await api({
-      action: "inventory_add_purchase_batch",
-      costs_secret: UNLOCKED_SECRET,
-      updated_by: "PURCHASES_UI",
-      source: "PURCHASES_UI",
-      items
-    }, {timeoutMs: 60000});
-
-    state.buyPlan = {};
-    await loadAll({ loadRecipesNow:false });
-    setMeta("✅ Compras registradas y inventario actualizado.");
-  } catch(err){
-    setMeta(`❌ Error registrando compras: ${(err && err.message) ? err.message : "Error"}`);
-  } finally {
-    hideLoading();
-  }
+    await api({action:'inventory_add_purchase_batch',purchase_id:draft.purchase_id,updated_by:UNLOCKED_PROFILE.label||'PURCHASES_UI',source:'PURCHASES_UI',items:draft.items},{timeoutMs:60000});
+    sessionStorage.removeItem(PURCHASE_DRAFT_KEY);state.buyPlan={};
+    try{await loadAll({loadRecipesNow:false});setMeta('Compra registrada. Inventario e historial actualizados.');}
+    catch{setMeta('Compra registrada. No se pudo actualizar la vista; usa Actualizar para consultar el inventario.');}
+  }catch(err){
+    if(err.code==='INVALID_PURCHASE'){sessionStorage.removeItem(PURCHASE_DRAFT_KEY);setMeta(err.message);return;}
+    setMeta('No se confirmó la respuesta: '+(err?.message||'Error de conexión')+'. Reintentar comprobará la misma compra antes de guardar otra.');
+  }finally{purchaseInFlight=false;hideLoading();refreshBottom();}
 }
-
 
 function purchaseHistoryGroups_(){
   const rows = Array.isArray(state.purchaseHistory) ? state.purchaseHistory.slice() : [];
@@ -5092,3 +5003,7 @@ el("ingModalBack")?.addEventListener("click", (e)=>{ if(e.target && e.target.id=
 
 // Keep mobile nav in sync on resize
 try{ window.addEventListener("resize", ()=>{ try{ syncMobileNavForViewport_(); }catch(_e){} try{ updateHistoryFabPosition_(); }catch(_e){} }); }catch(_e){}
+
+function costProductImage_(id){const src={mousse_maracuya:"assets/mousse.webp",cheesecake_cafe_panela:"assets/cheesecake.webp"}[id];return src?`<img class="costProductImage" src="${src}" width="52" height="52" alt="" loading="lazy">`:"";}
+
+function getPendingPurchase_(){try{return JSON.parse(sessionStorage.getItem("AMARED_PURCHASE_PENDING_V1")||"null");}catch{return null;}}

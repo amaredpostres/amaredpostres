@@ -504,3 +504,13 @@
     }
   }
 })();
+
+// Hide contextual actions only when the viewport actually shrinks for a mobile keyboard.
+(()=>{
+ let baseline=innerHeight,lastWidth=innerWidth;
+ const sync=()=>{const field=document.activeElement,typing=field?.matches('textarea,input:not([type=checkbox]):not([type=radio]):not([type=button]):not([type=submit])');
+  if(Math.abs(innerWidth-lastWidth)>80){baseline=innerHeight;lastWidth=innerWidth;}else if(!typing)baseline=innerHeight;
+  const keyboard=innerHeight-(window.visualViewport?.height||innerHeight)>120 || baseline-innerHeight>120;
+  document.body.classList.toggle('admin-keyboard-open',document.body.classList.contains('workspacePage')&&matchMedia('(max-width:860px)').matches&&!!typing&&keyboard);
+ };document.addEventListener('focusin',sync);document.addEventListener('focusout',()=>requestAnimationFrame(sync));window.addEventListener('resize',sync,{passive:true});window.visualViewport?.addEventListener('resize',sync,{passive:true});
+})();

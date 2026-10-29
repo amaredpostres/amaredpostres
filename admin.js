@@ -517,12 +517,16 @@ function renderAdminIndexTools(){
         <div class="adminIndexPriceHint">Precio visible actualmente: $${money(item.unit_price)}</div>
       </div>
       <label>
-        <input class="input" type="number" min="0" step="100" data-admin-price-id="${escapeHtml(item.id)}" value="${Number(item.unit_price || 0)}" />
+        <input class="input" type="number" min="1" step="1" data-admin-price-id="${escapeHtml(item.id)}" value="${Number(item.unit_price || 0)}" />
       </label>
     </div>
   `).join("");
 }
+let priceEditorBusy=false;
 async function saveAdminIndexPrices(){
+  if(priceEditorBusy)return;
+  priceEditorBusy=true;
+  try{
   if(!adminIndexPriceRows) return;
   const inputs = Array.from(adminIndexPriceRows.querySelectorAll("[data-admin-price-id]"));
   const map = {};
@@ -539,6 +543,9 @@ async function saveAdminIndexPrices(){
     const product = PRODUCT_CATALOG.find(p => p.id === id) || DEFAULT_PRODUCT_CATALOG.find(p => p.id === id) || {};
     items.push({ dessert_id: id, dessert_name: String(product.name || "").trim(), public_price: Math.round(value) });
   }
+  const changes=items.map(it=>{const current=PRODUCT_CATALOG.find(p=>p.id===it.dessert_id);return {name:it.dessert_name,before:Number(current?.unit_price||0),after:it.public_price};}).filter(c=>c.before!==c.after);
+  if(!changes.length){setAdminIndexStatus('No hay cambios de precio para guardar.');return;}
+  if(!await AMAREDAdmin.confirmPrices(changes))return;
   showLoading("Guardando precios...", "Actualizando el catálogo público para todos los clientes.");
   try{
     const out = await api({ action: "products_catalog_save", items });
@@ -556,32 +563,12 @@ async function saveAdminIndexPrices(){
     hideLoading();
     setAdminIndexStatus(String(e?.message || e || "No se pudieron guardar los precios."), true);
   }
+  }finally{priceEditorBusy=false;}
 }
-function resetAdminIndexPrices(){
-  const defaults = {};
-  const items = DEFAULT_PRODUCT_CATALOG.map(product => {
-    const price = Math.round(Number(product.unit_price || 0));
-    defaults[product.id] = price;
-    return { dessert_id: product.id, dessert_name: String(product.name || "").trim(), public_price: price };
-  });
-  showLoading("Restableciendo precios...", "Volviendo a los precios base del catálogo público.");
-  api({ action: "products_catalog_save", items })
-    .then(out => {
-      hideLoading();
-      if(!out?.ok){
-        setAdminIndexStatus(out?.error || "No se pudieron restablecer los precios.", true);
-        return;
-      }
-      writeProductPriceOverrides_(defaults);
-      applyProductPriceMap_(defaults);
-      renderAdminIndexTools();
-      setAdminIndexStatus("Se restablecieron los precios globales.");
-      window.dispatchEvent(new CustomEvent("amared:catalog-updated", { detail: { source: "admin" } }));
-    })
-    .catch(e => {
-      hideLoading();
-      setAdminIndexStatus(String(e?.message || e || "No se pudieron restablecer los precios."), true);
-    });
+async function resetAdminIndexPrices(){
+  if(priceEditorBusy)return;
+  priceEditorBusy=true;
+  try{await AMAREDAdmin.suggestPrices({request:async action=>api({action}),products:PRODUCT_CATALOG,host:adminIndexPriceRows,selector:'[data-admin-price-id]',idAttribute:'data-admin-price-id',status:setAdminIndexStatus,button:btnAdminIndexResetPrices});}finally{priceEditorBusy=false;}
 }
 
 // =================== LOADING (UX) ===================

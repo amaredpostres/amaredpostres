@@ -75,15 +75,6 @@ const AMARED_NEIGHBORHOOD_ROUTES = Array.isArray(window.AMARED_IBAGUE_NEIGHBORHO
 // 👇 Asegúrate que estos nombres coincidan con tus archivos en /assets/
 const DEFAULT_PRODUCTS = [
   {
-    id: INAUGURAL_COMBO_ID,
-    name: "Combo inaugural AMARED",
-    desc: "Incluye mousse de maracuyá, cheesecake de café con panela, detalle especial y domicilio gratis durante la semana inaugural.",
-    price: INAUGURAL_COMBO_PRICE,
-    img: "assets/mousse.webp",
-    alt: "Combo inaugural AMARED",
-    promoCombo: true
-  },
-  {
     id: "mousse_maracuya",
     name: "Mousse de Maracuyá",
     desc: "Cremoso, cítrico y refrescante. Perfecto para después del almuerzo.",
@@ -258,6 +249,8 @@ function isPrelaunchActive(){
   return !!launch && getLaunchNow() < launch && !isLaunchPreviewMode();
 }
 function isInauguralPromoActive(){
+  return false; // Promotion retired from the active storefront.
+
   try{
     const sp = new URLSearchParams(window.location.search || "");
     if(sp.get("promo") === "1") return true;
@@ -1943,7 +1936,7 @@ function hideModal() { window.amaredCheckout?.data(); }
 
 function fillModal(data, orderId) {
   const items=data.display_items?.length ? data.display_items : data.items || [];
-  elModalItems.innerHTML=items.map(item=>'<div class="modalItem"><div><strong>' + escapeHtml(item.name) + '</strong><small>' + item.qty + (item.qty===1 ? ' unidad · $' : ' unidades · $') + money(item.price ?? item.unit_price) + ' c/u</small></div><strong>$' + money(item.qty*(item.price ?? item.unit_price)) + '</strong></div>').join("");
+  elModalItems.innerHTML=items.map(item=>'<div class="modalItem">' + reviewProductImage(item.id) + '<div class="reviewItemText"><strong>' + escapeHtml(item.name) + '</strong><small>' + item.qty + (item.qty===1 ? ' unidad · $' : ' unidades · $') + money(item.price ?? item.unit_price) + ' c/u</small></div><strong>$' + money(item.qty*(item.price ?? item.unit_price)) + '</strong></div>').join("");
   elModalUnits.textContent=String(data.total_units);
   elModalSubtotal.textContent=money(data.subtotal);
   syncPickupPricingUI(data.subtotal,data.location_method);
@@ -2265,6 +2258,8 @@ function normalizeSignupPhone(value){
 }
 
 function setupLaunchExperience(){
+  return false; // Launch presentation has expired.
+
   const gate = document.getElementById("launchGate");
   const page = document.querySelector(".page");
   const privateAccess = isPrivateOrderAccessMode();
@@ -2598,7 +2593,7 @@ function renderIndexAdminPriceEditor(){
         <div class="indexAdminPriceHint">${product.promoCombo && !isInauguralPromoActive() ? 'Promoción fuera de vigencia. Precio configurado' : 'Precio del catálogo'}: $${money(product.price)}</div>
       </div>
       <label class="indexAdminField">
-        <input class="input" type="number" min="0" step="100" aria-label="Precio de ${escapeHtml(product.name)}" data-price-id="${escapeHtml(product.id)}" value="${Number(product.price || 0)}" />
+        <input class="input" type="number" min="1" step="1" aria-label="Precio de ${escapeHtml(product.name)}" data-price-id="${escapeHtml(product.id)}" value="${Number(product.price || 0)}" />
       </label>
     </div>
   `).join("");
@@ -2646,7 +2641,11 @@ function syncIndexAdminMobileBar(){
   btnIndexAdminBarTools?.setAttribute("aria-label", "Ir a precios");
 }
 
+let priceEditorBusy=false;
 async function saveIndexAdminPrices(){
+  if(priceEditorBusy)return;
+  priceEditorBusy=true;
+  try{
   if(!indexAdminPriceList) return;
   const inputs = Array.from(indexAdminPriceList.querySelectorAll("[data-price-id]"));
   const nextMap = {};
@@ -2670,6 +2669,9 @@ async function saveIndexAdminPrices(){
     return;
   }
 
+  const changes=items.map(it=>{const current=PRODUCTS.find(p=>p.id===it.dessert_id);return {name:it.dessert_name,before:Number(current?.price||0),after:it.public_price};}).filter(c=>c.before!==c.after);
+  if(!changes.length){setIndexAdminStatus('No hay cambios de precio para guardar.');return;}
+  if(!await AMAREDAdmin.confirmPrices(changes))return;
   showLoading("Guardando precios...", "Actualizando el catálogo visible para todos los clientes.");
   try{
     const res = await window.amaredRequest(ORDER_API_URL, {
@@ -2694,47 +2696,15 @@ async function saveIndexAdminPrices(){
     hideLoading();
     setIndexAdminStatus(String(e?.message || e || "No se pudieron guardar los precios."), true);
   }
+  }finally{priceEditorBusy=false;}
 }
 
 async function resetIndexAdminPrices(){
-  const defaults = {};
-  const items = DEFAULT_PRODUCTS.map(product => {
-    const price = Math.round(Number(product.price || 0));
-    defaults[product.id] = price;
-    return { dessert_id: product.id, dessert_name: String(product.name || "").trim(), public_price: price };
-  });
-
-  const payload = buildIndexCatalogAuthPayload({ action: "products_catalog_save", items });
-  if(!payload){
-    setIndexAdminStatus("Se necesita el PIN de administrador para restablecer los precios globales.", true);
-    return;
-  }
-
-  showLoading("Restableciendo precios...", "Volviendo a los precios base del catálogo.");
-  try{
-    const res = await window.amaredRequest(ORDER_API_URL, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload)
-    });
-    const out = await res.json();
-    hideLoading();
-    if(!out?.ok){
-      setIndexAdminStatus(out?.error || "No se pudieron restablecer los precios.", true);
-      return;
-    }
-    saveProductPriceOverrides(defaults);
-    applyProductPriceMap(defaults);
-    renderProducts();
-    updateSummary();
-    renderIndexAdminPriceEditor();
-    setIndexAdminStatus("Se restablecieron los precios globales.");
-    window.dispatchEvent(new CustomEvent("amared:catalog-updated", { detail: { source: "index" } }));
-  }catch(e){
-    hideLoading();
-    setIndexAdminStatus(String(e?.message || e || "No se pudieron restablecer los precios."), true);
-  }
+  if(priceEditorBusy)return;
+  priceEditorBusy=true;
+  try{await AMAREDAdmin.suggestPrices({request:async action=>{const payload=buildIndexCatalogAuthPayload({action});if(!payload)throw Error('Inicia sesión con acceso a Compras y recetas.');const response=await window.amaredRequest(ORDER_API_URL,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});return response.json();},products:PRODUCTS,host:indexAdminPriceList,selector:'[data-price-id]',idAttribute:'data-price-id',status:setIndexAdminStatus,button:btnIndexAdminResetPrices});}finally{priceEditorBusy=false;}
 }
+
 
 function showReviewModal(){
   if(!reviewModal) return;
@@ -3301,3 +3271,8 @@ function setupHeroQuickNav(){
 }
 
 setupHeroQuickNav();
+
+function reviewProductImage(id){
+ const src={mousse_maracuya:"assets/mousse.webp",cheesecake_cafe_panela:"assets/cheesecake.webp"}[id];
+ return src ? `<img class="reviewProductImage" src="${src}" width="56" height="56" alt="" loading="lazy">` : "";
+}

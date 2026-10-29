@@ -1,0 +1,80 @@
+{
+  "date": "2026-10-29T15:01:53.904Z",
+  "environment": "Chromium local, API en memoria, datos ficticios. Eventos de visibilidad y altura reducida simulados; no dispositivo físico.",
+  "results": [
+    {
+      "id": "J01",
+      "name": "Introducción 1→5 repetida en ciclos de nueve segundos, sin estados completados",
+      "status": "aprobado"
+    },
+    {
+      "id": "J02",
+      "name": "Pausa y reanudación explícitas; movimiento reducido desactiva los efectos",
+      "status": "aprobado"
+    },
+    {
+      "id": "J03",
+      "name": "Primera selección durante etapa 4 cancela la explicación y activa inmediatamente etapa 1",
+      "status": "aprobado"
+    },
+    {
+      "id": "J04",
+      "name": "Selección restaurada y regreso al catálogo conservan progreso sin reiniciar demo",
+      "status": "aprobado"
+    },
+    {
+      "id": "J05",
+      "name": "Guía vertical: conexión alineada, una pasada por apertura y estados reales intactos",
+      "status": "aprobado"
+    },
+    {
+      "id": "J06",
+      "name": "Entrada a WhatsApp produce exactamente dos ondas 3→4→5, sin confirmar pago ni repetir al copiar",
+      "status": "aprobado"
+    },
+    {
+      "id": "J07",
+      "name": "Texto de revisión orienta a enviar WhatsApp y mantiene aclaración de cambios ya registrados",
+      "status": "aprobado"
+    },
+    {
+      "id": "J08",
+      "name": "Fallo de apertura y copia conserva referencia completa, selección manual y datos",
+      "status": "aprobado"
+    },
+    {
+      "id": "J09",
+      "name": "Código completo legible en 320/412/1440 px, mensaje y registro conservan la misma identidad",
+      "status": "aprobado"
+    },
+    {
+      "id": "J10",
+      "name": "Volver, abrir guía, continuar, copiar y reintentar no generan otro registro",
+      "status": "aprobado"
+    },
+    {
+      "id": "J11",
+      "name": "Barra condicional: visible tras selección, oculta con guía original, teclado, controles o ventana",
+      "status": "aprobado"
+    },
+    {
+      "id": "J12",
+      "name": "Fuera de pantalla y pestaña oculta suspende el tiempo; la animación no desplaza el contenido",
+      "status": "aprobado"
+    },
+    {
+      "id": "J13",
+      "name": "Movimiento reducido sin ondas y recogida de 1–2 unidades conserva cero anticipo y confirmación manual",
+      "status": "aprobado"
+    },
+    {
+      "id": "J14",
+      "name": "Onda móvil en una sola superficie y sin repetición al cambiar el área visible",
+      "status": "aprobado"
+    }
+  ],
+  "errors": [],
+  "external": [],
+  "passed": 14,
+  "failed": 0
+}

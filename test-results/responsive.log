@@ -1,0 +1,14 @@
+PASS V2-09 CTA del resumen ocupa exactamente el ancho útil en escritorio
+PASS V2-10 Fotos llenan su marco con recorte proporcional; logos intactos
+PASS V2-11 La preparación precede al intento de WhatsApp
+PASS V2-12 Referencia real destacada sin párrafo redundante
+PASS V2-13 Solo un Atrás en etapa 3 y edición disponible desde revisión
+PASS V2-14 Regreso y reentrada conservan referencia y una sola escritura
+PASS V2-15 Editar por revisión recalcula 40/60 conservando registro y propuesta
+PASS V2-16 Abrir WhatsApp prepara mensaje sin confirmar envío o pago
+PASS V2-17 Copia secundaria correcta y fallback manual sin crear solicitudes
+PASS V2-18 Nuevo pedido y opiniones en bloque independiente
+PASS V2-19 Pago y disfrute informativos al abrir y copiar
+PASS V2-20 Entrega explícita, pago, videos, cantidades y nuevo pedido conservados
+PASS V2-21 Controles libres de superposiciones y teclado en tamaños estrechos
+PASS 13 regresiones responsive/WhatsApp

@@ -1,0 +1,54 @@
+{
+  "date": "2026-10-29T15:00:19.056Z",
+  "results": [
+    {
+      "id": "R01",
+      "name": "Respuesta perdida después de guardar: recarga, edición y reintento con un solo registro",
+      "status": "aprobado"
+    },
+    {
+      "id": "R02",
+      "name": "Precio cambiado por servidor obliga a revisar, sin referencia confirmada falsa",
+      "status": "aprobado"
+    },
+    {
+      "id": "R03",
+      "name": "Actualización de catálogo en revisión bloquea registro hasta nueva revisión",
+      "status": "aprobado"
+    },
+    {
+      "id": "R04",
+      "name": "Copiado denegado ofrece texto seleccionable",
+      "status": "aprobado"
+    },
+    {
+      "id": "R05",
+      "name": "Código devuelto por el servidor se usa también en el mensaje",
+      "status": "aprobado"
+    },
+    {
+      "id": "R06",
+      "name": "Recuperación de un recibo de la versión anterior mantiene su referencia",
+      "status": "aprobado"
+    },
+    {
+      "id": "R07",
+      "name": "Borrador sin entrega seleccionada sigue vacío después de recargar",
+      "status": "aprobado"
+    },
+    {
+      "id": "R08",
+      "name": "Android simulado: apertura explícita en la misma pestaña, retorno y una sola escritura",
+      "status": "aprobado"
+    },
+    {
+      "id": "R09",
+      "name": "Almacenamiento bloqueado evita enviar una solicitud irrecuperable",
+      "status": "aprobado"
+    }
+  ],
+  "errors": [],
+  "external": [],
+  "passed": 9,
+  "failed": 0
+}

@@ -1,0 +1,75 @@
+{
+  "date": "2026-10-28T21:34:44.393Z",
+  "scope": "13 comprobaciones V2 vigentes; V2-01 a V2-08 sustituidas por los requisitos UI del 28 de octubre",
+  "results": [
+    {
+      "id": "V2-09",
+      "name": "CTA del resumen ocupa exactamente el ancho útil en escritorio",
+      "status": "aprobado"
+    },
+    {
+      "id": "V2-10",
+      "name": "Fotos llenan su marco con recorte proporcional; logos intactos",
+      "status": "aprobado"
+    },
+    {
+      "id": "V2-11",
+      "name": "La preparación precede al intento de WhatsApp",
+      "status": "aprobado"
+    },
+    {
+      "id": "V2-12",
+      "name": "Referencia real destacada sin párrafo redundante",
+      "status": "aprobado"
+    },
+    {
+      "id": "V2-13",
+      "name": "Solo un Atrás en etapa 3 y edición disponible desde revisión",
+      "status": "aprobado"
+    },
+    {
+      "id": "V2-14",
+      "name": "Regreso y reentrada conservan referencia y una sola escritura",
+      "status": "aprobado"
+    },
+    {
+      "id": "V2-15",
+      "name": "Editar por revisión recalcula 40/60 conservando registro y propuesta",
+      "status": "aprobado"
+    },
+    {
+      "id": "V2-16",
+      "name": "Abrir WhatsApp prepara mensaje sin confirmar envío o pago",
+      "status": "aprobado"
+    },
+    {
+      "id": "V2-17",
+      "name": "Copia secundaria correcta y fallback manual sin crear solicitudes",
+      "status": "aprobado"
+    },
+    {
+      "id": "V2-18",
+      "name": "Nuevo pedido y opiniones en bloque independiente",
+      "status": "aprobado"
+    },
+    {
+      "id": "V2-19",
+      "name": "Pago y disfrute informativos al abrir y copiar",
+      "status": "aprobado"
+    },
+    {
+      "id": "V2-20",
+      "name": "Entrega explícita, pago, videos, cantidades y nuevo pedido conservados",
+      "status": "aprobado"
+    },
+    {
+      "id": "V2-21",
+      "name": "Controles libres de superposiciones y teclado en tamaños estrechos",
+      "status": "aprobado"
+    }
+  ],
+  "errors": [],
+  "external": [],
+  "passed": 13,
+  "failed": 0
+}

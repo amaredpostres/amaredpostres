@@ -1,0 +1,280 @@
+TAP version 13
+# Subtest: pricing: ceiling to x990 never lowers the calculated price
+ok 1 - pricing: ceiling to x990 never lowers the calculated price
+  ---
+  duration_ms: 0.6508
+  type: 'test'
+  ...
+# Subtest: pricing: real production margin plus direct complements, same breakdown as Costs
+ok 2 - pricing: real production margin plus direct complements, same breakdown as Costs
+  ---
+  duration_ms: 6.9052
+  type: 'test'
+  ...
+# Subtest: pricing: missing recipe, costs, incompatible units and zero costs do not produce proposals
+ok 3 - pricing: missing recipe, costs, incompatible units and zero costs do not produce proposals
+  ---
+  duration_ms: 0.4811
+  type: 'test'
+  ...
+# Subtest: pricing: current rows override duplicate legacy rows; inactive rows excluded
+ok 4 - pricing: current rows override duplicate legacy rows; inactive rows excluded
+  ---
+  duration_ms: 0.2616
+  type: 'test'
+  ...
+# Subtest: pricing: existing approximate g/ml rule is explicitly flagged
+ok 5 - pricing: existing approximate g/ml rule is explicitly flagged
+  ---
+  duration_ms: 0.1533
+  type: 'test'
+  ...
+# Subtest: routes: verified Kiwana origin and radial distances
+ok 6 - routes: verified Kiwana origin and radial distances
+  ---
+  duration_ms: 0.1681
+  type: 'test'
+  ...
+# Subtest: routes: all stops survive desktop and mobile splitting with continuous origins
+ok 7 - routes: all stops survive desktop and mobile splitting with continuous origins
+  ---
+  duration_ms: 2.0938
+  type: 'test'
+  ...
+# Subtest: routes: invalid and overlong locations are explicitly excluded; manual order retained
+ok 8 - routes: invalid and overlong locations are explicitly excluded; manual order retained
+  ---
+  duration_ms: 0.41
+  type: 'test'
+  ...
+# Subtest: pricing: blank pricing_mode still respects an explicit no_margin flag
+ok 9 - pricing: blank pricing_mode still respects an explicit no_margin flag
+  ---
+  duration_ms: 0.3213
+  type: 'test'
+  ...
+# Subtest: gateway: public catalog works without login
+ok 10 - gateway: public catalog works without login
+  ---
+  duration_ms: 16.9292
+  type: 'test'
+  ...
+# Subtest: gateway: public profiles forwarded with minimal public flag
+ok 11 - gateway: public profiles forwarded with minimal public flag
+  ---
+  duration_ms: 0.6614
+  type: 'test'
+  ...
+# Subtest: gateway: private reads require authorization
+ok 12 - gateway: private reads require authorization
+  ---
+  duration_ms: 1.9582
+  type: 'test'
+  ...
+# Subtest: gateway: kitchen profile cannot confirm payments or delete profiles
+ok 13 - gateway: kitchen profile cannot confirm payments or delete profiles
+  ---
+  duration_ms: 2.1551
+  type: 'test'
+  ...
+# Subtest: gateway: kitchen keeps its recipe, preparation and shopping actions
+ok 14 - gateway: kitchen keeps its recipe, preparation and shopping actions
+  ---
+  duration_ms: 2.7281
+  type: 'test'
+  ...
+# Subtest: gateway: delivery location requires the delivery role
+ok 15 - gateway: delivery location requires the delivery role
+  ---
+  duration_ms: 0.3943
+  type: 'test'
+  ...
+# Subtest: gateway: unknown actions and unexpected origins are rejected
+ok 16 - gateway: unknown actions and unexpected origins are rejected
+  ---
+  duration_ms: 0.2455
+  type: 'test'
+  ...
+# Subtest: gateway: a new Worker has no production origin enabled by default
+ok 17 - gateway: a new Worker has no production origin enabled by default
+  ---
+  duration_ms: 0.1474
+  type: 'test'
+  ...
+# Subtest: gateway: dessert deletion requires a role and an additional recipe PIN
+ok 18 - gateway: dessert deletion requires a role and an additional recipe PIN
+  ---
+  duration_ms: 0.7489
+  type: 'test'
+  ...
+# Subtest: dashboard: requires login and overrides client-supplied scopes
+ok 19 - dashboard: requires login and overrides client-supplied scopes
+  ---
+  duration_ms: 1.6166
+  type: 'test'
+  ...
+# Subtest: dashboard: counts orders by state, preserves rows and returns no customer details
+ok 20 - dashboard: counts orders by state, preserves rows and returns no customer details
+  ---
+  duration_ms: 4.9694
+  type: 'test'
+  ...
+# Subtest: dashboard: empty data returns zero but missing headers return an error
+ok 21 - dashboard: empty data returns zero but missing headers return an error
+  ---
+  duration_ms: 2.4714
+  type: 'test'
+  ...
+# Subtest: orders: server owns prices and validates quantities and availability
+ok 22 - orders: server owns prices and validates quantities and availability
+  ---
+  duration_ms: 1.4559
+  type: 'test'
+  ...
+# Subtest: orders: repeated request creates only one row
+ok 23 - orders: repeated request creates only one row
+  ---
+  duration_ms: 2.425
+  type: 'test'
+  ...
+# Subtest: orders: prices changed or malformed phone never append a row
+ok 24 - orders: prices changed or malformed phone never append a row
+  ---
+  duration_ms: 1.3622
+  type: 'test'
+  ...
+# Subtest: orders: reordered columns and route fields preserve their meaning
+ok 25 - orders: reordered columns and route fields preserve their meaning
+  ---
+  duration_ms: 1.6583
+  type: 'test'
+  ...
+# Subtest: orders: untrusted sheet text is literal
+ok 26 - orders: untrusted sheet text is literal
+  ---
+  duration_ms: 1.4991
+  type: 'test'
+  ...
+# Subtest: orders: serialization reports busy rather than writing without a lock
+ok 27 - orders: serialization reports busy rather than writing without a lock
+  ---
+  duration_ms: 1.1003
+  type: 'test'
+  ...
+# Subtest: orders: expired promos cannot alter the price
+ok 28 - orders: expired promos cannot alter the price
+  ---
+  duration_ms: 1.2534
+  type: 'test'
+  ...
+# Subtest: orders: active combo uses the price managed in the catalog
+ok 29 - orders: active combo uses the price managed in the catalog
+  ---
+  duration_ms: 1.1922
+  type: 'test'
+  ...
+# Subtest: maps: host spoofing and scripts are rejected
+ok 30 - maps: host spoofing and scripts are rejected
+  ---
+  duration_ms: 1.2048
+  type: 'test'
+  ...
+# Subtest: archive: moves by column names, preserves active orders, and retries without duplicates
+ok 31 - archive: moves by column names, preserves active orders, and retries without duplicates
+  ---
+  duration_ms: 2.1314
+  type: 'test'
+  ...
+# Subtest: archive: legacy duplicate codes cannot remove paid or conflicting rows
+ok 32 - archive: legacy duplicate codes cannot remove paid or conflicting rows
+  ---
+  duration_ms: 2.0124
+  type: 'test'
+  ...
+# Subtest: purchases: valid batch changes inventory, movements and history exactly once
+ok 33 - purchases: valid batch changes inventory, movements and history exactly once
+  ---
+  duration_ms: 1.8669
+  type: 'test'
+  ...
+# Subtest: purchases: all lines validated before stock changes; missing costs, units and duplicate keys rejected
+ok 34 - purchases: all lines validated before stock changes; missing costs, units and duplicate keys rejected
+  ---
+  duration_ms: 7.5542
+  type: 'test'
+  ...
+# Subtest: purchases: ambiguous retry cannot reuse an existing ID for different amounts
+ok 35 - purchases: ambiguous retry cannot reuse an existing ID for different amounts
+  ---
+  duration_ms: 1.4218
+  type: 'test'
+  ...
+# Subtest: purchases: interrupted history write recovers without adding stock or movements twice
+ok 36 - purchases: interrupted history write recovers without adding stock or movements twice
+  ---
+  duration_ms: 1.4355
+  type: 'test'
+  ...
+# Subtest: delivery: all ages, blank statuses, pickup and duplicate IDs match dashboard totals
+ok 37 - delivery: all ages, blank statuses, pickup and duplicate IDs match dashboard totals
+  ---
+  duration_ms: 7.4937
+  type: 'test'
+  ...
+# Subtest: purchases: permissions denied to catalog-only profiles and guests
+ok 38 - purchases: permissions denied to catalog-only profiles and guests
+  ---
+  duration_ms: 1.0985
+  type: 'test'
+  ...
+# Subtest: purchases: incompatible inventory units are rejected without mutation
+ok 39 - purchases: incompatible inventory units are rejected without mutation
+  ---
+  duration_ms: 1.2428
+  type: 'test'
+  ...
+# Subtest: purchases: reversed headers and unrelated columns survive registration
+ok 40 - purchases: reversed headers and unrelated columns survive registration
+  ---
+  duration_ms: 1.2682
+  type: 'test'
+  ...
+# Subtest: delivery: empty pending list supplies verified split counts
+ok 41 - delivery: empty pending list supplies verified split counts
+  ---
+  duration_ms: 1.1705
+  type: 'test'
+  ...
+# Subtest: gateway: catalog admin may read cost source only with existing Costs permissions
+ok 42 - gateway: catalog admin may read cost source only with existing Costs permissions
+  ---
+  duration_ms: 1.1019
+  type: 'test'
+  ...
+# Subtest: recipes: direct-cost flags and unrelated fields survive save/reload with reordered columns
+ok 43 - recipes: direct-cost flags and unrelated fields survive save/reload with reordered columns
+  ---
+  duration_ms: 1.8889
+  type: 'test'
+  ...
+# Subtest: delivery: missing required header fails instead of claiming zero pending
+ok 44 - delivery: missing required header fails instead of claiming zero pending
+  ---
+  duration_ms: 1.3304
+  type: 'test'
+  ...
+# Subtest: delivery: historic combo remains readable without altering rows
+ok 45 - delivery: historic combo remains readable without altering rows
+  ---
+  duration_ms: 2.2345
+  type: 'test'
+  ...
+1..45
+# tests 45
+# suites 0
+# pass 45
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 172.9335

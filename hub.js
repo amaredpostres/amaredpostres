@@ -19,22 +19,22 @@ const HUB_MODULE_PREFETCH = {
   kitchen: [
     { href:"kitchen.html", as:"document" },
     { href:"kitchen.js?v=20260919-ux22", as:"script" },
-    { href:"kitchen-costs.js?v=20260919-ux22", as:"script" },
+    { href:"kitchen-costs.js?v=20261029-admin7", as:"script" },
   ],
   payments: [
     { href:"admin.html", as:"document" },
-    { href:"admin.js?v=20260919-ux22", as:"script" },
+    { href:"admin.js?v=20261029-admin7", as:"script" },
   ],
   delivery: [
     { href:"delivery.html", as:"document" },
     { href:"delivery.css", as:"style" },
-    { href:"delivery.js?v=20260919-ux22", as:"script" },
+    { href:"delivery.js?v=20261029-admin7", as:"script" },
   ],
   costs: [
     { href:"costs.html", as:"document" },
     { href:"costs.css?v=20260919-ux22", as:"style" },
-    { href:"kitchen-costs.js?v=20260919-ux22", as:"script" },
-    { href:"costs.js?v=20260919-ux22", as:"script" },
+    { href:"kitchen-costs.js?v=20261029-admin7", as:"script" },
+    { href:"costs.js?v=20261029-admin7", as:"script" },
   ],
   profiles: [
     { href:"profiles.html", as:"document" },
@@ -42,7 +42,7 @@ const HUB_MODULE_PREFETCH = {
   ],
   index_admin: [
     { href:"index.html?admin=1", as:"document" },
-    { href:"app.js?v=20260919-ux22", as:"script" },
+    { href:"app.js?v=20261029-admin7", as:"script" },
   ],
 };
 
@@ -70,6 +70,7 @@ function paintDashboard(){
     else {
       badge.textContent=n===0 ? 'Sin pendientes' : key==='payments' ? `${n} ${n===1?'pendiente de pago':'pendientes de pago'}` : key==='kitchen' ? `${n} por preparar` : `${n} ${n===1?'listo para entregar':'listos para entregar'}`;
       if(key==='kitchen' && item.in_progress) badge.textContent+=` · ${item.in_progress} en preparación`;
+      if(key==='delivery' && Number.isInteger(item.delivery) && Number.isInteger(item.pickup)){const detail=document.createElement('small');detail.className='hubDeliverySplit';detail.textContent=`Domicilio ${item.delivery} · Recogida ${item.pickup}`;badge.append(detail);}
       badge.classList.toggle('isClear',n===0 && !item.in_progress);
     }
   });
@@ -88,6 +89,7 @@ async function refreshDashboard(force=false){
       if(key!==dashboardKey() || !state.session) return;
       const expected=allowedModules(session.categories).filter(m=>['payments','kitchen','delivery'].includes(m.key));
       if(expected.some(m=>!Number.isInteger(out.counts?.[m.key]?.pending))) throw new Error('Resumen incompleto');
+      if(expected.some(m=>m.key==='delivery') && (!Number.isInteger(out.counts.delivery.delivery)||!Number.isInteger(out.counts.delivery.pickup)||out.counts.delivery.delivery+out.counts.delivery.pickup!==out.counts.delivery.pending))throw Error('Desglose incompleto');
       dashboardCache={key,counts:out.counts,at:Date.now()};
     }catch {
       if(key!==dashboardKey() || !state.session) return;
@@ -410,9 +412,10 @@ function renderModules(){
     return;
   }
 
+  document.getElementById("hubDesktopGuidance").hidden=mods.some(m=>["payments","kitchen","delivery"].includes(m.key));
   hubEmpty.style.display = "none";
   hubGrid.innerHTML = mods.map(mod => `
-    <button class="hubCard" type="button" data-key="${escapeHtml(mod.key)}">
+    <button class="hubCard ${["payments","kitchen","delivery"].includes(mod.key)?"hubOperational":"hubDirectory"}" type="button" data-key="${escapeHtml(mod.key)}">
       <div class="hubCardTop">
         <div>
           <h2 class="hubCardTitle">${escapeHtml(mod.title)}</h2>
@@ -420,7 +423,7 @@ function renderModules(){
         </div>
         <div class="hubEmoji">${mod.icon}</div>
       </div>
-      <div class="hubCardFoot">${["payments","kitchen","delivery"].includes(mod.key) ? `<span class="hubPending" data-pending="${mod.key}">Consultando…</span>` : ""}<span class="btn primary hubCardBtn">Abrir</span></div>
+      <div class="hubCardFoot">${["payments","kitchen","delivery"].includes(mod.key) ? `<span class="hubPending" data-pending="${mod.key}">Consultando…</span>` : ""}<span class="btn primary hubCardBtn">${mod.key==="payments"?"Revisar pagos":mod.key==="kitchen"?"Ver producción":mod.key==="delivery"?"Organizar entregas":"Abrir"}</span></div>
     </button>
   `).join("");
   try{
