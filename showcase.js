@@ -1,8 +1,8 @@
-/* Two existing photos, one timer. No library or additional image download. */
+/* Editorial AMARED photographs. No inference about product flavors or availability. */
 (() => {
   const showcase = document.querySelector('.heroShowcase');
   if (!showcase || shouldUseIndexAdminView()) return;
-  const slides = [...showcase.querySelectorAll('[data-hero-product]')];
+  const slides = [...showcase.querySelectorAll('[data-hero-scene]')];
   const selectors = [...showcase.querySelectorAll('[data-hero-select]')];
   const controls = showcase.querySelector('.heroControls');
   const pause = document.getElementById('heroPause');
@@ -24,14 +24,14 @@
       image.classList.toggle('is-active', active);
       image.setAttribute('aria-hidden', String(!active));
     });
-    selectors.forEach(button => button.setAttribute('aria-pressed', String(button.dataset.heroSelect === current.dataset.heroProduct)));
-    label.textContent = current.alt;
+    selectors.forEach(button => button.setAttribute('aria-pressed', String(button.dataset.heroSelect === current.dataset.heroScene)));
+    label.textContent = current.dataset.caption;
     if (announce) announcement.textContent = current.alt;
   };
   const schedule = () => {
     clearTimeout(timer);
     pause.textContent = paused ? 'Reanudar' : 'Pausar';
-    pause.setAttribute('aria-label', `${paused ? 'Reanudar' : 'Pausar'} cambio automático de postres`);
+    pause.setAttribute('aria-label', `${paused ? 'Reanudar' : 'Pausar'} cambio automático de fotografías`);
     if (paused || hovered || focused || !visible || document.hidden || available.length < 2) return;
     timer = setTimeout(() => {
       show(available[(available.indexOf(current) + 1) % available.length]);
@@ -39,15 +39,15 @@
     }, 6000);
   };
   const refresh = () => {
-    available = slides.filter(image => !_catalogReady || PRODUCTS.some(product => product.id === image.dataset.heroProduct && product.available !== false));
+    available = slides;
     showcase.hidden = !available.length;
     controls.hidden = available.length < 2;
-    selectors.forEach(button => { button.hidden = !available.some(image => image.dataset.heroProduct === button.dataset.heroSelect); });
+    selectors.forEach(button => { button.hidden = !available.some(image => image.dataset.heroScene === button.dataset.heroSelect); });
     if (available.length && !available.includes(current)) show(available[0]);
     schedule();
   };
   selectors.forEach(button => button.addEventListener('click', () => {
-    const slide = available.find(image => image.dataset.heroProduct === button.dataset.heroSelect);
+    const slide = available.find(image => image.dataset.heroScene === button.dataset.heroSelect);
     if (!slide) return;
     paused = true;
     show(slide, true);
@@ -61,7 +61,6 @@
   document.addEventListener('visibilitychange', schedule);
   window.addEventListener('pagehide', () => clearTimeout(timer));
   window.addEventListener('pageshow', schedule);
-  window.addEventListener('amared:catalog-ready', refresh);
   reduced.addEventListener('change', () => { paused = reduced.matches; schedule(); });
   new IntersectionObserver(entries => { visible = entries[0].isIntersecting; schedule(); }).observe(showcase);
   refresh();

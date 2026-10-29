@@ -1,6 +1,6 @@
 // =================== CONFIG ===================
 const SUCCESS_MSG = "Pedido registrado ✅\n\nAhora falta confirmar el pago por WhatsApp.";
-const PICKUP_ADDRESS_TEXT = "Recogida presencial";
+const PICKUP_ADDRESS_TEXT = "Recogida presencial · Parque La Toscana · 4:30 p. m. a 5:00 p. m.";
 const PICKUP_RESERVE_PERCENT = 0.4;
 const PICKUP_MAPS_TEXT = "RECOGIDA_PRESENCIAL";
 const WHATSAPP_LOCATION_TEXT = "Ubicación por WhatsApp";
@@ -596,17 +596,56 @@ function getPickupPaymentBreakdown(subtotal) {
   return { subtotal: safeSubtotal, reserve, remaining };
 }
 
+
+function getPickupPaymentOptions(totalUnits) {
+  return Number(totalUnits) >= 3
+    ? [{value:"deposit",label:"Anticipo 40 % + saldo 60 %"},{value:"pay_ahead",label:"Pagar todo por adelantado"}]
+    : [{value:"pay_on_pickup",label:"Pagar todo al recoger"},{value:"pay_ahead",label:"Pagar todo por adelantado"}];
+}
+
+function getPickupPaymentTerms(data) {
+  const base = getPickupPaymentBreakdown(data.subtotal);
+  const choice = data.payment_method;
+  if(choice === "pay_ahead") return {...base, reserve:base.subtotal, remaining:0, deposit:false, label:"Pago completo por adelantado", summary:"Pago completo por adelantado: $" + money(base.subtotal) + ". Las instrucciones se acuerdan por WhatsApp."};
+  if(choice === "pay_on_pickup") return {...base, reserve:0, remaining:base.subtotal, deposit:false, label:"Pago completo al recoger", summary:"Total a pagar al recoger: $" + money(base.subtotal)};
+  if(choice !== "deposit") return {...base, reserve:0, remaining:base.subtotal, deposit:false, label:"Pago pendiente de elegir", summary:"Elige cómo deseas pagar al recoger."};
+  return {...base, deposit:true, label:"Anticipo del 40 % y saldo del 60 % al recoger", summary:"Anticipo de reserva (40 %): $" + money(base.reserve) + ". Saldo al recoger (60 %): $" + money(base.remaining) + "."};
+}
+
 function syncPickupPricingUI(subtotal = 0, locationMethod = getSelectedLocationMethod()) {
-  const info = getPickupPaymentBreakdown(subtotal);
-
-  if (pickupPreviewTotal) pickupPreviewTotal.textContent = `$${money(info.subtotal)}`;
-  if (pickupPreviewReserve) pickupPreviewReserve.textContent = `$${money(info.reserve)}`;
-  if (pickupPreviewBalance) pickupPreviewBalance.textContent = `$${money(info.remaining)}`;
-
-  const showModalBreakdown = locationMethod === "pickup" && info.subtotal > 0;
-  if (modalPickupBreakdown) modalPickupBreakdown.classList.toggle("hidden", !showModalBreakdown);
-  if (modalPickupReserve) modalPickupReserve.textContent = `$${money(info.reserve)}`;
-  if (modalPickupBalance) modalPickupBalance.textContent = `$${money(info.remaining)}`;
+  const totalUnits = buildBackendOrderItems(buildCartItems()).reduce((sum,item)=>sum+item.qty,0);
+  const select = document.getElementById("pickupPaymentMethod");
+  if(select) {
+    const options = getPickupPaymentOptions(totalUnits);
+    const previous = select.dataset.restoreValue || select.value;
+    const markup = '<option value="">Elige cómo pagar</option>' + options.map(option=>'<option value="' + option.value + '">' + option.label + '</option>').join("");
+    if(select.innerHTML !== markup) select.innerHTML = markup;
+    select.value = options.some(option=>option.value===previous) ? previous : "";
+    delete select.dataset.restoreValue;
+    const cards=document.getElementById("pickupPaymentCards");
+    if(cards) {
+      const key=options.map(option=>option.value).join(",");
+      if(cards.dataset.options!==key) {
+        cards.dataset.options=key;
+        cards.innerHTML=options.map(option=>'<label class="radioRow optionCard paymentCard"><input type="radio" name="pickupPayment" value="'+option.value+'"><span><strong>'+option.label+'</strong>'+(option.value==="pay_ahead"?'<small>Coordina el pago por WhatsApp.</small>':'')+'</span></label>').join("");
+      }
+      cards.querySelectorAll("input").forEach(input=>input.checked=input.value===select.value);
+    }
+  }
+  const info = getPickupPaymentTerms({subtotal,total_units:totalUnits,payment_method:select?.value});
+  if(pickupPreviewTotal) pickupPreviewTotal.textContent = "$" + money(info.subtotal);
+  const totalLabel=document.getElementById("pickupPreviewTotalLabel");
+  if(totalLabel) totalLabel.textContent=select?.value==="pay_on_pickup" ? "Total a pagar al recoger" : "Total de productos";
+  if(pickupPreviewReserve) pickupPreviewReserve.textContent = "$" + money(info.reserve);
+  if(pickupPreviewBalance) pickupPreviewBalance.textContent = "$" + money(info.remaining);
+  document.querySelectorAll("[data-reserve-row]").forEach(row=>row.hidden=!info.deposit);
+  const copy = document.getElementById("pickupTermsCopy");
+  if(copy) {copy.textContent = info.deposit ? "Reserva con un anticipo del 40 %. El saldo del 60 % se paga al recoger." : "";copy.hidden=!info.deposit;}
+  const confirmationNotice=document.getElementById("pickupConfirmationNotice");
+  if(confirmationNotice) confirmationNotice.hidden=locationMethod!=="pickup" || totalUnits<1 || totalUnits>2 || select?.value!=="pay_on_pickup";
+  if(modalPickupBreakdown) modalPickupBreakdown.classList.toggle("hidden", locationMethod!=="pickup" || !info.deposit);
+  if(modalPickupReserve) modalPickupReserve.textContent = "$" + money(info.reserve);
+  if(modalPickupBalance) modalPickupBalance.textContent = "$" + money(info.remaining);
 }
 
 function escapeHtml(s){
@@ -617,7 +656,41 @@ function escapeHtml(s){
     .replaceAll('"',"&quot;")
     .replaceAll("'","&#039;");
 }
+const ORDER_REGISTRATION_KEY="AMARED_ORDER_REGISTRATION_V1";
+let orderRegistration=null;
+function orderContentSignature(data) {
+  const {order_id,...content}=data || {};return JSON.stringify(content);
+}
+function readOrderRegistration() {
+  if(orderRegistration)return orderRegistration;
+  try {
+    orderRegistration=JSON.parse(sessionStorage.getItem(ORDER_REGISTRATION_KEY)||"null");
+    if(!orderRegistration) {
+      const legacy=JSON.parse(sessionStorage.getItem("AMARED_LAST_ORDER_V2")||"null");
+      if(legacy?.orderId && legacy.data?.customer_name) orderRegistration={id:legacy.orderId,data:legacy.registeredData||legacy.data,confirmed:true,at:legacy.at};
+    }
+  }catch{}
+  return orderRegistration;
+}
+function persistOrderRegistration(registration) {
+  // If durable tab storage is unavailable, do not risk submitting a request we cannot recover.
+  try {sessionStorage.setItem(ORDER_REGISTRATION_KEY,JSON.stringify(registration));}
+  catch {throw new Error("No pudimos conservar tu solicitud en este navegador. Permite el almacenamiento del sitio y vuelve a intentar; no se enviará un registro sin poder recuperarlo.");}
+  orderRegistration=registration;
+}
+function clearOrderRegistration() {
+  orderRegistration=null;
+  try {sessionStorage.removeItem(ORDER_REGISTRATION_KEY);}catch{}
+}
+function buildRegisteredMessage(data,registration) {
+  if(orderContentSignature(data)===orderContentSignature(registration.data)) return buildWhatsAppMessage(data,registration.id);
+  const proposed=buildWhatsAppMessage(data,registration.id)
+    .replace("Quiero solicitar este pedido", "Propongo estos datos para la solicitud existente")
+    .replace("La solicitud quedó registrada en la web. Falta enviarla por este chat y acordar su confirmación y el pago.", "Estos cambios aún no están aplicados al registro. Por favor confirmen por este chat si pueden realizarlos y el importe final.");
+  return "SOLICITUD DE CAMBIOS · Referencia " + registration.id + "\nNo es un pedido nuevo. El registro original permanece vigente hasta que AMARED confirme el cambio.\nTotal original de productos: $"+money(registration.data.subtotal)+"\n\n"+proposed;
+}
 function getStableDraftOrderId(data) {
+  const registered=readOrderRegistration();if(registered)return registered.id;
   const signature = JSON.stringify(data);
   try {
     const previous = JSON.parse(sessionStorage.getItem("AMARED_DRAFT_ID_V2") || "null");
@@ -656,7 +729,7 @@ function isValidMapsLink(link) {
 }
 
 function getCheckedLocationMethodValue(){
-  return document.querySelector('input[name="locMethod"]:checked')?.value || "whatsapp";
+  return document.querySelector('input[name="locMethod"]:checked')?.value || "";
 }
 
 function saveIndexMapsDraft(){
@@ -671,6 +744,9 @@ function saveIndexMapsDraft(){
       reason: "open_google_maps",
       scroll_y: window.scrollY || 0,
       location_method: getCheckedLocationMethodValue(),
+      fulfillment: document.querySelector('input[name="fulfillment"]:checked')?.value || "",
+      flow_view: window.amaredCheckout?.view || "catalog",
+      delivery_location_method: document.getElementById("deliveryFields")?.dataset.method || "",
       quantities,
       fields: {
         name: document.getElementById("name")?.value || "",
@@ -680,7 +756,9 @@ function saveIndexMapsDraft(){
         neighborhood: document.getElementById("neighborhood")?.value || "",
         maps: document.getElementById("maps")?.value || "",
         notes: document.getElementById("notes")?.value || "",
-        wa_opt_in: !!document.getElementById("waOptIn")?.checked
+        wa_opt_in: !!document.getElementById("waOptIn")?.checked,
+        pickup_payment_method: document.getElementById("pickupPaymentMethod")?.value || "",
+        delivery_address: document.getElementById("address")?.dataset.prevManualValue || ""
       }
     };
 
@@ -716,11 +794,19 @@ function restoreIndexMapsDraft(){
   setValue("neighborhood", fields.neighborhood);
   setValue("maps", fields.maps);
   setValue("notes", fields.notes);
+  const paymentSelect = document.getElementById("pickupPaymentMethod");
+  if(paymentSelect && fields.pickup_payment_method) paymentSelect.dataset.restoreValue=fields.pickup_payment_method;
+  const deliveryFields = document.getElementById("deliveryFields");
+  if(deliveryFields) deliveryFields.dataset.method = draft.delivery_location_method || "";
+  if(fields.delivery_address) document.getElementById("address").dataset.prevManualValue=fields.delivery_address;
 
   const waOpt = document.getElementById("waOptIn");
   if(waOpt) waOpt.checked = fields.wa_opt_in !== false;
 
-  const method = String(draft.location_method || "maps");
+  const method = String(draft.location_method || "");
+  const fulfillment = draft.fulfillment ?? (method === "pickup" ? "pickup" : method ? "delivery" : "");
+  document.querySelectorAll('input[name="fulfillment"]').forEach(input=>input.checked=input.value===fulfillment);
+  document.querySelectorAll('input[name="locMethod"]').forEach(input=>input.checked=false);
   const radio = Array.from(document.querySelectorAll('input[name="locMethod"]')).find(input => input.value === method);
   if(radio) radio.checked = true;
 
@@ -791,7 +877,7 @@ function syncTutorialButtonsUI(){
     if(!btn) return;
     const hasUrl = !!getTutorialUrl(type);
     btn.dataset.ready = hasUrl ? "1" : "0";
-    btn.setAttribute("aria-label", hasUrl ? "Ver tutorial" : "Tutorial próximamente");
+    btn.setAttribute("aria-label", hasUrl ? "Ver tutorial: " + getTutorialMeta(type).title : "Tutorial próximamente");
     btn.title = hasUrl ? "Ver tutorial" : "Configura la URL del video en app.js";
   });
   if(pickupVideoHint){
@@ -829,9 +915,7 @@ function openTutorial(type){
   tutorialModal.setAttribute("aria-hidden", "false");
   document.body.classList.add("tutorialModalOpen");
   try{ tutorialVideo.load(); }catch(_e){}
-  window.setTimeout(() => {
-    tutorialVideo.play?.().catch?.(() => {});
-  }, 80);
+  // Opening the optional guide never starts playback; the native controls belong to the customer.
 }
 
 function setAddressMode(mode){
@@ -844,7 +928,7 @@ function setAddressMode(mode){
     addressInput.dataset.prevManualValue = "";
   }
 
-  if(!addressInput.disabled && addressInput.value !== PICKUP_ADDRESS_TEXT){
+  if(!addressInput.disabled && addressInput.value !== PICKUP_ADDRESS_TEXT && getSelectedLocationMethod() !== "pickup"){
     addressInput.dataset.prevManualValue = addressInput.value || "";
   }
 
@@ -857,13 +941,14 @@ function setAddressMode(mode){
     if(addressLabel) addressLabel.innerHTML = 'Dirección <span class="req">*</span>';
     if(addressHint){
       addressHint.textContent = isWhatsApp
-        ? 'Escribe una dirección de referencia. En el chat te indicaremos cómo compartir la ubicación por WhatsApp si lo necesitas.'
+        ? 'En WhatsApp deberás enviar la ubicación desde el lugar donde recibirás el domicilio.'
         : 'Escribe la dirección donde deseas recibir tu pedido.';
       addressHint.classList.toggle("hidden", !isWhatsApp);
     }
     return;
   }
 
+  if(!addressInput.disabled && addressInput.value !== PICKUP_ADDRESS_TEXT) addressInput.dataset.prevManualValue=addressInput.value;
   addressInput.disabled = true;
   addressInput.value = PICKUP_ADDRESS_TEXT;
   addressInput.placeholder = PICKUP_ADDRESS_TEXT;
@@ -876,45 +961,31 @@ function setAddressMode(mode){
 
 function getSelectedLocationMethod() {
   const el = document.querySelector('input[name="locMethod"]:checked');
-  return el ? el.value : "whatsapp";
+  return el ? el.value : "";
 }
 
 function syncLocationUI() {
-  const method = getSelectedLocationMethod();
-  const showMaps = method === "maps";
-  const showWhatsApp = method === "whatsapp";
-  const showPickup = method === "pickup";
-
-  if (mapsBlock) mapsBlock.style.display = showMaps ? "" : "none";
-  if (waLocBlock) waLocBlock.style.display = showWhatsApp ? "" : "none";
-  if (pickupBlock) pickupBlock.classList.toggle("hidden", !showPickup);
-  if (neighborhoodField) neighborhoodField.classList.toggle("hidden", showPickup);
-  if (showPickup) hideNeighborhoodSuggestions();
-  if (neighborhoodInput) neighborhoodInput.required = !showPickup;
-  if (neighborhoodHint){
-    neighborhoodHint.textContent = showPickup
-      ? ""
-      : "Busca tu barrio en el listado. Si no aparece, puedes escribirlo manualmente para revisar la entrega.";
-  }
-
-  if(mapsInput && !showMaps){
-    if(mapsInput.value && !mapsInput.dataset.prevValue){
-      mapsInput.dataset.prevValue = mapsInput.value;
-    }
-    mapsInput.value = "";
-  }else if(mapsInput && showMaps && !mapsInput.value && mapsInput.dataset.prevValue){
-    mapsInput.value = mapsInput.dataset.prevValue;
-  }
-
-
-  const currentSubtotal = buildCartItems().reduce((a, b) => a + b.qty * b.price, 0);
-  syncPickupPricingUI(currentSubtotal, method);
-
-  if(waOptHint){
-    waOptHint.classList.toggle("hidden", !showPickup);
-  }
-
-  setAddressMode(method);
+  const fulfillment=document.querySelector('input[name="fulfillment"]:checked')?.value || "";
+  const method=getSelectedLocationMethod();
+  const delivery=fulfillment==="delivery", pickup=fulfillment==="pickup";
+  const showMaps=delivery && method==="maps", showWhatsApp=delivery && method==="whatsapp";
+  mapsBlock.style.display=showMaps ? "" : "none";
+  waLocBlock.style.display=showWhatsApp ? "" : "none";
+  pickupBlock.classList.toggle("hidden",!pickup);
+  const fields=document.getElementById("deliveryFields"); fields.hidden=!delivery;
+  if(delivery && ["maps","whatsapp"].includes(method)) fields.dataset.method=method;
+  if(!delivery) hideNeighborhoodSuggestions();
+  neighborhoodField.classList.toggle("hidden",!delivery);
+  neighborhoodInput.required=delivery;neighborhoodInput.disabled=!delivery;
+  mapsInput.required=showMaps;mapsInput.disabled=!showMaps;
+  // Keep manual address values intact while the other mode is hidden.
+  if(addressInput.disabled && delivery) addressInput.value=addressInput.dataset.prevManualValue || addressInput.value;
+  if(!addressInput.disabled) addressInput.dataset.prevManualValue=addressInput.value;
+  addressInput.disabled=!delivery;addressInput.required=delivery;
+  addressLabel.innerHTML='Dirección <span class="req">*</span>';
+  addressHint.classList.add("hidden");
+  syncPickupPricingUI(buildCartItems().reduce((a,b)=>a+b.qty*b.price,0),pickup?"pickup":method);
+  waOptHint?.classList.toggle("hidden",!pickup);
   syncTutorialButtonsUI();
 }
 
@@ -938,12 +1009,28 @@ function buildWhatsAppChatOnlyUrl(){
   return `https://wa.me/${WHATSAPP_NUMBER}`;
 }
 
-function openWhatsAppUrl(url){
-  if(isMobileUA()){
-    window.location.href = url;
-  }else{
-    window.open(url, "_blank", "noopener,noreferrer");
-  }
+
+function reserveWhatsAppWindow() {
+  if(isMobileUA()) return null;
+  try {
+    const popup = window.open("about:blank","_blank");
+    if(popup) {
+      popup.opener = null;
+      popup.document.title = "Preparando tu solicitud · AMARED";
+      popup.document.body.textContent = "Estamos registrando tu solicitud de AMARED. WhatsApp se abrirá cuando termine. Si esta ventana se cierra, podrás reintentar desde tu pedido.";
+      popup.document.body.style.cssText = "font:18px/1.6 system-ui;padding:32px;max-width:560px;margin:40px auto;color:#401202;background:#fff7f0";
+    }
+    return popup;
+  } catch { return null; }
+}
+function openWhatsAppUrl(url, reservedWindow = null) {
+  try {
+    if(reservedWindow && !reservedWindow.closed) { reservedWindow.location.replace(url); return true; }
+    if(isMobileUA()) { window.location.href=url; return true; }
+    const popup=window.open(url,"_blank");
+    if(popup) { popup.opener=null; return true; }
+  } catch {}
+  return false;
 }
 
 function openSocialUrl(url){
@@ -1758,6 +1845,7 @@ function getFormData() {
     subtotal,
     email,
     wa_opt_in,
+    payment_method: location_method==="pickup" ? document.getElementById("pickupPaymentMethod")?.value || "" : "coordinated_whatsapp",
   };
 }
 
@@ -1769,6 +1857,9 @@ function validate(data) {
   if (!/^(?:57)?3\d{9}$/.test(String(data.phone).replace(/\D/g,""))) return "Escribe un celular colombiano de 10 dígitos, por ejemplo 3001234567.";
   if (!isValidEmail(data.email)) return "El correo no parece válido. Revisa el formato (ej: correo@dominio.com).";
 
+  if(!document.querySelector('input[name="fulfillment"]:checked')) return "Elige domicilio o recogida presencial.";
+  if(!["pickup","whatsapp","maps"].includes(data.location_method)) return "Elige cómo compartirás tu ubicación: WhatsApp o Google Maps.";
+
   if ((data.location_method === "maps" || data.location_method === "whatsapp") && !data.address_text) return "Escribe tu dirección.";
   if ((data.location_method === "maps" || data.location_method === "whatsapp") && !data.neighborhood_text) return "Escribe el barrio o sector de entrega.";
 
@@ -1777,65 +1868,39 @@ function validate(data) {
     if (!isValidMapsLink(data.maps_link)) return "El link de Google Maps no parece válido. Usa Compartir → Copiar enlace, o selecciona “Enviar ubicación desde WhatsApp”.";
   }
 
+  if(data.location_method==="pickup" && !getPickupPaymentOptions(data.total_units).some(option=>option.value===data.payment_method)) return "Selecciona una alternativa de pago válida para tu recogida.";
   return null;
 }
 
 // =================== WHATSAPP MESSAGE ===================
+
 function buildWhatsAppMessage(data, orderId) {
-  const lines = [];
-  const pickupVideoUrl = getPickupVideoUrl();
-  const pickupPayment = getPickupPaymentBreakdown(data.subtotal);
-
-  lines.push(`Hola, mi nombre es ${data.customer_name} y mi número es ${data.phone}.`);
-  lines.push("");
-  lines.push(`Quiero hacer un pedido (Código: ${orderId}):`);
-
-  const messageItems = Array.isArray(data.display_items) && data.display_items.length ? data.display_items : data.items;
-  for (const it of messageItems) {
-    const suffix = String(it.id || "") === INAUGURAL_COMBO_ID ? " (incluye los 2 postres + detalle + domicilio gratis)" : "";
-    lines.push(`- ${it.name}: ${it.qty}${suffix}`);
+  const lines=["Hola, mi nombre es " + data.customer_name + " y mi número es " + data.phone + ".","","Quiero solicitar este pedido (Código: " + orderId + "):"];
+  const items=Array.isArray(data.display_items) && data.display_items.length ? data.display_items : data.items;
+  for(const item of items) {
+    const price=Number(item.price ?? item.unit_price ?? 0);
+    lines.push("- " + item.name + " x " + item.qty + " · $" + money(price) + " c/u · $" + money(price*item.qty));
   }
-
-  lines.push("");
-  lines.push(`Subtotal: $${money(data.subtotal)}`);
-
-  if (data.location_method === "pickup") {
-    lines.push(`Entrega: Recogida presencial.`);
-    lines.push(`Anticipo de reserva (40%): $${money(pickupPayment.reserve)}`);
-    lines.push(`Saldo restante al reclamar el pedido: $${money(pickupPayment.remaining)}`);
-    lines.push("");
-    lines.push(`Recogida: ${PICKUP_ADDRESS_TEXT}.`);
-    if (pickupVideoUrl) {
-      lines.push(`Guía de recogida presencial: ${pickupVideoUrl}`);
-    }
-  } else if (data.location_method === "maps") {
-    lines.push(hasInauguralCombo(data.display_items) ? `Domicilio incluido en el combo inaugural. (Se confirma por WhatsApp)` : `Domicilio: lo cubre el cliente. (Se debe confirmar mediante WhatsApp)`);
-    lines.push("");
-    lines.push(`Dirección: ${data.address_text}`);
-    if (data.neighborhood_text) lines.push(`Barrio/sector: ${data.neighborhood_text}`);
-    lines.push(`Ubicación (Google Maps): ${data.maps_link}`);
+  lines.push("", "Unidades: " + data.total_units, "Total de productos: $" + money(data.subtotal));
+  if(data.email) lines.push("Correo: " + data.email);
+  if(data.location_method==="pickup") {
+    const terms=getPickupPaymentTerms(data);
+    lines.push("", "Entrega: recogida presencial.", "Punto: Parque La Toscana.", "Horario: 4:30 p. m. a 5:00 p. m.", "Pago solicitado: " + terms.label + ".",terms.summary);
   } else {
-    lines.push(hasInauguralCombo(data.display_items) ? `Domicilio incluido en el combo inaugural. (Se confirma por WhatsApp)` : `Domicilio: lo cubre el cliente. (Se debe confirmar mediante WhatsApp)`);
-    lines.push("");
-    lines.push(`Dirección de referencia: ${data.address_text}`);
-    if (data.neighborhood_text) lines.push(`Barrio/sector: ${data.neighborhood_text}`);
-    lines.push(`Ubicación exacta: la compartiré por WhatsApp dentro del chat.`);
+    lines.push("", hasInauguralCombo(data.display_items) ? "Domicilio incluido en el combo inaugural; se confirma por WhatsApp." : "El domicilio lo cubre el cliente; valor y horario por confirmar en WhatsApp.", "Dirección: " + data.address_text, "Barrio/sector: " + data.neighborhood_text);
+    lines.push(data.location_method==="maps" ? "Ubicación (Google Maps): " + data.maps_link : "Ubicación exacta: la enviaré en el chat desde el lugar donde recibiré el domicilio.");
+    lines.push("Pago: por coordinar con AMARED antes de iniciar la elaboración.");
   }
-
-  if (data.notes) lines.push(`Nota: ${data.notes}`);
-
-  lines.push("");
-  lines.push("✅ Ya registré el pedido desde la web.");
-  if (data.location_method === "pickup") {
-    lines.push(`Para confirmar la recogida presencial, queda pendiente enviar el anticipo de reserva por $${money(pickupPayment.reserve)} por este chat.`);
-    lines.push(`El saldo restante de $${money(pickupPayment.remaining)} se paga al momento de reclamar tu pedido.`);
-  } else {
-    lines.push("Para iniciar la elaboración, queda pendiente confirmar el pago por este chat.");
-  }
-  lines.push("");
-  lines.push("Muchas gracias.");
-
+  if(data.notes) lines.push("", "Notas para mi pedido: " + data.notes);
+  lines.push("", "Avisos de este pedido por WhatsApp: " + (data.wa_opt_in ? "autorizados." : "no autorizados."), "", "La solicitud quedó registrada en la web. Falta enviarla por este chat y acordar su confirmación y el pago.", "Muchas gracias.");
   return lines.join("\n");
+}
+function buildOrderStorageNotes(data) {
+  if(data.location_method!=="pickup") return data.notes;
+  const extra="Recogida: Parque La Toscana, 4:30-5:00 p. m. " + getPickupPaymentTerms(data).summary;
+  const combined=[data.notes,extra].filter(Boolean).join("\n");
+  // Preserve all customer notes within the existing 500-character contract.
+  return combined.length<=500 ? combined : data.notes;
 }
 
 function buildWhatsAppFallbackMessage(data, orderId){
@@ -1850,7 +1915,7 @@ async function saveOrder(data) {
   const res = await window.amaredRequest(ORDER_API_URL, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ action: "create_order", ...data, promo_context: hasInauguralCombo(data.display_items) ? "combo_inaugural" : "" }),
+    body: JSON.stringify({ action: "create_order", ...data, notes:buildOrderStorageNotes(data), promo_context: hasInauguralCombo(data.display_items) ? "combo_inaugural" : "" }),
   });
 
   let out;
@@ -1872,36 +1937,43 @@ async function saveOrder(data) {
 }
 
 // =================== MODAL HELPERS ===================
-function showModal() {
-  modal.classList.remove("hidden");
-  modal.setAttribute("aria-hidden", "false");
-  syncIndexAdminMobileBar();
-}
 
-function hideModal() {
-  modal.classList.add("hidden");
-  modal.setAttribute("aria-hidden", "true");
-  syncIndexAdminMobileBar();
-}
+function showModal() { window.amaredCheckout?.review(); }
+function hideModal() { window.amaredCheckout?.data(); }
 
 function fillModal(data, orderId) {
-  // items list
-  const items = (Array.isArray(data.display_items) && data.display_items.length ? data.display_items : data.items) || [];
-  elModalItems.innerHTML = items.map(it => `
-    <div class="modalItem">
-      <div><b>${escapeHtml(it.name)}</b></div>
-      <div class="muted">x ${it.qty}</div>
-    </div>
-  `).join("");
-
-  elModalUnits.textContent = String(data.total_units || 0);
-  elModalSubtotal.textContent = money(data.subtotal || 0);
-  syncPickupPricingUI(data.subtotal || 0, data.location_method);
-
-  if(modalStatus){
-    modalStatus.style.display = "none";
-    modalStatus.textContent = "";
-  }
+  const items=data.display_items?.length ? data.display_items : data.items || [];
+  elModalItems.innerHTML=items.map(item=>'<div class="modalItem"><div><strong>' + escapeHtml(item.name) + '</strong><small>' + item.qty + (item.qty===1 ? ' unidad · $' : ' unidades · $') + money(item.price ?? item.unit_price) + ' c/u</small></div><strong>$' + money(item.qty*(item.price ?? item.unit_price)) + '</strong></div>').join("");
+  elModalUnits.textContent=String(data.total_units);
+  elModalSubtotal.textContent=money(data.subtotal);
+  syncPickupPricingUI(data.subtotal,data.location_method);
+  const fields=[["Nombre",data.customer_name],["Teléfono",data.phone]];
+  if(data.email) fields.push(["Correo",data.email]);
+  fields.push(["Entrega",data.location_method==="pickup" ? "Recogida presencial" : "Domicilio"]);
+  if(data.location_method==="pickup") fields.push(["Punto","Parque La Toscana"],["Horario","4:30 p. m. a 5:00 p. m."]);
+  else fields.push(["Dirección",data.address_text],["Barrio/sector",data.neighborhood_text],["Ubicación",data.location_method==="maps" ? data.maps_link : "La compartirás por WhatsApp."]);
+  fields.push(["Avisos por WhatsApp",data.wa_opt_in ? "Autorizados" : "No autorizados"]);
+  document.getElementById("modalCustomerSummary").innerHTML='<dl>' + fields.map(pair=>'<div><dt>' + escapeHtml(pair[0]) + '</dt><dd>' + escapeHtml(pair[1]) + '</dd></div>').join("") + '</dl>';
+  document.getElementById("reviewPaymentSummary").textContent=data.location_method==="pickup"
+    ? getPickupPaymentTerms(data).deposit ? "Pago: anticipo del 40 % y saldo al recoger." : getPickupPaymentTerms(data).summary
+    : "Domicilio y pago por confirmar en WhatsApp antes de preparar el pedido.";
+  const registered=readOrderRegistration();
+  const finalCopy=document.querySelector(".checkoutFinal>p");
+  if(finalCopy) finalCopy.textContent=registered?.confirmed
+    ? orderContentSignature(data)===orderContentSignature(registered.data)
+      ? "En el siguiente paso, abre WhatsApp y envía tu solicitud para confirmar el pedido y recibir las instrucciones de pago. Se conserva la misma referencia."
+      : "Prepararemos una solicitud de cambios con la misma referencia. El registro original seguirá vigente hasta que AMARED confirme los cambios por WhatsApp."
+    : registered
+      ? "Primero comprobaremos el registro anterior usando la misma referencia. Si has editado el pedido, los cambios se prepararán para acordarlos por WhatsApp."
+      : "En el siguiente paso, abre WhatsApp y envía tu solicitud para confirmar el pedido y recibir las instrucciones de pago.";
+  if(modalStatus) {modalStatus.hidden=true;modalStatus.style.display="none";modalStatus.textContent="";}
+}
+function prepareOrderReview(data) {
+  const orderId=getStableDraftOrderId(data);
+  data.order_id=orderId;
+  pending={orderId,data,messageNormal:buildWhatsAppMessage(data,orderId),messageFallback:buildWhatsAppFallbackMessage(data,orderId)};
+  fillModal(data,orderId);
+  return pending;
 }
 
 async function copyToClipboard(text) {
@@ -1937,8 +2009,11 @@ function resetAll() {
   const waOpt = document.getElementById("waOptIn");
   if (waOpt) waOpt.checked = true;
 
-  const rWhatsApp = document.querySelector('input[name="locMethod"][value="whatsapp"]');
-  if (rWhatsApp) rWhatsApp.checked = true;
+  const paymentSelect=document.getElementById("pickupPaymentMethod");
+  if(paymentSelect) {paymentSelect.value="";delete paymentSelect.dataset.restoreValue;}
+  document.querySelectorAll('input[name="locMethod"],input[name="fulfillment"]').forEach(radio=>radio.checked=false);
+  const deliveryFields=document.getElementById("deliveryFields");if(deliveryFields)delete deliveryFields.dataset.method;
+  clearOrderRegistration();
   if(addressInput){
     addressInput.disabled = false;
     addressInput.placeholder = "Ej: Calle 53, número 8-2, Ibagué, Tolima";
@@ -1978,6 +2053,11 @@ document.addEventListener("keydown", (event) => {
   }
 });
 
+document.getElementById("pickupPaymentCards")?.addEventListener("change",event=>{
+  if(event.target.name!=="pickupPayment")return;
+  document.getElementById("pickupPaymentMethod").value=event.target.value;
+  syncLocationUI();saveIndexMapsDraft();
+});
 document.querySelectorAll('input[name="locMethod"]').forEach(r => {
   r.addEventListener("change", syncLocationUI);
 });
@@ -2060,7 +2140,7 @@ alertOverlay?.addEventListener("click", (e) => {
 btnCloseModal?.addEventListener("click", hideModal);
 
 modal?.addEventListener("click", (e) => {
-  if (e.target === modal) hideModal();
+  if (!modal.hasAttribute("data-inline-checkout") && e.target === modal) hideModal();
 });
 
 
@@ -2089,64 +2169,64 @@ btnCopyMessage?.addEventListener("click", async () => {
 });
 
 
+
+function invalidCheckoutField(data) {
+  return !data.items.length ? "products" : !data.customer_name ? "name" : !/^(?:57)?3\d{9}$/.test(data.phone.replace(/\D/g,"")) ? "phone" : !isValidEmail(data.email) ? "email" : !document.querySelector('input[name="fulfillment"]:checked') ? "fulfillmentDelivery" : !data.location_method ? "locationWhatsApp" : data.location_method!=="pickup" && !data.address_text ? "address" : data.location_method!=="pickup" && !data.neighborhood_text ? "neighborhood" : data.location_method==="maps" && !isValidMapsLink(data.maps_link) ? "maps" : "pickupPaymentCards";
+}
 btnSendWhatsApp?.addEventListener("click", async () => {
-  if (!pending || btnSendWhatsApp.disabled) return;
-  btnSendWhatsApp.disabled = true;
-  btnCloseModal.disabled = true;
-  showLoading("Registrando tu pedido…", "Espera la confirmación. Conservaremos tu código si necesitas reintentar.", true);
-  try {
-    const orderId = await saveOrder(pending.data);
-    await completeLoadingSuccess(); hideModal();
-    clearIndexMapsDraft();
-    showOrderSuccess(pending.data, orderId || pending.orderId, pending.messageNormal);
-  } catch (error) {
-    hideLoading();
-    if (error.code === "PRICE_CHANGED") {
-      hideModal();
-      pending = null;
-      showCheckoutError("Los precios cambiaron. Actualizamos tu resumen; revísalo antes de volver a confirmar.");
-      return;
-    }
-    const box = document.getElementById("modalStatus");
-    box.style.display = "block"; box.setAttribute("role", "alert");
-    box.textContent = error.message;
-    // No WhatsApp success message is offered until the server confirms the save.
-  } finally {
-    btnSendWhatsApp.disabled = false; btnCloseModal.disabled = false;
+  if(btnSendWhatsApp.disabled) return;
+  const data=getFormData(), error=validate(data);
+  if(error) {showCheckoutError(error,invalidCheckoutField(data));return;}
+  if(!_catalogReady || _catalogLoading) {showCheckoutError("Espera mientras comprobamos los precios actualizados.");return;}
+  const priceSignature=value=>JSON.stringify({items:(value.display_items || value.items || []).map(item=>[item.id,item.qty,Number(item.price ?? item.unit_price)]),subtotal:value.subtotal,total_units:value.total_units});
+  if(pending && priceSignature(pending.data)!==priceSignature(data)) {
+    pending=null;
+    showCheckoutError("El catálogo se actualizó mientras revisabas. Comprueba el nuevo total y vuelve a revisar el pedido antes de continuar.");
+    return;
   }
+  const order=prepareOrderReview(data);
+
+  btnSendWhatsApp.disabled=true;
+  btnCloseModal.disabled=true;
+  window.amaredCheckout?.transition();
+  showLoading(readOrderRegistration()?.confirmed ? "Preparando tu mensaje…" : "Registrando tu solicitud…","Espera un momento. Conservaremos tu referencia si necesitas reintentar.",true);
+  try {
+    let registration=readOrderRegistration();
+    if(!registration) {
+      registration={id:order.orderId,data:JSON.parse(JSON.stringify(order.data)),confirmed:false,at:Date.now()};
+      persistOrderRegistration(registration);
+    }
+    if(!registration.confirmed) {
+      const responseId=await saveOrder(registration.data);
+      if(responseId) {registration.id=responseId;registration.data.order_id=responseId;}
+      registration.confirmed=true;persistOrderRegistration(registration);
+    }
+    await completeLoadingSuccess();
+    order.data.order_id=registration.id;
+    showOrderSuccess(order.data,registration.id,buildRegisteredMessage(order.data,registration),false,registration.data);
+  } catch(error) {
+    hideLoading();
+    if(error.code==="PRICE_CHANGED") {
+      if(!readOrderRegistration()?.confirmed) clearOrderRegistration();
+      pending=null;
+      showCheckoutError("Los precios cambiaron. Actualizamos tu resumen; revísalo antes de volver a continuar.");
+    } else {
+      window.amaredCheckout?.review();
+      const box=document.getElementById("modalStatus");
+      box.hidden=false;box.style.display="block";box.textContent=error.message;
+      box.tabIndex=-1;box.focus({preventScroll:true});box.scrollIntoView({block:"center"});
+    }
+  } finally {btnSendWhatsApp.disabled=false;btnCloseModal.disabled=false;}
 });
 
-
 btnWhatsApp?.addEventListener("click", () => {
-  elStatus.textContent = "";
+  elStatus.textContent="";
   hideAlert();
-
-  if(!_catalogReady || _catalogLoading){
-    showAlert("Estamos cargando el catálogo actualizado. Espera un momento e inténtalo de nuevo.");
-    return;
-  }
-
-  const data = getFormData();
-  const err = validate(data);
-  if (err) {
-    let field = !data.customer_name ? "name" : !/^(?:57)?3\d{9}$/.test(data.phone.replace(/\D/g,"")) ? "phone" : !isValidEmail(data.email) ? "email" : !data.address_text ? "address" : !data.neighborhood_text && data.location_method !== "pickup" ? "neighborhood" : "maps";
-    showCheckoutError(err, data.items.length ? field : "products");
-    return;
-  }
-
-  const orderId = getStableDraftOrderId(data);
-  data.order_id = orderId;
-
-  const messageNormal = buildWhatsAppMessage(data, orderId);
-  const messageFallback = buildWhatsAppFallbackMessage(data, orderId);
-
-  pending = { orderId, data, messageNormal, messageFallback };
-  initHelpUI();
-  enableHelpMessage(messageFallback, false);
-  fillModal(data, orderId);
-  document.getElementById("modalCustomerSummary").textContent = `${data.customer_name} · ${data.phone}\n${data.location_method === "pickup" ? "Recogida presencial" : data.address_text + " · " + data.neighborhood_text}\n${data.location_method === "pickup" ? "Anticipo del 40% para reservar. Saldo al recoger." : "Valor y horario del domicilio por confirmar en WhatsApp."}`;
-  document.getElementById("modalStatus").textContent = "";
-  showModal();
+  if(!_catalogReady || _catalogLoading) {showCheckoutError("Espera mientras cargamos el precio actualizado.");return;}
+  const data=getFormData(), error=validate(data);
+  if(error) {showCheckoutError(error,invalidCheckoutField(data));return;}
+  prepareOrderReview(data);
+  window.amaredCheckout?.review();
 });
 // =================== LANZAMIENTO + COMBO INAUGURAL ===================
 let _launchCountdownTimer = null;
@@ -2320,8 +2400,8 @@ function setLoadingProgress(value){
 
   const track = loadingBar?.parentElement;
   track?.setAttribute('aria-valuenow', String(_loadingProgress));
-  track?.setAttribute('aria-valuetext', _loadingProgress === 100 ? 'Pedido registrado' : `${_loadingProgress}% estimado; esperando confirmación`);
-  if(loadingStep) loadingStep.textContent = _loadingProgress === 100 ? "¡Pedido registrado!" : "Progreso estimado";
+  track?.setAttribute('aria-valuetext', _loadingProgress === 100 ? 'Solicitud registrada' : `${_loadingProgress}% estimado; esperando confirmación`);
+  if(loadingStep) loadingStep.textContent = _loadingProgress === 100 ? "Solicitud registrada" : "Progreso estimado";
 }
 
 function startLoadingProgressLoop(){
@@ -2386,8 +2466,8 @@ function showLoading(text="Procesando...", sub="", orderRegistration=false){
 
 async function completeLoadingSuccess(){
   clearInterval(_loadingTimer);
-  if(loadingText) loadingText.textContent = '¡Tu pedido quedó registrado!';
-  if(loadingSub) loadingSub.textContent = 'Ahora puedes confirmar el pago y la entrega por WhatsApp.';
+  if(loadingText) loadingText.textContent = 'Tu solicitud quedó registrada';
+  if(loadingSub) loadingSub.textContent = 'Continuaremos en WhatsApp para enviarla y acordar el pago.';
   await animateLoadingTo(100, matchMedia('(prefers-reduced-motion: reduce)').matches ? 1 : 350);
   await new Promise(resolve => setTimeout(resolve, 250));
   hideLoading();
@@ -2553,7 +2633,7 @@ function syncIndexAdminMobileBar(){
   if(!indexAdminMobileBar) return;
   const enabled = shouldUseIndexAdminView();
   const mobile = window.matchMedia("(max-width: 860px)").matches;
-  const blocked = !enabled || !mobile || document.body.classList.contains("is-loading") || !alertOverlay?.classList.contains("hidden") || !modal?.classList.contains("hidden") || !reviewModal?.classList.contains("hidden") || !adminReviewsModal?.classList.contains("hidden");
+  const blocked = !enabled || !mobile || document.body.classList.contains("is-loading") || !alertOverlay?.classList.contains("hidden") || (!modal?.hasAttribute("data-inline-checkout") && !modal?.classList.contains("hidden")) || !reviewModal?.classList.contains("hidden") || !adminReviewsModal?.classList.contains("hidden");
   indexAdminMobileBar.classList.toggle("hidden", blocked);
   indexAdminMobileBar.classList.toggle("isVisible", !blocked);
   if(btnIndexAdminBarHub){

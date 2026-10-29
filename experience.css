@@ -376,3 +376,523 @@ body.amaredV2{background:var(--cream);font-size:16px;line-height:1.55;color:var(
  .workspacePage.is-app.hasWorkspaceNav :is(#btnHeaderHub,#btnKitchenHub,#btnDeliveryHub,#btnCostsHub,#btnIndexAdminDesktopHub),
  .workspacePage.is-app.hasWorkspaceNav #btnBack[aria-label="Inicio"]{display:none!important}
 }
+
+/* Public purchase flow, October 2026. Existing catalog and administration are preserved. */
+.storefront .purchaseJourney{display:grid;grid-template-columns:3fr 2fr;position:relative;gap:0;padding:24px 0;margin:0 0 32px;border-block:1px solid var(--border)}
+.purchaseJourney ol{list-style:none;margin:0;padding:0;display:flex;position:relative;min-width:0}
+.purchaseJourney .journeyStep{flex:1;min-width:0;display:flex;flex-direction:column;align-items:center;text-align:center;padding:0 10px;position:relative;gap:6px}
+.purchaseJourney::before{content:'';position:absolute;left:10%;right:10%;top:43px;height:2px;background:var(--border)}
+.journeyActiveSteps::after{content:'';position:absolute;left:16.666%;top:18px;width:calc(var(--journey-progress,0%) * .66667);height:2px;background:#a83565;transition:width .24s ease}
+.purchaseJourney .journeyMarker{display:flex;align-items:center;justify-content:center;gap:5px;border:1px solid #d8c5b7;background:var(--cream);border-radius:20px;min-height:38px;padding:6px 9px;position:relative;z-index:1;color:var(--ink-muted)}
+.journeyMarker>span{font-size:12px;font-weight:900}
+.purchaseJourney .journeyStep strong{font-size:14px;line-height:1.35;font-weight:800;margin-top:3px}
+.purchaseJourney .journeyStep small{font-size:12px;line-height:1.45;color:var(--ink-muted)}
+.journeyState{font-size:11px;line-height:1.3;font-weight:800;color:#923451;min-height:15px}
+.journeyStep.is-active .journeyMarker{border-color:#a83565;background:#fae1eb;color:#7c234a;animation:journeyEmphasis .24s ease-out}
+.journeyStep.is-active strong{color:#8f2855}
+.journeyStep.is-complete .journeyMarker{background:#f6eee7;border-color:#98624a;color:var(--choco)}
+.journeyStep.is-informative .journeyMarker{border-style:dashed}
+.journeyStep.is-informative{color:var(--ink-muted)}
+@keyframes journeyEmphasis{from{transform:scale(.94)}to{transform:scale(1)}}
+.storefront.is-checkout .atelierHero,.storefront.is-checkout .layoutPremium,.storefront.is-checkout .socialStrip,.storefront.is-checkout #opiniones{display:none!important}
+.storefront.is-checkout .mobileCartDock{display:none!important}
+.storefront.is-checkout .purchaseJourney{margin-top:24px}
+.storefront .checkoutFlow{max-width:1100px;margin:0 auto 40px}
+.checkoutFlowHead{margin:0 0 24px}
+.checkoutFlowHead>#btnBackCatalog{margin-bottom:22px}
+.checkoutFlowHead .sectionKicker{margin:0 0 8px}
+.checkoutFlowHead .cardTitle{font-size:34px;line-height:1.2;margin:0}
+.checkoutSubsteps{display:flex;list-style:none;padding:0;margin:22px 0 0;gap:22px;flex-wrap:wrap}
+.checkoutSubsteps li{display:flex;gap:9px;align-items:center;font-size:14px;font-weight:700;color:var(--ink-muted)}
+.checkoutSubsteps li span{width:28px;height:28px;display:grid;place-items:center;background:#f3e9e0;border-radius:50%}
+.checkoutSubsteps li.is-current{color:#8f2855;font-weight:900}
+.checkoutSubsteps li.is-current span{background:#fae1eb;border:1px solid #c17190}
+.checkoutSubsteps li.is-done span{border:1px solid #ad8570}
+.checkoutStepLabel{font-size:13px;color:var(--ink-muted);margin:12px 0 0}
+.storefront .checkoutFlow .card{background:var(--paper);border:1px solid var(--border);border-radius:16px;padding:26px;box-shadow:none}
+.storefront .checkoutDataStep{max-width:780px;margin-inline:auto}
+.storefront .checkoutDataStep .formGrid2{grid-template-columns:1fr 1fr}
+.checkoutFlow .form{display:flex;flex-direction:column;gap:22px}
+.checkoutFlow fieldset{border:0;padding:0;margin:0;min-inline-size:0}
+.checkoutFlow legend{font-family:var(--font-display);font-size:22px;line-height:1.3;font-weight:700;margin-bottom:14px;padding:0}
+.fulfillmentTiles{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.checkoutFlow .deliveryTile{margin:0;padding:15px;min-height:60px}
+.checkoutFlow .deliveryTileCopy strong{font-size:16px}
+.checkoutFlow .deliveryTileCopy small{font-size:14px;line-height:1.5}
+.deliveryFields{display:grid;gap:18px}
+.checkoutFlow .deliveryTiles{gap:10px}
+.checkoutFlow .tutorialHelper{font-size:13px}
+.checkoutFlow .waLocCopy{font-size:14px;line-height:1.55}
+.checkoutFlow .tileDetail{padding:8px 12px 12px;border-left:2px solid #e9d5c5;margin-left:9px}
+.checkoutFlow .deliveryConditions{font-size:14px;line-height:1.55;padding:12px 15px;border-radius:10px;background:#faf0e7;margin:0;color:var(--ink-muted)}
+.checkoutFlow .pickupBox{border-radius:12px;background:#fff5ed;border:1px solid var(--border);padding:20px}
+.checkoutFlow .pickupTitle{font-family:var(--font-display);font-size:23px;line-height:1.2;margin:0 0 8px}
+.checkoutFlow .pickupBox>p{font-size:15px;margin:0 0 20px;line-height:1.55}
+.checkoutFlow .pickupBox .pickupTermsCopy{margin:14px 0;font-size:15px;font-weight:600}
+.checkoutFlow .pickupPaymentPreview{display:grid;gap:8px;font-size:14px;padding:14px;border-radius:10px;background:var(--paper)}
+.checkoutFlow .pickupPaymentPreview>div,.checkoutFlow .modalPickupBreakdown>div{display:flex;justify-content:space-between;gap:12px}
+.checkoutFlow .optionalTutorial{margin-top:18px;font-size:14px}
+.checkoutFlow .optionalTutorial summary{cursor:pointer;min-height:44px;display:flex;align-items:center;font-weight:800}
+.checkoutFlow .checkRow{font-size:14px;line-height:1.6}
+.checkoutDataActions{display:flex;align-items:center;gap:18px;justify-content:space-between}
+.checkoutDataActions .btnOrderMain{width:auto;margin:0}
+.checkoutDataTotal{font-size:18px;font-weight:800;white-space:nowrap}
+.checkoutReviewGrid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:20px}
+.checkoutReviewGrid .reviewProducts{grid-row:span 2}
+.reviewSectionHead{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:18px}
+.reviewSectionHead h3{font-size:24px;margin:0;line-height:1.2}
+.reviewSectionHead .btn{font-size:13px;padding:9px 12px;white-space:nowrap}
+.checkoutFlow .modalItems{display:grid;gap:10px}
+.checkoutFlow .modalItem{display:flex;gap:16px;justify-content:space-between;align-items:center;border:1px solid var(--border);background:#fffaf6;border-radius:10px;padding:14px;line-height:1.45}
+.checkoutFlow .modalItem>div{min-width:0}
+.checkoutFlow .modalItem>strong{white-space:nowrap;font-size:16px}
+.checkoutFlow .modalItem small{display:block;color:var(--ink-muted);margin-top:5px;font-size:14px}
+.reviewTotal{border-top:1px solid var(--border);margin-top:20px;padding-top:18px;display:flex;align-items:center;justify-content:space-between;gap:12px;font-size:15px}
+.reviewTotal>strong{font-family:var(--font-display);font-size:27px;white-space:nowrap}
+.checkoutFlow .modalCustomerSummary{border:0;margin:0;padding:0;white-space:normal;font-size:15px}
+.checkoutFlow .modalCustomerSummary dl{margin:0;display:grid;gap:12px}
+.checkoutFlow .modalCustomerSummary dl>div{display:grid;grid-template-columns:110px minmax(0,1fr);gap:14px}
+.checkoutFlow .modalCustomerSummary dt{color:var(--ink-muted)}
+.checkoutFlow .modalCustomerSummary dd{margin:0;font-weight:700;overflow-wrap:anywhere}
+.reviewPaymentSummary{margin-top:20px;padding-top:15px;border-top:1px solid var(--border);font-size:15px;line-height:1.55}
+.checkoutFlow .modalPickupBreakdown{font-size:14px;display:grid;gap:8px;margin-top:12px;padding:14px;background:#faf0e7;border-radius:10px}
+.reviewNotes .textarea{width:100%;margin-top:10px}
+.checkoutFinal{border:1px solid #e8cbd4;background:#fff4f7;border-radius:14px;padding:24px;margin-top:22px}
+.checkoutFinal>p{font-size:16px;line-height:1.6;margin:0 0 20px}
+.checkoutFinalActions{display:flex;align-items:center;justify-content:space-between;gap:15px}
+.checkoutFlow .orderSuccess{margin:0 auto;max-width:620px}
+.orderSuccess .receiptEditActions{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.orderSuccess .receiptEditHint{font-size:13px}
+.orderSuccess .handoffStatus{font-size:15px;line-height:1.6}
+.orderSuccess .successCode{font-size:15px}
+.orderSuccess .textarea{width:100%;margin-top:15px}
+.storefront.is-index-admin-view #checkoutFlow{display:none!important}
+@media(max-width:860px){
+ .storefront .purchaseJourney{grid-template-columns:1fr;padding:18px 0;gap:18px;margin-bottom:24px}
+ .purchaseJourney::before{left:16.666%;right:16.666%;top:36px}
+ .journeyLaterSteps{border-top:1px solid var(--border);padding-top:14px!important}
+ .journeyLaterSteps::before{content:'';position:absolute;left:25%;right:25%;top:32px;height:2px;background:var(--border)}
+ .purchaseJourney .journeyStep{padding:0 5px;gap:4px}
+ .purchaseJourney .journeyStep strong{font-size:13px}
+ .purchaseJourney .journeyStep small{font-size:12px}
+ .journeyState{font-size:11px}
+ .checkoutReviewGrid{grid-template-columns:1fr}
+ .checkoutReviewGrid .reviewProducts{grid-row:auto}
+ .checkoutFlow .reviewNotes{padding:20px}
+ .checkoutFlow .form{gap:20px}
+}
+@media(max-width:560px){
+ .storefront .checkoutFlow .card{padding:20px}
+ .checkoutFlowHead .cardTitle{font-size:28px}
+ .checkoutFlowHead>#btnBackCatalog{margin-bottom:18px}
+ .checkoutFlow .formGrid2,.fulfillmentTiles{grid-template-columns:1fr!important}
+ .checkoutDataActions,.checkoutFinalActions{flex-direction:column;align-items:stretch}
+ .checkoutDataActions .btn,.checkoutFinalActions .btn{width:100%}
+ .checkoutDataActions .checkoutDataTotal{text-align:center}
+ .checkoutFlow .pickupBox{padding:16px}
+ .checkoutFlow .modalCustomerSummary dl>div{grid-template-columns:1fr;gap:2px}
+ .reviewSectionHead h3{font-size:23px}
+ .checkoutFinal{padding:20px}
+ .checkoutSubsteps{gap:12px}
+ .checkoutSubsteps li{font-size:13px;gap:6px}
+ .checkoutSubsteps li span{width:25px;height:25px}
+ .checkoutFlow .modalItem{padding:12px;gap:10px}
+ .checkoutFlow .modalItem small{font-size:13px}
+ .checkoutFlow .modalItem>strong{font-size:15px}
+ .orderSuccess .receiptEditActions{grid-template-columns:1fr}
+}
+@media(prefers-reduced-motion:reduce){
+ .journeyActiveSteps::after{transition:none}
+ .journeyStep.is-active .journeyMarker{animation:none}
+}
+
+
+.storefront .skipLink:not(:focus){opacity:0;pointer-events:none}
+@media(max-width:560px){
+ .checkoutFlow .reviewSectionHead{flex-wrap:wrap;gap:12px}
+ .checkoutFlow .reviewSectionHead h3{flex:1 1 150px}
+ .checkoutFlow .reviewSectionHead .btn{flex:0 0 auto;width:auto}
+}
+
+.storefront .checkoutFlow .btn{-webkit-tap-highlight-color:transparent}
+@media(min-width:861px){
+ .checkoutReviewGrid .reviewProducts{grid-row:auto}
+ .checkoutReviewGrid .reviewDetails{grid-column:2;grid-row:span 2}
+ .checkoutReviewGrid .reviewNotes{grid-column:1}
+}
+
+/* UX iteration: public checkout only. Administrative layout remains unchanged. */
+.storefront:not(.is-index-admin-view) #pedido .checkoutFinePrint{margin:18px 0 0;line-height:1.6;font-size:14px;max-width:34em}
+.storefront.is-checkout .topbar{position:static}
+.storefront.is-checkout .storeNav,.storefront.is-checkout .purchaseJourney{display:none!important}
+.storefront .checkoutHeaderLabel{font-size:13px;color:var(--ink-muted);font-weight:700;text-align:right}
+.storefront .checkoutHeaderLabel[hidden]{display:none}
+.storefront .checkoutFlow{padding-top:24px}
+.checkoutProgress{display:flex;align-items:center;gap:22px;padding:15px 22px;border:1px solid var(--border);background:#fffaf6;border-radius:14px;margin:0 auto 30px;font-size:14px;box-shadow:0 3px 16px #40110206;max-width:1100px;z-index:90}
+.compactCurrent{display:flex;align-items:center;gap:12px}
+.compactCurrent>span{display:grid;place-items:center;width:36px;height:36px;flex:none;border-radius:50%;background:#f8d9e5;color:#802548;font-weight:900;border:1px solid #c6839b}
+.checkoutProgress small{display:block;font-size:10px;font-weight:800;letter-spacing:.1em;color:var(--ink-muted);margin-bottom:3px}
+.checkoutProgress strong{font-size:14px;line-height:1.35}
+.compactConnector{color:#ae7d86;font-size:22px}
+.compactNext{color:var(--ink-muted)}
+.compactStage{margin-left:auto;color:var(--ink-muted);font-size:13px}
+.checkoutFlowHead{text-align:center;margin-bottom:28px}
+.checkoutFlowHead .cardTitle{font-size:32px}
+.checkoutSubsteps{justify-content:center;gap:24px;margin:20px 0 0}
+.checkoutStepLabel{margin-top:10px;font-size:14px}
+.checkoutFlow .fulfillmentTiles,.checkoutFlow .locationTiles{display:grid;grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:12px}
+.checkoutFlow .optionCard{position:relative;display:flex;align-items:flex-start;flex-wrap:wrap;column-gap:10px;row-gap:10px;min-width:0;padding:18px;border:1px solid #d8c4b6;background:#fffdfb;border-radius:12px;cursor:pointer;color:var(--choco);transition:background .15s,border-color .15s}
+.checkoutFlow .optionCard input{position:absolute;top:18px;right:16px;width:18px;height:18px;accent-color:#963354;margin:0}
+.checkoutFlow .optionCard .choiceIcon{color:#8c5c46;flex:none;width:25px;height:25px;margin-right:24px}
+.checkoutFlow .optionCard .deliveryTileCopy{flex:1 1 100%;min-width:0}
+.checkoutFlow .optionCard:has(input:checked){border-color:#a94b6c;background:#fff1f5;box-shadow:0 0 0 1px #a94b6c}
+.checkoutFlow .optionCard:has(input:focus-visible){outline:3px solid #8c3454;outline-offset:3px}
+.checkoutFlow .optionCard strong{display:block;font-size:16px;line-height:1.4;font-weight:800}
+.checkoutFlow .optionCard small{display:block;margin-top:4px;font-size:13px;line-height:1.5;color:#795446;font-weight:600}
+.checkoutFlow .optionCard:hover{border-color:#ac7383}
+.checkoutFlow .tileDetail{border-left:0;margin:16px 0 0;padding:16px;background:#faf3ed;border:1px solid var(--border);border-radius:12px}
+.checkoutFlow .tileDetail .waLocCopy{margin:0 0 16px;font-size:15px;line-height:1.6}
+.checkoutFlow .mapsRow{margin-top:8px}
+.checkoutFlow .pickupBox{padding:20px;background:#fffaf6}
+.pickupFacts{display:grid;grid-template-columns:1fr 1fr;gap:20px;padding-bottom:22px;margin-bottom:22px;border-bottom:1px solid var(--border)}
+.pickupFacts>div{display:flex;gap:12px;align-items:center}
+.pickupFacts svg{flex:none;color:#925145}
+.pickupFacts small{display:block;font-size:10px;letter-spacing:.07em;font-weight:800;color:var(--ink-muted);margin-bottom:5px}
+.pickupFacts strong{font-size:16px;line-height:1.4;display:block}
+.checkoutFlow .pickupFacts .pickupTitle{font:800 17px/1.4 var(--font-body);margin:0}
+.checkoutFlow .paymentOptions legend{display:flex;align-items:center;gap:8px;font-family:var(--font-body);font-size:17px;font-weight:800;margin-bottom:14px}
+.checkoutFlow .paymentOptions legend svg{width:20px;height:20px}
+.paymentTiles{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.checkoutFlow .paymentCard{padding:15px 36px 15px 14px;align-items:center}
+.checkoutFlow .paymentCard strong{font-size:14px}
+.checkoutFlow .paymentCard input{right:12px;top:16px}
+.checkoutFlow .paymentCard small{font-size:12px}
+.checkoutFlow .pickupBox .pickupTermsCopy{font-size:14px;line-height:1.55;margin:16px 0}
+.checkoutFlow .pickupPaymentPreview{font-size:14px;padding:14px}
+.tutorialPreview{display:flex;align-items:center;gap:14px;width:100%;padding:10px;background:#fffdfb;color:var(--choco);border:1px solid var(--border);border-radius:11px;cursor:pointer;text-align:left;font-family:var(--font-body)}
+.tutorialThumb{display:grid;place-items:center;position:relative;width:86px;height:58px;border-radius:8px;background:#f5e3d6;flex:none;color:#7c4939;overflow:hidden}
+.tutorialThumb>.choiceIcon{width:30px;height:30px;transform:translateX(-9px);opacity:.65}
+.tutorialPlay{display:grid;place-items:center;position:absolute;right:10px;bottom:12px;width:27px;height:27px;border-radius:50%;background:#552312;color:#fff;font-size:10px;padding-left:2px;box-shadow:0 2px 8px #40110220}
+.tutorialPreview>span:nth-child(2){flex:1;min-width:0}
+.tutorialPreview strong{display:block;font-size:14px;line-height:1.4}
+.tutorialPreview small{display:block;font-size:12px;color:var(--ink-muted);margin-top:4px}
+.tutorialArrow{font-size:20px;padding-right:4px;color:#9b5667}
+#pickupVideoHint .tutorialPreview{margin-top:18px}
+.checkoutFlow .checkoutDataTotal{font-size:16px;text-align:center;padding-top:4px}
+.checkoutDataActions,.checkoutFinalActions{display:grid;grid-template-columns:minmax(95px,1fr) minmax(150px,2fr);gap:14px;align-items:stretch;margin-top:0}
+.checkoutDataActions .btn,.checkoutFinalActions .btn{width:100%;min-height:48px;margin:0;font-size:16px}
+.checkoutFinal{max-width:1100px;padding:22px}
+.checkoutFinal>p{font-size:15px;line-height:1.6}
+.checkoutFinalActions{max-width:728px;margin-inline:auto}
+.checkoutFlow .orderSuccess{max-width:700px;padding:32px}
+.receiptHeading{text-align:center}
+.receiptHeading .eyebrow{font-size:11px;margin:14px 0 10px;letter-spacing:.12em}
+.receiptIcon{display:grid;place-items:center;width:48px;height:48px;margin:auto;border:1px solid #e6b3c5;border-radius:16px;background:#fce7ef;color:#8d2f53;font-size:27px}
+.orderSuccess .receiptHeading h2{font-size:32px}
+.orderSuccess .receiptHeading>p:last-child{font-size:16px;line-height:1.6;margin:0 0 24px}
+.receiptReference{padding:16px;border:1px solid var(--border);border-radius:12px;background:#faf3ed}
+.receiptReference>small{font-size:10px;letter-spacing:.07em;font-weight:800;color:var(--ink-muted)}
+.orderSuccess .receiptReference .successCode{font-size:17px;line-height:1.5;margin:5px 0;font-weight:900}
+.orderSuccess .receiptReferenceHint{font-size:13px;line-height:1.5;margin:0}
+.receiptSummary{margin:22px 0 24px}
+.receiptSummary h3{font-size:21px;margin:0 0 12px}
+.receiptSummary>div{display:flex;justify-content:space-between;gap:16px;font-size:15px;line-height:1.5;margin-top:10px}
+.receiptSummary>div strong{white-space:nowrap}
+.receiptSummary small{font-size:13px;white-space:nowrap;color:var(--ink-muted)}
+.receiptSummary .receiptTotal{padding-top:12px;border-top:1px solid var(--border);margin-top:14px;font-weight:800}
+.receiptTotal strong{font-size:20px}
+.orderSuccess .openPreparedOrder{display:flex;justify-content:center;align-items:center;gap:10px;min-height:54px;font-size:16px;padding:14px 18px;line-height:1.5}
+.orderSuccess .handoffStatus{margin:12px 0 20px;text-align:center;font-size:14px;line-height:1.5}
+.orderSuccess .copyOrder{min-height:46px;font-size:15px}
+.orderSuccess .copyHint,.orderSuccess .receiptEditHint{font-size:13px;line-height:1.55;margin:10px 0 20px}
+.orderSuccess .receiptEditActions{display:grid;grid-template-columns:1fr 1fr;gap:12px;padding-top:20px;border-top:1px solid var(--border)}
+.orderSuccess .receiptEditActions .btn{font-size:14px;padding:10px;min-height:44px;margin:0}
+.receiptFooter{display:flex;justify-content:space-between;align-items:center;gap:16px}
+.orderSuccess .receiptFooter .btn{margin:0;width:auto;font-size:14px;min-height:44px}
+.receiptOpinions{border:0;background:none;color:#8a3556;text-decoration:underline;text-underline-offset:3px;font:700 14px var(--font-body);min-height:44px;cursor:pointer}
+.orderSuccess .receiptDisclaimer{font-size:12px;line-height:1.5;margin:20px 0 0;color:var(--ink-muted)}
+.orderSuccess .amendmentNotice{padding:15px;background:#fff0d9;color:#713b14;border:1px solid #efc38c;border-radius:10px;line-height:1.6;font-size:14px}
+.storefront:not(.is-index-admin-view) .purchaseJourney{grid-template-columns:3fr 2fr;padding:24px 0 22px;gap:0;isolation:isolate}
+.storefront:not(.is-index-admin-view) .purchaseJourney::before{left:10%;right:10%;top:43px}
+.storefront:not(.is-index-admin-view) .journeyLaterSteps{border:0;padding:0!important}
+.storefront:not(.is-index-admin-view) .journeyLaterSteps::before{display:none}
+.storefront:not(.is-index-admin-view) .purchaseJourney .journeyMarker{width:48px;height:38px;min-height:38px;padding:5px;border-radius:20px;transform:scale(.88);transition:transform .2s,background .2s,border-color .2s;box-shadow:none;animation:none}
+.storefront:not(.is-index-admin-view) .journeyMarker svg{width:19px;height:19px}
+.storefront:not(.is-index-admin-view) .journeyStep:is(.is-active,.is-complete) .journeyMarker{transform:scale(1);background:#f8dce7;border-color:#aa5576;color:#802548}
+.storefront:not(.is-index-admin-view) .journeyStep.is-active .journeyMarker{box-shadow:0 0 0 4px #f7e4ec,0 4px 12px #9b3e6024}
+.storefront:not(.is-index-admin-view) .journeyStep.is-complete strong{color:#802548}
+.storefront:not(.is-index-admin-view) .purchaseJourney.is-demo::after{content:'';height:2px;position:absolute;left:10%;top:43px;width:calc(var(--demo-progress,0%) * .8);background:#a83565;transition:width .38s ease;z-index:0}
+.storefront:not(.is-index-admin-view) .purchaseJourney .is-demo-lit .journeyMarker{transform:scale(1);background:#f8dce7;border-color:#aa5576;color:#802548}
+#journeyDemoLabel{position:absolute;bottom:0;left:0;right:0;text-align:center;font-size:10px;margin:0;color:var(--ink-muted);line-height:1.5}
+.storefront:not(.is-index-admin-view) .mobileCartSummary{border:0;background:none;font:inherit;text-align:left;padding:0;color:var(--choco);min-width:82px;cursor:pointer;min-height:48px}
+.storefront #mobileContinueOrder{font-size:14px;line-height:1.35;padding:12px 15px;min-height:48px;flex:1;max-width:320px;white-space:normal}
+@media(min-width:861px){.checkoutProgress{position:sticky;top:12px}.checkoutFinalActions{grid-template-columns:minmax(95px,1fr) minmax(150px,2fr)}}
+@media(max-width:860px){
+ .storefront:not(.is-index-admin-view) .purchaseJourney .journeyStep{padding:0 4px}
+ .storefront:not(.is-index-admin-view) .purchaseJourney .journeyStep strong{font-size:12px;line-height:1.4}
+ .storefront:not(.is-index-admin-view) .purchaseJourney .journeyStep small{display:none}
+ .storefront:not(.is-index-admin-view) .journeyState{font-size:10px}
+ .checkoutProgress{position:static;gap:12px;padding:14px;margin-bottom:24px}
+ .compactStage{display:none}
+ .checkoutProgress strong{font-size:13px}
+ .compactCurrent{gap:9px;flex:1;min-width:0}
+ .compactNext{flex:1;min-width:0}
+ .compactCurrent>span{width:30px;height:30px}
+ .compactConnector{font-size:18px}
+ .storefront.is-checkout{padding-bottom:0}
+ .storefront:not(.is-index-admin-view) .mobileCartDock{padding:10px 14px calc(10px + env(safe-area-inset-bottom));gap:12px}
+ .storefront:not(.is-index-admin-view) .mobileCartSummary small{font-size:12px;line-height:1.4}
+ .storefront:not(.is-index-admin-view) .mobileCartSummary strong{font-size:22px}
+}
+@media(max-width:560px){
+ .storefront .checkoutFlow{padding-top:16px}
+ .storefront .checkoutFlow .card{padding:20px 16px}
+ .checkoutFlowHead .cardTitle{font-size:28px}
+ .checkoutSubsteps{gap:16px;flex-wrap:nowrap}
+ .checkoutSubsteps li{font-size:12px;line-height:1.4;text-align:left}
+ .checkoutSubsteps li span{flex:none}
+ .checkoutFlow .optionCard{padding:14px 12px}
+ .checkoutFlow .optionCard input{top:14px;right:12px}
+ .checkoutFlow .optionCard strong{font-size:15px;line-height:1.35}
+ .checkoutFlow .optionCard small{font-size:12px;line-height:1.5}
+ .checkoutFlow .formGrid2{grid-template-columns:1fr}
+ .checkoutFlow .deliveryTileCopy{min-width:0}
+ .checkoutFlow .pickupBox{padding:16px 12px}
+ .pickupFacts{grid-template-columns:1fr;gap:16px}
+ .checkoutFlow .paymentTiles{grid-template-columns:1fr}
+ .checkoutFlow .paymentCard{padding:14px 40px 14px 14px;min-height:76px}
+ .checkoutFlow .paymentCard strong{font-size:15px}
+ .checkoutFlow .tileDetail{padding:14px 12px}
+ .tutorialThumb{width:70px;height:54px}
+ .tutorialPreview{gap:10px;padding:8px}
+ .tutorialPreview strong{font-size:13px}
+ .tutorialPreview small{font-size:11px}
+ .tutorialArrow{display:none}
+ .checkoutFlow .mapsRow{display:flex;flex-direction:column;align-items:stretch;gap:10px}
+ .checkoutFlow .mapsRow .input{min-width:0}
+ .checkoutDataActions,.checkoutFinalActions{gap:10px;grid-template-columns:minmax(80px,1fr) minmax(125px,1.7fr)}
+ .checkoutDataActions .btn,.checkoutFinalActions .btn{padding:12px 14px;font-size:15px}
+ .checkoutFinal{padding:20px 16px}
+ .checkoutFlow .orderSuccess{padding:24px 18px}
+ .orderSuccess .receiptHeading h2{font-size:28px}
+ .orderSuccess .receiptHeading>p:last-child{font-size:15px}
+ .orderSuccess .receiptReference .successCode{font-size:15px}
+ .receiptSummary>div{font-size:14px;gap:10px}
+ .orderSuccess .openPreparedOrder{font-size:15px}
+ .receiptFooter{gap:10px}
+ .orderSuccess .receiptFooter .btn{font-size:13px;padding:10px}
+ .storefront .checkoutHeaderLabel{max-width:120px;font-size:12px}
+}
+@media(prefers-reduced-motion:reduce){
+ .storefront:not(.is-index-admin-view) .purchaseJourney .journeyMarker,.storefront:not(.is-index-admin-view) .purchaseJourney::after,.checkoutFlow .optionCard{transition:none!important;animation:none!important}
+}
+
+.checkoutFlow .deliveryTile.optionCard{display:grid;grid-template-columns:1fr;grid-template-rows:28px auto;align-content:start}
+.checkoutFlow .deliveryTile.optionCard .deliveryTileCopy{min-width:0}
+.checkoutFlow .deliveryTile.optionCard strong{min-height:2.8em}
+.orderSuccess .handoffStatus:empty{display:none}
+@media(min-width:861px){
+ html:has(body.storefront.is-checkout){scroll-padding-top:110px}
+ .checkoutFlow .field,.checkoutFlow .optionCard{scroll-margin-top:110px}
+}
+/* Keep suggestions inside the form so delivery choices remain reachable. */
+.storefront.is-checkout .neighborhoodSuggest{position:static;width:100%;max-height:220px;margin-top:8px;box-shadow:none}
+.checkoutFlow .optionCard{transform:none!important}
+.checkoutFlow .paymentOptions legend{max-width:100%;white-space:normal}
+@media(max-width:360px){.checkoutFlow .paymentOptions legend{font-size:15px;gap:6px}}
+
+/* Responsive progress V2: one state and one SVG source, two presentations. */
+.storefront:not(.is-index-admin-view) .responsiveJourney{max-width:1100px;margin:0 auto 28px;position:relative}
+.storefront:not(.is-index-admin-view) .responsiveJourney>.purchaseJourney{display:grid!important;width:100%;margin:0;padding:22px 8px 20px;box-sizing:border-box}
+.storefront:not(.is-index-admin-view) .responsiveJourney>.purchaseJourney::before{top:41px}
+.storefront:not(.is-index-admin-view) .responsiveJourney>.purchaseJourney.is-demo::after{top:41px}
+.storefront:not(.is-index-admin-view) .responsiveJourney .journeyStep strong{font-size:14px;line-height:1.35}
+.storefront.is-checkout .responsiveJourney{position:sticky;top:12px;background:#fffaf6;border:1px solid var(--border);border-radius:16px;z-index:90;box-shadow:0 5px 20px #40110208;margin-bottom:28px}
+.storefront.is-checkout .responsiveJourney>.purchaseJourney{border:0;margin-top:0}
+.mobileJourney{display:none}
+.storefront.is-index-admin-view .responsiveJourney{display:none!important}
+.storefront:not(.is-index-admin-view) #btnContinueOrder{width:100%;display:flex;align-items:center;justify-content:center;gap:10px;box-sizing:border-box;min-height:50px;text-align:center;margin-top:18px;padding:13px 16px}
+.storefront:not(.is-index-admin-view) #pedido .checkoutFinePrint{margin:17px 0 0;text-align:center;max-width:none}
+@media(min-width:861px){
+ html:has(body.storefront.is-checkout){scroll-padding-top:190px}
+ .checkoutFlow .field,.checkoutFlow .optionCard{scroll-margin-top:190px}
+}
+@media(min-width:861px) and (max-height:650px){.storefront.is-checkout .responsiveJourney{position:static}}
+@media(max-width:860px){
+ .storefront:not(.is-index-admin-view) .responsiveJourney{border:0;background:none;box-shadow:none;position:static;margin-bottom:24px}
+ .mobileJourney{display:block}
+ .compactViewport{overflow:hidden;border:1px solid var(--border);border-radius:15px;background:#fffaf6;padding:0;isolation:isolate}
+ .compactTrack{display:grid;grid-auto-flow:column;grid-auto-columns:calc((100% - 12px)/2);gap:12px;align-items:stretch;width:100%;transition:transform .36s cubic-bezier(.22,.68,.15,1);will-change:auto}
+ .compactJourneyCard{box-sizing:border-box;min-width:0;display:flex;align-items:center;gap:10px;padding:16px 10px;min-height:100px;background:#fffaf6;transition:background .28s,color .28s}
+ .compactJourneyCard .journeyMarker{display:flex;flex:none;justify-content:center;align-items:center;gap:3px;width:40px;height:34px;box-sizing:border-box;padding:4px;border-radius:18px;border:1px solid #ddcbbd;background:#fffaf6;color:#896f60;transform:scale(.92);transition:transform .28s,background .28s,border-color .28s}
+ .compactJourneyCard .journeyMarker svg{width:18px;height:18px;flex:none}
+ .compactJourneyCard .journeyMarker>span{font-size:10px}
+ .compactJourneyCopy{min-width:0}
+ .compactJourneyCopy strong{font-size:13px;line-height:1.4;display:block;overflow-wrap:normal;font-weight:800}
+ .compactJourneyLabel{display:block;font-size:10px;line-height:1.5;font-weight:800;color:#855e50;margin-bottom:4px}
+ .compactJourneyCard.is-current{background:#fff1f5;color:#802548}
+ .compactJourneyCard.is-current .journeyMarker,.compactJourneyCard.is-complete .journeyMarker{background:#f8dce7;border-color:#aa5576;color:#802548;transform:scale(1)}
+ .compactJourneyCard.is-current .journeyMarker{box-shadow:0 0 0 3px #f6e3eb}
+ .compactJourneyCard.is-informative .journeyMarker{border-style:dashed}
+ .journeyOverviewButton{display:flex;justify-content:center;align-items:center;gap:8px;margin:5px auto 0;border:0;background:none;color:#805443;font:700 12px var(--font-body);min-height:40px;cursor:pointer;padding:8px 12px;text-decoration:underline;text-underline-offset:3px}
+ .journeyOverviewButton span{font-size:16px;transition:transform .2s}
+ .journeyOverviewButton[aria-expanded=true] span{transform:rotate(180deg)}
+ .storefront:not(.is-index-admin-view) .responsiveJourney>.purchaseJourney{display:none!important}
+ .storefront:not(.is-index-admin-view) .responsiveJourney.is-expanded>.purchaseJourney{display:grid!important;background:#fffaf6;border:1px solid var(--border);border-radius:12px;padding:20px 2px 24px;margin-top:6px}
+ .storefront:not(.is-index-admin-view) .responsiveJourney .journeyStep strong{font-size:11px;line-height:1.4}
+ .storefront:not(.is-index-admin-view) .responsiveJourney .journeyStep{padding:0 2px}
+ .storefront:not(.is-index-admin-view) .responsiveJourney .journeyState{font-size:10px}
+ .storefront:not(.is-index-admin-view) .responsiveJourney>.purchaseJourney::before,.storefront:not(.is-index-admin-view) .responsiveJourney>.purchaseJourney.is-demo::after{top:39px}
+ .storefront:not(.is-index-admin-view) .productMediaWrap{position:relative;aspect-ratio:4/3;height:auto;min-height:0;flex:none}
+ .storefront:not(.is-index-admin-view) .productMediaWrap .productImg{position:absolute;inset:0;display:block;width:100%;height:100%;min-height:0;max-height:none;aspect-ratio:auto;object-fit:cover;object-position:50% 50%;transform:none}
+ .storefront:not(.is-index-admin-view) .atelierHeroPhoto{height:auto;aspect-ratio:4/3}
+ .storefront:not(.is-index-admin-view) .atelierHeroPhoto>.heroSlide{object-fit:cover;object-position:50% 50%}
+}
+@media(max-width:360px){
+ .compactJourneyCard{gap:7px;padding:14px 9px;flex-direction:column;align-items:flex-start;min-height:128px}
+ .compactJourneyCopy strong{font-size:13px}
+}
+/* Receipt: reference, WhatsApp, fallback, back; other actions have a separate section. */
+.checkoutFlow .orderSuccess{max-width:700px;padding:30px}
+.orderSuccess .receiptHeading .eyebrow{margin:0 0 10px}
+.orderSuccess .receiptHeading>p:last-child{font-size:15px;margin-bottom:22px}
+.orderSuccess .receiptReference{text-align:center;padding:22px 18px;background:#fff0f5;border-color:#e3b4c5}
+.orderSuccess .receiptReference small{font-size:11px;letter-spacing:.1em;color:#87405b}
+.orderSuccess .receiptReference .successCode{font-family:var(--font-display);font-size:30px;line-height:1.3;margin:10px 0 0;letter-spacing:.015em;color:#6b1d3d;font-weight:800;overflow-wrap:anywhere}
+.orderSuccess .receiptSummary{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:18px 0 22px;padding:0 2px;font-size:15px;color:var(--ink-muted)}
+.orderSuccess .receiptSummary[hidden]{display:none}
+.orderSuccess .receiptSummary>strong{color:var(--choco);font-size:20px;white-space:nowrap}
+.orderSuccess .openPreparedOrder{margin-top:0;min-height:54px;font-size:16px}
+.orderSuccess .handoffStatus{font-size:14px;margin:12px 0 0}
+.receiptCopyFallback{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:10px 18px;margin-top:24px;padding:18px 0;border-block:1px solid var(--border)}
+.receiptCopyFallback h3{font-family:var(--font-body);font-size:15px;line-height:1.5;margin:0 0 4px;font-weight:800}
+.orderSuccess .receiptCopyFallback p{font-size:13px;line-height:1.55;margin:0}
+.orderSuccess .receiptCopyFallback .copyOrder{width:auto;margin:0;padding:10px 14px;font-size:14px;min-height:46px}
+.receiptCopyFallback .successCopied,.receiptCopyFallback .textarea{grid-column:1/-1}
+.receiptCopyFallback .successCopied:empty{display:none}
+.orderSuccess .receiptBack{width:auto;min-width:125px;min-height:46px;padding:11px 20px;margin-top:22px;font-size:15px}
+.orderNextActions{max-width:700px;margin:28px auto 0;padding:24px;border:1px solid var(--border);border-radius:16px;background:#faf0e7}
+.orderNextActions h3{font-size:22px;line-height:1.3;margin:0 0 16px}
+.afterOrderGrid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.afterOrderAction{display:flex;align-items:center;gap:12px;min-width:0;min-height:94px;text-align:left;padding:16px;border:1px solid #ddc8b9;border-radius:12px;background:#fffdfb;color:var(--choco);font-family:var(--font-body);cursor:pointer;text-decoration:none}
+.afterOrderAction>span:nth-child(2){flex:1;min-width:0}
+.afterOrderAction strong{display:block;font-size:14px;font-weight:800;line-height:1.4}
+.afterOrderAction small{display:block;font-size:12px;line-height:1.5;color:#805d4d;margin-top:5px}
+.afterOrderIcon{display:grid;place-items:center;width:32px;height:34px;border-radius:9px;background:#f5e6d9;color:#8c4b33;flex:none}
+.afterOrderIcon svg{width:21px;height:21px}
+.afterOrderAction:hover{border-color:#ac6980;background:#fff7fa}
+@media(max-width:560px){
+ .checkoutFlow .orderSuccess{padding:24px 18px}
+ .orderSuccess .receiptReference{padding:20px 12px}
+ .orderSuccess .receiptReference .successCode{font-size:24px;line-height:1.35}
+ .orderSuccess .receiptReference small{font-size:10px}
+ .orderSuccess .receiptSummary{font-size:14px;margin:16px 0 20px}
+ .orderSuccess .receiptSummary>strong{font-size:19px}
+ .orderSuccess .openPreparedOrder{font-size:15px;padding:13px 14px}
+ .receiptCopyFallback{grid-template-columns:1fr;gap:12px;padding:18px 0;margin-top:22px}
+ .orderSuccess .receiptCopyFallback .copyOrder{width:100%;font-size:14px}
+ .orderSuccess .receiptBack{margin-top:20px;min-width:115px}
+ .orderNextActions{padding:22px 18px;margin-top:24px}
+ .afterOrderGrid{grid-template-columns:1fr}
+ .afterOrderAction{min-height:82px;padding:14px;font-size:14px}
+}
+@media(prefers-reduced-motion:reduce){
+ .compactTrack,.compactJourneyCard,.compactJourneyCard .journeyMarker,.journeyOverviewButton span{transition:none!important;animation:none!important}
+}
+/* UI/resources · 2026-10-28. Public store only; existing admin styles stay intact. */
+.storefront:not(.is-index-admin-view) .atelierHeroPhoto{height:auto;min-height:0;aspect-ratio:1672/941;border-radius:44px 16px 44px 16px}
+.storefront:not(.is-index-admin-view) .atelierHeroPhoto>.heroSlide{width:100%;height:100%;object-fit:cover;object-position:center}
+.storefront.is-checkout .teamAccess[hidden]{display:none!important}
+.storefront:not(.is-index-admin-view) .journeyMarker{position:relative}
+.storefront:not(.is-index-admin-view) .journeyCompletion{display:none;position:absolute;right:-4px;bottom:-5px;width:16px;height:16px;align-items:center;justify-content:center;border-radius:50%;background:#802548;color:white;font:800 11px/1 var(--font-body);border:2px solid #fffaf6}
+.storefront:not(.is-index-admin-view) :is(.journeyStep,.compactJourneyCard).is-complete .journeyCompletion{display:flex}
+.storefront:not(.is-index-admin-view) .journeyStep.is-active .journeyMarker::after,.storefront:not(.is-index-admin-view) .compactJourneyCard.is-current .journeyMarker::after{content:'';position:absolute;bottom:-10px;left:30%;right:30%;height:3px;border-radius:3px;background:currentColor}
+.storefront .checkoutReviewGrid>.reviewProducts,.storefront .checkoutReviewGrid>.reviewDetails{container-type:inline-size;container-name:review-card}
+.storefront .checkoutFlow .reviewSectionHead{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:12px;flex-wrap:nowrap;min-height:44px}
+.storefront .checkoutFlow .reviewSectionHead h3{font-size:1.5rem;min-width:0;overflow-wrap:normal;line-height:1.3}
+.storefront .checkoutFlow .reviewSectionHead .reviewEdit{display:inline-flex;align-items:center;justify-content:center;gap:7px;min-width:44px;min-height:44px;box-sizing:border-box;margin:0;padding:10px 12px;font-size:.875rem;line-height:1.4;white-space:nowrap}
+.reviewEdit svg{width:20px;height:20px;flex:none}
+.storefront .reviewEdit:focus-visible,.storefront .tutorialPreview:focus-visible{outline:3px solid #9a345c;outline-offset:4px}
+@container review-card (max-width:27rem){
+ .storefront .checkoutFlow .reviewSectionHead .reviewEdit{width:44px;padding:10px}
+ .reviewEdit .reviewEditLabel{display:none}
+}
+.storefront .checkoutFlow .tutorialPreview{display:flex;flex-direction:column;align-items:stretch;gap:0;width:100%;max-width:400px;padding:0;margin:16px 0 0;border-radius:12px;overflow:hidden}
+.storefront .checkoutFlow .tutorialThumb{display:block;position:relative;width:100%;height:auto;aspect-ratio:1672/941;border-radius:0;background:#fff5eb;flex:none;overflow:hidden}
+.storefront .checkoutFlow .tutorialThumb>img{display:block;width:100%;height:100%;object-fit:contain;object-position:center}
+.storefront .checkoutFlow .tutorialPreviewCaption{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:12px 14px}
+.storefront .checkoutFlow .tutorialPreviewCaption>span:first-child{min-width:0}
+.storefront .checkoutFlow .tutorialPreviewCaption strong{font-size:.9375rem;line-height:1.45}
+.storefront .checkoutFlow .tutorialPreviewCaption small{font-size:.8125rem;line-height:1.4;margin-top:4px}
+.storefront .checkoutFlow .tutorialPlay{position:static;transform:none;flex:none;width:36px;height:36px;font-size:12px;box-sizing:border-box;padding-left:2px}
+.storefront #pickupTermsCopy[hidden]{display:none!important}
+@media(max-width:860px){
+ .storefront:not(.is-index-admin-view) .responsiveJourney{display:flex;flex-direction:column;margin-bottom:24px;position:static}
+ .storefront:not(.is-index-admin-view) .responsiveJourney>.purchaseJourney{display:grid!important;order:0;grid-template-columns:3fr 2fr;border:1px solid var(--border);border-radius:14px;background:#fffaf6;padding:20px 2px 24px;margin:0;gap:0}
+ .storefront:not(.is-index-admin-view) .responsiveJourney:not(.is-expanded) .journeyStep>strong,.storefront:not(.is-index-admin-view) .responsiveJourney:not(.is-expanded) .journeyStep>small,.storefront:not(.is-index-admin-view) .responsiveJourney:not(.is-expanded) .journeyStep>.journeyState{display:none}
+ .storefront:not(.is-index-admin-view) .responsiveJourney .journeyStep{padding:0;gap:0}
+ .storefront:not(.is-index-admin-view) .responsiveJourney>.purchaseJourney::before,.storefront:not(.is-index-admin-view) .responsiveJourney>.purchaseJourney.is-demo::after{top:39px}
+ .storefront:not(.is-index-admin-view) .responsiveJourney .mobileJourney{display:block;order:1}
+ .storefront:not(.is-index-admin-view):not(.is-checkout) .compactViewport{display:none}
+ .storefront.is-checkout:not(.is-index-admin-view) .responsiveJourney:not(.is-expanded)>.purchaseJourney{display:none!important}
+ .storefront:not(.is-index-admin-view) .responsiveJourney.is-expanded .compactViewport{display:none}
+ .storefront:not(.is-index-admin-view) .compactViewport{padding:18px 0 21px;overflow:visible}
+ .storefront:not(.is-index-admin-view) .compactTrack{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));grid-auto-columns:auto;gap:0;transform:none!important;transition:none;position:relative}
+ .storefront:not(.is-index-admin-view) .compactTrack::before,.storefront:not(.is-index-admin-view) .compactTrack::after{content:'';position:absolute;left:10%;top:19px;height:2px;z-index:0}
+ .storefront:not(.is-index-admin-view) .compactTrack::before{right:10%;background:var(--border)}
+ .storefront:not(.is-index-admin-view) .compactTrack::after{width:calc(var(--compact-progress,0%) * .8);background:#a83565;transition:width .3s ease}
+ .storefront:not(.is-index-admin-view) .compactJourneyCard{display:flex;justify-content:center;align-items:center;flex-direction:row;min-height:38px;padding:0;gap:0;background:none;position:relative}
+ .storefront:not(.is-index-admin-view) .compactJourneyCard .journeyMarker{width:48px;height:38px;min-height:38px;padding:5px;gap:5px;border-radius:20px;background:#fffaf6;transform:scale(.88);z-index:1}
+ .storefront:not(.is-index-admin-view) .compactJourneyCard .journeyMarker>span:first-child{font-size:12px;font-weight:800}
+ .storefront:not(.is-index-admin-view) .compactJourneyCard .journeyMarker svg{width:19px;height:19px}
+ .storefront:not(.is-index-admin-view) .compactJourneyCard:is(.is-current,.is-complete) .journeyMarker{transform:scale(1);background:#f8dce7;border-color:#aa5576;color:#802548}
+ .storefront:not(.is-index-admin-view) .compactJourneyCard.is-current .journeyMarker{box-shadow:0 0 0 4px #f7e4ec}
+ .compactStatus{text-align:center;font-size:.875rem;line-height:1.5;font-weight:800;color:#802548;margin:14px 0 2px}
+ .journeyOverviewButton{margin:0 auto;min-height:44px;font-size:.875rem}
+ .storefront:not(.is-index-admin-view) .responsiveJourney.is-expanded>.purchaseJourney{display:grid!important;grid-template-columns:1fr;padding:18px 16px;gap:16px}
+ .storefront:not(.is-index-admin-view) .responsiveJourney.is-expanded>.purchaseJourney::before,.storefront:not(.is-index-admin-view) .responsiveJourney.is-expanded>.purchaseJourney::after,.storefront:not(.is-index-admin-view) .responsiveJourney.is-expanded .journeyActiveSteps::after{display:none}
+ .storefront:not(.is-index-admin-view) .responsiveJourney.is-expanded ol{display:flex;flex-direction:column;gap:16px}
+ .storefront:not(.is-index-admin-view) .responsiveJourney.is-expanded .journeyStep{display:grid;grid-template-columns:48px minmax(0,1fr);text-align:left;column-gap:14px;row-gap:3px;align-items:center}
+ .storefront:not(.is-index-admin-view) .responsiveJourney.is-expanded .journeyMarker{grid-column:1;grid-row:1/span 3}
+ .storefront:not(.is-index-admin-view) .responsiveJourney.is-expanded .journeyStep>strong{font-size:.9375rem;line-height:1.4;margin:0}
+ .storefront:not(.is-index-admin-view) .responsiveJourney.is-expanded .journeyStep>small{display:block;font-size:.8125rem;line-height:1.5}
+ .storefront:not(.is-index-admin-view) .responsiveJourney.is-expanded .journeyStep>.journeyState{font-size:.75rem}
+ .storefront:not(.is-index-admin-view) .responsiveJourney.is-expanded .journeyStep>:not(.journeyMarker){grid-column:2}
+}
+@media(prefers-reduced-motion:reduce){.storefront:not(.is-index-admin-view) .compactTrack::after{transition:none}}
+
+/* Manual confirmation remains in WhatsApp, including payment on collection. */
+.storefront .checkoutFlow .pickupConfirmationNotice{display:flex;align-items:flex-start;gap:10px;margin:16px 0 0;padding:13px 0 2px;border-top:1px solid var(--border);color:var(--choco)}
+.storefront .checkoutFlow .pickupConfirmationNotice[hidden]{display:none!important}
+.storefront .pickupConfirmationNotice>svg{flex:none;margin-top:1px;color:#983459}
+.storefront .pickupConfirmationNotice strong{display:block;font-size:.9375rem;font-weight:800;line-height:1.4}
+.storefront .pickupConfirmationNotice p{margin:5px 0 0;font-size:.875rem;line-height:1.55;color:var(--ink-muted)}
+
+/* Incremental journey motion: decoration is independent of verified checkout state. */
+.storefront:not(.is-index-admin-view) .journeyMotionControls{display:flex;align-items:center;justify-content:center;gap:12px;min-height:44px;padding:4px 8px;color:var(--ink-muted);font-size:.8125rem;order:2}
+.storefront .journeyMotionControls[hidden],.storefront .journeyMotionControls button[hidden],.storefront .floatingJourney[hidden]{display:none!important}
+.storefront .journeyMotionControls button{font:800 .8125rem/1.4 var(--font-body);border:1px solid var(--border);border-radius:20px;padding:9px 13px;min-height:44px;color:#802548;background:#fffaf6;cursor:pointer}
+.storefront .journeyMotionControls button:focus-visible{outline:3px solid #983459;outline-offset:3px}
+.storefront:not(.is-index-admin-view) .purchaseJourney.is-demo::after{display:none}
+.storefront:not(.is-index-admin-view) :is(.purchaseJourney,.compactTrack) .is-demo-lit .journeyMarker{outline:2px solid #b28750;outline-offset:4px;transform:scale(1)}
+.storefront:not(.is-index-admin-view) .purchaseJourney .is-demo-lit:not(.is-active):not(.is-complete) .journeyMarker{background:#fff2dc;border-color:#bda075;color:#755226}
+.storefront:not(.is-index-admin-view) :is(.purchaseJourney,.compactTrack) .is-pending-wave .journeyMarker{outline:2px solid #ba965e;outline-offset:5px;box-shadow:0 0 0 7px #c6a36c18}
+.journeyMotionRail{display:block;position:absolute;left:var(--motion-x);top:var(--motion-y);width:var(--motion-length);height:2px;pointer-events:none;z-index:0}
+.journeyMotionLine{display:block;width:100%;height:100%;background:#b28750;transform-origin:left center;transform:scaleX(var(--motion-fraction,0));transition:transform .65s ease,opacity .3s}
+.pendingRail{left:calc(var(--motion-x) + var(--pending-offset));width:calc(var(--motion-length) - var(--pending-offset))}
+.pendingRail .journeyMotionLine{background:repeating-linear-gradient(90deg,#b69b6a 0 4px,transparent 4px 8px);opacity:.8}
+.journeyVerticalLine{display:none}
+.floatingJourney{display:none}
+@media(max-width:860px){
+ .storefront:not(.is-index-admin-view) .responsiveJourney.is-expanded .journeyVerticalLine{display:block;position:absolute;pointer-events:none;left:var(--motion-x);top:var(--motion-y);height:var(--motion-length);width:2px;background:var(--border);z-index:0}
+ .storefront .motionVertical .journeyMotionRail{width:2px;height:var(--motion-length)}
+ .storefront .motionVertical .journeyMotionLine{transform-origin:center top;transform:scaleY(var(--motion-fraction,0))}
+ .storefront .motionVertical .pendingRail{left:var(--motion-x);top:calc(var(--motion-y) + var(--pending-offset));height:calc(var(--motion-length) - var(--pending-offset))}
+ .storefront .motionVertical .pendingRail .journeyMotionLine{background:repeating-linear-gradient(180deg,#b69b6a 0 4px,transparent 4px 8px)}
+ .storefront .floatingJourney{display:block;position:fixed;top:0;left:0;right:0;z-index:95;padding:calc(10px + env(safe-area-inset-top)) 16px 14px;background:#fffaf6;border-bottom:1px solid var(--border);box-shadow:0 3px 16px #4011020a;pointer-events:none}
+ .storefront .floatingJourney .compactTrack{max-width:540px;margin:auto}
+ .storefront.hasFloatingJourney .topbar{z-index:94}
+ .storefront :is(input,textarea,select,button,a,[tabindex]){scroll-margin-top:90px}
+ .storefront .journeyMotionControls{flex-wrap:wrap;gap:4px 12px;font-size:.75rem}
+}
+@media(prefers-reduced-motion:reduce){.storefront .journeyMotionLine{transition:none}}
